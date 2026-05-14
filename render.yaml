@@ -10,11 +10,9 @@ services:
         value: production
       - key: ADMIN_PIN
         sync: false
-      - key: DATA_DIR
-        value: /opt/render/project/src/data
       - key: UPLOADS_DIR
-        value: /opt/render/project/src/data/uploads
+        value: /data/uploads
     disk:
       name: gameshow-data
-      mountPath: /opt/render/project/src/data
+      mountPath: /data
       sizeGB: 1

@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
 
-const DATA_DIR = process.env.DATA_DIR || __dirname;
+const DATA_DIR = fs.existsSync('/data') ? '/data' : __dirname;
 const DB_PATH = path.join(DATA_DIR, 'games.db');
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 const DEFAULT_GAME_ID = 'default';
