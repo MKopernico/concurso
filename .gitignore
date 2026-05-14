@@ -1,0 +1,9 @@
+node_modules/
+db/games.db
+db/games.db-wal
+db/games.db-shm
+uploads/images/*
+uploads/audio/*
+!uploads/images/.gitkeep
+!uploads/audio/.gitkeep
+.env

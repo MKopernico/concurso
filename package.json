@@ -1,0 +1,16 @@
+{
+  "name": "concurso-tv-app",
+  "version": "1.1.0",
+  "description": "Plataforma de concursos interactivos en tiempo real (GameShow)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.10.0",
+    "express": "^4.21.0",
+    "multer": "^2.1.1",
+    "socket.io": "^4.7.5"
+  }
+}

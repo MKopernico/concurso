@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GameShow · Backoffice</title>
+<style>
+:root { --bg: #121217; --surface: #1c1c24; --surface2: #25252f; --border: #33333d; --text: #e4e4e7; --text2: #9898a6; --accent: #00d4ff; --accent-dim: #00a3c7; --danger: #ef4444; --success: #22c55e; --gold: #facc15; --radius: 10px; }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* Layout */
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
+header h1 { font-size: 18px; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
+#breadcrumb { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text2); flex-wrap: wrap; }
+#breadcrumb a { color: var(--accent); text-decoration: none; cursor: pointer; }
+#breadcrumb a:hover { text-decoration: underline; }
+#breadcrumb .sep { color: var(--border); }
+main { max-width: 1000px; margin: 0 auto; padding: 24px; }
+
+/* Screens */
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* Generic */
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+.toolbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+button, .btn { cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; border: none; border-radius: 6px; padding: 8px 16px; transition: .15s; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--accent); color: #000; }
+.btn-primary:hover { background: var(--accent-dim); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { opacity: .85; }
+.btn-success { background: var(--success); color: #000; }
+.btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--text2); color: var(--text); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-icon { padding: 6px 8px; font-size: 14px; background: transparent; color: var(--text2); border: 1px solid var(--border); border-radius: 6px; }
+.btn-icon:hover { border-color: var(--text2); color: var(--text); }
+
+input, select, textarea { font-family: inherit; font-size: 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; width: 100%; outline: none; transition: border .15s; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+textarea { resize: vertical; min-height: 70px; }
+label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; display: block; margin-bottom: 4px; }
+.field { margin-bottom: 14px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.badge-draft { background: #334155; color: #94a3b8; }
+.badge-published { background: #14532d; color: #4ade80; }
+.badge-archived { background: #422006; color: #fb923c; }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; transition: border .15s; }
+.card:hover { border-color: #444; }
+.card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.card-title { font-size: 16px; font-weight: 600; flex: 1; cursor: pointer; }
+.card-title:hover { color: var(--accent); }
+.card-meta { font-size: 12px; color: var(--text2); display: flex; gap: 14px; flex-wrap: wrap; }
+.card-actions { display: flex; gap: 5px; }
+
+/* Empty state */
+.empty { text-align: center; padding: 60px 20px; color: var(--text2); }
+.empty h3 { margin-bottom: 8px; color: var(--text); }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 200; justify-content: center; align-items: flex-start; padding: 40px 16px; overflow-y: auto; }
+.modal-overlay.active { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 100%; max-width: 600px; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.modal h2 { font-size: 18px; margin-bottom: 20px; color: var(--accent); }
+.modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+/* Toast */
+#toast { position: fixed; bottom: 24px; right: 24px; z-index: 500; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast-msg { background: var(--surface2); border: 1px solid var(--border); padding: 12px 20px; border-radius: 8px; font-size: 13px; opacity: 0; transform: translateY(10px); animation: toastIn .3s forwards; pointer-events: auto; }
+.toast-msg.out { animation: toastOut .3s forwards; }
+@keyframes toastIn { to { opacity: 1; transform: translateY(0); } }
+@keyframes toastOut { to { opacity: 0; transform: translateY(-10px); } }
+
+/* Question type colors */
+.type-badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 700; text-transform: uppercase; }
+.type-multirespuesta { background: #312e81; color: #a5b4fc; }
+.type-pulsador { background: #7f1d1d; color: #fca5a5; }
+.type-precio { background: #713f12; color: #fde68a; }
+.type-imagen { background: #064e3b; color: #6ee7b7; }
+.type-cancion { background: #581c87; color: #d8b4fe; }
+.type-boom { background: #9a3412; color: #fdba74; }
+.type-ruleta { background: #1e3a5f; color: #7dd3fc; }
+.type-imagen_fija { background: #365314; color: #bef264; }
+
+/* Sortable highlight */
+.sort-handle { cursor: grab; color: var(--text2); user-select: none; }
+.sort-handle:hover { color: var(--text); }
+
+/* Dynamic options list */
+.option-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.option-row input[type="text"] { flex: 1; }
+.option-row input[type="checkbox"] { width: auto; accent-color: var(--accent); }
+
+/* Filter tabs */
+.filter-tabs { display: flex; gap: 2px; background: var(--surface); border-radius: 8px; padding: 3px; border: 1px solid var(--border); }
+.filter-tab { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--text2); background: transparent; cursor: pointer; border: none; }
+.filter-tab.active { background: var(--accent); color: #000; }
+
+/* Theme / upload helpers */
+.upload-row { display: flex; gap: 10px; align-items: center; }
+.upload-row input[type="text"] { flex: 1; }
+.upload-row .btn-upload { flex-shrink: 0; }
+.img-preview { width: 80px; height: 80px; border-radius: 8px; border: 1px solid var(--border); object-fit: cover; flex-shrink: 0; cursor: pointer; }
+.img-preview.empty { display: flex; align-items: center; justify-content: center; background: var(--surface2); color: var(--text2); font-size: 24px; }
+.color-row { display: flex; gap: 10px; align-items: center; }
+.color-row input[type="color"] { width: 42px; height: 36px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; padding: 2px; }
+.color-row input[type="text"] { flex: 1; }
+.section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.bg-type-row { display: flex; gap: 6px; margin-bottom: 10px; }
+.bg-type-btn { padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text2); }
+.bg-type-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+    <h1>GameShow</h1>
+    <div id="breadcrumb"></div>
+</header>
+<main>
+    <!-- ============ SCREEN: Games List ============ -->
+    <div id="screen-games" class="screen active">
+        <div class="toolbar">
+            <button class="btn-primary" onclick="openGameModal()">+ Nuevo juego</button>
+            <div class="toolbar-right">
+                <div class="filter-tabs" id="status-filter">
+                    <button class="filter-tab active" data-val="">Todos</button>
+                    <button class="filter-tab" data-val="draft">Borrador</button>
+                    <button class="filter-tab" data-val="published">Publicado</button>
+                    <button class="filter-tab" data-val="archived">Archivado</button>
+                </div>
+            </div>
+        </div>
+        <div id="games-list"></div>
+    </div>
+
+    <!-- ============ SCREEN: Game Detail (rounds) ============ -->
+    <div id="screen-game" class="screen">
+        <div id="game-info" class="card" style="margin-bottom:24px"></div>
+        <div class="toolbar">
+            <button class="btn-primary" onclick="openRoundModal()">+ Nueva ronda</button>
+            <div class="toolbar-right">
+                <button class="btn-ghost btn-sm" onclick="openGameModal(currentGame)">Editar juego</button>
+                <button class="btn-ghost btn-sm" onclick="publishGame()">Publicar</button>
+            </div>
+        </div>
+        <div id="rounds-list"></div>
+    </div>
+
+    <!-- ============ SCREEN: Round Detail (questions) ============ -->
+    <div id="screen-round" class="screen">
+        <div id="round-info" class="card" style="margin-bottom:24px"></div>
+        <div class="toolbar">
+            <button class="btn-primary" onclick="openQuestionModal()">+ Nueva pregunta</button>
+            <div class="toolbar-right">
+                <button class="btn-ghost btn-sm" onclick="openRoundModal(currentRound)">Editar ronda</button>
+                <button class="btn-ghost btn-sm" onclick="openImportModal()">Importar CSV</button>
+            </div>
+        </div>
+        <div id="questions-list"></div>
+    </div>
+</main>
+
+<!-- ============ MODAL: Game form ============ -->
+<div id="modal-game-overlay" class="modal-overlay">
+    <div class="modal">
+        <h2 id="modal-game-title">Nuevo juego</h2>
+        <form id="form-game" onsubmit="return saveGame(event)">
+            <div class="field"><label>Nombre</label><input name="name" required></div>
+            <div class="field-row">
+                <div class="field"><label>Fecha</label><input type="date" name="date"></div>
+                <div class="field"><label>Código acceso</label><input name="access_code" placeholder="4-6 dígitos" maxlength="6"></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Estado</label>
+                    <select name="status"><option value="draft">Borrador</option><option value="published">Publicado</option><option value="archived">Archivado</option></select>
+                </div>
+                <div class="field"><label>Nota interna</label><input name="note" placeholder="Opcional"></div>
+            </div>
+
+            <div class="section-label">Personalización visual</div>
+            <div class="field"><label>Logo del juego</label>
+                <div class="upload-row">
+                    <input type="text" name="theme_logo" placeholder="URL del logo (o sube uno)">
+                    <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'theme_logo')"></label>
+                </div>
+                <img id="preview-game-logo" class="img-preview" style="display:none; margin-top:8px" onclick="this.style.display='none'; this.closest('.field').querySelector('[name=theme_logo]').value=''">
+            </div>
+            <div class="field"><label>Fondo</label>
+                <div class="bg-type-row" id="game-bg-type">
+                    <button type="button" class="bg-type-btn active" data-val="none" onclick="setGameBgType('none')">Sin fondo</button>
+                    <button type="button" class="bg-type-btn" data-val="color" onclick="setGameBgType('color')">Color</button>
+                    <button type="button" class="bg-type-btn" data-val="gradient" onclick="setGameBgType('gradient')">Gradiente</button>
+                    <button type="button" class="bg-type-btn" data-val="image" onclick="setGameBgType('image')">Imagen</button>
+                </div>
+                <div id="game-bg-color" style="display:none">
+                    <div class="color-row"><input type="color" name="theme_bg_color" value="#0a0a1a"><input type="text" name="theme_bg_color_hex" placeholder="#0a0a1a" oninput="syncColor(this,'theme_bg_color')"></div>
+                </div>
+                <div id="game-bg-gradient" style="display:none">
+                    <select name="theme_bg_gradient">
+                        <option value="nightSky">Cielo nocturno</option>
+                        <option value="deepOcean">Océano profundo</option>
+                        <option value="sunset">Atardecer</option>
+                        <option value="aurora">Aurora boreal</option>
+                        <option value="neon">Neón</option>
+                        <option value="forest">Bosque</option>
+                        <option value="fire">Fuego</option>
+                        <option value="custom">Personalizado...</option>
+                    </select>
+                    <input type="text" name="theme_bg_gradient_custom" placeholder="linear-gradient(135deg, #1a1a2e, #16213e)" style="display:none; margin-top:8px">
+                </div>
+                <div id="game-bg-image" style="display:none">
+                    <div class="upload-row">
+                        <input type="text" name="theme_bg_image" placeholder="URL de imagen de fondo">
+                        <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'theme_bg_image')"></label>
+                    </div>
+                </div>
+                <input type="hidden" name="theme_bg_type" value="none">
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Color primario</label>
+                    <div class="color-row"><input type="color" name="theme_primary" value="#00d4ff"><input type="text" name="theme_primary_hex" placeholder="#00d4ff" oninput="syncColor(this,'theme_primary')"></div>
+                </div>
+                <div class="field"><label>Color secundario</label>
+                    <div class="color-row"><input type="color" name="theme_secondary" value="#fbbf24"><input type="text" name="theme_secondary_hex" placeholder="#fbbf24" oninput="syncColor(this,'theme_secondary')"></div>
+                </div>
+            </div>
+
+            <input type="hidden" name="id">
+            <div class="modal-footer">
+                <button type="button" class="btn-ghost" onclick="closeModal('modal-game-overlay')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============ MODAL: Round form ============ -->
+<div id="modal-round-overlay" class="modal-overlay">
+    <div class="modal">
+        <h2 id="modal-round-title">Nueva ronda</h2>
+        <form id="form-round" onsubmit="return saveRound(event)">
+            <div class="field"><label>Nombre</label><input name="name" required placeholder="Ej: Ronda 1 — Cultura General"></div>
+            <div class="field"><label>Tipo de prueba</label>
+                <select name="type" required>
+                    <option value="multirespuesta">Multirespuesta (50×15)</option>
+                    <option value="pulsador">Pulsador rápido</option>
+                    <option value="precio">Precio justo</option>
+                    <option value="imagen">Adivina la imagen</option>
+                    <option value="cancion">Adivina la canción</option>
+                    <option value="boom">Boom (ordenar)</option>
+                    <option value="ruleta">Ruleta de la suerte</option>
+                    <option value="imagen_fija">Imagen fija</option>
+                </select>
+            </div>
+            <div class="field-row-3">
+                <div class="field"><label>Tiempo (seg)</label><input type="number" name="cfg_time" value="30" min="5"></div>
+                <div class="field"><label>Puntos base</label><input type="number" name="cfg_basePoints" value="100" min="0"></div>
+                <div class="field"><label>Bonus máx</label><input type="number" name="cfg_bonusMax" value="50" min="0"></div>
+            </div>
+            <div class="field"><label>Penalización por fallo</label><input type="number" name="cfg_penalty" value="0"></div>
+
+            <div class="section-label">Personalización visual (ronda)</div>
+            <div class="field"><label>Logo de la ronda</label>
+                <div class="upload-row">
+                    <input type="text" name="cfg_logo" placeholder="URL del logo (o hereda del juego)">
+                    <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'cfg_logo')"></label>
+                </div>
+            </div>
+            <div class="field"><label>Fondo de la ronda</label>
+                <div class="upload-row">
+                    <input type="text" name="cfg_background" placeholder="URL, color (#hex) o gradiente (hereda del juego)">
+                    <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'cfg_background')"></label>
+                </div>
+            </div>
+
+            <input type="hidden" name="id">
+            <div class="modal-footer">
+                <button type="button" class="btn-ghost" onclick="closeModal('modal-round-overlay')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============ MODAL: Question form ============ -->
+<div id="modal-question-overlay" class="modal-overlay">
+    <div class="modal" style="max-width:700px">
+        <h2 id="modal-question-title">Nueva pregunta</h2>
+        <form id="form-question" onsubmit="return saveQuestion(event)">
+            <div id="question-fields"></div>
+            <div class="field-row-3" style="margin-top:16px">
+                <div class="field"><label>Tiempo (override)</label><input type="number" name="q_time" placeholder="Hereda ronda"></div>
+                <div class="field"><label>Puntos base</label><input type="number" name="q_basePoints" placeholder="Hereda"></div>
+                <div class="field"><label>Bonus máx</label><input type="number" name="q_bonusMax" placeholder="Hereda"></div>
+            </div>
+            <div class="field"><label>Media URL</label><input name="media_url" placeholder="URL de imagen o audio (opcional)"></div>
+            <input type="hidden" name="id">
+            <div class="modal-footer">
+                <button type="button" class="btn-ghost" onclick="closeModal('modal-question-overlay')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============ MODAL: CSV Import ============ -->
+<div id="modal-import-overlay" class="modal-overlay">
+    <div class="modal">
+        <h2>Importar preguntas desde CSV</h2>
+        <p style="color:var(--text2); font-size:13px; margin-bottom:16px">
+            El CSV debe tener las columnas correctas según el tipo de ronda.
+            <button class="btn-ghost btn-sm" onclick="downloadTemplate()" style="margin-left:8px">Descargar plantilla</button>
+        </p>
+        <div class="field">
+            <label>Archivo CSV</label>
+            <input type="file" id="csv-file" accept=".csv,.tsv,.txt">
+        </div>
+        <div id="csv-preview" style="margin-top:12px; font-size:12px; color:var(--text2); max-height:200px; overflow-y:auto"></div>
+        <div class="modal-footer">
+            <button type="button" class="btn-ghost" onclick="closeModal('modal-import-overlay')">Cancelar</button>
+            <button type="button" class="btn-primary" onclick="doImportCsv()">Importar</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── State ───
+let games = [];
+let currentGame = null;   // hydrated game object with rounds[]
+let currentRound = null;  // round object with questions[]
+let statusFilter = '';
+
+// ─── API helpers ───
+const API = '/api';
+async function api(path, opts = {}) {
+    const res = await fetch(API + path, {
+        headers: { 'Content-Type': 'application/json', ...opts.headers },
+        ...opts,
+        body: opts.body ? JSON.stringify(opts.body) : undefined
+    });
+    if (res.status === 204) return null;
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error del servidor');
+    return data;
+}
+
+// ─── Toast ───
+function toast(msg, duration = 3000) {
+    const el = document.createElement('div');
+    el.className = 'toast-msg';
+    el.textContent = msg;
+    document.getElementById('toast').appendChild(el);
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, duration);
+}
+
+// ─── Navigation ───
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    updateBreadcrumb();
+}
+
+function updateBreadcrumb() {
+    const bc = document.getElementById('breadcrumb');
+    let parts = [`<a onclick="loadGames()">Juegos</a>`];
+    if (currentGame) {
+        parts.push(`<span class="sep">›</span>`);
+        parts.push(`<a onclick="loadGame('${currentGame.id}')">${esc(currentGame.name)}</a>`);
+    }
+    if (currentRound) {
+        parts.push(`<span class="sep">›</span>`);
+        parts.push(`<span>${esc(currentRound.name)}</span>`);
+    }
+    bc.innerHTML = parts.join(' ');
+}
+
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ─── Type display helpers ───
+const TYPE_LABELS = {
+    multirespuesta: 'Multirespuesta', pulsador: 'Pulsador rápido', precio: 'Precio justo',
+    imagen: 'Adivina imagen', cancion: 'Adivina canción', boom: 'Boom (ordenar)',
+    ruleta: 'Ruleta de la suerte', imagen_fija: 'Imagen fija'
+};
+
+function statusBadge(s) {
+    const labels = { draft: 'Borrador', published: 'Publicado', archived: 'Archivado' };
+    return `<span class="badge badge-${s}">${labels[s] || s}</span>`;
+}
+
+function typeBadge(t) {
+    return `<span class="type-badge type-${t}">${TYPE_LABELS[t] || t}</span>`;
+}
+
+// ─── Modal helpers ───
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// ─────────────────── GAMES ───────────────────
+
+async function loadGames() {
+    currentGame = null;
+    currentRound = null;
+    showScreen('screen-games');
+    try {
+        games = await api('/games');
+        renderGames();
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+function renderGames() {
+    const filtered = statusFilter ? games.filter(g => g.status === statusFilter) : games;
+    const el = document.getElementById('games-list');
+    if (filtered.length === 0) {
+        el.innerHTML = `<div class="empty"><h3>${statusFilter ? 'Sin juegos en este estado' : 'Aún no hay juegos'}</h3><p>Crea tu primer juego con el botón de arriba.</p></div>`;
+        return;
+    }
+    el.innerHTML = filtered.map(g => `
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title" onclick="loadGame('${g.id}')">${esc(g.name)}</span>
+                ${statusBadge(g.status)}
+                <div class="card-actions">
+                    <button class="btn-icon" onclick="openGameModal(${JSON.stringify(g).replace(/"/g,'&quot;')})" title="Editar">✏️</button>
+                    <button class="btn-icon" onclick="duplicateGame('${g.id}')" title="Duplicar">📋</button>
+                    ${g.id !== 'default' ? `<button class="btn-icon" onclick="deleteGame('${g.id}')" title="Eliminar">🗑️</button>` : ''}
+                </div>
+            </div>
+            <div class="card-meta">
+                ${g.date ? `<span>📅 ${g.date}</span>` : ''}
+                ${g.access_code ? `<span>🔑 ${g.access_code}</span>` : ''}
+                ${g.note ? `<span>📝 ${esc(g.note)}</span>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function openGameModal(game = null) {
+    const form = document.getElementById('form-game');
+    form.reset();
+    if (game) {
+        document.getElementById('modal-game-title').textContent = 'Editar juego';
+        form.name.value = game.name || '';
+        form.date.value = game.date || '';
+        form.access_code.value = game.access_code || '';
+        form.status.value = game.status || 'draft';
+        form.note.value = game.note || '';
+        form.id.value = game.id;
+        populateThemeForm(form, game.theme);
+    } else {
+        document.getElementById('modal-game-title').textContent = 'Nuevo juego';
+        form.id.value = '';
+        populateThemeForm(form, null);
+    }
+    openModal('modal-game-overlay');
+}
+
+async function saveGame(e) {
+    e.preventDefault();
+    const form = document.getElementById('form-game');
+    const theme = buildThemeFromForm(form);
+    const data = { name: form.name.value, date: form.date.value || null, access_code: form.access_code.value || null, status: form.status.value, note: form.note.value || null, theme };
+    try {
+        if (form.id.value) {
+            await api(`/games/${form.id.value}`, { method: 'PUT', body: data });
+            toast('Juego actualizado');
+        } else {
+            await api('/games', { method: 'POST', body: data });
+            toast('Juego creado');
+        }
+        closeModal('modal-game-overlay');
+        loadGames();
+    } catch (e) { toast('Error: ' + e.message); }
+    return false;
+}
+
+async function duplicateGame(id) {
+    try {
+        const dup = await api(`/games/${id}/duplicate`, { method: 'POST' });
+        toast(`Juego duplicado: ${dup.name}`);
+        loadGames();
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+async function deleteGame(id) {
+    if (!confirm('¿Eliminar este juego y todo su contenido?')) return;
+    try {
+        await api(`/games/${id}`, { method: 'DELETE' });
+        toast('Juego eliminado');
+        loadGames();
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+async function publishGame() {
+    if (!currentGame) return;
+    try {
+        await api(`/games/${currentGame.id}`, { method: 'PUT', body: { status: 'published' } });
+        toast('Juego publicado');
+        loadGame(currentGame.id);
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+// Status filter tabs
+document.getElementById('status-filter').addEventListener('click', (e) => {
+    const btn = e.target.closest('.filter-tab');
+    if (!btn) return;
+    document.querySelectorAll('#status-filter .filter-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    statusFilter = btn.dataset.val;
+    renderGames();
+});
+
+// ─────────────────── GAME DETAIL (rounds) ───────────────────
+
+async function loadGame(id, opts = {}) {
+    if (!opts.silent) currentRound = null;
+    try {
+        currentGame = await api(`/games/${id}`);
+        if (!opts.silent) {
+            showScreen('screen-game');
+            renderGameDetail();
+        }
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+function renderGameDetail() {
+    const g = currentGame;
+    document.getElementById('game-info').innerHTML = `
+        <div style="display:flex; align-items:center; gap:12px">
+            <div style="flex:1">
+                <h2 style="font-size:22px; margin-bottom:6px">${esc(g.name)}</h2>
+                <div class="card-meta">
+                    ${statusBadge(g.status)}
+                    ${g.date ? `<span>📅 ${g.date}</span>` : ''}
+                    ${g.access_code ? `<span>🔑 ${g.access_code}</span>` : ''}
+                    <span>${g.rounds.length} rondas · ${g.rounds.reduce((s,r)=>s+(r.questions||[]).length,0)} preguntas</span>
+                </div>
+            </div>
+        </div>
+        ${g.note ? `<p style="margin-top:8px; font-size:13px; color:var(--text2)">📝 ${esc(g.note)}</p>` : ''}
+    `;
+    renderRounds();
+}
+
+function renderRounds() {
+    const el = document.getElementById('rounds-list');
+    const rounds = currentGame.rounds;
+    if (rounds.length === 0) {
+        el.innerHTML = `<div class="empty"><h3>Sin rondas</h3><p>Añade la primera ronda a este juego.</p></div>`;
+        return;
+    }
+    el.innerHTML = rounds.map((r, idx) => `
+        <div class="card" data-id="${r.id}">
+            <div class="card-header">
+                <span class="sort-handle" title="Reordenar">⠿</span>
+                <span class="card-title" onclick="loadRound('${r.id}')">${esc(r.name)}</span>
+                ${typeBadge(r.type)}
+                <span style="font-size:12px; color:var(--text2)">${(r.questions||[]).length} preg.</span>
+                <div class="card-actions">
+                    ${idx > 0 ? `<button class="btn-icon btn-sm" onclick="moveRound('${r.id}',-1)" title="Subir">↑</button>` : ''}
+                    ${idx < rounds.length - 1 ? `<button class="btn-icon btn-sm" onclick="moveRound('${r.id}',1)" title="Bajar">↓</button>` : ''}
+                    <button class="btn-icon btn-sm" onclick="openRoundModal(${JSON.stringify(r).replace(/"/g,'&quot;')})" title="Editar">✏️</button>
+                    <button class="btn-icon btn-sm" onclick="deleteRound('${r.id}')" title="Eliminar">🗑️</button>
+                </div>
+            </div>
+            <div class="card-meta">
+                ${r.config.time ? `<span>⏱ ${r.config.time}s</span>` : ''}
+                ${r.config.basePoints ? `<span>🎯 ${r.config.basePoints} pts</span>` : ''}
+                ${r.config.bonusMax ? `<span>⚡ +${r.config.bonusMax} bonus</span>` : ''}
+                ${r.config.logo ? `<span>🖼️ Logo</span>` : ''}
+                ${r.config.background ? `<span>🎨 Fondo</span>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function openRoundModal(round = null) {
+    const form = document.getElementById('form-round');
+    form.reset();
+    if (round) {
+        document.getElementById('modal-round-title').textContent = 'Editar ronda';
+        form.name.value = round.name || '';
+        form.type.value = round.type || 'multirespuesta';
+        const cfg = round.config || {};
+        form.cfg_time.value = cfg.time || 30;
+        form.cfg_basePoints.value = cfg.basePoints || 100;
+        form.cfg_bonusMax.value = cfg.bonusMax || 50;
+        form.cfg_penalty.value = cfg.penalty || 0;
+        form.cfg_logo.value = cfg.logo || '';
+        form.cfg_background.value = cfg.background || '';
+        form.id.value = round.id;
+    } else {
+        document.getElementById('modal-round-title').textContent = 'Nueva ronda';
+        form.id.value = '';
+    }
+    openModal('modal-round-overlay');
+}
+
+async function saveRound(e) {
+    e.preventDefault();
+    const form = document.getElementById('form-round');
+    const config = {
+        time: Number(form.cfg_time.value) || 30,
+        basePoints: Number(form.cfg_basePoints.value) || 100,
+        bonusMax: Number(form.cfg_bonusMax.value) || 50,
+        penalty: Number(form.cfg_penalty.value) || 0,
+        logo: form.cfg_logo.value.trim() || undefined,
+        background: form.cfg_background.value.trim() || undefined,
+    };
+    const data = { name: form.name.value, type: form.type.value, config };
+    try {
+        if (form.id.value) {
+            await api(`/rounds/${form.id.value}`, { method: 'PUT', body: data });
+            toast('Ronda actualizada');
+        } else {
+            await api(`/games/${currentGame.id}/rounds`, { method: 'POST', body: data });
+            toast('Ronda creada');
+        }
+        closeModal('modal-round-overlay');
+        await loadGame(currentGame.id);
+    } catch (e) { toast('Error: ' + e.message); }
+    return false;
+}
+
+async function deleteRound(id) {
+    if (!confirm('¿Eliminar esta ronda y todas sus preguntas?')) return;
+    try {
+        await api(`/rounds/${id}`, { method: 'DELETE' });
+        toast('Ronda eliminada');
+        await loadGame(currentGame.id);
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+async function moveRound(id, direction) {
+    const ids = currentGame.rounds.map(r => r.id);
+    const idx = ids.indexOf(id);
+    if (idx < 0) return;
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= ids.length) return;
+    [ids[idx], ids[swapIdx]] = [ids[swapIdx], ids[idx]];
+    try {
+        await api(`/games/${currentGame.id}/rounds/reorder`, { method: 'PUT', body: { order: ids } });
+        await loadGame(currentGame.id);
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+// ─────────────────── ROUND DETAIL (questions) ───────────────────
+
+async function loadRound(id) {
+    currentRound = currentGame.rounds.find(r => r.id === id);
+    if (!currentRound) return;
+    showScreen('screen-round');
+    renderRoundDetail();
+}
+
+async function refreshRound() {
+    const roundId = currentRound && currentRound.id;
+    await loadGame(currentGame.id, { silent: true });
+    currentRound = currentGame.rounds.find(r => r.id === roundId) || null;
+    if (currentRound) renderRoundDetail();
+}
+
+function renderRoundDetail() {
+    const r = currentRound;
+    document.getElementById('round-info').innerHTML = `
+        <div style="display:flex; align-items:center; gap:12px">
+            <div style="flex:1">
+                <h2 style="font-size:20px; margin-bottom:6px">${esc(r.name)}</h2>
+                <div class="card-meta">
+                    ${typeBadge(r.type)}
+                    <span>${(r.questions||[]).length} preguntas</span>
+                    ${r.config.time ? `<span>⏱ ${r.config.time}s</span>` : ''}
+                    ${r.config.basePoints ? `<span>🎯 ${r.config.basePoints} pts</span>` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+    renderQuestions();
+}
+
+function renderQuestions() {
+    const el = document.getElementById('questions-list');
+    const qs = currentRound.questions || [];
+    if (qs.length === 0) {
+        el.innerHTML = `<div class="empty"><h3>Sin preguntas</h3><p>Añade preguntas a esta ronda.</p></div>`;
+        return;
+    }
+    el.innerHTML = qs.map((q, idx) => {
+        const c = q.content || {};
+        const preview = c.statement || c.phrase || c.answer || JSON.stringify(c).slice(0, 80);
+        return `
+        <div class="card" data-id="${q.id}">
+            <div class="card-header">
+                <span class="sort-handle">⠿</span>
+                <span style="color:var(--text2); font-size:13px; min-width:28px">#${idx + 1}</span>
+                <span class="card-title" onclick='openQuestionModal(${JSON.stringify(q).replace(/'/g,"&#39;")})'>${esc(preview)}</span>
+                <div class="card-actions">
+                    ${idx > 0 ? `<button class="btn-icon btn-sm" onclick="moveQuestion('${q.id}',-1)">↑</button>` : ''}
+                    ${idx < qs.length - 1 ? `<button class="btn-icon btn-sm" onclick="moveQuestion('${q.id}',1)">↓</button>` : ''}
+                    <button class="btn-icon btn-sm" onclick='openQuestionModal(${JSON.stringify(q).replace(/'/g,"&#39;")})'>✏️</button>
+                    <button class="btn-icon btn-sm" onclick="deleteQuestion('${q.id}')">🗑️</button>
+                </div>
+            </div>
+            ${q.media_url ? `<div class="card-meta"><span>🖼️ ${esc(q.media_url)}</span></div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+async function moveQuestion(id, direction) {
+    const ids = (currentRound.questions || []).map(q => q.id);
+    const idx = ids.indexOf(id);
+    if (idx < 0) return;
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= ids.length) return;
+    [ids[idx], ids[swapIdx]] = [ids[swapIdx], ids[idx]];
+    try {
+        await api(`/rounds/${currentRound.id}/questions/reorder`, { method: 'PUT', body: { order: ids } });
+        await refreshRound();
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+async function deleteQuestion(id) {
+    if (!confirm('¿Eliminar esta pregunta?')) return;
+    try {
+        await api(`/questions/${id}`, { method: 'DELETE' });
+        toast('Pregunta eliminada');
+        await refreshRound();
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+// ─────────────────── QUESTION FORMS (per type) ───────────────────
+
+function openQuestionModal(question = null) {
+    const container = document.getElementById('question-fields');
+    const form = document.getElementById('form-question');
+    form.reset();
+
+    const type = currentRound.type;
+    const isEdit = !!question;
+    document.getElementById('modal-question-title').textContent = isEdit ? 'Editar pregunta' : `Nueva pregunta · ${TYPE_LABELS[type]}`;
+
+    if (isEdit) {
+        form.id.value = question.id;
+        form.media_url.value = question.media_url || '';
+        const cfg = question.config || {};
+        if (cfg.time) form.q_time.value = cfg.time;
+        if (cfg.basePoints) form.q_basePoints.value = cfg.basePoints;
+        if (cfg.bonusMax) form.q_bonusMax.value = cfg.bonusMax;
+    } else {
+        form.id.value = '';
+    }
+
+    const c = isEdit ? (question.content || {}) : {};
+    container.innerHTML = buildFieldsForType(type, c);
+    openModal('modal-question-overlay');
+}
+
+function buildFieldsForType(type, c) {
+    switch (type) {
+        case 'multirespuesta': return fieldsMultirespuesta(c);
+        case 'pulsador':       return fieldsPulsador(c);
+        case 'precio':         return fieldsPrecio(c);
+        case 'imagen':         return fieldsImagen(c);
+        case 'cancion':        return fieldsCancion(c);
+        case 'boom':           return fieldsBoom(c);
+        case 'ruleta':         return fieldsRuleta(c);
+        case 'imagen_fija':    return fieldsImagenFija(c);
+        default:               return `<div class="field"><label>Contenido (JSON)</label><textarea name="raw_json">${esc(JSON.stringify(c, null, 2))}</textarea></div>`;
+    }
+}
+
+function fieldsMultirespuesta(c) {
+    const opts = c.options || ['', '', '', ''];
+    const correct = c.correct || [];
+    return `
+        <div class="field"><label>Enunciado</label><textarea name="c_statement" required>${esc(c.statement || '')}</textarea></div>
+        <div class="field"><label>Opciones (mín 2)</label>
+            <div id="options-container">
+                ${opts.map((o, i) => `
+                    <div class="option-row">
+                        <input type="checkbox" name="c_correct_${i}" ${correct.includes(i) ? 'checked' : ''} title="Correcta">
+                        <input type="text" name="c_opt_${i}" value="${esc(o)}" placeholder="Opción ${i + 1}">
+                        <button type="button" class="btn-icon btn-sm" onclick="this.closest('.option-row').remove()">✕</button>
+                    </div>
+                `).join('')}
+            </div>
+            <button type="button" class="btn-ghost btn-sm" onclick="addOption()" style="margin-top:6px">+ Añadir opción</button>
+        </div>
+        <div class="field"><label>Explicación (opcional)</label><input name="c_explanation" value="${esc(c.explanation || '')}"></div>
+    `;
+}
+
+function addOption() {
+    const container = document.getElementById('options-container');
+    const idx = container.querySelectorAll('.option-row').length;
+    const row = document.createElement('div');
+    row.className = 'option-row';
+    row.innerHTML = `
+        <input type="checkbox" name="c_correct_${idx}" title="Correcta">
+        <input type="text" name="c_opt_${idx}" placeholder="Opción ${idx + 1}">
+        <button type="button" class="btn-icon btn-sm" onclick="this.closest('.option-row').remove()">✕</button>
+    `;
+    container.appendChild(row);
+}
+
+function fieldsPulsador(c) {
+    return `
+        <div class="field"><label>Enunciado</label><textarea name="c_statement" required>${esc(c.statement || '')}</textarea></div>
+        <div class="field"><label>Respuesta correcta</label><input name="c_answer" value="${esc(c.answer || '')}"></div>
+        <div class="field"><label>Pistas (una por línea, opcional)</label><textarea name="c_hints">${esc((c.hints || []).join('\n'))}</textarea></div>
+    `;
+}
+
+function fieldsPrecio(c) {
+    return `
+        <div class="field"><label>Enunciado</label><textarea name="c_statement" required>${esc(c.statement || '')}</textarea></div>
+        <div class="field-row">
+            <div class="field"><label>Valor correcto</label><input type="number" name="c_correct_value" value="${c.correct_value || ''}" required></div>
+            <div class="field"><label>Imagen URL</label><input name="c_image" value="${esc(c.image || '')}"></div>
+        </div>
+    `;
+}
+
+function fieldsImagen(c) {
+    const grid = c.grid || [4, 4];
+    return `
+        <div class="field"><label>Imagen (URL)</label><input name="c_image" value="${esc(c.image || '')}" required></div>
+        <div class="field-row">
+            <div class="field"><label>Cuadrícula (filas)</label><input type="number" name="c_grid_rows" value="${grid[0]}" min="2" max="10"></div>
+            <div class="field"><label>Cuadrícula (cols)</label><input type="number" name="c_grid_cols" value="${grid[1]}" min="2" max="10"></div>
+        </div>
+        <div class="field"><label>Orden de revelación (índices separados por coma)</label><input name="c_reveal_order" value="${(c.reveal_order || []).join(', ')}" placeholder="5, 10, 0, 15, 7, ..."></div>
+        <div class="field"><label>Respuesta</label><input name="c_answer" value="${esc(c.answer || '')}" required></div>
+    `;
+}
+
+function fieldsCancion(c) {
+    return `
+        <div class="field"><label>Audio (URL o ruta)</label><input name="c_audio" value="${esc(c.audio || '')}" required></div>
+        <div class="field"><label>Respuesta</label><input name="c_answer" value="${esc(c.answer || '')}" required></div>
+        <div class="field-row">
+            <div class="field"><label>Caos inicial (0-100)</label><input type="number" name="c_initial_chaos" value="${c.initial_chaos || 100}" min="0" max="100"></div>
+            <div class="field"><label>Preset</label><input name="c_preset" value="${esc(c.preset || 'default')}"></div>
+        </div>
+    `;
+}
+
+function fieldsBoom(c) {
+    const items = c.items || ['', '', '', ''];
+    const order = c.correct_order || [];
+    return `
+        <div class="field"><label>Enunciado</label><textarea name="c_statement" required>${esc(c.statement || '')}</textarea></div>
+        <div class="field"><label>Elementos (uno por línea, en el orden CORRECTO)</label><textarea name="c_items" rows="6" required>${items.join('\n')}</textarea></div>
+        <p style="font-size:12px; color:var(--text2); margin-top:-10px; margin-bottom:14px">Escríbelos en el orden correcto. El sistema los desordenará automáticamente para el jugador.</p>
+    `;
+}
+
+function fieldsRuleta(c) {
+    return `
+        <div class="field"><label>Frase oculta</label><input name="c_phrase" value="${esc(c.phrase || '')}" required placeholder="EL QUE LA SIGUE LA CONSIGUE"></div>
+        <div class="field"><label>Grupos de revelación (JSON array de arrays)</label><textarea name="c_reveal_groups" rows="4">${c.reveal_groups ? JSON.stringify(c.reveal_groups) : '[[0,5,10],[3,7,15]]'}</textarea></div>
+        <p style="font-size:12px; color:var(--text2); margin-top:-10px; margin-bottom:14px">Cada sub-array son los índices de las posiciones de la frase que se revelan juntas en cada click.</p>
+    `;
+}
+
+function fieldsImagenFija(c) {
+    return `
+        <div class="field"><label>Imagen (URL)</label><input name="c_image" value="${esc(c.image || '')}" required></div>
+        <div class="field"><label>Enunciado (opcional)</label><input name="c_statement" value="${esc(c.statement || '')}"></div>
+        <div class="field"><label>Respuesta (opcional)</label><input name="c_answer" value="${esc(c.answer || '')}"></div>
+        <div class="field"><label>¿Tiene pulsador?</label>
+            <select name="c_buzzer_enabled">
+                <option value="true" ${c.buzzer_enabled !== false ? 'selected' : ''}>Sí</option>
+                <option value="false" ${c.buzzer_enabled === false ? 'selected' : ''}>No</option>
+            </select>
+        </div>
+    `;
+}
+
+// ─── Save question: reads form → builds content JSON → POST/PUT ───
+
+async function saveQuestion(e) {
+    e.preventDefault();
+    const form = document.getElementById('form-question');
+    const type = currentRound.type;
+    let content;
+
+    try {
+        content = extractContent(type, form);
+    } catch (err) {
+        toast('Error: ' + err.message);
+        return false;
+    }
+
+    const config = {};
+    if (form.q_time.value) config.time = Number(form.q_time.value);
+    if (form.q_basePoints.value) config.basePoints = Number(form.q_basePoints.value);
+    if (form.q_bonusMax.value) config.bonusMax = Number(form.q_bonusMax.value);
+
+    const data = {
+        content,
+        media_url: form.media_url.value || null,
+        config: Object.keys(config).length ? config : undefined
+    };
+
+    try {
+        if (form.id.value) {
+            await api(`/questions/${form.id.value}`, { method: 'PUT', body: data });
+            toast('Pregunta actualizada');
+        } else {
+            await api(`/rounds/${currentRound.id}/questions`, { method: 'POST', body: data });
+            toast('Pregunta creada');
+        }
+        closeModal('modal-question-overlay');
+        await refreshRound();
+    } catch (e) { toast('Error: ' + e.message); }
+    return false;
+}
+
+function extractContent(type, form) {
+    switch (type) {
+        case 'multirespuesta': {
+            const rows = form.querySelectorAll('#options-container .option-row');
+            const options = []; const correct = [];
+            rows.forEach((row, i) => {
+                const text = row.querySelector('input[type="text"]').value.trim();
+                if (text) {
+                    if (row.querySelector('input[type="checkbox"]').checked) correct.push(options.length);
+                    options.push(text);
+                }
+            });
+            if (options.length < 2) throw new Error('Mínimo 2 opciones');
+            if (correct.length === 0) throw new Error('Marca al menos una opción correcta');
+            return { statement: val(form, 'c_statement'), options, correct, explanation: val(form, 'c_explanation') || undefined };
+        }
+        case 'pulsador': {
+            const hints = val(form, 'c_hints').split('\n').map(s => s.trim()).filter(Boolean);
+            return { statement: val(form, 'c_statement'), answer: val(form, 'c_answer'), hints: hints.length ? hints : undefined };
+        }
+        case 'precio':
+            return { statement: val(form, 'c_statement'), correct_value: Number(val(form, 'c_correct_value')), image: val(form, 'c_image') || undefined };
+        case 'imagen': {
+            const rows = Number(val(form, 'c_grid_rows')) || 4;
+            const cols = Number(val(form, 'c_grid_cols')) || 4;
+            const orderStr = val(form, 'c_reveal_order');
+            let reveal_order = orderStr ? orderStr.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n)) : [];
+            if (reveal_order.length === 0) {
+                reveal_order = Array.from({ length: rows * cols }, (_, i) => i);
+                for (let i = reveal_order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [reveal_order[i], reveal_order[j]] = [reveal_order[j], reveal_order[i]]; }
+            }
+            return { image: val(form, 'c_image'), grid: [rows, cols], reveal_order, answer: val(form, 'c_answer') };
+        }
+        case 'cancion':
+            return { audio: val(form, 'c_audio'), answer: val(form, 'c_answer'), initial_chaos: Number(val(form, 'c_initial_chaos')) || 100, preset: val(form, 'c_preset') || 'default' };
+        case 'boom': {
+            const items = val(form, 'c_items').split('\n').map(s => s.trim()).filter(Boolean);
+            if (items.length < 2) throw new Error('Mínimo 2 elementos');
+            const correct_order = items.map((_, i) => i);
+            return { statement: val(form, 'c_statement'), items, correct_order };
+        }
+        case 'ruleta': {
+            let reveal_groups;
+            try { reveal_groups = JSON.parse(val(form, 'c_reveal_groups')); } catch { throw new Error('Formato de grupos de revelación inválido (debe ser JSON)'); }
+            return { phrase: val(form, 'c_phrase'), reveal_groups };
+        }
+        case 'imagen_fija':
+            return { image: val(form, 'c_image'), statement: val(form, 'c_statement') || undefined, answer: val(form, 'c_answer') || undefined, buzzer_enabled: val(form, 'c_buzzer_enabled') === 'true' };
+        default: {
+            const raw = form.querySelector('[name="raw_json"]');
+            return raw ? JSON.parse(raw.value) : {};
+        }
+    }
+}
+
+function val(form, name) {
+    const el = form.querySelector(`[name="${name}"]`);
+    return el ? el.value.trim() : '';
+}
+
+// ─────────────────── CSV IMPORT ───────────────────
+
+function openImportModal() {
+    document.getElementById('csv-file').value = '';
+    document.getElementById('csv-preview').innerHTML = '';
+    openModal('modal-import-overlay');
+}
+
+document.getElementById('csv-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        const lines = reader.result.split('\n').filter(l => l.trim());
+        const preview = document.getElementById('csv-preview');
+        preview.innerHTML = `<strong>${lines.length} líneas encontradas</strong> (primera línea = cabecera)<br><br>`;
+        const previewLines = lines.slice(0, 6);
+        preview.innerHTML += '<pre style="white-space:pre-wrap; font-size:11px; color:var(--text)">' + previewLines.map(l => esc(l)).join('\n') + (lines.length > 6 ? '\n...' : '') + '</pre>';
+    };
+    reader.readAsText(file);
+});
+
+function downloadTemplate() {
+    const type = currentRound.type;
+    let header, sampleRow;
+    switch (type) {
+        case 'multirespuesta':
+            header = 'enunciado\topción_1\topción_2\topción_3\topción_4\tcorrectas\texplicación';
+            sampleRow = '¿Capital de Australia?\tSídney\tCanberra\tMelbourne\tBrisbane\t2\tCanberra es la capital desde 1913';
+            break;
+        case 'pulsador':
+            header = 'enunciado\trespuesta\tpistas';
+            sampleRow = '¿Quién pintó La Gioconda?\tLeonardo da Vinci\tArtista del Renacimiento|Italiano';
+            break;
+        case 'precio':
+            header = 'enunciado\tvalor_correcto\timagen';
+            sampleRow = '¿Cuánto cuesta este coche?\t35000\t/uploads/images/coche.jpg';
+            break;
+        case 'boom':
+            header = 'enunciado\telemento_1\telemento_2\telemento_3\telemento_4';
+            sampleRow = 'Ordena de más antiguo a más reciente:\tImperio Romano\tDescubrimiento América\tRevolución Francesa\tPrimera Guerra Mundial';
+            break;
+        default:
+            header = 'enunciado\trespuesta';
+            sampleRow = 'Ejemplo de pregunta\tEjemplo de respuesta';
+    }
+    const csv = header + '\n' + sampleRow + '\n';
+    const blob = new Blob([csv], { type: 'text/tab-separated-values' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `plantilla_${type}.tsv`; a.click();
+    URL.revokeObjectURL(url);
+}
+
+async function doImportCsv() {
+    const fileInput = document.getElementById('csv-file');
+    if (!fileInput.files[0]) { toast('Selecciona un archivo'); return; }
+    const text = await fileInput.files[0].text();
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length < 2) { toast('El archivo necesita al menos cabecera + 1 fila'); return; }
+
+    const sep = lines[0].includes('\t') ? '\t' : ',';
+    const rows = lines.slice(1).map(l => l.split(sep).map(c => c.trim()));
+    const type = currentRound.type;
+    let created = 0;
+
+    try {
+        for (const cols of rows) {
+            const content = csvRowToContent(type, cols);
+            if (!content) continue;
+            await api(`/rounds/${currentRound.id}/questions`, { method: 'POST', body: { content } });
+            created++;
+        }
+        toast(`${created} preguntas importadas`);
+        closeModal('modal-import-overlay');
+        await refreshRound();
+    } catch (e) { toast('Error importando: ' + e.message); }
+}
+
+function csvRowToContent(type, cols) {
+    switch (type) {
+        case 'multirespuesta': {
+            const statement = cols[0];
+            if (!statement) return null;
+            const options = cols.slice(1, -2).filter(Boolean);
+            const correctStr = cols[cols.length - 2] || '1';
+            const explanation = cols[cols.length - 1] || '';
+            const correct = correctStr.split(/[|,;]/).map(s => Number(s.trim()) - 1).filter(n => n >= 0);
+            return { statement, options, correct, explanation: explanation || undefined };
+        }
+        case 'pulsador': {
+            if (!cols[0]) return null;
+            const hints = cols[2] ? cols[2].split('|').map(s => s.trim()).filter(Boolean) : [];
+            return { statement: cols[0], answer: cols[1] || '', hints: hints.length ? hints : undefined };
+        }
+        case 'precio':
+            if (!cols[0]) return null;
+            return { statement: cols[0], correct_value: Number(cols[1]) || 0, image: cols[2] || undefined };
+        case 'boom': {
+            if (!cols[0]) return null;
+            const items = cols.slice(1).filter(Boolean);
+            return { statement: cols[0], items, correct_order: items.map((_, i) => i) };
+        }
+        default:
+            return { statement: cols[0] || '', answer: cols[1] || '' };
+    }
+}
+
+// ─────────────────── THEME HELPERS ───────────────────
+
+async function uploadFile(fileInput, targetFieldName) {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    try {
+        const res = await fetch('/api/upload/image', { method: 'POST', body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const field = document.querySelector(`[name="${targetFieldName}"]`);
+        if (field) field.value = data.url;
+        const preview = document.getElementById('preview-game-logo');
+        if (targetFieldName === 'theme_logo' && preview) { preview.src = data.url; preview.style.display = ''; }
+        toast('Archivo subido');
+    } catch (e) { toast('Error subiendo: ' + e.message); }
+    fileInput.value = '';
+}
+
+function syncColor(hexInput, colorFieldName) {
+    const v = hexInput.value.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+        document.querySelector(`[name="${colorFieldName}"]`).value = v;
+    }
+}
+
+function setGameBgType(type) {
+    document.querySelector('[name="theme_bg_type"]').value = type;
+    document.querySelectorAll('#game-bg-type .bg-type-btn').forEach(b => b.classList.toggle('active', b.dataset.val === type));
+    document.getElementById('game-bg-color').style.display = type === 'color' ? '' : 'none';
+    document.getElementById('game-bg-gradient').style.display = type === 'gradient' ? '' : 'none';
+    document.getElementById('game-bg-image').style.display = type === 'image' ? '' : 'none';
+    const gradCustom = document.querySelector('[name="theme_bg_gradient"]');
+    if (gradCustom) gradCustom.onchange = function() {
+        document.querySelector('[name="theme_bg_gradient_custom"]').style.display = this.value === 'custom' ? '' : 'none';
+    };
+}
+
+const GRADIENT_PRESETS = {
+    nightSky:  'radial-gradient(ellipse at center, #1a1a3e 0%, #0a0a1a 70%)',
+    deepOcean: 'radial-gradient(ellipse at bottom, #0c2340 0%, #0a0a1a 70%)',
+    sunset:    'linear-gradient(135deg, #1a0a2e 0%, #2d1b3d 30%, #4a1942 60%, #1a0a2e 100%)',
+    aurora:    'linear-gradient(135deg, #0a1628 0%, #0d2137 30%, #1a3a2a 60%, #0a1628 100%)',
+    neon:      'linear-gradient(135deg, #0a0020 0%, #1a0040 50%, #0a0020 100%)',
+    forest:    'radial-gradient(ellipse at center, #0a1a0a 0%, #050f05 70%)',
+    fire:      'radial-gradient(ellipse at bottom, #2a0a00 0%, #0a0a0a 70%)',
+};
+
+function buildThemeFromForm(form) {
+    const theme = {};
+    const logo = form.theme_logo.value.trim();
+    if (logo) theme.logo = logo;
+    const primary = form.theme_primary.value;
+    if (primary && primary !== '#00d4ff') theme.primaryColor = primary;
+    const secondary = form.theme_secondary.value;
+    if (secondary && secondary !== '#fbbf24') theme.secondaryColor = secondary;
+    const bgType = form.theme_bg_type.value;
+    if (bgType !== 'none') {
+        theme.backgroundType = bgType;
+        if (bgType === 'color') theme.backgroundColor = form.theme_bg_color.value;
+        else if (bgType === 'gradient') {
+            const preset = form.theme_bg_gradient.value;
+            theme.backgroundGradient = preset === 'custom' ? form.theme_bg_gradient_custom.value : preset;
+        }
+        else if (bgType === 'image') theme.backgroundImage = form.theme_bg_image.value.trim();
+    }
+    return Object.keys(theme).length ? theme : null;
+}
+
+function populateThemeForm(form, theme) {
+    if (!theme) theme = {};
+    form.theme_logo.value = theme.logo || '';
+    const preview = document.getElementById('preview-game-logo');
+    if (theme.logo) { preview.src = theme.logo; preview.style.display = ''; } else { preview.style.display = 'none'; }
+    form.theme_primary.value = theme.primaryColor || '#00d4ff';
+    form.theme_primary_hex.value = theme.primaryColor || '';
+    form.theme_secondary.value = theme.secondaryColor || '#fbbf24';
+    form.theme_secondary_hex.value = theme.secondaryColor || '';
+    const bgType = theme.backgroundType || 'none';
+    setGameBgType(bgType);
+    if (bgType === 'color') { form.theme_bg_color.value = theme.backgroundColor || '#0a0a1a'; form.theme_bg_color_hex.value = theme.backgroundColor || ''; }
+    if (bgType === 'gradient') {
+        const val = theme.backgroundGradient || 'nightSky';
+        if (GRADIENT_PRESETS[val]) { form.theme_bg_gradient.value = val; }
+        else { form.theme_bg_gradient.value = 'custom'; form.theme_bg_gradient_custom.value = val; form.theme_bg_gradient_custom.style.display = ''; }
+    }
+    if (bgType === 'image') { form.theme_bg_image.value = theme.backgroundImage || ''; }
+}
+
+// ─── Init ───
+loadGames();
+</script>
+</body>
+</html>
