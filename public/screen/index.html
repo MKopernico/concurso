@@ -165,11 +165,46 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 
 .mini-chip.first .mc-score { color: var(--gold); }
 
+/* ═══════════════ TEAM RESULTS OVERLAY ═══════════════ */
+.team-results-overlay { position: absolute; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+    background: rgba(10,10,26,.85); backdrop-filter: blur(10px);
+    opacity: 0; transform: scale(.95); transition: opacity .5s ease, transform .5s ease; pointer-events: none; }
+.team-results-overlay.active { opacity: 1; transform: scale(1); pointer-events: auto; }
+.tr-container { width: 90%; max-width: 900px; max-height: 80vh; overflow-y: auto; }
+.tr-title { font-size: 32px; font-weight: 800; text-transform: uppercase; letter-spacing: 3px;
+    color: var(--cyan); margin-bottom: 30px; text-align: center; text-shadow: var(--glow-cyan); }
+.tr-card { display: flex; align-items: center; gap: 20px; padding: 18px 28px; border-radius: 14px; margin-bottom: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    animation: tr-slide-in .4s ease backwards; }
+.tr-card:nth-child(2) { animation-delay: .05s; }
+.tr-card:nth-child(3) { animation-delay: .1s; }
+.tr-card:nth-child(4) { animation-delay: .15s; }
+.tr-card:nth-child(5) { animation-delay: .2s; }
+.tr-card:nth-child(6) { animation-delay: .25s; }
+.tr-card:nth-child(7) { animation-delay: .3s; }
+.tr-card:nth-child(8) { animation-delay: .35s; }
+@keyframes tr-slide-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.tr-card .tr-icon { font-size: 36px; flex-shrink: 0; }
+.tr-card .tr-photo { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--border); }
+.tr-card .tr-name { font-size: 26px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-card .tr-answer-text { font-size: 20px; color: var(--text2); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-card .tr-pts { font-size: 28px; font-weight: 800; width: 100px; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.tr-card .tr-pts.positive { color: var(--green); text-shadow: 0 0 10px rgba(34,197,94,.3); }
+.tr-card .tr-pts.negative { color: var(--danger); text-shadow: 0 0 10px rgba(239,68,68,.3); }
+.tr-card .tr-pts.zero { color: var(--text2); }
+.tr-card.correct { border-color: var(--green); background: linear-gradient(135deg, rgba(34,197,94,.08), transparent); }
+.tr-card.wrong { border-color: var(--danger); background: linear-gradient(135deg, rgba(239,68,68,.05), transparent); opacity: .7; }
+.tr-card.no-answer { opacity: .4; }
+
 /* ═══════════════ CONNECTION STATUS ═══════════════ */
 .conn-dot { position: fixed; bottom: 12px; right: 12px; width: 14px; height: 14px; border-radius: 50%;
     background: var(--green); z-index: 200; display: none; transition: background .3s; }
 .conn-dot.disconnected { display: block; background: var(--danger); animation: blink-dot 1s infinite; }
 @keyframes blink-dot { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+/* Fullscreen button */
+.fs-btn { position: fixed; bottom: 16px; right: 16px; z-index: 200; width: 48px; height: 48px; border-radius: 50%; background: rgba(18,18,42,.7); border: 1px solid var(--border); color: var(--text2); font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); transition: .2s; }
+.fs-btn:hover { color: var(--cyan); border-color: var(--cyan); }
 
 /* ═══════════════ GAME LOGO ═══════════════ */
 .game-logo { max-height: 120px; max-width: 300px; object-fit: contain; margin-bottom: 20px; filter: drop-shadow(0 0 20px rgba(0,0,0,.5)); }
@@ -239,6 +274,14 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
         <div class="mini-scores" id="miniScoresRev"></div>
     </div>
 
+    <!-- TEAM RESULTS OVERLAY -->
+    <div class="team-results-overlay" id="teamResultsOverlay">
+        <div class="tr-container">
+            <div class="tr-title">&#128101; Resultados</div>
+            <div id="teamResultsCards"></div>
+        </div>
+    </div>
+
     <!-- SCOREBOARD -->
     <div class="phase" id="phase-scoreboard">
         <div class="sb-title">MARCADOR</div>
@@ -254,6 +297,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     <!-- Notification toast -->
     <div class="notif" id="notif"></div>
     <div class="conn-dot" id="connDot" title="Desconectado"></div>
+    <button class="fs-btn" id="fsBtn" onclick="toggleFullscreen()" title="Pantalla completa">&#9974;</button>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -338,6 +382,11 @@ function renderPhase() {
     var timerStrip = document.getElementById('timerStrip');
     var timerBig = document.getElementById('timerBig');
 
+    // Hide team results overlay when not in answer_revealed
+    if (phase !== 'answer_revealed') {
+        document.getElementById('teamResultsOverlay').classList.remove('active');
+    }
+
     if (phase === 'lobby') {
         showPhase('lobby');
         timerStrip.style.display = 'none';
@@ -356,6 +405,7 @@ function renderPhase() {
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
         renderRevealed();
+        renderTeamResultsOverlay();
     } else if (phase === 'question') {
         showPhase('question');
         timerStrip.style.display = '';
@@ -415,6 +465,11 @@ function renderQuestion(type) {
 function renderMultiOptions(c) {
     var opts = c.options || [];
     var container = document.getElementById('qOptions');
+    // Options might be hidden until optionsRevealed
+    if (!opts.length || (ps && !ps.optionsRevealed)) {
+        container.style.display = 'none';
+        return;
+    }
     container.style.display = 'grid';
     var letters = ['A', 'B', 'C', 'D', 'E', 'F'];
     container.innerHTML = opts.map(function(o, i) {
@@ -537,10 +592,12 @@ function renderRevealed() {
         var opts = c.options || [];
         var correct = c.correct;
         var letters = ['A', 'B', 'C', 'D', 'E', 'F'];
-        document.getElementById('revAnswer').textContent = typeof correct === 'number' ? opts[correct] || '' : '';
+        // Show "D — Canberra" format
+        var correctIndices = Array.isArray(correct) ? correct : (typeof correct === 'number' ? [correct] : []);
+        document.getElementById('revAnswer').textContent = correctIndices.map(function(i) { return letters[i] + ' — ' + (opts[i] || ''); }).join(', ');
         revOpts.style.display = 'grid';
         revOpts.innerHTML = opts.map(function(o, i) {
-            var isCorrect = i === correct;
+            var isCorrect = correctIndices.indexOf(i) >= 0;
             return '<div class="rev-opt' + (isCorrect ? ' correct' : '') + '">' +
                 '<span class="opt-letter">' + letters[i] + '</span>' + esc(o) + '</div>';
         }).join('');
@@ -548,12 +605,69 @@ function renderRevealed() {
         document.getElementById('revAnswer').textContent = c.correct_value || c.answer || '';
     } else if (type === 'boom') {
         var order = c.correct_order || [];
-        document.getElementById('revAnswer').textContent = order.join(' → ') || c.answer || '';
+        var items = c.items || [];
+        // Show item texts instead of indices
+        document.getElementById('revAnswer').textContent = order.map(function(i) { return items[i] || i; }).join(' → ') || c.answer || '';
     } else {
         document.getElementById('revAnswer').textContent = c.answer || '';
     }
 
     renderMiniScores();
+    renderTeamResultsOverlay();
+}
+
+// ═══════════════ TEAM RESULTS OVERLAY ═══════════════
+function renderTeamResultsOverlay() {
+    var overlay = document.getElementById('teamResultsOverlay');
+    if (!ps) { overlay.classList.remove('active'); return; }
+    if (ps.phase !== 'answer_revealed' || !ps.showTeamResults) {
+        overlay.classList.remove('active');
+        return;
+    }
+    var lqs = ps.lastQuestionScores || {};
+    var equipos = ps.equipos || [];
+    var c = ps.question ? (ps.question.content || {}) : {};
+    var type = ps.roundType;
+    var letters = ['A','B','C','D','E','F','G','H'];
+
+    var html = '';
+    equipos.forEach(function(eq) {
+        var r = lqs[eq.id] || { answer: null, correct: false, points: 0, noAnswer: true };
+        var icon = r.noAnswer ? '&#9899;' : (r.correct ? '&#9989;' : '&#10060;');
+        var cardClass = r.noAnswer ? 'no-answer' : (r.correct ? 'correct' : 'wrong');
+
+        var ansText = '';
+        if (r.noAnswer) {
+            ansText = 'Sin respuesta';
+        } else if (type === 'multirespuesta' && c.options) {
+            var picks = Array.isArray(r.answer) ? r.answer : [r.answer];
+            ansText = picks.map(function(i) { return letters[i] + ' — ' + (c.options[i] || ''); }).join(', ');
+        } else if (type === 'precio') {
+            ansText = String(r.answer);
+        } else if (type === 'boom' && c.items) {
+            var order = Array.isArray(r.answer) ? r.answer : [];
+            ansText = order.map(function(i) { return c.items[i] || i; }).join(' → ');
+        } else {
+            ansText = String(r.answer || '');
+        }
+
+        var ptsClass = r.points > 0 ? 'positive' : (r.points < 0 ? 'negative' : 'zero');
+        var ptsText = r.points > 0 ? '+' + r.points : String(r.points);
+        var photoHtml = eq.photo_url
+            ? '<img class="tr-photo" src="' + esc(eq.photo_url) + '">'
+            : '<div class="tr-photo" style="display:flex;align-items:center;justify-content:center;font-size:24px;">&#128100;</div>';
+
+        html += '<div class="tr-card ' + cardClass + '">'
+            + '<span class="tr-icon">' + icon + '</span>'
+            + photoHtml
+            + '<span class="tr-name">' + esc(eq.nombre) + '</span>'
+            + '<span class="tr-answer-text">' + esc(ansText) + '</span>'
+            + '<span class="tr-pts ' + ptsClass + '">' + ptsText + '</span>'
+            + '</div>';
+    });
+
+    document.getElementById('teamResultsCards').innerHTML = html;
+    overlay.classList.add('active');
 }
 
 // ═══════════════ SCOREBOARD ═══════════════
@@ -736,8 +850,27 @@ function sfxReveal() { playTone(440, 0.1, 'sine', 0.12); setTimeout(function(){ 
 var lastPhase = 'lobby';
 var lastTimerVal = 999;
 
+// ═══════════════ FULLSCREEN ═══════════════
+function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function(){});
+    } else {
+        document.exitFullscreen().catch(function(){});
+    }
+}
+
 // ═══════════════ INIT ═══════════════
-document.addEventListener('click', function() { initAudioCtx(); }, { once: true });
+// Click anywhere to enter fullscreen + init audio
+document.addEventListener('click', function(e) {
+    initAudioCtx();
+    if (!document.fullscreenElement && e.target.id !== 'fsBtn') {
+        document.documentElement.requestFullscreen().catch(function(){});
+    }
+}, { once: true });
+
+// Expose toggleFullscreen globally
+window.toggleFullscreen = toggleFullscreen;
+
 connect();
 
 })();

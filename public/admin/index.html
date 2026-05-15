@@ -511,7 +511,7 @@ function renderGames() {
                 <span class="card-title" onclick="loadGame('${g.id}')">${esc(g.name)}</span>
                 ${statusBadge(g.status)}
                 <div class="card-actions">
-                    ${g.status === 'published' ? `<button class="btn-success btn-sm" onclick="startSession('${g.id}')" title="Iniciar sesión y abrir director">▶ Jugar</button><a class="btn-ghost btn-sm" href="/director/${g.id}" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Ir al director">🎬 Director</a>` : ''}
+                    ${g.status === 'published' ? `<button class="btn-success btn-sm" onclick="startSession('${g.id}')" title="Iniciar sesión y abrir director">▶ Jugar</button><a class="btn-ghost btn-sm" href="/director/${g.id}" target="_blank" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Ir al director">🎬 Director</a>` : ''}
                     <button class="btn-icon" onclick="openGameModal(${JSON.stringify(g).replace(/"/g,'&quot;')})" title="Editar">✏️</button>
                     <button class="btn-icon" onclick="duplicateGame('${g.id}')" title="Duplicar">📋</button>
                     ${g.id !== 'default' ? `<button class="btn-icon" onclick="deleteGame('${g.id}')" title="Eliminar">🗑️</button>` : ''}

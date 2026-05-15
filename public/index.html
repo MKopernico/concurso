@@ -103,7 +103,7 @@ async function loadActiveGames() {
                 + '<span class="game-name">' + esc(g.name) + '</span>'
                 + (g.date ? '<span class="game-date">' + g.date + '</span>' : '')
                 + '<div class="game-actions">'
-                + '<a class="btn btn-accent" href="/director/' + g.id + '">Abrir director</a>'
+                + '<a class="btn btn-accent" href="/director/' + g.id + '" target="_blank">Abrir director</a>'
                 + '<a class="btn btn-ghost" href="/screen/' + g.id + '" target="_blank">Pantalla de sala</a>'
                 + '</div></div>';
         }).join('');

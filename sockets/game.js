@@ -30,6 +30,10 @@ function createGameState() {
             timer: { total: 0, remaining: 0, running: false },
             scores: {}, answers: {},
             revealedCells: [], revealedLetters: [],
+            completedRounds: [],
+            optionsRevealed: false,
+            lastQuestionScores: {},
+            showTeamResults: false,
         },
         precioCifraCorrecta: null,
         precioTimeoutHandle: null,
@@ -98,6 +102,76 @@ function stopTimer(state, gameId, io) {
     state.director.timer.running = false;
 }
 
+function autoScoreMultirespuesta(state) {
+    const ds = state.director;
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (!q || !q.content || q.content.correct === undefined) return;
+    const correctSet = new Set(Array.isArray(q.content.correct) ? q.content.correct : [q.content.correct]);
+    const cfg = getQuestionConfig(state);
+    for (const [teamId, ans] of Object.entries(ds.answers)) {
+        const picked = Array.isArray(ans.answer) ? ans.answer : [ans.answer];
+        const ok = picked.length === correctSet.size && picked.every(a => correctSet.has(a));
+        if (!ds.scores[teamId]) ds.scores[teamId] = 0;
+        if (ok) {
+            const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+            ds.scores[teamId] += cfg.basePoints + bonus;
+        } else if (cfg.penalty > 0) {
+            ds.scores[teamId] -= cfg.penalty;
+        }
+    }
+}
+
+function computeLastQuestionScores(state) {
+    const ds = state.director;
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (!q) { ds.lastQuestionScores = {}; return; }
+    const c = q.content || {};
+    const cfg = getQuestionConfig(state);
+    const roundType = ds.currentRound ? ds.currentRound.type : '';
+    const results = {};
+
+    for (const [teamId, ans] of Object.entries(ds.answers)) {
+        const entry = { answer: ans.answer, correct: false, points: 0 };
+
+        if (roundType === 'multirespuesta' && c.correct !== undefined) {
+            const correctSet = new Set(Array.isArray(c.correct) ? c.correct : [c.correct]);
+            const picked = Array.isArray(ans.answer) ? ans.answer : [ans.answer];
+            entry.correct = picked.length === correctSet.size && picked.every(a => correctSet.has(a));
+            if (entry.correct) {
+                const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+                entry.points = cfg.basePoints + bonus;
+            } else if (cfg.penalty > 0) {
+                entry.points = -cfg.penalty;
+            }
+        } else if (roundType === 'precio' && c.correct_value !== undefined) {
+            const val = Number(ans.answer);
+            entry.correct = val <= c.correct_value;
+            // precio scoring is handled separately via finalizarPrecio
+        } else if (roundType === 'boom' && c.correct_order) {
+            const order = c.correct_order;
+            const submitted = Array.isArray(ans.answer) ? ans.answer : [];
+            entry.correct = JSON.stringify(submitted) === JSON.stringify(order);
+            if (entry.correct) {
+                const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+                entry.points = cfg.basePoints + bonus;
+            } else if (cfg.penalty > 0) {
+                entry.points = -cfg.penalty;
+            }
+        }
+        results[teamId] = entry;
+    }
+
+    // Mark teams that didn't answer
+    for (const eq of state.equipos) {
+        if (!results[eq.id]) {
+            results[eq.id] = { answer: null, correct: false, points: 0, noAnswer: true };
+        }
+    }
+
+    ds.lastQuestionScores = results;
+    ds.showTeamResults = false;
+}
+
 function loadGameTheme(gameId) {
     const row = db.prepare('SELECT theme FROM games WHERE id = ?').get(gameId);
     return row ? parseJson(row.theme) : {};
@@ -110,6 +184,10 @@ function playerView(state) {
     if (curQ && (ds.phase === 'question' || ds.phase === 'answer_revealed')) {
         const c = { ...curQ.content };
         if (ds.phase === 'question') {
+            // For multirespuesta, hide options until explicitly revealed
+            if (ds.currentRound && ds.currentRound.type === 'multirespuesta' && !ds.optionsRevealed) {
+                delete c.options;
+            }
             delete c.correct; delete c.answer; delete c.correct_value; delete c.correct_order;
         }
         question = { id: curQ.id, content: c, media_url: curQ.media_url };
@@ -131,6 +209,10 @@ function playerView(state) {
         bloqueoGlobal: state.bloqueoGlobal,
         revealedCells: ds.revealedCells,
         revealedLetters: ds.revealedLetters,
+        optionsRevealed: ds.optionsRevealed,
+        completedRounds: ds.completedRounds,
+        lastQuestionScores: ds.lastQuestionScores,
+        showTeamResults: ds.showTeamResults,
         gameTheme: state._gameTheme || {},
         roundTheme: { logo: roundCfg.logo || null, background: roundCfg.background || null },
     };
@@ -585,6 +667,9 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
+            ds.optionsRevealed = false;
+            ds.lastQuestionScores = {};
+            ds.showTeamResults = false;
             const cfg = getQuestionConfig(state);
             ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
             state.pulsadorActivo = false;
@@ -601,6 +686,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
+                ds.optionsRevealed = false;
                 const cfg = getQuestionConfig(state);
                 ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
                 state.pulsadorActivo = false;
@@ -618,6 +704,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
+                ds.optionsRevealed = false;
                 const cfg = getQuestionConfig(state);
                 ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
                 state.pulsadorActivo = false;
@@ -630,11 +717,24 @@ function attachSocketHandlers(io) {
             const ds = state.director;
             if (ds.timer.running || ds.timer.remaining <= 0) return;
             ds.timer.running = true;
+            // Auto-reveal options for multirespuesta when timer starts
+            if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
+                ds.optionsRevealed = true;
+            }
             state._timerHandle = setInterval(() => {
                 ds.timer.remaining = Math.max(0, ds.timer.remaining - 1);
                 io.to(roomOf(gameId)).emit('game:timer_tick', { remaining: ds.timer.remaining, total: ds.timer.total });
                 if (ds.timer.remaining <= 0) {
                     stopTimer(state, gameId, io);
+                    // Auto-reveal answer when timer expires
+                    if (ds.phase === 'question') {
+                        if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
+                            autoScoreMultirespuesta(state);
+                        }
+                        ds.phase = 'answer_revealed';
+                        state.pulsadorActivo = false;
+                        computeLastQuestionScores(state);
+                    }
                     broadcastDirector(io, gameId, state);
                 }
             }, 1000);
@@ -657,25 +757,11 @@ function attachSocketHandlers(io) {
             stopTimer(state, gameId, io);
             const ds = state.director;
             if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
-                const q = ds.questions[ds.currentQuestionIdx];
-                if (q && q.content && q.content.correct !== undefined) {
-                    const correctSet = new Set(Array.isArray(q.content.correct) ? q.content.correct : [q.content.correct]);
-                    const cfg = getQuestionConfig(state);
-                    for (const [teamId, ans] of Object.entries(ds.answers)) {
-                        const picked = Array.isArray(ans.answer) ? ans.answer : [ans.answer];
-                        const ok = picked.length === correctSet.size && picked.every(a => correctSet.has(a));
-                        if (!ds.scores[teamId]) ds.scores[teamId] = 0;
-                        if (ok) {
-                            const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
-                            ds.scores[teamId] += cfg.basePoints + bonus;
-                        } else if (cfg.penalty > 0) {
-                            ds.scores[teamId] -= cfg.penalty;
-                        }
-                    }
-                }
+                autoScoreMultirespuesta(state);
             }
             ds.phase = 'answer_revealed';
             state.pulsadorActivo = false;
+            computeLastQuestionScores(state);
             broadcastDirector(io, gameId, state);
         });
 
@@ -808,6 +894,50 @@ function attachSocketHandlers(io) {
                 io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
                 if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
             }
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:reveal_options', () => {
+            state.director.optionsRevealed = true;
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:toggle_team_results', () => {
+            state.director.showTeamResults = !state.director.showTeamResults;
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:complete_round', (data) => {
+            if (!data || !data.roundId) return;
+            const ds = state.director;
+            if (ds.completedRounds.indexOf(data.roundId) === -1) {
+                ds.completedRounds.push(data.roundId);
+            }
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:reset_session', () => {
+            const ds = state.director;
+            // Reset scores to 0
+            Object.keys(ds.scores).forEach(k => { ds.scores[k] = 0; });
+            // Reset completed rounds
+            ds.completedRounds = [];
+            // Reset round/question state
+            ds.currentRoundId = null;
+            ds.currentRound = null;
+            ds.questions = [];
+            ds.currentQuestionIdx = -1;
+            ds.phase = 'lobby';
+            ds.answers = {};
+            ds.revealedCells = [];
+            ds.revealedLetters = [];
+            ds.optionsRevealed = false;
+            ds.lastQuestionScores = {};
+            ds.showTeamResults = false;
+            stopTimer(state, gameId, io);
+            state.pulsadorActivo = false;
+            state.colaPulsador = [];
+            // Keep teams connected — don't touch state.equipos
             broadcastDirector(io, gameId, state);
         });
 

@@ -589,9 +589,15 @@ function renderMulti() {
     if (imgSrc) mediaDiv.innerHTML = '<img src="' + esc(imgSrc) + '" class="q-media">';
     document.getElementById('multiSubmitted').style.display = S.submitted ? 'block' : 'none';
     var optDiv = document.getElementById('multiOptions');
+    // Hide options until optionsRevealed
+    if (!ps.optionsRevealed || !c.options || !c.options.length) {
+        optDiv.innerHTML = '<div style="text-align:center;color:var(--text2);padding:20px;">Esperando opciones...</div>';
+        document.getElementById('submitMultiBtn').style.display = 'none';
+        return;
+    }
     if (S.submitted) return;
     var letters = 'ABCDEFGHIJKLMNOP';
-    optDiv.innerHTML = (c.options || []).map(function(o, i) {
+    optDiv.innerHTML = c.options.map(function(o, i) {
         var sel = S.selectedOptions.indexOf(i) >= 0;
         return '<button class="option-btn ' + (sel ? 'selected' : '') + '" onclick="toggleOption(' + i + ')"><span class="opt-letter">' + letters[i] + '</span>' + esc(o) + '</button>';
     }).join('');
@@ -723,8 +729,10 @@ function renderRevealed() {
     var ps = S.ps; if (!ps || !ps.question) return;
     var c = ps.question.content || {};
     var ans = '';
+    var letters = 'ABCDEFGHIJKLMNOP';
     if (c.correct !== undefined && c.options) {
-        ans = (Array.isArray(c.correct) ? c.correct : [c.correct]).map(function(i) { return c.options[i]; }).join(', ');
+        var indices = Array.isArray(c.correct) ? c.correct : [c.correct];
+        ans = indices.map(function(i) { return letters[i] + ' — ' + c.options[i]; }).join(', ');
     } else if (c.answer !== undefined) ans = String(c.answer);
     else if (c.correct_value !== undefined) ans = String(c.correct_value);
     else if (c.correct_order && c.items) ans = c.correct_order.map(function(i) { return c.items[i]; }).join(' → ');

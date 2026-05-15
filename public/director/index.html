@@ -43,6 +43,8 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .round-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; transition: .15s; border: 1px solid transparent; }
 .round-item:hover { background: var(--surface2); }
 .round-item.active { background: rgba(0,212,255,.1); border-color: var(--accent); }
+.round-item.completed .round-name { text-decoration: line-through; color: var(--danger); opacity: .7; }
+.round-item.completed .round-type { opacity: .5; }
 .round-item .round-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
 .round-item .round-meta { font-size: 11px; color: var(--text2); display: flex; gap: 8px; }
 .round-type { font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 700; text-transform: uppercase; }
@@ -66,9 +68,15 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 #phase-lobby { align-items: center; justify-content: center; text-align: center; gap: 20px; }
 #phase-lobby h2 { font-size: 22px; color: var(--accent); }
 #phase-lobby p { color: var(--text2); max-width: 400px; }
-.create-teams-row { display: flex; gap: 10px; align-items: center; justify-content: center; }
-.create-teams-row input { width: 70px; text-align: center; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 16px; }
-.create-teams-row input:focus { border-color: var(--accent); outline: none; }
+
+/* Round control panel */
+.round-control { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; max-width: 600px; width: 100%; }
+.round-control h3 { font-size: 18px; margin-bottom: 4px; }
+.round-control .rc-meta { font-size: 13px; color: var(--text2); margin-bottom: 16px; }
+.rc-questions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rc-q-btn { width: 44px; height: 44px; border-radius: 8px; font-size: 16px; font-weight: 800; background: var(--surface2); border: 1px solid var(--border); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: .15s; }
+.rc-q-btn:hover { border-color: var(--accent); color: var(--accent); }
+.rc-q-btn.current { border-color: var(--accent); background: rgba(0,212,255,.15); color: var(--accent); }
 
 /* Question */
 #phase-question { gap: 16px; }
@@ -84,20 +92,47 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .question-answer strong { color: var(--success); }
 .question-media { max-width: 300px; max-height: 200px; border-radius: 8px; margin-bottom: 12px; }
 
+/* Director image grid with thumbnail */
+.dir-img-preview { position: relative; display: inline-block; border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+.dir-img-preview img { width: 200px; height: 200px; object-fit: cover; display: block; }
+.dir-img-preview .dir-grid-overlay { position: absolute; inset: 0; display: grid; }
+.dir-grid-cell-img { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; cursor: pointer; transition: .2s; border: 1px solid rgba(255,255,255,.15); }
+.dir-grid-cell-img.hidden { background: rgba(10,10,16,.85); color: var(--accent); }
+.dir-grid-cell-img.hidden:hover { background: rgba(0,212,255,.3); }
+.dir-grid-cell-img.revealed { background: transparent; color: transparent; }
+
 /* Answer revealed */
 #phase-answer { gap: 16px; }
 .answer-card { background: var(--surface); border: 2px solid var(--success); border-radius: var(--radius); padding: 24px; text-align: center; }
 .answer-card h3 { color: var(--success); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
 .answer-card .answer-text { font-size: 24px; font-weight: 700; }
 
-/* Scoreboard */
-#phase-scoreboard { gap: 16px; }
-#phase-scoreboard h2 { font-size: 20px; color: var(--gold); text-align: center; }
+/* Scoreboard overlay */
+.scoreboard-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75); backdrop-filter: blur(6px); z-index: 150; justify-content: center; align-items: center; padding: 20px; }
+.scoreboard-overlay.active { display: flex; }
+.scoreboard-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; width: 100%; max-width: 500px; max-height: 80vh; overflow-y: auto; }
+.scoreboard-panel h2 { font-size: 20px; color: var(--gold); text-align: center; margin-bottom: 16px; }
 .scoreboard-table { width: 100%; border-collapse: collapse; }
 .scoreboard-table th { font-size: 11px; text-transform: uppercase; color: var(--text2); padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
 .scoreboard-table td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 15px; }
 .scoreboard-table .rank { width: 40px; text-align: center; font-weight: 800; color: var(--gold); }
 .scoreboard-table .score { text-align: right; font-weight: 700; font-size: 18px; color: var(--accent); }
+.sb-close { position: absolute; top: 20px; right: 20px; background: var(--surface); border: 1px solid var(--border); color: var(--text); width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+/* Team results breakdown */
+.team-results { margin-top: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.team-results h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); padding: 12px 16px 8px; }
+.tr-row { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-top: 1px solid var(--border); }
+.tr-row:first-of-type { border-top: none; }
+.tr-icon { font-size: 18px; flex-shrink: 0; width: 24px; text-align: center; }
+.tr-photo { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--surface2); }
+.tr-name { font-size: 13px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-answer { font-size: 12px; color: var(--text2); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-points { font-size: 14px; font-weight: 700; width: 60px; text-align: right; flex-shrink: 0; }
+.tr-points.positive { color: var(--success); }
+.tr-points.negative { color: var(--danger); }
+.tr-points.zero { color: var(--text2); }
+.tr-no-answer { color: var(--text2); font-style: italic; font-size: 12px; }
 
 /* Waiting */
 #phase-waiting { align-items: center; justify-content: center; text-align: center; gap: 16px; }
@@ -129,7 +164,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .team-chip .team-actions button { padding: 3px 7px; font-size: 11px; border-radius: 4px; }
 .team-chip .blocked-badge { position: absolute; top: -4px; right: -4px; background: var(--danger); color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 700; }
 
-/* Director image grid */
+/* Director image grid (legacy cells) */
 .dir-grid { display: inline-grid; gap: 3px; }
 .dir-grid-cell { width: 40px; height: 40px; border-radius: 4px; font-size: 12px; font-weight: 700;
     display: flex; align-items: center; justify-content: center; cursor: pointer; transition: .15s; }
@@ -196,13 +231,15 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 
 <!-- Header -->
 <div class="header">
-    <span class="header-logo">GameShow</span>
+    <span class="header-logo">Mesa de control</span>
     <span class="header-game" id="headerGameName">Cargando...</span>
     <div class="header-actions">
         <button class="btn-ghost btn-sm" onclick="toggleSidebar()" title="Rondas">&#9776;</button>
-        <button class="btn-ghost btn-sm" onclick="emit('director:show_lobby')" title="Lobby">&#127968;</button>
-        <button class="btn-ghost btn-sm" onclick="emit('director:show_scoreboard')" title="Marcador">&#127942;</button>
+        <button class="btn-ghost btn-sm" onclick="goToLobby()" title="Lobby">&#127968;</button>
+        <button class="btn-ghost btn-sm" onclick="toggleScoreboard()" title="Marcador">&#127942;</button>
         <button class="btn-ghost btn-sm" onclick="emit('director:show_waiting')" title="Espera">&#9208;</button>
+        <button class="btn-danger btn-sm" onclick="resetSession()" title="Reiniciar partida">&#128260;</button>
+        <button class="btn-ghost btn-sm" onclick="openAdmin()" title="Backoffice">&#9881;</button>
         <button class="btn-accent btn-sm" onclick="openScreen()" title="Abrir pantalla proyector">&#128250; Pantalla</button>
     </div>
 </div>
@@ -223,16 +260,17 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         <!-- No game -->
         <div class="no-game" id="noGame" style="display:none">
             <h2>No se encontr&oacute; el juego</h2>
-            <p>Comprueba la URL o vuelve al <a href="/admin" style="color:var(--accent)">backoffice</a>.</p>
+            <p>Comprueba la URL o vuelve al <a href="/admin" style="color:var(--accent)" target="_blank">backoffice</a>.</p>
         </div>
 
         <!-- Phase: Lobby -->
         <div class="phase" id="phase-lobby">
-            <h2 id="lobbyTitle">Panel de Coordinador</h2>
-            <p id="lobbySubtitle">Los equipos se unirán desde sus iPads. Cuando estén todos, pulsa "Iniciar juego".</p>
+            <h2 id="lobbyTitle">Mesa de control</h2>
+            <p id="lobbySubtitle">Los equipos se unir&aacute;n desde sus iPads. Selecciona una ronda en el panel lateral para empezar.</p>
             <div id="lobbyTeamsList" class="lobby-teams"></div>
+            <div id="lobbyRoundControl"></div>
             <div id="lobbyActions" style="display:flex; gap:10px; justify-content:center; margin-top:16px;">
-                <button class="btn-success btn-lg" id="btnStartGame" onclick="emit('director:start_game')" disabled>&#9654; Iniciar juego</button>
+                <button class="btn-success btn-lg" id="btnStartGame" onclick="goToLobby()" disabled>&#9654; Iniciar juego</button>
             </div>
         </div>
 
@@ -252,9 +290,11 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 <div class="question-answer" id="questionAnswer" style="display:none"></div>
             </div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;">
+                <button class="btn-accent" id="btnRevealOptions" style="display:none" onclick="emit('director:reveal_options')">&#128065; Abrir opciones</button>
                 <button class="btn-accent" onclick="emit('director:reveal_answer')">&#128064; Revelar respuesta</button>
-                <button class="btn-orange btn-sm" id="btnRevealNext" style="display:none" onclick="revealNext()">&#128065; Revelar siguiente</button>
+                <button class="btn-orange btn-sm" id="btnRevealNext" style="display:none" onclick="revealNext()">&#128065; Siguiente cuadrado</button>
                 <button class="btn-ghost btn-sm" id="btnRevealAll" style="display:none" onclick="revealAll()">Revelar todo</button>
+                <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Marcar ronda completada</button>
             </div>
         </div>
 
@@ -273,21 +313,12 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 <h3>Respuesta correcta</h3>
                 <div class="answer-text" id="answerText">-</div>
             </div>
+            <div id="teamResultsPanel"></div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;">
                 <button class="btn-success" onclick="emit('director:next_question')">Siguiente pregunta &#9654;</button>
-                <button class="btn-ghost btn-sm" onclick="emit('director:show_scoreboard')">&#127942; Marcador</button>
-            </div>
-        </div>
-
-        <!-- Phase: Scoreboard -->
-        <div class="phase" id="phase-scoreboard">
-            <h2>&#127942; Marcador</h2>
-            <table class="scoreboard-table">
-                <thead><tr><th class="rank">#</th><th>Equipo</th><th style="text-align:right">Puntos</th></tr></thead>
-                <tbody id="scoreboardBody"></tbody>
-            </table>
-            <div style="text-align:center; margin-top:16px;">
-                <button class="btn-ghost" onclick="emit('director:show_lobby')">&#127968; Volver al lobby</button>
+                <button class="btn-ghost btn-sm" id="btnShowTeamResults" onclick="emit('director:toggle_team_results')">&#128101; Mostrar resultados</button>
+                <button class="btn-ghost btn-sm" onclick="toggleScoreboard()">&#127942; Marcador</button>
+                <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Marcar ronda completada</button>
             </div>
         </div>
 
@@ -295,7 +326,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         <div class="phase" id="phase-waiting">
             <h2>&#9208; Pantalla de espera</h2>
             <p style="color:var(--text2)">Los jugadores ven la pantalla de espera.</p>
-            <button class="btn-ghost" onclick="emit('director:show_lobby')" style="margin-top:16px;">&#127968; Volver al lobby</button>
+            <button class="btn-ghost" onclick="goToLobby()" style="margin-top:16px;">&#127968; Volver al lobby</button>
         </div>
     </div>
 </div>
@@ -333,6 +364,18 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 <!-- Teams bar -->
 <div class="teams-bar" id="teamsBar">
     <div style="color:var(--text2); font-size:12px; padding:12px;">Sin equipos</div>
+</div>
+
+<!-- Scoreboard overlay -->
+<div class="scoreboard-overlay" id="scoreboardOverlay" onclick="if(event.target===this)toggleScoreboard()">
+    <button class="sb-close" onclick="toggleScoreboard()">&times;</button>
+    <div class="scoreboard-panel">
+        <h2>&#127942; Marcador</h2>
+        <table class="scoreboard-table">
+            <thead><tr><th class="rank">#</th><th>Equipo</th><th style="text-align:right">Puntos</th></tr></thead>
+            <tbody id="scoreboardBody"></tbody>
+        </table>
+    </div>
 </div>
 
 <!-- Points modal -->
@@ -440,16 +483,22 @@ function onSync(state) {
 function render() {
     const ds = S.director;
     if (!ds) return;
-    setPhase(ds.phase || 'lobby');
+    // Scoreboard is now an overlay — don't change phase for it
+    if (ds.phase !== 'scoreboard') {
+        setPhase(ds.phase || 'lobby');
+    } else {
+        // Server sent scoreboard phase — show overlay + keep current view
+        setPhase('lobby');
+        showScoreboardOverlay();
+    }
     renderTimer();
     renderBuzzer();
     renderTeams();
     renderRoundsActive();
-    const p = ds.phase;
+    const p = ds.phase === 'scoreboard' ? 'lobby' : ds.phase;
     if (p === 'lobby') renderLobby();
     else if (p === 'question') renderQuestion();
     else if (p === 'answer_revealed') renderAnswerRevealed();
-    else if (p === 'scoreboard') renderScoreboard();
 }
 
 function setPhase(phase) {
@@ -464,7 +513,7 @@ function renderRounds() {
     const list = document.getElementById('roundsList');
     document.getElementById('roundCount').textContent = S.rounds.length;
     if (!S.rounds.length) {
-        list.innerHTML = '<div style="padding:16px;color:var(--text2);font-size:13px;">Sin rondas.<br><a href="/admin" style="color:var(--accent)">Crear en backoffice</a></div>';
+        list.innerHTML = '<div style="padding:16px;color:var(--text2);font-size:13px;">Sin rondas.<br><a href="/admin" target="_blank" style="color:var(--accent)">Crear en backoffice</a></div>';
         return;
     }
     list.innerHTML = S.rounds.map(r => {
@@ -477,30 +526,57 @@ function renderRounds() {
 }
 
 function renderRoundsActive() {
+    var completedRounds = (S.director && S.director.completedRounds) || [];
     document.querySelectorAll('.round-item').forEach(el => {
         el.classList.toggle('active', S.director && el.dataset.id === S.director.currentRoundId);
+        el.classList.toggle('completed', completedRounds.indexOf(el.dataset.id) >= 0);
     });
 }
 
 function launchRound(roundId) { emit('director:launch_round', { roundId }); }
+
+function markRoundComplete() {
+    var ds = S.director;
+    if (!ds || !ds.currentRoundId) return;
+    emit('director:complete_round', { roundId: ds.currentRoundId });
+    toast('Ronda marcada como completada');
+}
 
 // ── Lobby ──
 function renderLobby() {
     const hasTeams = S.equipos.length > 0;
     const ds = S.director;
     var btn = document.getElementById('btnStartGame');
+    var rcEl = document.getElementById('lobbyRoundControl');
 
     if (ds && ds.currentRound) {
         document.getElementById('lobbyTitle').textContent = ds.currentRound.name;
-        document.getElementById('lobbySubtitle').textContent =
-            ds.questions.length + ' preguntas. Pulsa "Siguiente" o las flechas del teclado.';
+        document.getElementById('lobbySubtitle').textContent = ds.questions.length + ' preguntas';
         document.getElementById('lobbyActions').style.display = 'none';
+
+        // Render round control panel with question buttons
+        var qCount = ds.questions.length;
+        var currentIdx = ds.currentQuestionIdx;
+        var html = '<div class="round-control">'
+            + '<h3>' + esc(ds.currentRound.name) + '</h3>'
+            + '<div class="rc-meta"><span class="round-type type-' + ds.currentRound.type + '">' + ds.currentRound.type + '</span> &middot; ' + qCount + ' preguntas</div>'
+            + '<div style="display:flex; gap:8px; margin-bottom:14px;">'
+            + '<button class="btn-accent" onclick="emit(\'director:launch_question\',{idx:0})">Empezar desde la pregunta 1</button>'
+            + '</div>'
+            + '<div class="rc-questions">';
+        for (var i = 0; i < qCount; i++) {
+            var isCurrent = i === currentIdx;
+            html += '<div class="rc-q-btn' + (isCurrent ? ' current' : '') + '" onclick="emit(\'director:launch_question\',{idx:' + i + '})">' + (i + 1) + '</div>';
+        }
+        html += '</div></div>';
+        rcEl.innerHTML = html;
     } else {
-        document.getElementById('lobbyTitle').textContent = 'Sala de espera';
+        document.getElementById('lobbyTitle').textContent = 'Mesa de control';
         document.getElementById('lobbyActions').style.display = 'flex';
+        rcEl.innerHTML = '';
         if (hasTeams) {
             document.getElementById('lobbySubtitle').textContent =
-                S.equipos.length + ' equipo' + (S.equipos.length > 1 ? 's' : '') + ' conectado' + (S.equipos.length > 1 ? 's' : '') + '. Selecciona una ronda para empezar.';
+                S.equipos.length + ' equipo' + (S.equipos.length > 1 ? 's' : '') + ' conectado' + (S.equipos.length > 1 ? 's' : '') + '. Selecciona una ronda en el panel lateral para empezar.';
             btn.disabled = false;
         } else {
             document.getElementById('lobbySubtitle').textContent = 'Esperando a que los equipos se unan desde sus iPads...';
@@ -508,6 +584,10 @@ function renderLobby() {
         }
     }
     renderLobbyTeams();
+}
+
+function goToLobby() {
+    emit('director:show_lobby');
 }
 
 function renderLobbyTeams() {
@@ -534,7 +614,7 @@ function renderLobbyTeams() {
 }
 
 function removeTeam(teamId) {
-    if (!confirm('¿Expulsar este equipo?')) return;
+    if (!confirm('Expulsar este equipo?')) return;
     emit('director:remove_team', { teamId: teamId });
 }
 
@@ -608,23 +688,34 @@ function renderQuestion() {
         }).join('');
     }
 
+    // Show/hide "Abrir opciones" button for multirespuesta
+    var roundType = ds.currentRound ? ds.currentRound.type : '';
+    var btnRevealOpts = document.getElementById('btnRevealOptions');
+    if (roundType === 'multirespuesta' && !ds.optionsRevealed) {
+        btnRevealOpts.style.display = '';
+    } else {
+        btnRevealOpts.style.display = 'none';
+    }
+
     var ansDiv = document.getElementById('questionAnswer');
     ansDiv.style.display = 'block';
     if (c.correct !== undefined && c.options) {
-        var corr = (Array.isArray(c.correct) ? c.correct : [c.correct]).map(function(i) { return c.options[i]; }).join(', ');
+        var letters2 = 'ABCDEFGHIJKLMNOP';
+        var corr = (Array.isArray(c.correct) ? c.correct : [c.correct]).map(function(i) { return letters2[i] + ' — ' + c.options[i]; }).join(', ');
         ansDiv.innerHTML = 'Correcta: <strong>' + esc(corr) + '</strong>';
     } else if (c.answer !== undefined) {
         ansDiv.innerHTML = 'Respuesta: <strong>' + esc(String(c.answer)) + '</strong>';
     } else if (c.correct_value !== undefined) {
         ansDiv.innerHTML = 'Valor correcto: <strong>' + c.correct_value + '</strong>';
+    } else if (c.correct_order && c.items) {
+        ansDiv.innerHTML = 'Orden: <strong>' + c.correct_order.map(function(i) { return c.items[i]; }).join(' → ') + '</strong>';
     } else { ansDiv.style.display = 'none'; }
 
-    var roundType = ds.currentRound ? ds.currentRound.type : '';
     renderDirImageGrid(roundType, c, q);
     renderDirLetterPanel(roundType, c);
 }
 
-// ── Image grid controls ──
+// ── Image grid controls (redesigned with thumbnail) ──
 function renderDirImageGrid(type, c, q) {
     var el = document.getElementById('dirImageGrid');
     var btnNext = document.getElementById('btnRevealNext');
@@ -633,15 +724,27 @@ function renderDirImageGrid(type, c, q) {
     var grid = c.grid || 4;
     var total = grid * grid;
     var revealed = S.director.revealedCells || [];
+    var order = c.reveal_order || [];
     el.style.display = 'block';
     btnNext.style.display = revealed.length < total ? '' : 'none';
     btnAll.style.display = revealed.length < total ? '' : 'none';
-    el.innerHTML = '<div class="dir-grid" style="grid-template-columns:repeat(' + grid + ',1fr)">' +
-        Array.from({length: total}, function(_, i) {
-            var isRev = revealed.indexOf(i) >= 0;
-            return '<div class="dir-grid-cell ' + (isRev ? 'revealed' : 'hidden') + '" onclick="revealCell(' + i + ')">' + (i + 1) + '</div>';
-        }).join('') + '</div>' +
-        '<div style="font-size:11px;color:var(--text2);margin-top:6px">' + revealed.length + '/' + total + ' reveladas</div>';
+
+    // Build thumbnail with grid overlay
+    var imgSrc = q.media_url || c.image || '';
+    var cellSize = Math.floor(200 / grid);
+    var html = '<div class="dir-img-preview">';
+    if (imgSrc) html += '<img src="' + esc(imgSrc) + '">';
+    html += '<div class="dir-grid-overlay" style="grid-template-columns:repeat(' + grid + ',1fr);grid-template-rows:repeat(' + grid + ',1fr)">';
+    for (var i = 0; i < total; i++) {
+        var isRev = revealed.indexOf(i) >= 0;
+        // Find the reveal order number for this cell
+        var orderNum = order.indexOf(i);
+        var label = orderNum >= 0 ? (orderNum + 1) : (i + 1);
+        html += '<div class="dir-grid-cell-img ' + (isRev ? 'revealed' : 'hidden') + '" onclick="revealCell(' + i + ')">' + (isRev ? '' : label) + '</div>';
+    }
+    html += '</div></div>';
+    html += '<div style="font-size:11px;color:var(--text2);margin-top:6px">' + revealed.length + '/' + total + ' reveladas</div>';
+    el.innerHTML = html;
 }
 
 function revealCell(idx) { emit('director:reveal_cell', { idx: idx }); }
@@ -725,16 +828,97 @@ function renderAnswerRevealed() {
         }).join('');
     }
 
+    // Build answer text with letter + text for multirespuesta
     var ans = '';
+    var roundType = ds.currentRound ? ds.currentRound.type : '';
     if (c.correct !== undefined && c.options) {
-        ans = (Array.isArray(c.correct) ? c.correct : [c.correct]).map(function(i) { return c.options[i]; }).join(', ');
+        var letters2 = 'ABCDEFGHIJKLMNOP';
+        ans = (Array.isArray(c.correct) ? c.correct : [c.correct]).map(function(i) { return letters2[i] + ' — ' + c.options[i]; }).join(', ');
     } else if (c.answer !== undefined) ans = String(c.answer);
     else if (c.correct_value !== undefined) ans = String(c.correct_value);
     else if (c.correct_order && c.items) ans = c.correct_order.map(function(i) { return c.items[i]; }).join(' → ');
     document.getElementById('answerText').textContent = ans || '-';
+
+    // Team results breakdown (always visible in director)
+    renderTeamResults();
+
+    // Toggle button state for "Mostrar resultados"
+    var btnTR = document.getElementById('btnShowTeamResults');
+    if (ds.showTeamResults) {
+        btnTR.classList.add('active');
+        btnTR.innerHTML = '&#128101; Ocultar resultados';
+    } else {
+        btnTR.classList.remove('active');
+        btnTR.innerHTML = '&#128101; Mostrar resultados';
+    }
 }
 
-// ── Scoreboard ──
+function renderTeamResults() {
+    var ds = S.director;
+    var el = document.getElementById('teamResultsPanel');
+    if (!ds || !el) return;
+    var lqs = ds.lastQuestionScores || {};
+    var roundType = ds.currentRound ? ds.currentRound.type : '';
+    var q = ds.questions[ds.currentQuestionIdx];
+    var c = q ? (q.content || {}) : {};
+    var letters = 'ABCDEFGHIJKLMNOP';
+
+    if (!S.equipos.length) { el.innerHTML = ''; return; }
+
+    var html = '<div class="team-results"><h4>Resultados por equipo</h4>';
+    S.equipos.forEach(function(eq) {
+        var r = lqs[eq.id] || { answer: null, correct: false, points: 0, noAnswer: true };
+        var icon = r.noAnswer ? '&#9899;' : (r.correct ? '&#9989;' : '&#10060;');
+        var ansText = '';
+
+        if (r.noAnswer) {
+            ansText = '<span class="tr-no-answer">Sin respuesta</span>';
+        } else if (roundType === 'multirespuesta' && c.options) {
+            var picks = Array.isArray(r.answer) ? r.answer : [r.answer];
+            ansText = picks.map(function(i) { return letters[i] + ' — ' + (c.options[i] || ''); }).join(', ');
+        } else if (roundType === 'precio') {
+            ansText = String(r.answer);
+        } else if (roundType === 'boom' && c.items) {
+            var order = Array.isArray(r.answer) ? r.answer : [];
+            ansText = order.map(function(i) { return c.items[i] || i; }).join(' → ');
+        } else {
+            ansText = String(r.answer || '');
+        }
+
+        var ptsClass = r.points > 0 ? 'positive' : (r.points < 0 ? 'negative' : 'zero');
+        var ptsText = r.points > 0 ? '+' + r.points : String(r.points);
+        var photoHtml = eq.photo_url
+            ? '<img class="tr-photo" src="' + esc(eq.photo_url) + '">'
+            : '<div class="tr-photo" style="display:flex;align-items:center;justify-content:center;font-size:14px;">&#128100;</div>';
+
+        html += '<div class="tr-row">'
+            + '<span class="tr-icon">' + icon + '</span>'
+            + photoHtml
+            + '<span class="tr-name">' + esc(eq.nombre) + '</span>'
+            + '<span class="tr-answer">' + (r.noAnswer ? ansText : esc(ansText)) + '</span>'
+            + '<span class="tr-points ' + ptsClass + '">' + ptsText + '</span>'
+            + '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+}
+
+// ── Scoreboard (overlay) ──
+function toggleScoreboard() {
+    var el = document.getElementById('scoreboardOverlay');
+    if (el.classList.contains('active')) {
+        el.classList.remove('active');
+    } else {
+        renderScoreboard();
+        el.classList.add('active');
+    }
+}
+
+function showScoreboardOverlay() {
+    renderScoreboard();
+    document.getElementById('scoreboardOverlay').classList.add('active');
+}
+
 function renderScoreboard() {
     const ds = S.director;
     if (!ds) return;
@@ -823,12 +1007,16 @@ function submitPoints() {
     closePointsModal();
 }
 
-// ── Rename (legacy, uses edit team modal) ──
-function openRenameModal(teamId) { openEditTeamModal(teamId); }
-function closeRenameModal() { closeEditTeamModal(); }
-function submitRename() { submitEditTeam(); }
+// ── Reset session ──
+function resetSession() {
+    if (!confirm('Seguro? Esto borrara todos los puntos y el progreso actual. Los equipos seguiran conectados.')) return;
+    emit('director:reset_session');
+    toast('Partida reiniciada');
+}
 
+// ── Navigation ──
 function openScreen() { window.open('/screen/' + S.gameId, '_blank'); }
+function openAdmin() { window.open('/admin', '_blank'); }
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
 
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
@@ -846,7 +1034,11 @@ document.addEventListener('keydown', function(e) {
     if (e.key === ' ') { e.preventDefault(); emit('director:start_timer'); }
     if (e.key === 'r' || e.key === 'R') emit('director:reveal_answer');
     if (e.key === 'b' || e.key === 'B') emit('director:open_buzzer');
-    if (e.key === 'Escape') emit('director:close_buzzer');
+    if (e.key === 'Escape') {
+        var sbOverlay = document.getElementById('scoreboardOverlay');
+        if (sbOverlay.classList.contains('active')) { sbOverlay.classList.remove('active'); }
+        else emit('director:close_buzzer');
+    }
 });
 
 document.getElementById('pointsInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitPoints(); });
