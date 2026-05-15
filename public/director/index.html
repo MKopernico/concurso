@@ -146,6 +146,18 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .dir-letter.revealed { background: rgba(0,212,255,.15); border: 1px solid var(--accent); color: var(--accent); }
 .dir-letter.space { background: transparent; border: none; cursor: default; }
 
+/* Lobby teams */
+.lobby-teams { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 700px; margin: 0 auto; }
+.lobby-team { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; min-width: 160px; display: flex; align-items: center; gap: 10px; position: relative; }
+.lobby-team-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--surface2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--text2); overflow: hidden; }
+.lobby-team-photo img { width: 100%; height: 100%; object-fit: cover; }
+.lobby-team-info { flex: 1; min-width: 0; }
+.lobby-team-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lobby-team-status { font-size: 11px; color: var(--success); }
+.lobby-team-actions { display: flex; gap: 4px; }
+.lobby-team-actions button { padding: 4px 8px; font-size: 11px; border-radius: 4px; }
+.lobby-empty { color: var(--text2); font-size: 14px; padding: 24px; text-align: center; }
+
 /* No game */
 .no-game { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 16px; color: var(--text2); text-align: center; padding: 40px; }
 .no-game h2 { color: var(--text); }
@@ -217,12 +229,10 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         <!-- Phase: Lobby -->
         <div class="phase" id="phase-lobby">
             <h2 id="lobbyTitle">Panel de Coordinador</h2>
-            <p id="lobbySubtitle">Selecciona una ronda en el panel lateral para empezar, o crea equipos primero.</p>
-            <div class="create-teams-row" id="createTeamsRow">
-                <span style="color:var(--text2)">Crear</span>
-                <input type="number" id="teamCountInput" value="4" min="1" max="20">
-                <span style="color:var(--text2)">equipos</span>
-                <button class="btn-accent" onclick="createTeams()">Crear</button>
+            <p id="lobbySubtitle">Los equipos se unirán desde sus iPads. Cuando estén todos, pulsa "Iniciar juego".</p>
+            <div id="lobbyTeamsList" class="lobby-teams"></div>
+            <div id="lobbyActions" style="display:flex; gap:10px; justify-content:center; margin-top:16px;">
+                <button class="btn-success btn-lg" id="btnStartGame" onclick="emit('director:start_game')" disabled>&#9654; Iniciar juego</button>
             </div>
         </div>
 
@@ -340,17 +350,25 @@ button:disabled { opacity: .4; cursor: not-allowed; }
     </div>
 </div>
 
-<!-- Rename modal -->
-<div class="modal-overlay" id="renameModal">
+<!-- Edit team modal (name + photo) -->
+<div class="modal-overlay" id="editTeamModal">
     <div class="modal">
-        <h3>Renombrar equipo</h3>
+        <h3>Editar equipo</h3>
         <div class="field">
-            <label>Nuevo nombre</label>
-            <input type="text" id="renameInput" maxlength="30">
+            <label>Nombre</label>
+            <input type="text" id="editTeamName" maxlength="30">
+        </div>
+        <div class="field">
+            <label>Foto (URL)</label>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <input type="text" id="editTeamPhoto" placeholder="URL de la foto">
+                <label class="btn-ghost btn-sm" style="cursor:pointer; flex-shrink:0;">Subir<input type="file" accept="image/*" id="editTeamPhotoFile" style="display:none"></label>
+            </div>
+            <img id="editTeamPhotoPreview" style="display:none; width:60px; height:60px; border-radius:50%; object-fit:cover; margin-top:8px; border:1px solid var(--border);">
         </div>
         <div class="modal-footer">
-            <button class="btn-ghost" onclick="closeRenameModal()">Cancelar</button>
-            <button class="btn-accent" onclick="submitRename()">Guardar</button>
+            <button class="btn-ghost" onclick="closeEditTeamModal()">Cancelar</button>
+            <button class="btn-accent" onclick="submitEditTeam()">Guardar</button>
         </div>
     </div>
 </div>
@@ -366,7 +384,6 @@ const S = {
 };
 let socket = null;
 let pointsTeamId = null;
-let renameTeamId = null;
 
 // ═══════════════ Init ═══════════════
 document.addEventListener('DOMContentLoaded', async () => {
@@ -470,24 +487,98 @@ function launchRound(roundId) { emit('director:launch_round', { roundId }); }
 // ── Lobby ──
 function renderLobby() {
     const hasTeams = S.equipos.length > 0;
-    document.getElementById('createTeamsRow').style.display = hasTeams ? 'none' : 'flex';
     const ds = S.director;
+    var btn = document.getElementById('btnStartGame');
+
     if (ds && ds.currentRound) {
         document.getElementById('lobbyTitle').textContent = ds.currentRound.name;
         document.getElementById('lobbySubtitle').textContent =
-            ds.questions.length + ' preguntas. Pulsa "Siguiente" en la barra de navegación o las flechas del teclado.';
+            ds.questions.length + ' preguntas. Pulsa "Siguiente" o las flechas del teclado.';
+        document.getElementById('lobbyActions').style.display = 'none';
     } else {
-        document.getElementById('lobbyTitle').textContent = 'Panel de Coordinador';
-        document.getElementById('lobbySubtitle').textContent = hasTeams
-            ? S.equipos.length + ' equipos listos. Selecciona una ronda para empezar.'
-            : 'Crea equipos antes de empezar el juego.';
+        document.getElementById('lobbyTitle').textContent = 'Sala de espera';
+        document.getElementById('lobbyActions').style.display = 'flex';
+        if (hasTeams) {
+            document.getElementById('lobbySubtitle').textContent =
+                S.equipos.length + ' equipo' + (S.equipos.length > 1 ? 's' : '') + ' conectado' + (S.equipos.length > 1 ? 's' : '') + '. Selecciona una ronda para empezar.';
+            btn.disabled = false;
+        } else {
+            document.getElementById('lobbySubtitle').textContent = 'Esperando a que los equipos se unan desde sus iPads...';
+            btn.disabled = true;
+        }
     }
+    renderLobbyTeams();
 }
 
-function createTeams() {
-    const n = parseInt(document.getElementById('teamCountInput').value) || 4;
-    emit('director:create_teams', { count: n });
+function renderLobbyTeams() {
+    var el = document.getElementById('lobbyTeamsList');
+    if (!S.equipos.length) {
+        el.innerHTML = '<div class="lobby-empty">&#128225; Comparte el enlace de /play con los equipos</div>';
+        return;
+    }
+    el.innerHTML = S.equipos.map(function(e) {
+        var photo = e.photo_url
+            ? '<div class="lobby-team-photo"><img src="' + esc(e.photo_url) + '"></div>'
+            : '<div class="lobby-team-photo">&#128100;</div>';
+        return '<div class="lobby-team">'
+            + photo
+            + '<div class="lobby-team-info">'
+            + '<div class="lobby-team-name">' + esc(e.nombre) + '</div>'
+            + '<div class="lobby-team-status">' + (e.ocupado ? '&#128994; Conectado' : '&#9898; Desconectado') + '</div>'
+            + '</div>'
+            + '<div class="lobby-team-actions">'
+            + '<button class="btn-ghost" onclick="openEditTeamModal(\'' + e.id + '\')" title="Editar">&#9998;</button>'
+            + '<button class="btn-ghost" onclick="removeTeam(\'' + e.id + '\')" title="Expulsar" style="color:var(--danger)">&#10005;</button>'
+            + '</div></div>';
+    }).join('');
 }
+
+function removeTeam(teamId) {
+    if (!confirm('¿Expulsar este equipo?')) return;
+    emit('director:remove_team', { teamId: teamId });
+}
+
+// ── Edit team modal ──
+var editTeamId = null;
+function openEditTeamModal(teamId) {
+    editTeamId = teamId;
+    var eq = S.equipos.find(function(e) { return e.id === teamId; });
+    if (!eq) return;
+    document.getElementById('editTeamName').value = eq.nombre || '';
+    document.getElementById('editTeamPhoto').value = eq.photo_url || '';
+    var preview = document.getElementById('editTeamPhotoPreview');
+    if (eq.photo_url) { preview.src = eq.photo_url; preview.style.display = ''; }
+    else { preview.style.display = 'none'; }
+    document.getElementById('editTeamModal').classList.add('active');
+    document.getElementById('editTeamName').focus();
+}
+function closeEditTeamModal() { document.getElementById('editTeamModal').classList.remove('active'); editTeamId = null; }
+function submitEditTeam() {
+    if (!editTeamId) return;
+    var name = document.getElementById('editTeamName').value.trim();
+    var photo = document.getElementById('editTeamPhoto').value.trim();
+    emit('director:update_team', { teamId: editTeamId, name: name || undefined, photo_url: photo || null });
+    closeEditTeamModal();
+}
+
+document.getElementById('editTeamPhotoFile').addEventListener('change', async function() {
+    var file = this.files[0];
+    if (!file) return;
+    var form = new FormData();
+    form.append('file', file);
+    try {
+        var res = await fetch('/api/upload/image', { method: 'POST', body: form });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        document.getElementById('editTeamPhoto').value = data.url;
+        var preview = document.getElementById('editTeamPhotoPreview');
+        preview.src = data.url; preview.style.display = '';
+        toast('Foto subida');
+    } catch(e) { toast('Error: ' + e.message); }
+    this.value = '';
+});
+
+document.getElementById('editTeamName').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitEditTeam(); });
 
 // ── Question ──
 function renderQuestion() {
@@ -701,7 +792,7 @@ function renderTeams() {
         var blocked = e.bloqueado;
         return '<div class="team-chip ' + (blocked ? 'blocked' : '') + '">'
             + (blocked ? '<span class="blocked-badge">&#128274;</span>' : '')
-            + '<div class="team-name" title="' + esc(e.nombre) + '" ondblclick="openRenameModal(\'' + e.id + '\')">' + esc(e.nombre) + '</div>'
+            + '<div class="team-name" title="' + esc(e.nombre) + '" ondblclick="openEditTeamModal(\'' + e.id + '\')">' + esc(e.nombre) + '</div>'
             + '<div class="team-score">' + score + '</div>'
             + '<div class="team-actions">'
             + '<button class="btn-success" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:100})" title="+100">+</button>'
@@ -732,20 +823,10 @@ function submitPoints() {
     closePointsModal();
 }
 
-// ── Rename modal ──
-function openRenameModal(teamId) {
-    renameTeamId = teamId;
-    var team = S.equipos.find(function(e) { return e.id === teamId; });
-    document.getElementById('renameInput').value = team ? team.nombre : '';
-    document.getElementById('renameModal').classList.add('active');
-    document.getElementById('renameInput').focus();
-}
-function closeRenameModal() { document.getElementById('renameModal').classList.remove('active'); renameTeamId = null; }
-function submitRename() {
-    var name = document.getElementById('renameInput').value.trim();
-    if (name && renameTeamId) emit('director:rename_team', { teamId: renameTeamId, name: name });
-    closeRenameModal();
-}
+// ── Rename (legacy, uses edit team modal) ──
+function openRenameModal(teamId) { openEditTeamModal(teamId); }
+function closeRenameModal() { closeEditTeamModal(); }
+function submitRename() { submitEditTeam(); }
 
 function openScreen() { window.open('/screen/' + S.gameId, '_blank'); }
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
@@ -769,7 +850,6 @@ document.addEventListener('keydown', function(e) {
 });
 
 document.getElementById('pointsInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitPoints(); });
-document.getElementById('renameInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitRename(); });
 </script>
 </body>
 </html>

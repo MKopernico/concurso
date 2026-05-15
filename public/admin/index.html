@@ -117,12 +117,43 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .bg-type-row { display: flex; gap: 6px; margin-bottom: 10px; }
 .bg-type-btn { padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text2); }
 .bg-type-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+/* Media Library */
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.media-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; position: relative; cursor: pointer; transition: border .15s; }
+.media-item:hover { border-color: var(--accent); }
+.media-item img { width: 100%; height: 120px; object-fit: cover; display: block; }
+.media-item .media-info { padding: 8px 10px; }
+.media-item .media-name { font-size: 11px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-item .media-size { font-size: 10px; color: var(--text2); }
+.media-item .media-delete { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.7); border: none; color: var(--danger); font-size: 14px; width: 24px; height: 24px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; }
+.media-item:hover .media-delete { opacity: 1; }
+.audio-list { display: flex; flex-direction: column; gap: 8px; }
+.audio-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: border .15s; }
+.audio-item:hover { border-color: var(--accent); }
+.audio-item .audio-icon { font-size: 24px; flex-shrink: 0; }
+.audio-item .audio-info { flex: 1; min-width: 0; }
+.audio-item .audio-name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.audio-item .audio-size { font-size: 11px; color: var(--text2); }
+.audio-item .media-delete { background: transparent; border: 1px solid var(--border); color: var(--danger); font-size: 12px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
+
+/* Media picker modal */
+.picker-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 300; justify-content: center; align-items: flex-start; padding: 40px 16px; overflow-y: auto; }
+.picker-overlay.active { display: flex; }
+.picker-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 100%; max-width: 700px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.picker-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.picker-header h3 { flex: 1; color: var(--accent); font-size: 16px; }
+.picker-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+.picker-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
 </style>
 </head>
 <body>
 <header>
     <h1>GameShow</h1>
     <div id="breadcrumb"></div>
+    <div style="margin-left:auto; display:flex; gap:6px;">
+        <button class="btn-ghost btn-sm" onclick="showMediaLibrary()">&#128193; Medios</button>
+    </div>
 </header>
 <main>
     <!-- ============ SCREEN: Games List ============ -->
@@ -147,6 +178,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
         <div class="toolbar">
             <button class="btn-primary" onclick="openRoundModal()">+ Nueva ronda</button>
             <div class="toolbar-right">
+                <button class="btn-success btn-sm" id="btnStartSession" onclick="startSession(currentGame.id)" style="display:none">▶ Iniciar partida</button>
                 <button class="btn-ghost btn-sm" onclick="openGameModal(currentGame)">Editar juego</button>
                 <button class="btn-ghost btn-sm" onclick="publishGame()">Publicar</button>
             </div>
@@ -161,10 +193,24 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
             <button class="btn-primary" onclick="openQuestionModal()">+ Nueva pregunta</button>
             <div class="toolbar-right">
                 <button class="btn-ghost btn-sm" onclick="openRoundModal(currentRound)">Editar ronda</button>
-                <button class="btn-ghost btn-sm" onclick="openImportModal()">Importar CSV</button>
+                <button class="btn-ghost btn-sm" onclick="openImportModal()">Importar Excel</button>
             </div>
         </div>
         <div id="questions-list"></div>
+    </div>
+
+    <!-- ============ SCREEN: Media Library ============ -->
+    <div id="screen-media" class="screen">
+        <div class="toolbar">
+            <div class="filter-tabs" id="media-type-tabs">
+                <button class="filter-tab active" data-val="images" onclick="switchMediaType('images')">&#128247; Imagenes</button>
+                <button class="filter-tab" data-val="audio" onclick="switchMediaType('audio')">&#127925; Audio</button>
+            </div>
+            <div class="toolbar-right">
+                <label class="btn-primary" style="cursor:pointer">+ Subir archivo<input type="file" id="mediaUploadInput" style="display:none" onchange="uploadMediaFile(this)"></label>
+            </div>
+        </div>
+        <div id="media-grid"></div>
     </div>
 </main>
 
@@ -190,6 +236,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 <div class="upload-row">
                     <input type="text" name="theme_logo" placeholder="URL del logo (o sube uno)">
                     <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'theme_logo')"></label>
+                    <button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker('images', function(url){ document.querySelector('[name=theme_logo]').value = url; var p=document.getElementById('preview-game-logo'); p.src=url; p.style.display=''; })">&#128193;</button>
                 </div>
                 <img id="preview-game-logo" class="img-preview" style="display:none; margin-top:8px" onclick="this.style.display='none'; this.closest('.field').querySelector('[name=theme_logo]').value=''">
             </div>
@@ -220,6 +267,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                     <div class="upload-row">
                         <input type="text" name="theme_bg_image" placeholder="URL de imagen de fondo">
                         <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'theme_bg_image')"></label>
+                        <button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker('images', function(url){ document.querySelector('[name=theme_bg_image]').value = url; })">&#128193;</button>
                     </div>
                 </div>
                 <input type="hidden" name="theme_bg_type" value="none">
@@ -272,12 +320,14 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 <div class="upload-row">
                     <input type="text" name="cfg_logo" placeholder="URL del logo (o hereda del juego)">
                     <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'cfg_logo')"></label>
+                    <button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker('images', function(url){ document.querySelector('[name=cfg_logo]').value = url; })">&#128193;</button>
                 </div>
             </div>
             <div class="field"><label>Fondo de la ronda</label>
                 <div class="upload-row">
                     <input type="text" name="cfg_background" placeholder="URL, color (#hex) o gradiente (hereda del juego)">
                     <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'cfg_background')"></label>
+                    <button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker('images', function(url){ document.querySelector('[name=cfg_background]').value = url; })">&#128193;</button>
                 </div>
             </div>
 
@@ -301,7 +351,11 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 <div class="field"><label>Puntos base</label><input type="number" name="q_basePoints" placeholder="Hereda"></div>
                 <div class="field"><label>Bonus máx</label><input type="number" name="q_bonusMax" placeholder="Hereda"></div>
             </div>
-            <div class="field"><label>Media URL</label><input name="media_url" placeholder="URL de imagen o audio (opcional)"></div>
+            <div class="field"><label>Media URL</label>
+                <div class="upload-row"><input name="media_url" placeholder="URL de imagen o audio (opcional)">
+                <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*,audio/*" style="display:none" onchange="uploadFile(this,'media_url')"></label>
+                <button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker('images', function(url){ document.querySelector('[name=media_url]').value = url; })">&#128193;</button></div>
+            </div>
             <input type="hidden" name="id">
             <div class="modal-footer">
                 <button type="button" class="btn-ghost" onclick="closeModal('modal-question-overlay')">Cancelar</button>
@@ -311,22 +365,42 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
     </div>
 </div>
 
-<!-- ============ MODAL: CSV Import ============ -->
+<!-- ============ MODAL: Excel Import ============ -->
 <div id="modal-import-overlay" class="modal-overlay">
     <div class="modal">
-        <h2>Importar preguntas desde CSV</h2>
+        <h2>Importar preguntas desde Excel</h2>
         <p style="color:var(--text2); font-size:13px; margin-bottom:16px">
-            El CSV debe tener las columnas correctas según el tipo de ronda.
-            <button class="btn-ghost btn-sm" onclick="downloadTemplate()" style="margin-left:8px">Descargar plantilla</button>
+            Usa la plantilla oficial con una pestaña por tipo de prueba. Se crean rondas y preguntas automaticamente.
         </p>
-        <div class="field">
-            <label>Archivo CSV</label>
-            <input type="file" id="csv-file" accept=".csv,.tsv,.txt">
+        <div style="display:flex; gap:8px; margin-bottom:16px;">
+            <a class="btn-ghost btn-sm" href="/api/templates/importacion" download style="text-decoration:none">&#128196; Descargar plantilla Excel</a>
         </div>
-        <div id="csv-preview" style="margin-top:12px; font-size:12px; color:var(--text2); max-height:200px; overflow-y:auto"></div>
+        <div class="field">
+            <label>Archivo Excel (.xlsx)</label>
+            <input type="file" id="excel-file" accept=".xlsx,.xls">
+        </div>
+        <div id="excel-preview" style="margin-top:12px; font-size:12px; color:var(--text2); max-height:200px; overflow-y:auto"></div>
         <div class="modal-footer">
             <button type="button" class="btn-ghost" onclick="closeModal('modal-import-overlay')">Cancelar</button>
-            <button type="button" class="btn-primary" onclick="doImportCsv()">Importar</button>
+            <button type="button" class="btn-primary" onclick="doImportExcel()">Importar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============ MODAL: Media Picker ============ -->
+<div id="media-picker-overlay" class="picker-overlay">
+    <div class="picker-modal">
+        <div class="picker-header">
+            <h3 id="pickerTitle">Elegir archivo</h3>
+            <div class="filter-tabs" id="picker-type-tabs">
+                <button class="filter-tab active" data-val="images" onclick="switchPickerType('images')">&#128247; Imagenes</button>
+                <button class="filter-tab" data-val="audio" onclick="switchPickerType('audio')">&#127925; Audio</button>
+            </div>
+            <label class="btn-ghost btn-sm" style="cursor:pointer;flex-shrink:0;">+ Subir<input type="file" id="pickerUploadInput" style="display:none" onchange="uploadPickerFile(this)"></label>
+        </div>
+        <div class="picker-body" id="pickerBody"></div>
+        <div class="picker-footer">
+            <button class="btn-ghost" onclick="closeMediaPicker()">Cancelar</button>
         </div>
     </div>
 </div>
@@ -373,13 +447,19 @@ function showScreen(id) {
 function updateBreadcrumb() {
     const bc = document.getElementById('breadcrumb');
     let parts = [`<a onclick="loadGames()">Juegos</a>`];
-    if (currentGame) {
+    const activeScreen = document.querySelector('.screen.active');
+    if (activeScreen && activeScreen.id === 'screen-media') {
         parts.push(`<span class="sep">›</span>`);
-        parts.push(`<a onclick="loadGame('${currentGame.id}')">${esc(currentGame.name)}</a>`);
-    }
-    if (currentRound) {
-        parts.push(`<span class="sep">›</span>`);
-        parts.push(`<span>${esc(currentRound.name)}</span>`);
+        parts.push(`<span>Biblioteca de medios</span>`);
+    } else {
+        if (currentGame) {
+            parts.push(`<span class="sep">›</span>`);
+            parts.push(`<a onclick="loadGame('${currentGame.id}')">${esc(currentGame.name)}</a>`);
+        }
+        if (currentRound) {
+            parts.push(`<span class="sep">›</span>`);
+            parts.push(`<span>${esc(currentRound.name)}</span>`);
+        }
     }
     bc.innerHTML = parts.join(' ');
 }
@@ -431,6 +511,7 @@ function renderGames() {
                 <span class="card-title" onclick="loadGame('${g.id}')">${esc(g.name)}</span>
                 ${statusBadge(g.status)}
                 <div class="card-actions">
+                    ${g.status === 'published' ? `<button class="btn-success btn-sm" onclick="startSession('${g.id}')" title="Iniciar sesión y abrir director">▶ Jugar</button><a class="btn-ghost btn-sm" href="/director/${g.id}" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Ir al director">🎬 Director</a>` : ''}
                     <button class="btn-icon" onclick="openGameModal(${JSON.stringify(g).replace(/"/g,'&quot;')})" title="Editar">✏️</button>
                     <button class="btn-icon" onclick="duplicateGame('${g.id}')" title="Duplicar">📋</button>
                     ${g.id !== 'default' ? `<button class="btn-icon" onclick="deleteGame('${g.id}')" title="Eliminar">🗑️</button>` : ''}
@@ -549,6 +630,7 @@ function renderGameDetail() {
         </div>
         ${g.note ? `<p style="margin-top:8px; font-size:13px; color:var(--text2)">📝 ${esc(g.note)}</p>` : ''}
     `;
+    document.getElementById('btnStartSession').style.display = g.status === 'published' ? '' : 'none';
     renderRounds();
 }
 
@@ -826,7 +908,7 @@ function fieldsPrecio(c) {
         <div class="field"><label>Enunciado</label><textarea name="c_statement" required>${esc(c.statement || '')}</textarea></div>
         <div class="field-row">
             <div class="field"><label>Valor correcto</label><input type="number" name="c_correct_value" value="${c.correct_value || ''}" required></div>
-            <div class="field"><label>Imagen URL</label><input name="c_image" value="${esc(c.image || '')}"></div>
+            <div class="field"><label>Imagen URL</label><div class="upload-row"><input name="c_image" value="${esc(c.image || '')}"><label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_image')"></label>${libBtn('c_image','images')}</div></div>
         </div>
     `;
 }
@@ -834,7 +916,7 @@ function fieldsPrecio(c) {
 function fieldsImagen(c) {
     const grid = c.grid || [4, 4];
     return `
-        <div class="field"><label>Imagen (URL)</label><input name="c_image" value="${esc(c.image || '')}" required></div>
+        <div class="field"><label>Imagen (URL)</label><div class="upload-row"><input name="c_image" value="${esc(c.image || '')}" required><label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_image')"></label>${libBtn('c_image','images')}</div></div>
         <div class="field-row">
             <div class="field"><label>Cuadrícula (filas)</label><input type="number" name="c_grid_rows" value="${grid[0]}" min="2" max="10"></div>
             <div class="field"><label>Cuadrícula (cols)</label><input type="number" name="c_grid_cols" value="${grid[1]}" min="2" max="10"></div>
@@ -846,7 +928,7 @@ function fieldsImagen(c) {
 
 function fieldsCancion(c) {
     return `
-        <div class="field"><label>Audio (URL o ruta)</label><input name="c_audio" value="${esc(c.audio || '')}" required></div>
+        <div class="field"><label>Audio (URL o ruta)</label><div class="upload-row"><input name="c_audio" value="${esc(c.audio || '')}" required><label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="audio/*" style="display:none" onchange="uploadFile(this,'c_audio')"></label>${libBtn('c_audio','audio')}</div></div>
         <div class="field"><label>Respuesta</label><input name="c_answer" value="${esc(c.answer || '')}" required></div>
         <div class="field-row">
             <div class="field"><label>Caos inicial (0-100)</label><input type="number" name="c_initial_chaos" value="${c.initial_chaos || 100}" min="0" max="100"></div>
@@ -875,7 +957,7 @@ function fieldsRuleta(c) {
 
 function fieldsImagenFija(c) {
     return `
-        <div class="field"><label>Imagen (URL)</label><input name="c_image" value="${esc(c.image || '')}" required></div>
+        <div class="field"><label>Imagen (URL)</label><div class="upload-row"><input name="c_image" value="${esc(c.image || '')}" required><label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_image')"></label>${libBtn('c_image','images')}</div></div>
         <div class="field"><label>Enunciado (opcional)</label><input name="c_statement" value="${esc(c.statement || '')}"></div>
         <div class="field"><label>Respuesta (opcional)</label><input name="c_answer" value="${esc(c.answer || '')}"></div>
         <div class="field"><label>¿Tiene pulsador?</label>
@@ -987,113 +1069,7 @@ function val(form, name) {
     return el ? el.value.trim() : '';
 }
 
-// ─────────────────── CSV IMPORT ───────────────────
-
-function openImportModal() {
-    document.getElementById('csv-file').value = '';
-    document.getElementById('csv-preview').innerHTML = '';
-    openModal('modal-import-overlay');
-}
-
-document.getElementById('csv-file').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-        const lines = reader.result.split('\n').filter(l => l.trim());
-        const preview = document.getElementById('csv-preview');
-        preview.innerHTML = `<strong>${lines.length} líneas encontradas</strong> (primera línea = cabecera)<br><br>`;
-        const previewLines = lines.slice(0, 6);
-        preview.innerHTML += '<pre style="white-space:pre-wrap; font-size:11px; color:var(--text)">' + previewLines.map(l => esc(l)).join('\n') + (lines.length > 6 ? '\n...' : '') + '</pre>';
-    };
-    reader.readAsText(file);
-});
-
-function downloadTemplate() {
-    const type = currentRound.type;
-    let header, sampleRow;
-    switch (type) {
-        case 'multirespuesta':
-            header = 'enunciado\topción_1\topción_2\topción_3\topción_4\tcorrectas\texplicación';
-            sampleRow = '¿Capital de Australia?\tSídney\tCanberra\tMelbourne\tBrisbane\t2\tCanberra es la capital desde 1913';
-            break;
-        case 'pulsador':
-            header = 'enunciado\trespuesta\tpistas';
-            sampleRow = '¿Quién pintó La Gioconda?\tLeonardo da Vinci\tArtista del Renacimiento|Italiano';
-            break;
-        case 'precio':
-            header = 'enunciado\tvalor_correcto\timagen';
-            sampleRow = '¿Cuánto cuesta este coche?\t35000\t/uploads/images/coche.jpg';
-            break;
-        case 'boom':
-            header = 'enunciado\telemento_1\telemento_2\telemento_3\telemento_4';
-            sampleRow = 'Ordena de más antiguo a más reciente:\tImperio Romano\tDescubrimiento América\tRevolución Francesa\tPrimera Guerra Mundial';
-            break;
-        default:
-            header = 'enunciado\trespuesta';
-            sampleRow = 'Ejemplo de pregunta\tEjemplo de respuesta';
-    }
-    const csv = header + '\n' + sampleRow + '\n';
-    const blob = new Blob([csv], { type: 'text/tab-separated-values' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `plantilla_${type}.tsv`; a.click();
-    URL.revokeObjectURL(url);
-}
-
-async function doImportCsv() {
-    const fileInput = document.getElementById('csv-file');
-    if (!fileInput.files[0]) { toast('Selecciona un archivo'); return; }
-    const text = await fileInput.files[0].text();
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-    if (lines.length < 2) { toast('El archivo necesita al menos cabecera + 1 fila'); return; }
-
-    const sep = lines[0].includes('\t') ? '\t' : ',';
-    const rows = lines.slice(1).map(l => l.split(sep).map(c => c.trim()));
-    const type = currentRound.type;
-    let created = 0;
-
-    try {
-        for (const cols of rows) {
-            const content = csvRowToContent(type, cols);
-            if (!content) continue;
-            await api(`/rounds/${currentRound.id}/questions`, { method: 'POST', body: { content } });
-            created++;
-        }
-        toast(`${created} preguntas importadas`);
-        closeModal('modal-import-overlay');
-        await refreshRound();
-    } catch (e) { toast('Error importando: ' + e.message); }
-}
-
-function csvRowToContent(type, cols) {
-    switch (type) {
-        case 'multirespuesta': {
-            const statement = cols[0];
-            if (!statement) return null;
-            const options = cols.slice(1, -2).filter(Boolean);
-            const correctStr = cols[cols.length - 2] || '1';
-            const explanation = cols[cols.length - 1] || '';
-            const correct = correctStr.split(/[|,;]/).map(s => Number(s.trim()) - 1).filter(n => n >= 0);
-            return { statement, options, correct, explanation: explanation || undefined };
-        }
-        case 'pulsador': {
-            if (!cols[0]) return null;
-            const hints = cols[2] ? cols[2].split('|').map(s => s.trim()).filter(Boolean) : [];
-            return { statement: cols[0], answer: cols[1] || '', hints: hints.length ? hints : undefined };
-        }
-        case 'precio':
-            if (!cols[0]) return null;
-            return { statement: cols[0], correct_value: Number(cols[1]) || 0, image: cols[2] || undefined };
-        case 'boom': {
-            if (!cols[0]) return null;
-            const items = cols.slice(1).filter(Boolean);
-            return { statement: cols[0], items, correct_order: items.map((_, i) => i) };
-        }
-        default:
-            return { statement: cols[0] || '', answer: cols[1] || '' };
-    }
-}
+// (CSV import removed — replaced by Excel import, see EXCEL IMPORT section below)
 
 // ─────────────────── THEME HELPERS ───────────────────
 
@@ -1183,6 +1159,223 @@ function populateThemeForm(form, theme) {
         else { form.theme_bg_gradient.value = 'custom'; form.theme_bg_gradient_custom.value = val; form.theme_bg_gradient_custom.style.display = ''; }
     }
     if (bgType === 'image') { form.theme_bg_image.value = theme.backgroundImage || ''; }
+}
+
+// ─── Session management ───
+async function startSession(gameId) {
+    try {
+        await api(`/games/${gameId}/session`, { method: 'POST' });
+        toast('Sesión iniciada');
+        window.open('/director/' + gameId, '_blank');
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+// ─────────────────── MEDIA LIBRARY ───────────────────
+
+let mediaType = 'images';
+let mediaFiles = [];
+
+function showMediaLibrary() {
+    currentGame = null;
+    currentRound = null;
+    showScreen('screen-media');
+    updateBreadcrumb();
+    loadMediaFiles();
+}
+
+function switchMediaType(type) {
+    mediaType = type;
+    document.querySelectorAll('#media-type-tabs .filter-tab').forEach(b => b.classList.toggle('active', b.dataset.val === type));
+    const input = document.getElementById('mediaUploadInput');
+    input.accept = type === 'images' ? 'image/*' : 'audio/*';
+    loadMediaFiles();
+}
+
+async function loadMediaFiles() {
+    const el = document.getElementById('media-grid');
+    el.innerHTML = '<div class="empty"><p>Cargando...</p></div>';
+    try {
+        mediaFiles = await api(`/media/${mediaType}`);
+        renderMediaFiles(el);
+    } catch (e) { el.innerHTML = '<div class="empty"><p>Error: ' + esc(e.message) + '</p></div>'; }
+}
+
+function renderMediaFiles(el) {
+    if (!mediaFiles.length) {
+        el.innerHTML = '<div class="empty"><h3>Sin archivos</h3><p>Sube archivos con el botón de arriba.</p></div>';
+        return;
+    }
+    if (mediaType === 'images') {
+        el.innerHTML = '<div class="media-grid">' + mediaFiles.map(f =>
+            `<div class="media-item" onclick="copyMediaUrl('${esc(f.url)}')" title="${esc(f.url)}">
+                <img src="${esc(f.url)}" loading="lazy" onerror="this.style.display='none'">
+                <div class="media-info">
+                    <div class="media-name">${esc(f.name)}</div>
+                    <div class="media-size">${formatSize(f.size)}</div>
+                </div>
+                <button class="media-delete" onclick="event.stopPropagation();deleteMedia('${mediaType}','${esc(f.name)}')" title="Eliminar">&#128465;</button>
+            </div>`
+        ).join('') + '</div>';
+    } else {
+        el.innerHTML = '<div class="audio-list">' + mediaFiles.map(f =>
+            `<div class="audio-item" onclick="copyMediaUrl('${esc(f.url)}')" title="${esc(f.url)}">
+                <span class="audio-icon">&#127925;</span>
+                <div class="audio-info">
+                    <div class="audio-name">${esc(f.name)}</div>
+                    <div class="audio-size">${formatSize(f.size)}</div>
+                </div>
+                <button class="media-delete" onclick="event.stopPropagation();deleteMedia('${mediaType}','${esc(f.name)}')" title="Eliminar">&#128465;</button>
+            </div>`
+        ).join('') + '</div>';
+    }
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function copyMediaUrl(url) {
+    navigator.clipboard.writeText(url).then(() => toast('URL copiada'));
+}
+
+async function deleteMedia(type, filename) {
+    if (!confirm('¿Eliminar ' + filename + '?')) return;
+    try {
+        await api(`/media/${type}/${filename}`, { method: 'DELETE' });
+        toast('Archivo eliminado');
+        loadMediaFiles();
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+async function uploadMediaFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const endpoint = mediaType === 'images' ? '/upload/image' : '/upload/audio';
+    const form = new FormData();
+    form.append('file', file);
+    try {
+        const res = await fetch(API + endpoint, { method: 'POST', body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast('Archivo subido: ' + data.originalName);
+        loadMediaFiles();
+    } catch (e) { toast('Error: ' + e.message); }
+    input.value = '';
+}
+
+// ─────────────────── MEDIA PICKER MODAL ───────────────────
+
+let pickerCallback = null;
+let pickerType = 'images';
+let pickerFiles = [];
+
+function openMediaPicker(type, callback) {
+    pickerType = type || 'images';
+    pickerCallback = callback;
+    document.querySelectorAll('#picker-type-tabs .filter-tab').forEach(b => b.classList.toggle('active', b.dataset.val === pickerType));
+    document.getElementById('pickerTitle').textContent = pickerType === 'images' ? 'Elegir imagen' : 'Elegir audio';
+    const input = document.getElementById('pickerUploadInput');
+    input.accept = pickerType === 'images' ? 'image/*' : 'audio/*';
+    document.getElementById('media-picker-overlay').classList.add('active');
+    loadPickerFiles();
+}
+
+function closeMediaPicker() {
+    document.getElementById('media-picker-overlay').classList.remove('active');
+    pickerCallback = null;
+}
+
+function switchPickerType(type) {
+    pickerType = type;
+    document.querySelectorAll('#picker-type-tabs .filter-tab').forEach(b => b.classList.toggle('active', b.dataset.val === type));
+    document.getElementById('pickerTitle').textContent = type === 'images' ? 'Elegir imagen' : 'Elegir audio';
+    const input = document.getElementById('pickerUploadInput');
+    input.accept = type === 'images' ? 'image/*' : 'audio/*';
+    loadPickerFiles();
+}
+
+async function loadPickerFiles() {
+    const el = document.getElementById('pickerBody');
+    el.innerHTML = '<p style="color:var(--text2)">Cargando...</p>';
+    try {
+        pickerFiles = await api(`/media/${pickerType}`);
+        renderPickerFiles(el);
+    } catch (e) { el.innerHTML = '<p style="color:var(--danger)">Error: ' + esc(e.message) + '</p>'; }
+}
+
+function renderPickerFiles(el) {
+    if (!pickerFiles.length) {
+        el.innerHTML = '<p style="color:var(--text2);text-align:center;padding:20px">Sin archivos. Sube uno con el botón de arriba.</p>';
+        return;
+    }
+    if (pickerType === 'images') {
+        el.innerHTML = '<div class="media-grid">' + pickerFiles.map(f =>
+            `<div class="media-item" onclick="pickFile('${esc(f.url)}')">
+                <img src="${esc(f.url)}" loading="lazy" onerror="this.style.display='none'">
+                <div class="media-info"><div class="media-name">${esc(f.name)}</div></div>
+            </div>`
+        ).join('') + '</div>';
+    } else {
+        el.innerHTML = '<div class="audio-list">' + pickerFiles.map(f =>
+            `<div class="audio-item" onclick="pickFile('${esc(f.url)}')">
+                <span class="audio-icon">&#127925;</span>
+                <div class="audio-info"><div class="audio-name">${esc(f.name)}</div></div>
+            </div>`
+        ).join('') + '</div>';
+    }
+}
+
+function pickFile(url) {
+    if (pickerCallback) pickerCallback(url);
+    closeMediaPicker();
+}
+
+async function uploadPickerFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const endpoint = pickerType === 'images' ? '/upload/image' : '/upload/audio';
+    const form = new FormData();
+    form.append('file', file);
+    try {
+        const res = await fetch(API + endpoint, { method: 'POST', body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast('Archivo subido');
+        loadPickerFiles();
+    } catch (e) { toast('Error: ' + e.message); }
+    input.value = '';
+}
+
+// Helper: make a "Choose from library" button for a field
+function libBtn(fieldName, type) {
+    return `<button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker('${type}', function(url){ document.querySelector('[name=\\'${fieldName}\\']').value = url; })" style="flex-shrink:0">&#128193; Biblioteca</button>`;
+}
+
+// ─────────────────── EXCEL IMPORT ───────────────────
+
+function openImportModal() {
+    document.getElementById('excel-file').value = '';
+    document.getElementById('excel-preview').innerHTML = '';
+    openModal('modal-import-overlay');
+}
+
+async function doImportExcel() {
+    const fileInput = document.getElementById('excel-file');
+    if (!fileInput.files[0]) { toast('Selecciona un archivo .xlsx'); return; }
+
+    const form = new FormData();
+    form.append('file', fileInput.files[0]);
+
+    try {
+        const res = await fetch(API + `/games/${currentGame.id}/import-excel`, { method: 'POST', body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error de importación');
+        toast(`Importación completada: ${data.rounds} rondas, ${data.questions} preguntas`);
+        closeModal('modal-import-overlay');
+        await loadGame(currentGame.id);
+    } catch (e) { toast('Error: ' + e.message); }
 }
 
 // ─── Init ───

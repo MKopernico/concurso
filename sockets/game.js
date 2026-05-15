@@ -1,24 +1,18 @@
 // Handlers de Socket.io con aislamiento por gameId (rooms `game:<gameId>`).
-// Migra 1:1 toda la lógica del prototipo (pulsador, precio justo, bloqueos, bonos, escenas) al esquema multi-juego.
-// Cada juego tiene su propio GameState en memoria; el estado puede persistirse a SQLite en sesiones (fase posterior).
+// Cada juego tiene su propio GameState en memoria; equipos se persisten en SQLite via sessions/teams.
 
 const { db, DEFAULT_GAME_ID } = require('../db');
 
-// PIN del admin legacy. Se mantiene como variable global (no por juego) porque el flujo PIN del index.html
-// no conoce gameIds — entra por defecto al juego 'default'. Los códigos de acceso por juego (spec §7.1)
-// son otra cosa y se usarán cuando se construya la vista /play multi-juego.
 const ADMIN_PIN = process.env.ADMIN_PIN || '6174';
 
-// Estado en memoria por gameId. La BD persiste configuración (rondas/preguntas); el estado de la partida
-// en curso vive aquí — es ephemeral por diseño (se quiere baja latencia y reset fácil).
 const gameStates = new Map();
 
 function createGameState() {
     return {
         juegoIniciado: false,
         equipos: [],
-        // Modelo equipo: { id, nombre, ocupado, bonos: [], bloqueado: false, socketId }
-        vistaActual: 'pulsador',           // 'pulsador' | 'espera' | 'web' | 'precio'
+        // equipo: { id, nombre, photo_url, ocupado, bonos: [], bloqueado: false, socketId, deviceId }
+        vistaActual: 'pulsador',
         urlActual: '',
         urlsGuardadas: ['', '', ''],
         escenas: { espera: 'espera.jpg' },
@@ -26,30 +20,21 @@ function createGameState() {
         colaPulsador: [],
         bloqueoGlobal: false,
         precio: {
-            tiempoSegundos: 30,
-            tiempoInicio: null,
-            respuestas: {},                // { equipoId: { valor, tiempo } }
-            fase: 'config',                // 'config' | 'jugando' | 'resultado'
-            ganadorId: null,
-            cifraCorrecta: null            // expuesta SOLO en fase 'resultado'
+            tiempoSegundos: 30, tiempoInicio: null, respuestas: {},
+            fase: 'config', ganadorId: null, cifraCorrecta: null
         },
-        // Director state (FASE 1 — vista coordinador)
         director: {
-            phase: 'lobby',                // lobby | question | answer_revealed | scoreboard | waiting
-            currentRoundId: null,
-            currentRound: null,            // { id, name, type, config }
-            questions: [],                 // [{ id, sort_order, content, media_url, config }]
-            currentQuestionIdx: -1,
+            phase: 'lobby',
+            currentRoundId: null, currentRound: null,
+            questions: [], currentQuestionIdx: -1,
             timer: { total: 0, remaining: 0, running: false },
-            scores: {},                    // { teamId: number }
-            answers: {},                   // { teamId: { answer, timestamp } }
-            revealedCells: [],             // [index] — para tipo imagen (cuadrícula)
-            revealedLetters: [],           // [index] — para tipo ruleta (frase oculta)
+            scores: {}, answers: {},
+            revealedCells: [], revealedLetters: [],
         },
-        // Privados al servidor — nunca se emiten en sync_estado:
         precioCifraCorrecta: null,
         precioTimeoutHandle: null,
-        _timerHandle: null
+        _timerHandle: null,
+        _sessionId: null,
     };
 }
 
@@ -58,14 +43,26 @@ function getOrCreateState(gameId) {
     if (!s) {
         s = createGameState();
         s._gameTheme = loadGameTheme(gameId);
+        // Load teams from active session in DB
+        const session = db.prepare('SELECT id FROM sessions WHERE game_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(gameId);
+        if (session) {
+            s._sessionId = session.id;
+            const dbTeams = db.prepare('SELECT * FROM teams WHERE session_id = ?').all(session.id);
+            s.equipos = dbTeams.map(t => ({
+                id: t.id, nombre: t.name, photo_url: t.photo_url,
+                ocupado: false, bonos: [], bloqueado: false, socketId: null, deviceId: t.device_id
+            }));
+            s.director.scores = {};
+            s.equipos.forEach(e => { s.director.scores[e.id] = 0; });
+            if (s.equipos.length > 0) s.juegoIniciado = true;
+        }
         gameStates.set(gameId, s);
     }
     return s;
 }
 
-// Vista emitible del estado: oculta cifra/timeoutHandle para que NO viajen a los clientes durante 'jugando'.
 function publicView(state) {
-    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _gameTheme, ...rest } = state;
+    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _gameTheme, _sessionId, ...rest } = state;
     rest.gameTheme = _gameTheme || {};
     return rest;
 }
@@ -101,7 +98,6 @@ function stopTimer(state, gameId, io) {
     state.director.timer.running = false;
 }
 
-// Vista sanitizada para jugadores: oculta respuestas correctas hasta reveal, no incluye todas las preguntas.
 function loadGameTheme(gameId) {
     const row = db.prepare('SELECT theme FROM games WHERE id = ?').get(gameId);
     return row ? parseJson(row.theme) : {};
@@ -129,7 +125,7 @@ function playerView(state) {
         timer: { total: ds.timer.total, remaining: ds.timer.remaining, running: ds.timer.running },
         scores: ds.scores,
         answeredTeams: Object.keys(ds.answers),
-        equipos: state.equipos.map(e => ({ id: e.id, nombre: e.nombre, ocupado: e.ocupado, bloqueado: e.bloqueado })),
+        equipos: state.equipos.map(e => ({ id: e.id, nombre: e.nombre, photo_url: e.photo_url, ocupado: e.ocupado, bloqueado: e.bloqueado })),
         pulsadorActivo: state.pulsadorActivo,
         colaPulsador: state.colaPulsador,
         bloqueoGlobal: state.bloqueoGlobal,
@@ -145,7 +141,6 @@ function broadcastDirector(io, gameId, state) {
     io.to(roomOf(gameId)).emit('game:player_sync', playerView(state));
 }
 
-// Valida que el gameId existe en BD. Si no, cae a 'default' (suficiente para FASE 0).
 function resolveGameId(requestedId) {
     if (!requestedId) return DEFAULT_GAME_ID;
     const row = db.prepare('SELECT id FROM games WHERE id = ?').get(requestedId);
@@ -154,17 +149,14 @@ function resolveGameId(requestedId) {
 
 function attachSocketHandlers(io) {
     io.on('connection', (socket) => {
-        // Resolución del gameId: vía handshake (?gameId=X) o por defecto 'default'.
-        // Las nuevas vistas (/director/:gameId, /screen/:gameId) lo pasarán explícitamente;
-        // la app legacy (`/`) entra a 'default' sin tocar nada.
         const requested = socket.handshake.query && socket.handshake.query.gameId;
         const gameId = resolveGameId(requested);
+        const deviceId = socket.handshake.query && socket.handshake.query.deviceId;
         socket.gameId = gameId;
         socket.join(roomOf(gameId));
 
         const state = getOrCreateState(gameId);
 
-        // Envía estado inicial sólo a este socket (no a la room).
         socket.emit('init_connection', {
             juegoIniciado: state.juegoIniciado,
             estadoJuego: publicView(state),
@@ -172,14 +164,11 @@ function attachSocketHandlers(io) {
             gameId
         });
 
-        // ─── Cierra la ronda actual de Precio Justo y emite resultado a la room. ───
         function finalizarPrecio() {
             if (state.precioTimeoutHandle) { clearTimeout(state.precioTimeoutHandle); state.precioTimeoutHandle = null; }
             state.precio.fase = 'resultado';
             state.precio.cifraCorrecta = state.precioCifraCorrecta;
-
             const cifra = state.precioCifraCorrecta;
-            // Descartar a quien se pasa; gana el más alto por debajo o exacto; desempate por timestamp.
             const ordenados = Object.entries(state.precio.respuestas)
                 .filter(([, r]) => r.valor <= cifra)
                 .sort((a, b) => {
@@ -187,46 +176,136 @@ function attachSocketHandlers(io) {
                     return a[1].tiempo - b[1].tiempo;
                 });
             state.precio.ganadorId = ordenados.length > 0 ? ordenados[0][0] : null;
-
             io.to(roomOf(gameId)).emit('precio_resultado', {
-                cifraCorrecta: cifra,
-                respuestas: state.precio.respuestas,
-                ganadorId: state.precio.ganadorId
+                cifraCorrecta: cifra, respuestas: state.precio.respuestas, ganadorId: state.precio.ganadorId
             });
             io.to(roomOf(gameId)).emit('sync_estado', publicView(state));
         }
 
-        // ═══════════════════════ ADMIN ═══════════════════════
+        // ═══════════════════════ PLAYER TEAM REGISTRATION ═══════════════════════
+
+        socket.on('player:register_team', (data) => {
+            if (!data || !data.name || !data.name.trim()) return;
+            const session = db.prepare('SELECT id FROM sessions WHERE game_id = ? AND ended_at IS NULL LIMIT 1').get(gameId);
+            if (!session) { socket.emit('register_error', { error: 'No hay sesión activa' }); return; }
+
+            const teamName = data.name.trim();
+            const photoUrl = data.photo_url || null;
+            const devId = data.deviceId || deviceId || null;
+
+            // Check if device already has a team
+            if (devId) {
+                const existingDb = db.prepare('SELECT * FROM teams WHERE session_id = ? AND device_id = ?').get(session.id, devId);
+                if (existingDb) {
+                    // Reconnect to existing team
+                    let eq = state.equipos.find(e => e.id === existingDb.id);
+                    if (!eq) {
+                        eq = { id: existingDb.id, nombre: existingDb.name, photo_url: existingDb.photo_url, ocupado: false, bonos: [], bloqueado: false, socketId: null, deviceId: devId };
+                        state.equipos.push(eq);
+                        if (!state.director.scores[eq.id]) state.director.scores[eq.id] = 0;
+                    }
+                    eq.ocupado = true;
+                    eq.socketId = socket.id;
+                    socket.equipoId = eq.id;
+                    socket.emit('login_success', { miEquipo: eq, estado: publicView(state), equiposRivales: state.equipos });
+                    socket.emit('game:player_sync', playerView(state));
+                    broadcastDirector(io, gameId, state);
+                    return;
+                }
+            }
+
+            // Create new team in DB
+            const crypto = require('crypto');
+            const teamId = 't_' + crypto.randomBytes(4).toString('hex');
+            db.prepare('INSERT INTO teams (id, session_id, name, photo_url, device_id) VALUES (?, ?, ?, ?, ?)')
+                .run(teamId, session.id, teamName, photoUrl, devId);
+
+            const eq = { id: teamId, nombre: teamName, photo_url: photoUrl, ocupado: true, bonos: [], bloqueado: false, socketId: socket.id, deviceId: devId };
+            state.equipos.push(eq);
+            state.director.scores[teamId] = 0;
+            state.juegoIniciado = true;
+            socket.equipoId = teamId;
+
+            socket.emit('login_success', { miEquipo: eq, estado: publicView(state), equiposRivales: state.equipos });
+            socket.emit('game:player_sync', playerView(state));
+            io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
+            broadcastDirector(io, gameId, state);
+        });
+
+        // Device-based auto-reconnect
+        socket.on('player:reconnect', (data) => {
+            const devId = data && data.deviceId || deviceId;
+            if (!devId) return;
+            const session = db.prepare('SELECT id FROM sessions WHERE game_id = ? AND ended_at IS NULL LIMIT 1').get(gameId);
+            if (!session) return;
+            const dbTeam = db.prepare('SELECT * FROM teams WHERE session_id = ? AND device_id = ?').get(session.id, devId);
+            if (!dbTeam) return;
+
+            let eq = state.equipos.find(e => e.id === dbTeam.id);
+            if (!eq) {
+                eq = { id: dbTeam.id, nombre: dbTeam.name, photo_url: dbTeam.photo_url, ocupado: false, bonos: [], bloqueado: false, socketId: null, deviceId: devId };
+                state.equipos.push(eq);
+                if (!state.director.scores[eq.id]) state.director.scores[eq.id] = 0;
+            }
+
+            // Takeover: if previous socket is dead, allow
+            if (eq.ocupado && eq.socketId && eq.socketId !== socket.id) {
+                const prev = io.sockets.sockets.get(eq.socketId);
+                if (prev && prev.connected) return; // still alive, skip
+            }
+
+            eq.ocupado = true;
+            eq.socketId = socket.id;
+            socket.equipoId = eq.id;
+
+            socket.emit('login_success', { miEquipo: eq, estado: publicView(state), equiposRivales: state.equipos });
+            socket.emit('game:player_sync', playerView(state));
+            broadcastDirector(io, gameId, state);
+        });
+
+        // ═══════════════════════ LEGACY JOIN (keep for compat) ═══════════════════════
+
+        socket.on('join_team', (data) => {
+            const equipo = state.equipos.find(e => e.id === data.id);
+            if (!equipo) return;
+            if (equipo.ocupado && equipo.socketId && equipo.socketId !== socket.id) {
+                const prev = io.sockets.sockets.get(equipo.socketId);
+                if (prev && prev.connected) {
+                    socket.emit('join_team_rejected', { motivo: 'ocupado', equipoId: equipo.id });
+                    return;
+                }
+            }
+            equipo.ocupado = true;
+            equipo.socketId = socket.id;
+            socket.equipoId = equipo.id;
+            socket.emit('login_success', { miEquipo: equipo, estado: publicView(state), equiposRivales: state.equipos });
+            socket.emit('game:player_sync', playerView(state));
+            io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
+            broadcastDirector(io, gameId, state);
+        });
+
+        // ═══════════════════════ ADMIN (legacy) ═══════════════════════
 
         socket.on('login_admin', (pin) => {
             if (String(pin).trim() === ADMIN_PIN) {
                 socket.isAdmin = true;
                 socket.emit('admin_auth_success', {
-                    equipos: state.equipos,
-                    estadoJuego: publicView(state),
-                    juegoIniciado: state.juegoIniciado,
-                    precioCifra: state.precioCifraCorrecta,
-                    gameId
+                    equipos: state.equipos, estadoJuego: publicView(state),
+                    juegoIniciado: state.juegoIniciado, precioCifra: state.precioCifraCorrecta, gameId
                 });
-            } else {
-                socket.emit('admin_auth_fail');
-            }
+            } else { socket.emit('admin_auth_fail'); }
         });
 
         socket.on('admin_crear_juego', (n) => {
             const total = Math.max(1, Math.min(20, Number(n) || 0));
             state.equipos = [];
             for (let i = 1; i <= total; i++) {
-                state.equipos.push({
-                    id: `eq${i}`, nombre: `Equipo ${i}`, ocupado: false,
-                    bonos: [], bloqueado: false
-                });
+                state.equipos.push({ id: `eq${i}`, nombre: `Equipo ${i}`, photo_url: null, ocupado: false, bonos: [], bloqueado: false });
             }
             state.juegoIniciado = true;
             state.colaPulsador = [];
             state.bloqueoGlobal = false;
             state.pulsadorActivo = false;
-
             io.to(roomOf(gameId)).emit('juego_iniciado_teams', state.equipos);
             io.to(roomOf(gameId)).emit('sync_estado', publicView(state));
         });
@@ -235,8 +314,9 @@ function attachSocketHandlers(io) {
             const eq = state.equipos.find(e => e.id === data.id);
             if (!eq) return;
             eq.nombre = data.nuevoNombre;
+            // Persist to DB if team is from a session
+            db.prepare('UPDATE teams SET name = ? WHERE id = ?').run(eq.nombre, eq.id);
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
-            io.to(roomOf(gameId)).emit('juego_iniciado_teams', state.equipos);
             if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
         });
 
@@ -244,18 +324,13 @@ function attachSocketHandlers(io) {
             if (acc === 'abrir')  state.pulsadorActivo = true;
             if (acc === 'pausar') state.pulsadorActivo = false;
             if (acc === 'reset')  { state.pulsadorActivo = false; state.colaPulsador = []; }
-            io.to(roomOf(gameId)).emit('estado_pulsador_cambio', {
-                activo: state.pulsadorActivo,
-                cola: state.colaPulsador
-            });
+            io.to(roomOf(gameId)).emit('estado_pulsador_cambio', { activo: state.pulsadorActivo, cola: state.colaPulsador });
         });
 
         socket.on('admin_config_escenas', (data) => {
             state.escenas.espera = data.espera;
             io.to(roomOf(gameId)).emit('sync_estado', publicView(state));
-            if (state.vistaActual === 'espera') {
-                io.to(roomOf(gameId)).emit('cambio_de_escena', publicView(state));
-            }
+            if (state.vistaActual === 'espera') io.to(roomOf(gameId)).emit('cambio_de_escena', publicView(state));
         });
 
         socket.on('admin_set_escena', (d) => {
@@ -265,7 +340,6 @@ function attachSocketHandlers(io) {
             io.to(roomOf(gameId)).emit('cambio_de_escena', publicView(state));
         });
 
-        // ─── Bonos y bloqueos ───
         socket.on('admin_gestionar_bono', (data) => {
             const eq = state.equipos.find(e => e.id === data.equipoId);
             if (!eq) return;
@@ -301,13 +375,10 @@ function attachSocketHandlers(io) {
             io.to(roomOf(gameId)).emit('reset_total_client');
         });
 
-        // ─── Precio Justo (admin) ───
         socket.on('admin_precio_set_cifra', (valor) => {
             const n = Number(valor);
             if (!isFinite(n)) return;
             state.precioCifraCorrecta = n;
-            // Echo sólo al admin que la set para retrocompatibilidad. Cuando llegue multi-admin (FASE 1)
-            // se sincronizará a todos los admins de la misma room.
             socket.emit('admin_precio_cifra_sync', state.precioCifraCorrecta);
         });
 
@@ -353,39 +424,12 @@ function attachSocketHandlers(io) {
             if (!eq) return;
             const valor = Number(data && data.valor);
             if (!isFinite(valor)) return;
-            if (state.precio.respuestas[eq.id]) return; // una respuesta por ronda
+            if (state.precio.respuestas[eq.id]) return;
             state.precio.respuestas[eq.id] = { valor, tiempo: Date.now() };
             io.to(roomOf(gameId)).emit('sync_estado', publicView(state));
         });
 
-        // ═══════════════════════ JUGADORES ═══════════════════════
-
-        socket.on('join_team', (data) => {
-            const equipo = state.equipos.find(e => e.id === data.id);
-            if (!equipo) return;
-
-            // Si otro socket vivo ya tiene el equipo, rechazar. Si el anterior está muerto, permitir takeover.
-            if (equipo.ocupado && equipo.socketId && equipo.socketId !== socket.id) {
-                const prev = io.sockets.sockets.get(equipo.socketId);
-                if (prev && prev.connected) {
-                    socket.emit('join_team_rejected', { motivo: 'ocupado', equipoId: equipo.id });
-                    return;
-                }
-            }
-
-            equipo.ocupado = true;
-            equipo.socketId = socket.id;
-            socket.equipoId = equipo.id;
-
-            socket.emit('login_success', {
-                miEquipo: equipo,
-                estado: publicView(state),
-                equiposRivales: state.equipos
-            });
-            socket.emit('game:player_sync', playerView(state));
-            io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
-            broadcastDirector(io, gameId, state);
-        });
+        // ═══════════════════════ PLAYER ANSWERS ═══════════════════════
 
         socket.on('pulsar_boton', () => {
             const e = state.equipos.find(x => x.id === socket.equipoId);
@@ -397,17 +441,12 @@ function attachSocketHandlers(io) {
             broadcastDirector(io, gameId, state);
         });
 
-        // ─── Respuestas de jugador en flujo director (FASE 2) ───
         socket.on('player:submit_answer', (data) => {
             if (!socket.equipoId) return;
             const ds = state.director;
             if (ds.phase !== 'question') return;
             if (ds.answers[socket.equipoId]) return;
-            ds.answers[socket.equipoId] = {
-                answer: data.answer,
-                timestamp: Date.now(),
-                timerRemaining: ds.timer.remaining
-            };
+            ds.answers[socket.equipoId] = { answer: data.answer, timestamp: Date.now(), timerRemaining: ds.timer.remaining };
             broadcastDirector(io, gameId, state);
         });
 
@@ -418,11 +457,7 @@ function attachSocketHandlers(io) {
             if (ds.answers[socket.equipoId]) return;
             const val = Number(data && data.value);
             if (!isFinite(val)) return;
-            ds.answers[socket.equipoId] = {
-                answer: val,
-                timestamp: Date.now(),
-                timerRemaining: ds.timer.remaining
-            };
+            ds.answers[socket.equipoId] = { answer: val, timestamp: Date.now(), timerRemaining: ds.timer.remaining };
             broadcastDirector(io, gameId, state);
         });
 
@@ -432,52 +467,36 @@ function attachSocketHandlers(io) {
             if (ds.phase !== 'question') return;
             if (ds.answers[socket.equipoId]) return;
             if (!Array.isArray(data.order)) return;
-            ds.answers[socket.equipoId] = {
-                answer: data.order,
-                timestamp: Date.now(),
-                timerRemaining: ds.timer.remaining
-            };
+            ds.answers[socket.equipoId] = { answer: data.order, timestamp: Date.now(), timerRemaining: ds.timer.remaining };
             broadcastDirector(io, gameId, state);
         });
 
         socket.on('usar_bono', (data) => {
             const emisor = state.equipos.find(e => e.id === socket.equipoId);
             if (!emisor || !emisor.bonos.includes(data.tipo)) return;
-
             let mensaje = '';
             if (data.tipo === 'lock_all') {
                 state.equipos.forEach(eq => {
-                    if (eq.id !== emisor.id) {
-                        eq.bloqueado = true;
-                        if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
-                    }
+                    if (eq.id !== emisor.id) { eq.bloqueado = true; if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); }
                 });
                 io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
-                mensaje = `⛔ ${emisor.nombre} BLOQUEÓ A RIVALES`;
+                mensaje = `${emisor.nombre} BLOQUEÓ A RIVALES`;
             } else if (data.tipo === 'freeze') {
                 let victima = state.equipos.find(e => e.id === data.targetId);
-                if (!victima && data.targetNumero) victima = state.equipos.find(e => e.id === `eq${data.targetNumero}`);
-                if (!victima) {
-                    socket.emit('notificacion_bono', { msg: '❌ Equipo no encontrado' });
-                    return;
-                }
-                if (victima.id === emisor.id) {
-                    socket.emit('notificacion_bono', { msg: '❌ No te puedes congelar a ti mismo' });
-                    return;
-                }
+                if (!victima) { socket.emit('notificacion_bono', { msg: 'Equipo no encontrado' }); return; }
+                if (victima.id === emisor.id) { socket.emit('notificacion_bono', { msg: 'No te puedes congelar a ti mismo' }); return; }
                 victima.bloqueado = true;
-                mensaje = `❄️ ${emisor.nombre} CONGELÓ A ${victima.nombre}`;
+                mensaje = `${emisor.nombre} CONGELÓ A ${victima.nombre}`;
                 io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
                 if (victima.socketId) io.to(victima.socketId).emit('update_mi_equipo', victima);
             }
-
             const idx = emisor.bonos.indexOf(data.tipo);
             if (idx > -1) emisor.bonos.splice(idx, 1);
             socket.emit('update_mi_equipo', emisor);
             io.to(roomOf(gameId)).emit('notificacion_bono', { msg: mensaje });
         });
 
-        // ═══════════════════════ DIRECTOR (FASE 1 bloque B) ═══════════════════════
+        // ═══════════════════════ DIRECTOR ═══════════════════════
 
         socket.on('director:join', () => {
             socket.isDirector = true;
@@ -500,7 +519,7 @@ function attachSocketHandlers(io) {
             state.director.scores = {};
             for (let i = 1; i <= count; i++) {
                 const id = `eq${i}`;
-                state.equipos.push({ id, nombre: `Equipo ${i}`, ocupado: false, bonos: [], bloqueado: false });
+                state.equipos.push({ id, nombre: `Equipo ${i}`, photo_url: null, ocupado: false, bonos: [], bloqueado: false });
                 state.director.scores[id] = 0;
             }
             state.juegoIniciado = true;
@@ -508,6 +527,34 @@ function attachSocketHandlers(io) {
             state.bloqueoGlobal = false;
             state.pulsadorActivo = false;
             io.to(roomOf(gameId)).emit('juego_iniciado_teams', state.equipos);
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:start_game', () => {
+            state.juegoIniciado = true;
+            state.director.phase = 'lobby';
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:update_team', (data) => {
+            if (!data || !data.teamId) return;
+            const eq = state.equipos.find(e => e.id === data.teamId);
+            if (!eq) return;
+            if (data.name) { eq.nombre = data.name.trim(); db.prepare('UPDATE teams SET name = ? WHERE id = ?').run(eq.nombre, eq.id); }
+            if (data.photo_url !== undefined) { eq.photo_url = data.photo_url || null; db.prepare('UPDATE teams SET photo_url = ? WHERE id = ?').run(eq.photo_url, eq.id); }
+            if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:remove_team', (data) => {
+            if (!data || !data.teamId) return;
+            const idx = state.equipos.findIndex(e => e.id === data.teamId);
+            if (idx < 0) return;
+            const eq = state.equipos[idx];
+            if (eq.socketId) io.to(eq.socketId).emit('team_removed');
+            state.equipos.splice(idx, 1);
+            delete state.director.scores[data.teamId];
+            db.prepare('DELETE FROM teams WHERE id = ?').run(data.teamId);
             broadcastDirector(io, gameId, state);
         });
 
@@ -609,8 +656,6 @@ function attachSocketHandlers(io) {
         socket.on('director:reveal_answer', () => {
             stopTimer(state, gameId, io);
             const ds = state.director;
-
-            // Auto-score multirespuesta: compara respuestas de cada equipo contra las correctas.
             if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
                 const q = ds.questions[ds.currentQuestionIdx];
                 if (q && q.content && q.content.correct !== undefined) {
@@ -629,7 +674,6 @@ function attachSocketHandlers(io) {
                     }
                 }
             }
-
             ds.phase = 'answer_revealed';
             state.pulsadorActivo = false;
             broadcastDirector(io, gameId, state);
@@ -654,15 +698,11 @@ function attachSocketHandlers(io) {
             broadcastDirector(io, gameId, state);
         });
 
-        // ─── Imagen: revelar celda de la cuadrícula ───
         socket.on('director:reveal_cell', (data) => {
             const ds = state.director;
             const idx = Number(data && data.idx);
             if (!isFinite(idx) || idx < 0) return;
-            if (ds.revealedCells.indexOf(idx) === -1) {
-                ds.revealedCells.push(idx);
-                broadcastDirector(io, gameId, state);
-            }
+            if (ds.revealedCells.indexOf(idx) === -1) { ds.revealedCells.push(idx); broadcastDirector(io, gameId, state); }
         });
 
         socket.on('director:reveal_all_cells', () => {
@@ -676,15 +716,11 @@ function attachSocketHandlers(io) {
             broadcastDirector(io, gameId, state);
         });
 
-        // ─── Ruleta: revelar letra de la frase oculta ───
         socket.on('director:reveal_letter', (data) => {
             const ds = state.director;
             const idx = Number(data && data.idx);
             if (!isFinite(idx) || idx < 0) return;
-            if (ds.revealedLetters.indexOf(idx) === -1) {
-                ds.revealedLetters.push(idx);
-                broadcastDirector(io, gameId, state);
-            }
+            if (ds.revealedLetters.indexOf(idx) === -1) { ds.revealedLetters.push(idx); broadcastDirector(io, gameId, state); }
         });
 
         socket.on('director:reveal_all_letters', () => {
@@ -702,9 +738,8 @@ function attachSocketHandlers(io) {
             const ds = state.director;
             const cfg = getQuestionConfig(state);
             const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ds.timer.remaining / ds.timer.total)) : 0;
-            const points = cfg.basePoints + bonus;
             if (!ds.scores[data.teamId]) ds.scores[data.teamId] = 0;
-            ds.scores[data.teamId] += points;
+            ds.scores[data.teamId] += cfg.basePoints + bonus;
             broadcastDirector(io, gameId, state);
         });
 
@@ -716,7 +751,6 @@ function attachSocketHandlers(io) {
                 if (!ds.scores[data.teamId]) ds.scores[data.teamId] = 0;
                 ds.scores[data.teamId] -= cfg.penalty;
             }
-            // Bounce: remove from buzzer queue
             const idx = state.colaPulsador.findIndex(p => p.id === data.teamId);
             if (idx > -1) state.colaPulsador.splice(idx, 1);
             io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
@@ -733,61 +767,33 @@ function attachSocketHandlers(io) {
             broadcastDirector(io, gameId, state);
         });
 
-        socket.on('director:show_scoreboard', () => {
-            stopTimer(state, gameId, io);
-            state.director.phase = 'scoreboard';
-            broadcastDirector(io, gameId, state);
-        });
-
-        socket.on('director:show_waiting', () => {
-            stopTimer(state, gameId, io);
-            state.director.phase = 'waiting';
-            broadcastDirector(io, gameId, state);
-        });
-
-        socket.on('director:show_lobby', () => {
-            stopTimer(state, gameId, io);
-            state.director.phase = 'lobby';
-            broadcastDirector(io, gameId, state);
-        });
+        socket.on('director:show_scoreboard', () => { stopTimer(state, gameId, io); state.director.phase = 'scoreboard'; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_waiting', () => { stopTimer(state, gameId, io); state.director.phase = 'waiting'; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_lobby', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; broadcastDirector(io, gameId, state); });
 
         socket.on('director:block_team', (data) => {
             if (!data || !data.teamId) return;
             const eq = state.equipos.find(e => e.id === data.teamId);
-            if (eq) {
-                eq.bloqueado = true;
-                io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
-                if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
-            }
+            if (eq) { eq.bloqueado = true; io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos); if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); }
             broadcastDirector(io, gameId, state);
         });
 
         socket.on('director:unblock_team', (data) => {
             if (!data || !data.teamId) return;
             const eq = state.equipos.find(e => e.id === data.teamId);
-            if (eq) {
-                eq.bloqueado = false;
-                io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
-                if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
-            }
+            if (eq) { eq.bloqueado = false; io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos); if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); }
             broadcastDirector(io, gameId, state);
         });
 
         socket.on('director:block_all', () => {
-            state.equipos.forEach(eq => {
-                eq.bloqueado = true;
-                if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
-            });
+            state.equipos.forEach(eq => { eq.bloqueado = true; if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); });
             state.bloqueoGlobal = true;
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
             broadcastDirector(io, gameId, state);
         });
 
         socket.on('director:unblock_all', () => {
-            state.equipos.forEach(eq => {
-                eq.bloqueado = false;
-                if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
-            });
+            state.equipos.forEach(eq => { eq.bloqueado = false; if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); });
             state.bloqueoGlobal = false;
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
             broadcastDirector(io, gameId, state);
@@ -798,20 +804,22 @@ function attachSocketHandlers(io) {
             const eq = state.equipos.find(e => e.id === data.teamId);
             if (eq) {
                 eq.nombre = data.name.trim();
+                db.prepare('UPDATE teams SET name = ? WHERE id = ?').run(eq.nombre, eq.id);
                 io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
                 if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
             }
             broadcastDirector(io, gameId, state);
         });
 
-        // ─── Reconexión / desconexión ───
+        // ─── Disconnect ───
         socket.on('disconnect', () => {
             if (!socket.equipoId) return;
             const equipo = state.equipos.find(e => e.id === socket.equipoId);
-            // Sólo liberar si este socket sigue siendo el dueño (evita pisar takeover ya hecho).
             if (equipo && equipo.socketId === socket.id) {
                 equipo.ocupado = false;
+                equipo.socketId = null;
                 io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
+                broadcastDirector(io, gameId, state);
             }
         });
     });
