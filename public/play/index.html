@@ -53,11 +53,12 @@ input:focus { border-color: var(--accent); }
 #screen-register h2 { font-size: 20px; color: var(--accent); }
 #screen-register p { color: var(--text2); font-size: 14px; }
 .register-form { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 14px; }
-.photo-upload { display: flex; align-items: center; gap: 14px; }
-.photo-preview { width: 60px; height: 60px; border-radius: 50%; background: var(--surface); border: 2px solid var(--border); object-fit: cover; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; color: var(--text2); overflow: hidden; }
+.photo-section { display: flex; align-items: center; gap: 14px; }
+.photo-preview { width: 64px; height: 64px; border-radius: 50%; background: var(--surface); border: 2px solid var(--border); object-fit: cover; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; color: var(--text2); overflow: hidden; }
 .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
-.photo-upload label { font-size: 14px; color: var(--accent); cursor: pointer; text-decoration: underline; }
-.photo-upload input[type=file] { display: none; }
+.photo-buttons { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.photo-buttons label, .photo-buttons button { font-size: 13px; color: var(--accent); cursor: pointer; text-decoration: underline; background: none; border: none; padding: 4px 0; text-align: left; font-weight: 600; display: block; }
+.photo-buttons input[type=file] { display: none; }
 
 /* ── Screen: Game ── */
 #screen-game { overflow: hidden; }
@@ -153,6 +154,7 @@ input:focus { border-color: var(--accent); }
 </head>
 <body>
 
+<!-- ═══ Screen 1: Active games list ═══ -->
 <div class="screen active" id="screen-games">
     <h1>GameShow</h1>
     <div class="games-list" id="gamesList">
@@ -160,32 +162,37 @@ input:focus { border-color: var(--accent); }
     </div>
 </div>
 
+<!-- ═══ Screen 2: Access code ═══ -->
 <div class="screen" id="screen-code">
     <h2 id="codeGameName">-</h2>
-    <p>Introduce el c&oacute;digo de acceso</p>
+    <p>Introduce el c&#243;digo de acceso</p>
     <input type="tel" id="codeInput" maxlength="6" placeholder="----" autocomplete="off">
-    <div class="code-error" id="codeError">C&oacute;digo incorrecto</div>
+    <div class="code-error" id="codeError">C&#243;digo incorrecto</div>
     <button class="btn-accent" onclick="submitCode()">Entrar</button>
-    <button class="btn-ghost" onclick="goScreen('screen-games')" style="font-size:14px;">Volver</button>
+    <button class="btn-ghost" onclick="goBack()" style="font-size:14px;">Volver</button>
 </div>
 
+<!-- ═══ Screen 3: Register team ═══ -->
 <div class="screen" id="screen-register">
     <h2 id="regGameName">Crea tu equipo</h2>
-    <p>Elige un nombre para tu equipo</p>
+    <p>Elige un nombre y una foto para tu equipo</p>
     <div class="register-form">
         <input type="text" id="teamNameInput" placeholder="Nombre del equipo" maxlength="30" autocomplete="off">
-        <div class="photo-upload">
+        <div class="photo-section">
             <div class="photo-preview" id="photoPreview">&#128247;</div>
-            <div>
-                <label for="photoFile">Subir foto (opcional)</label>
-                <input type="file" id="photoFile" accept="image/*" onchange="previewPhoto(this)">
+            <div class="photo-buttons">
+                <label for="photoCamera">&#128248; Hacer foto</label>
+                <input type="file" id="photoCamera" accept="image/*" capture="environment" onchange="uploadPhoto(this)">
+                <label for="photoFile">&#128193; Elegir de galeria</label>
+                <input type="file" id="photoFile" accept="image/*" onchange="uploadPhoto(this)">
             </div>
         </div>
-        <button class="btn-accent" onclick="registerTeam()">Unirse al juego</button>
+        <button class="btn-accent" id="registerBtn" onclick="registerTeam()">Unirse al juego</button>
     </div>
-    <button class="btn-ghost" onclick="leaveGame()" style="margin-top:8px; font-size:14px;">Volver</button>
+    <button class="btn-ghost" onclick="goBack()" style="margin-top:8px; font-size:14px;">Volver</button>
 </div>
 
+<!-- ═══ Screen 4: In-game ═══ -->
 <div class="screen" id="screen-game">
     <div class="game-top">
         <div class="my-team" id="myTeamName">-</div>
@@ -195,7 +202,7 @@ input:focus { border-color: var(--accent); }
     <div class="game-area">
         <div class="gphase gp-waiting" id="gp-waiting">
             <h2>Esperando...</h2>
-            <p style="color:var(--text2)">El coordinador lanzar&aacute; la siguiente prueba.</p>
+            <p style="color:var(--text2)">El coordinador lanzar&#225; la siguiente prueba.</p>
         </div>
         <div class="gphase gp-multi" id="gp-multi">
             <div class="q-statement" id="multiStatement">-</div>
@@ -255,6 +262,7 @@ input:focus { border-color: var(--accent); }
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+// ═══════════════ State ═══════════════
 var S = {
     gameId: null, game: null, myTeamId: null, myTeam: null,
     ps: null, selectedOptions: [], boomOrder: [], submitted: false,
@@ -262,101 +270,37 @@ var S = {
 };
 var socket = null;
 var deviceId = localStorage.getItem('gs_deviceId') || (function() {
-    var id = 'dev_' + Math.random().toString(36).slice(2, 10);
+    var id = 'dev_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
     localStorage.setItem('gs_deviceId', id);
     return id;
 })();
 
+// ═══════════════ Boot ═══════════════
 document.addEventListener('DOMContentLoaded', function() {
-    loadGames();
+    // Check if we have a saved session to restore
     var saved = JSON.parse(localStorage.getItem('gs_session') || 'null');
-    if (saved && saved.gameId && saved.teamId) {
+    if (saved && saved.gameId) {
         S.gameId = saved.gameId;
-        S.myTeamId = saved.teamId;
-        goScreen('screen-game');
-        connectSocket();
+        S.myTeamId = saved.teamId || null;
+        // Show a loading state while we try to reconnect
+        goScreen('screen-games');
+        connectSocket(function onReady() {
+            // Socket connected — try auto-reconnect
+            socket.emit('player:reconnect', { deviceId: deviceId });
+        });
+    } else {
+        loadGames();
     }
 });
 
+// ═══════════════ Navigation ═══════════════
 function goScreen(id) {
     document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
     document.getElementById(id).classList.add('active');
 }
 
-// ═══════════════ Game list — only active sessions ═══════════════
-function loadGames() {
-    fetch('/api/active-games').then(function(r) { return r.json(); }).then(function(games) {
-        var list = document.getElementById('gamesList');
-        if (!games.length) { list.innerHTML = '<div class="no-games">No hay juegos activos en este momento</div>'; return; }
-        list.innerHTML = games.map(function(g) {
-            return '<div class="game-card" onclick="selectGame(\'' + g.id + '\')">'
-                + '<div class="game-icon">&#127918;</div>'
-                + '<div class="game-info"><div class="game-name">' + esc(g.name) + '</div>'
-                + '<div class="game-date">' + (g.date || '') + '</div></div>'
-                + '<div class="game-arrow">&#9654;</div></div>';
-        }).join('');
-    }).catch(function() {
-        document.getElementById('gamesList').innerHTML = '<div class="no-games">Error al cargar juegos</div>';
-    });
-}
-
-function selectGame(gameId) {
-    fetch('/api/games/' + gameId).then(function(r) { return r.json(); }).then(function(game) {
-        S.game = game;
-        S.gameId = gameId;
-        if (game.access_code) {
-            document.getElementById('codeGameName').textContent = game.name;
-            document.getElementById('codeInput').value = '';
-            document.getElementById('codeError').style.display = 'none';
-            goScreen('screen-code');
-            document.getElementById('codeInput').focus();
-        } else {
-            enterGame();
-        }
-    });
-}
-
-function submitCode() {
-    var code = document.getElementById('codeInput').value.trim();
-    if (code === S.game.access_code) {
-        enterGame();
-    } else {
-        document.getElementById('codeError').style.display = 'block';
-    }
-}
-
-function enterGame() {
-    document.getElementById('regGameName').textContent = S.game ? S.game.name : 'Crea tu equipo';
-    document.getElementById('teamNameInput').value = '';
-    document.getElementById('photoPreview').innerHTML = '&#128247;';
-    S.photoUrl = null;
-    connectSocket();
-    // Try auto-reconnect by device first
-    goScreen('screen-register');
-}
-
-function previewPhoto(input) {
-    if (!input.files || !input.files[0]) return;
-    var file = input.files[0];
-    var formData = new FormData();
-    formData.append('file', file);
-    fetch('/api/upload/image', { method: 'POST', body: formData })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            S.photoUrl = data.url;
-            document.getElementById('photoPreview').innerHTML = '<img src="' + esc(data.url) + '">';
-        })
-        .catch(function() { toast('Error al subir foto'); });
-}
-
-function registerTeam() {
-    var name = document.getElementById('teamNameInput').value.trim();
-    if (!name) { toast('Escribe un nombre para tu equipo'); return; }
-    if (!socket || !socket.connected) { toast('Conectando...'); return; }
-    socket.emit('player:register_team', { name: name, photo_url: S.photoUrl, deviceId: deviceId });
-}
-
-function leaveGame() {
+function goBack() {
+    // From code or register → back to game list
     if (socket) { socket.disconnect(); socket = null; }
     S.gameId = null; S.game = null; S.myTeamId = null; S.myTeam = null; S.ps = null; S.photoUrl = null;
     localStorage.removeItem('gs_session');
@@ -364,34 +308,126 @@ function leaveGame() {
     loadGames();
 }
 
-// ═══════════════ Socket ═══════════════
-function connectSocket() {
-    if (socket && socket.connected) {
-        // Already connected, try reconnect
+// ═══════════════ Screen 1: Games list ═══════════════
+function loadGames() {
+    var list = document.getElementById('gamesList');
+    list.innerHTML = '<div class="no-games">Cargando juegos...</div>';
+    fetch('/api/active-games').then(function(r) { return r.json(); }).then(function(games) {
+        if (!games.length) {
+            list.innerHTML = '<div class="no-games">No hay juegos activos en este momento.<br><br>Pide al coordinador que inicie una partida.</div>';
+            return;
+        }
+        list.innerHTML = games.map(function(g) {
+            return '<div class="game-card" onclick="selectGame(\'' + g.id + '\',\'' + esc(g.access_code || '') + '\',\'' + esc(g.name) + '\')">'
+                + '<div class="game-icon">&#127918;</div>'
+                + '<div class="game-info"><div class="game-name">' + esc(g.name) + '</div>'
+                + (g.date ? '<div class="game-date">' + g.date + '</div>' : '')
+                + '</div>'
+                + '<div class="game-arrow">&#9654;</div></div>';
+        }).join('');
+    }).catch(function() {
+        list.innerHTML = '<div class="no-games">Error al cargar juegos</div>';
+    });
+}
+
+// ═══════════════ Screen 2: Select game → code or register ═══════════════
+function selectGame(gameId, accessCode, gameName) {
+    S.gameId = gameId;
+    S.game = { id: gameId, name: gameName, access_code: accessCode };
+
+    if (accessCode) {
+        // Show code entry screen
+        document.getElementById('codeGameName').textContent = gameName;
+        document.getElementById('codeInput').value = '';
+        document.getElementById('codeError').style.display = 'none';
+        goScreen('screen-code');
+        document.getElementById('codeInput').focus();
+    } else {
+        // No code required — go straight to connect + register/reconnect
+        enterGame();
+    }
+}
+
+function submitCode() {
+    var code = document.getElementById('codeInput').value.trim();
+    if (!S.game) return;
+    if (code === S.game.access_code) {
+        enterGame();
+    } else {
+        document.getElementById('codeError').style.display = 'block';
+    }
+}
+
+// ═══════════════ Enter game: connect socket, try reconnect, else register ═══════════════
+function enterGame() {
+    // Connect socket and attempt auto-reconnect by deviceId
+    connectSocket(function onReady() {
         socket.emit('player:reconnect', { deviceId: deviceId });
+    });
+    // Show register screen optimistically (will switch to game if reconnect succeeds)
+    prepareRegisterScreen();
+    goScreen('screen-register');
+}
+
+function prepareRegisterScreen() {
+    document.getElementById('regGameName').textContent = S.game ? S.game.name : 'Crea tu equipo';
+    document.getElementById('teamNameInput').value = '';
+    document.getElementById('photoPreview').innerHTML = '&#128247;';
+    document.getElementById('registerBtn').disabled = false;
+    S.photoUrl = null;
+}
+
+// ═══════════════ Screen 3: Register team ═══════════════
+function uploadPhoto(input) {
+    if (!input.files || !input.files[0]) return;
+    var formData = new FormData();
+    formData.append('file', input.files[0]);
+    fetch('/api/upload/image', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.url) {
+                S.photoUrl = data.url;
+                document.getElementById('photoPreview').innerHTML = '<img src="' + esc(data.url) + '">';
+            }
+        })
+        .catch(function() { toast('Error al subir foto'); });
+    input.value = '';
+}
+
+function registerTeam() {
+    var name = document.getElementById('teamNameInput').value.trim();
+    if (!name) { toast('Escribe un nombre para tu equipo'); return; }
+    if (!socket || !socket.connected) { toast('Conectando, espera un momento...'); return; }
+    document.getElementById('registerBtn').disabled = true;
+    socket.emit('player:register_team', { name: name, photo_url: S.photoUrl, deviceId: deviceId });
+}
+
+// ═══════════════ Socket connection ═══════════════
+function connectSocket(onReady) {
+    if (socket && socket.connected && socket.gameId === S.gameId) {
+        // Already connected to this game — reuse
+        if (onReady) onReady();
         return;
     }
-    if (socket) socket.disconnect();
+    if (socket) { socket.disconnect(); socket = null; }
+
     socket = io({ query: { gameId: S.gameId, deviceId: deviceId } });
+    socket.gameId = S.gameId;
 
     socket.on('connect', function() {
         document.getElementById('connBanner').classList.remove('active');
-        if (S.myTeamId) {
+        if (onReady) { onReady(); onReady = null; } // only fire once
+        else if (S.myTeamId) {
+            // Re-connected after disconnect — auto-rejoin
             socket.emit('player:reconnect', { deviceId: deviceId });
         }
     });
 
     socket.on('disconnect', function() {
-        if (S.gameId) document.getElementById('connBanner').classList.add('active');
+        if (S.myTeamId) document.getElementById('connBanner').classList.add('active');
     });
 
-    socket.on('init_connection', function(data) {
-        // Try auto-reconnect by device
-        if (!S.myTeamId) {
-            socket.emit('player:reconnect', { deviceId: deviceId });
-        }
-    });
-
+    // ── Success: team joined ──
     socket.on('login_success', function(data) {
         S.myTeam = data.miEquipo;
         S.myTeamId = data.miEquipo.id;
@@ -400,27 +436,52 @@ function connectSocket() {
         renderMyTeamHeader();
     });
 
-    socket.on('register_error', function(data) {
-        toast(data.error || 'Error al registrar equipo');
+    // ── Reconnect failed: no session, no team, or slot taken ──
+    socket.on('reconnect_failed', function(data) {
+        var reason = data && data.reason;
+        if (reason === 'no_session') {
+            // Session ended — clear saved state and go back to games
+            localStorage.removeItem('gs_session');
+            S.myTeamId = null; S.myTeam = null; S.gameId = null;
+            goScreen('screen-games');
+            loadGames();
+            toast('La sesion ha terminado');
+        } else if (reason === 'no_team') {
+            // Device not registered in this session — show register screen
+            if (document.getElementById('screen-games').classList.contains('active')) {
+                // We were trying to restore a saved session but game changed — show register
+                prepareRegisterScreen();
+                goScreen('screen-register');
+            }
+            // If already on register screen, do nothing — player can register
+        } else if (reason === 'slot_taken') {
+            toast('Este equipo ya esta conectado en otro dispositivo');
+            localStorage.removeItem('gs_session');
+            S.myTeamId = null; S.myTeam = null;
+            goScreen('screen-register');
+        }
     });
 
-    socket.on('join_team_rejected', function() { toast('Equipo ocupado'); });
+    socket.on('register_error', function(data) {
+        toast(data.error || 'Error al registrar equipo');
+        document.getElementById('registerBtn').disabled = false;
+    });
 
     socket.on('team_removed', function() {
         S.myTeamId = null; S.myTeam = null;
         localStorage.removeItem('gs_session');
-        toast('Tu equipo fue eliminado');
+        toast('Tu equipo fue eliminado por el coordinador');
+        prepareRegisterScreen();
         goScreen('screen-register');
     });
 
     socket.on('actualizar_admin_equipos', function(equipos) {
-        if (S.myTeamId) {
-            var me = equipos.find(function(e) { return e.id === S.myTeamId; });
-            if (me) {
-                S.myTeam = me;
-                renderMyTeamHeader();
-                document.getElementById('blockedOverlay').classList.toggle('active', me.bloqueado);
-            }
+        if (!S.myTeamId) return;
+        var me = equipos.find(function(e) { return e.id === S.myTeamId; });
+        if (me) {
+            S.myTeam = me;
+            renderMyTeamHeader();
+            document.getElementById('blockedOverlay').classList.toggle('active', me.bloqueado);
         }
     });
 
@@ -463,7 +524,11 @@ function applyPlayerTheme(theme) {
     if (theme.secondaryColor) root.style.setProperty('--gold', theme.secondaryColor);
 }
 
+var lastQIdx = -1;
 function onPlayerSync(ps) {
+    // Reset answer state on new question
+    if (ps.questionIdx !== lastQIdx) { S.selectedOptions = []; S.boomOrder = []; S.submitted = false; lastQIdx = ps.questionIdx; }
+
     S.ps = ps;
     S.submitted = S.myTeamId && ps.answeredTeams && ps.answeredTeams.indexOf(S.myTeamId) >= 0;
     if (ps.gameTheme) applyPlayerTheme(ps.gameTheme);
@@ -478,6 +543,7 @@ function onPlayerSync(ps) {
     renderTimer();
 }
 
+// ═══════════════ Game phase rendering ═══════════════
 function renderGamePhase() {
     var ps = S.ps;
     if (!ps) return;
@@ -486,6 +552,7 @@ function renderGamePhase() {
     var timerBar = document.getElementById('timerBar');
     timerBar.style.display = 'none';
     document.getElementById('submitMultiBtn').style.display = 'none';
+
     if (phase === 'lobby' || phase === 'waiting') {
         document.getElementById('gp-waiting').classList.add('active');
     } else if (phase === 'scoreboard') {
@@ -494,14 +561,24 @@ function renderGamePhase() {
         renderRevealed(); document.getElementById('gp-revealed').classList.add('active');
     } else if (phase === 'question') {
         timerBar.style.display = 'flex';
-        if (type === 'multirespuesta') { renderMulti(); document.getElementById('gp-multi').classList.add('active'); if (!S.submitted) document.getElementById('submitMultiBtn').style.display = 'block'; }
-        else if (type === 'pulsador' || type === 'cancion' || type === 'imagen' || type === 'imagen_fija' || type === 'ruleta') { renderBuzzer(); document.getElementById('gp-buzzer').classList.add('active'); }
-        else if (type === 'precio') { renderPrecio(); document.getElementById('gp-precio').classList.add('active'); }
-        else if (type === 'boom') { renderBoom(); document.getElementById('gp-boom').classList.add('active'); }
-        else { document.getElementById('gp-waiting').classList.add('active'); }
-    } else { document.getElementById('gp-waiting').classList.add('active'); }
+        if (type === 'multirespuesta') {
+            renderMulti(); document.getElementById('gp-multi').classList.add('active');
+            if (!S.submitted) document.getElementById('submitMultiBtn').style.display = 'block';
+        } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen' || type === 'imagen_fija' || type === 'ruleta') {
+            renderBuzzer(); document.getElementById('gp-buzzer').classList.add('active');
+        } else if (type === 'precio') {
+            renderPrecio(); document.getElementById('gp-precio').classList.add('active');
+        } else if (type === 'boom') {
+            renderBoom(); document.getElementById('gp-boom').classList.add('active');
+        } else {
+            document.getElementById('gp-waiting').classList.add('active');
+        }
+    } else {
+        document.getElementById('gp-waiting').classList.add('active');
+    }
 }
 
+// ── Multirespuesta ──
 function renderMulti() {
     var ps = S.ps, q = ps.question; if (!q) return;
     var c = q.content || {};
@@ -520,43 +597,172 @@ function renderMulti() {
     }).join('');
 }
 function toggleOption(idx) { if (S.submitted) return; var pos = S.selectedOptions.indexOf(idx); if (pos >= 0) S.selectedOptions.splice(pos, 1); else S.selectedOptions.push(idx); renderMulti(); }
-function submitMulti() { if (S.submitted || !S.selectedOptions.length) return; emit('player:submit_answer', { answer: S.selectedOptions.length === 1 ? S.selectedOptions[0] : S.selectedOptions }); S.submitted = true; document.getElementById('submitMultiBtn').style.display = 'none'; document.getElementById('multiSubmitted').style.display = 'block'; }
+function submitMulti() {
+    if (S.submitted || !S.selectedOptions.length) return;
+    emit('player:submit_answer', { answer: S.selectedOptions.length === 1 ? S.selectedOptions[0] : S.selectedOptions });
+    S.submitted = true;
+    document.getElementById('submitMultiBtn').style.display = 'none';
+    document.getElementById('multiSubmitted').style.display = 'block';
+}
 
+// ── Buzzer ──
 function renderBuzzer() {
     var ps = S.ps, q = ps.question; if (!q) return;
     var c = q.content || {};
     document.getElementById('buzzerStatement').textContent = c.statement || c.phrase || '-';
-    renderPlayerImgGrid(ps, q); renderPlayerLetterPanel(ps, c); renderBuzzerStatus();
+    renderPlayerImgGrid(ps, q);
+    renderPlayerLetterPanel(ps, c);
+    renderBuzzerStatus();
 }
-function renderPlayerImgGrid(ps, q) { var el = document.getElementById('playerImgGrid'); if (ps.roundType !== 'imagen') { el.style.display = 'none'; return; } var c = q.content || {}; var grid = c.grid || 4; var total = grid * grid; var revealed = ps.revealedCells || []; el.style.display = 'block'; el.innerHTML = '<div class="p-img-grid">' + (q.media_url ? '<img src="' + esc(q.media_url) + '">' : '') + '<div class="p-img-grid-overlay" style="grid-template-columns:repeat(' + grid + ',1fr)">' + Array.from({length: total}, function(_, i) { return '<div class="p-img-grid-cell' + (revealed.indexOf(i) >= 0 ? ' revealed' : '') + '"></div>'; }).join('') + '</div></div>'; }
-function renderPlayerLetterPanel(ps, c) { var el = document.getElementById('playerLetterPanel'); if (ps.roundType !== 'ruleta') { el.style.display = 'none'; return; } var phrase = c.phrase || ''; var revealed = ps.revealedLetters || []; el.style.display = 'block'; el.innerHTML = '<div class="p-letters">' + Array.from(phrase).map(function(ch, i) { if (ch === ' ') return '<div class="p-letter space"></div>'; return '<div class="p-letter ' + (revealed.indexOf(i) >= 0 ? 'shown' : 'hidden') + '">' + (revealed.indexOf(i) >= 0 ? esc(ch) : '') + '</div>'; }).join('') + '</div>'; }
-function renderBuzzerStatus() { var ps = S.ps; if (!ps) return; var btn = document.getElementById('buzzBtn'); var status = document.getElementById('buzzStatus'); var hasBuzzed = ps.colaPulsador && ps.colaPulsador.some(function(p) { return p.id === S.myTeamId; }); if (hasBuzzed) { btn.disabled = true; status.className = 'buzz-status buzzed'; status.textContent = 'Has pulsado'; } else if (ps.pulsadorActivo) { btn.disabled = false; status.className = 'buzz-status'; status.textContent = 'Pulsador abierto'; } else { btn.disabled = true; status.className = 'buzz-status'; status.textContent = 'Esperando apertura...'; } }
+function renderPlayerImgGrid(ps, q) {
+    var el = document.getElementById('playerImgGrid');
+    if (ps.roundType !== 'imagen') { el.style.display = 'none'; return; }
+    var c = q.content || {};
+    var grid = c.grid || 4;
+    var total = grid * grid;
+    var revealed = ps.revealedCells || [];
+    el.style.display = 'block';
+    el.innerHTML = '<div class="p-img-grid">'
+        + (q.media_url ? '<img src="' + esc(q.media_url) + '">' : '')
+        + '<div class="p-img-grid-overlay" style="grid-template-columns:repeat(' + grid + ',1fr)">'
+        + Array.from({length: total}, function(_, i) { return '<div class="p-img-grid-cell' + (revealed.indexOf(i) >= 0 ? ' revealed' : '') + '"></div>'; }).join('')
+        + '</div></div>';
+}
+function renderPlayerLetterPanel(ps, c) {
+    var el = document.getElementById('playerLetterPanel');
+    if (ps.roundType !== 'ruleta') { el.style.display = 'none'; return; }
+    var phrase = c.phrase || '';
+    var revealed = ps.revealedLetters || [];
+    el.style.display = 'block';
+    el.innerHTML = '<div class="p-letters">'
+        + Array.from(phrase).map(function(ch, i) {
+            if (ch === ' ') return '<div class="p-letter space"></div>';
+            return '<div class="p-letter ' + (revealed.indexOf(i) >= 0 ? 'shown' : 'hidden') + '">' + (revealed.indexOf(i) >= 0 ? esc(ch) : '') + '</div>';
+        }).join('') + '</div>';
+}
+function renderBuzzerStatus() {
+    var ps = S.ps; if (!ps) return;
+    var btn = document.getElementById('buzzBtn');
+    var status = document.getElementById('buzzStatus');
+    var hasBuzzed = ps.colaPulsador && ps.colaPulsador.some(function(p) { return p.id === S.myTeamId; });
+    if (hasBuzzed) { btn.disabled = true; status.className = 'buzz-status buzzed'; status.textContent = 'Has pulsado'; }
+    else if (ps.pulsadorActivo) { btn.disabled = false; status.className = 'buzz-status'; status.textContent = 'Pulsador abierto'; }
+    else { btn.disabled = true; status.className = 'buzz-status'; status.textContent = 'Esperando apertura...'; }
+}
 function doBuzz() { emit('pulsar_boton'); }
 
-function renderPrecio() { var ps = S.ps, q = ps.question; if (!q) return; var c = q.content || {}; document.getElementById('precioStatement').textContent = c.statement || '-'; var mediaDiv = document.getElementById('precioMedia'); mediaDiv.innerHTML = ''; var imgSrc = q.media_url || c.image; if (imgSrc) mediaDiv.innerHTML = '<img src="' + esc(imgSrc) + '" class="q-media">'; document.getElementById('precioSubmitted').style.display = S.submitted ? 'block' : 'none'; document.getElementById('precioInput').style.display = S.submitted ? 'none' : 'block'; document.getElementById('precioBtn').style.display = S.submitted ? 'none' : 'inline-flex'; }
-function submitPrice() { if (S.submitted) return; var val = parseFloat(document.getElementById('precioInput').value); if (!isFinite(val)) return; emit('player:submit_price', { value: val }); S.submitted = true; renderPrecio(); }
+// ── Precio ──
+function renderPrecio() {
+    var ps = S.ps, q = ps.question; if (!q) return;
+    var c = q.content || {};
+    document.getElementById('precioStatement').textContent = c.statement || '-';
+    var mediaDiv = document.getElementById('precioMedia');
+    mediaDiv.innerHTML = '';
+    var imgSrc = q.media_url || c.image;
+    if (imgSrc) mediaDiv.innerHTML = '<img src="' + esc(imgSrc) + '" class="q-media">';
+    document.getElementById('precioSubmitted').style.display = S.submitted ? 'block' : 'none';
+    document.getElementById('precioInput').style.display = S.submitted ? 'none' : 'block';
+    document.getElementById('precioBtn').style.display = S.submitted ? 'none' : 'inline-flex';
+}
+function submitPrice() {
+    if (S.submitted) return;
+    var val = parseFloat(document.getElementById('precioInput').value);
+    if (!isFinite(val)) return;
+    emit('player:submit_price', { value: val });
+    S.submitted = true;
+    renderPrecio();
+}
 
-function renderBoom() { var ps = S.ps, q = ps.question; if (!q) return; var c = q.content || {}; document.getElementById('boomStatement').textContent = c.statement || '-'; document.getElementById('boomSubmitted').style.display = S.submitted ? 'block' : 'none'; document.getElementById('boomBtn').style.display = S.submitted ? 'none' : 'inline-flex'; if (S.submitted) return; if (!S.boomOrder.length && c.items) { S.boomOrder = c.items.map(function(item, i) { return { text: item, origIdx: i }; }); for (var i = S.boomOrder.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var tmp = S.boomOrder[i]; S.boomOrder[i] = S.boomOrder[j]; S.boomOrder[j] = tmp; } } var list = document.getElementById('boomList'); list.innerHTML = S.boomOrder.map(function(item, i) { return '<div class="boom-item"><span class="boom-num">' + (i + 1) + '</span><span>' + esc(item.text) + '</span><span class="boom-arrows">' + (i > 0 ? '<button onclick="boomMove(' + i + ',-1)">&#9650;</button>' : '') + (i < S.boomOrder.length - 1 ? '<button onclick="boomMove(' + i + ',1)">&#9660;</button>' : '') + '</span></div>'; }).join(''); }
-function boomMove(idx, dir) { var newIdx = idx + dir; if (newIdx < 0 || newIdx >= S.boomOrder.length) return; var tmp = S.boomOrder[idx]; S.boomOrder[idx] = S.boomOrder[newIdx]; S.boomOrder[newIdx] = tmp; renderBoom(); }
-function submitBoom() { if (S.submitted || !S.boomOrder.length) return; var order = S.boomOrder.map(function(item) { return item.origIdx; }); emit('player:submit_order', { order: order }); S.submitted = true; renderBoom(); }
+// ── Boom ──
+function renderBoom() {
+    var ps = S.ps, q = ps.question; if (!q) return;
+    var c = q.content || {};
+    document.getElementById('boomStatement').textContent = c.statement || '-';
+    document.getElementById('boomSubmitted').style.display = S.submitted ? 'block' : 'none';
+    document.getElementById('boomBtn').style.display = S.submitted ? 'none' : 'inline-flex';
+    if (S.submitted) return;
+    if (!S.boomOrder.length && c.items) {
+        S.boomOrder = c.items.map(function(item, i) { return { text: item, origIdx: i }; });
+        for (var i = S.boomOrder.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = S.boomOrder[i]; S.boomOrder[i] = S.boomOrder[j]; S.boomOrder[j] = tmp;
+        }
+    }
+    document.getElementById('boomList').innerHTML = S.boomOrder.map(function(item, i) {
+        return '<div class="boom-item"><span class="boom-num">' + (i + 1) + '</span><span>' + esc(item.text) + '</span><span class="boom-arrows">'
+            + (i > 0 ? '<button onclick="boomMove(' + i + ',-1)">&#9650;</button>' : '')
+            + (i < S.boomOrder.length - 1 ? '<button onclick="boomMove(' + i + ',1)">&#9660;</button>' : '')
+            + '</span></div>';
+    }).join('');
+}
+function boomMove(idx, dir) { var n = idx + dir; if (n < 0 || n >= S.boomOrder.length) return; var tmp = S.boomOrder[idx]; S.boomOrder[idx] = S.boomOrder[n]; S.boomOrder[n] = tmp; renderBoom(); }
+function submitBoom() {
+    if (S.submitted || !S.boomOrder.length) return;
+    emit('player:submit_order', { order: S.boomOrder.map(function(item) { return item.origIdx; }) });
+    S.submitted = true;
+    renderBoom();
+}
 
-function renderScoreboard() { var ps = S.ps; if (!ps) return; var scores = ps.scores || {}; var teams = (ps.equipos || []).map(function(e) { return { id: e.id, nombre: e.nombre, score: scores[e.id] || 0 }; }).sort(function(a, b) { return b.score - a.score; }); document.getElementById('sbBody').innerHTML = teams.map(function(t, i) { var isMe = t.id === S.myTeamId; return '<tr class="' + (isMe ? 'sb-me' : '') + '"><td class="sb-rank">' + (i === 0 ? '&#127942;' : i + 1) + '</td><td>' + esc(t.nombre) + (isMe ? ' (tú)' : '') + '</td><td class="sb-score">' + t.score + '</td></tr>'; }).join(''); }
+// ── Scoreboard ──
+function renderScoreboard() {
+    var ps = S.ps; if (!ps) return;
+    var scores = ps.scores || {};
+    var teams = (ps.equipos || []).map(function(e) { return { id: e.id, nombre: e.nombre, score: scores[e.id] || 0 }; })
+        .sort(function(a, b) { return b.score - a.score; });
+    document.getElementById('sbBody').innerHTML = teams.map(function(t, i) {
+        var isMe = t.id === S.myTeamId;
+        return '<tr class="' + (isMe ? 'sb-me' : '') + '">'
+            + '<td class="sb-rank">' + (i === 0 ? '&#127942;' : i + 1) + '</td>'
+            + '<td>' + esc(t.nombre) + (isMe ? ' (tu)' : '') + '</td>'
+            + '<td class="sb-score">' + t.score + '</td></tr>';
+    }).join('');
+}
 
-function renderRevealed() { var ps = S.ps; if (!ps || !ps.question) return; var c = ps.question.content || {}; var ans = ''; if (c.correct !== undefined && c.options) { ans = (Array.isArray(c.correct) ? c.correct : [c.correct]).map(function(i) { return c.options[i]; }).join(', '); } else if (c.answer !== undefined) ans = String(c.answer); else if (c.correct_value !== undefined) ans = String(c.correct_value); else if (c.correct_order && c.items) ans = c.correct_order.map(function(i) { return c.items[i]; }).join(' → '); document.getElementById('revealText').textContent = ans || '-'; var resultEl = document.getElementById('revealResult'); if (S.submitted && c.correct !== undefined) { var correctSet = new Set(Array.isArray(c.correct) ? c.correct : [c.correct]); var picked = S.selectedOptions; var ok = picked.length === correctSet.size && picked.every(function(a) { return correctSet.has(a); }); resultEl.textContent = ok ? 'Has acertado' : 'Respuesta incorrecta'; resultEl.className = 'reveal-result ' + (ok ? 'win' : 'lose'); } else { resultEl.textContent = ''; } }
+// ── Answer revealed ──
+function renderRevealed() {
+    var ps = S.ps; if (!ps || !ps.question) return;
+    var c = ps.question.content || {};
+    var ans = '';
+    if (c.correct !== undefined && c.options) {
+        ans = (Array.isArray(c.correct) ? c.correct : [c.correct]).map(function(i) { return c.options[i]; }).join(', ');
+    } else if (c.answer !== undefined) ans = String(c.answer);
+    else if (c.correct_value !== undefined) ans = String(c.correct_value);
+    else if (c.correct_order && c.items) ans = c.correct_order.map(function(i) { return c.items[i]; }).join(' → ');
+    document.getElementById('revealText').textContent = ans || '-';
 
-function renderTimer() { var ps = S.ps; var el = document.getElementById('gameTimer'); if (!ps || !ps.timer) { el.textContent = '--:--'; return; } var t = ps.timer; el.textContent = String(Math.floor(t.remaining / 60)).padStart(2, '0') + ':' + String(t.remaining % 60).padStart(2, '0'); el.className = 'q-timer ' + (t.running ? (t.remaining <= 5 ? 'danger' : 'running') : 'stopped'); }
+    var resultEl = document.getElementById('revealResult');
+    if (S.submitted && c.correct !== undefined) {
+        var correctSet = new Set(Array.isArray(c.correct) ? c.correct : [c.correct]);
+        var picked = S.selectedOptions;
+        var ok = picked.length === correctSet.size && picked.every(function(a) { return correctSet.has(a); });
+        resultEl.textContent = ok ? 'Has acertado' : 'Respuesta incorrecta';
+        resultEl.className = 'reveal-result ' + (ok ? 'win' : 'lose');
+    } else { resultEl.textContent = ''; resultEl.className = 'reveal-result'; }
+}
 
+// ── Timer ──
+function renderTimer() {
+    var ps = S.ps; var el = document.getElementById('gameTimer');
+    if (!ps || !ps.timer) { el.textContent = '--:--'; return; }
+    var t = ps.timer;
+    el.textContent = String(Math.floor(t.remaining / 60)).padStart(2, '0') + ':' + String(t.remaining % 60).padStart(2, '0');
+    el.className = 'q-timer ' + (t.running ? (t.remaining <= 5 ? 'danger' : 'running') : 'stopped');
+}
+
+// ═══════════════ Helpers ═══════════════
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
-function toast(msg) { var el = document.createElement('div'); el.className = 'toast-msg'; el.textContent = msg; document.getElementById('toast').appendChild(el); setTimeout(function() { el.remove(); }, 2500); }
+function toast(msg) {
+    var el = document.createElement('div'); el.className = 'toast-msg'; el.textContent = msg;
+    document.getElementById('toast').appendChild(el);
+    setTimeout(function() { el.remove(); }, 3000);
+}
 
-var lastQIdx = -1;
-var origOnPlayerSync = onPlayerSync;
-onPlayerSync = function(ps) { if (ps.questionIdx !== lastQIdx) { S.selectedOptions = []; S.boomOrder = []; S.submitted = false; lastQIdx = ps.questionIdx; } origOnPlayerSync(ps); };
-
+// ═══════════════ Key handlers ═══════════════
 document.getElementById('codeInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitCode(); });
 document.getElementById('teamNameInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') registerTeam(); });
 document.getElementById('precioInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitPrice(); });
 
+// ═══════════════ Service Worker ═══════════════
 if ('serviceWorker' in navigator) { window.addEventListener('load', function() { navigator.serviceWorker.register('/play/sw.js', { scope: '/play/' }).catch(function() {}); }); }
 </script>
 </body>

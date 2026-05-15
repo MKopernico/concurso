@@ -235,11 +235,11 @@ function attachSocketHandlers(io) {
         // Device-based auto-reconnect
         socket.on('player:reconnect', (data) => {
             const devId = data && data.deviceId || deviceId;
-            if (!devId) return;
+            if (!devId) { socket.emit('reconnect_failed', { reason: 'no_device' }); return; }
             const session = db.prepare('SELECT id FROM sessions WHERE game_id = ? AND ended_at IS NULL LIMIT 1').get(gameId);
-            if (!session) return;
+            if (!session) { socket.emit('reconnect_failed', { reason: 'no_session' }); return; }
             const dbTeam = db.prepare('SELECT * FROM teams WHERE session_id = ? AND device_id = ?').get(session.id, devId);
-            if (!dbTeam) return;
+            if (!dbTeam) { socket.emit('reconnect_failed', { reason: 'no_team' }); return; }
 
             let eq = state.equipos.find(e => e.id === dbTeam.id);
             if (!eq) {
@@ -251,7 +251,7 @@ function attachSocketHandlers(io) {
             // Takeover: if previous socket is dead, allow
             if (eq.ocupado && eq.socketId && eq.socketId !== socket.id) {
                 const prev = io.sockets.sockets.get(eq.socketId);
-                if (prev && prev.connected) return; // still alive, skip
+                if (prev && prev.connected) { socket.emit('reconnect_failed', { reason: 'slot_taken' }); return; }
             }
 
             eq.ocupado = true;
