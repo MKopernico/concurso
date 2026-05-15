@@ -34,6 +34,7 @@ function createGameState() {
             optionsRevealed: false,
             lastQuestionScores: {},
             showTeamResults: false,
+            scoreboardVisible: false,
         },
         precioCifraCorrecta: null,
         precioTimeoutHandle: null,
@@ -177,6 +178,12 @@ function loadGameTheme(gameId) {
     return row ? parseJson(row.theme) : {};
 }
 
+function resolveTypeTheme(state, roundType) {
+    if (!roundType) return {};
+    const gt = state._gameTheme || {};
+    return (gt.types && gt.types[roundType]) || {};
+}
+
 function playerView(state) {
     const ds = state.director;
     const curQ = ds.questions[ds.currentQuestionIdx];
@@ -213,7 +220,9 @@ function playerView(state) {
         completedRounds: ds.completedRounds,
         lastQuestionScores: ds.lastQuestionScores,
         showTeamResults: ds.showTeamResults,
+        scoreboardVisible: ds.scoreboardVisible,
         gameTheme: state._gameTheme || {},
+        typeTheme: resolveTypeTheme(state, ds.currentRound ? ds.currentRound.type : null),
         roundTheme: { logo: roundCfg.logo || null, background: roundCfg.background || null },
     };
 }
@@ -650,11 +659,20 @@ function attachSocketHandlers(io) {
             ds.currentRound = { id: round.id, name: round.name, type: round.type, config: round.config };
             ds.questions = loadRoundQuestions(round.id);
             ds.currentQuestionIdx = -1;
-            ds.phase = 'lobby';
+            ds.phase = 'round_intro';
             ds.answers = {};
+            ds.scoreboardVisible = false;
             state.pulsadorActivo = false;
             state.colaPulsador = [];
             broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:start_round', () => {
+            const ds = state.director;
+            if (ds.currentRound) {
+                ds.phase = 'lobby';
+                broadcastDirector(io, gameId, state);
+            }
         });
 
         socket.on('director:launch_question', (data) => {
@@ -670,6 +688,7 @@ function attachSocketHandlers(io) {
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
+            ds.scoreboardVisible = false;
             const cfg = getQuestionConfig(state);
             ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
             state.pulsadorActivo = false;
@@ -853,9 +872,17 @@ function attachSocketHandlers(io) {
             broadcastDirector(io, gameId, state);
         });
 
-        socket.on('director:show_scoreboard', () => { stopTimer(state, gameId, io); state.director.phase = 'scoreboard'; broadcastDirector(io, gameId, state); });
-        socket.on('director:show_waiting', () => { stopTimer(state, gameId, io); state.director.phase = 'waiting'; broadcastDirector(io, gameId, state); });
-        socket.on('director:show_lobby', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; broadcastDirector(io, gameId, state); });
+        socket.on('director:toggle_scoreboard', () => {
+            state.director.scoreboardVisible = !state.director.scoreboardVisible;
+            broadcastDirector(io, gameId, state);
+        });
+        // Legacy: also support show_scoreboard as toggle
+        socket.on('director:show_scoreboard', () => {
+            state.director.scoreboardVisible = !state.director.scoreboardVisible;
+            broadcastDirector(io, gameId, state);
+        });
+        socket.on('director:show_waiting', () => { stopTimer(state, gameId, io); state.director.phase = 'waiting'; state.director.scoreboardVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_lobby', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.scoreboardVisible = false; broadcastDirector(io, gameId, state); });
 
         socket.on('director:block_team', (data) => {
             if (!data || !data.teamId) return;
@@ -934,6 +961,7 @@ function attachSocketHandlers(io) {
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
+            ds.scoreboardVisible = false;
             stopTimer(state, gameId, io);
             state.pulsadorActivo = false;
             state.colaPulsador = [];

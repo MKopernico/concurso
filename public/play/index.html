@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="/shared/gameshow-transitions.css">
 <style>
 :root { --bg: #0a0a10; --surface: #14141e; --surface2: #1e1e2e; --border: #2a2a3a; --text: #e4e4e7; --text2: #8888a0; --accent: #00d4ff; --accent-dim: #0097b8; --danger: #ef4444; --success: #22c55e; --gold: #facc15; --radius: 12px; }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -137,6 +138,28 @@ input:focus { border-color: var(--accent); }
 .reveal-result.win { color: var(--success); }
 .reveal-result.lose { color: var(--danger); }
 
+/* ── Scoreboard overlay (synced from server) ── */
+.player-scoreboard-overlay {
+    position: fixed; inset: 0; z-index: 90;
+    display: flex; align-items: center; justify-content: center; flex-direction: column;
+    background: rgba(10,10,26,0); backdrop-filter: blur(0px);
+    opacity: 0; pointer-events: none;
+    transition: opacity .4s ease, background .4s ease, backdrop-filter .4s ease;
+    padding: 20px;
+}
+.player-scoreboard-overlay.active {
+    background: rgba(10,10,26,.88); backdrop-filter: blur(14px);
+    opacity: 1; pointer-events: auto;
+}
+.player-scoreboard-overlay h2 { font-size: 22px; color: var(--gold); margin-bottom: 16px; }
+
+/* ── Round intro ── */
+.gp-round-intro { align-items: center; justify-content: center; gap: 20px; text-align: center; padding: 24px; }
+.gp-round-intro .intro-logo { max-height: 120px; max-width: 260px; object-fit: contain; border-radius: 10px; }
+.gp-round-intro h2 { font-size: 24px; color: var(--accent); }
+.gp-round-intro .intro-type { font-size: 13px; padding: 3px 10px; border-radius: 4px; font-weight: 700; text-transform: uppercase; }
+.gp-round-intro p { color: var(--text2); }
+
 .blocked-overlay { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.85); flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
 .blocked-overlay.active { display: flex; }
 .blocked-overlay .block-icon { font-size: 64px; }
@@ -204,6 +227,12 @@ input:focus { border-color: var(--accent); }
             <h2>Esperando...</h2>
             <p style="color:var(--text2)">El coordinador lanzar&#225; la siguiente prueba.</p>
         </div>
+        <div class="gphase gp-round-intro" id="gp-round-intro">
+            <div id="playerIntroLogo" style="display:none;"><img class="intro-logo" id="playerIntroLogoImg"></div>
+            <h2 id="playerIntroTitle">-</h2>
+            <span id="playerIntroType" class="intro-type">-</span>
+            <p>Prep&#225;rate para la siguiente ronda</p>
+        </div>
         <div class="gphase gp-multi" id="gp-multi">
             <div class="q-statement" id="multiStatement">-</div>
             <div id="multiMedia"></div>
@@ -249,6 +278,12 @@ input:focus { border-color: var(--accent); }
     </div>
 </div>
 
+<!-- Scoreboard overlay (synced from server) -->
+<div class="player-scoreboard-overlay" id="playerScoreboardOverlay">
+    <h2>&#127942; Marcador</h2>
+    <table class="sb-table" style="max-width:400px;width:100%;"><tbody id="sbOverlayBody"></tbody></table>
+</div>
+
 <div class="blocked-overlay" id="blockedOverlay">
     <div class="block-icon">&#10060;</div>
     <div class="block-text">BLOQUEADO</div>
@@ -261,6 +296,7 @@ input:focus { border-color: var(--accent); }
 <div id="toast"></div>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="/shared/gameshow-transitions.js"></script>
 <script>
 // ═══════════════ State ═══════════════
 var S = {
@@ -544,6 +580,10 @@ function onPlayerSync(ps) {
 }
 
 // ═══════════════ Game phase rendering ═══════════════
+var _prevPlayerPhase = null;
+var _prevPlayerQIdx = -1;
+var _prevPlayerOptsRevealed = false;
+
 function renderGamePhase() {
     var ps = S.ps;
     if (!ps) return;
@@ -553,8 +593,19 @@ function renderGamePhase() {
     timerBar.style.display = 'none';
     document.getElementById('submitMultiBtn').style.display = 'none';
 
+    // Scoreboard overlay (synced from server, independent of phase)
+    var sbOverlay = document.getElementById('playerScoreboardOverlay');
+    if (ps.scoreboardVisible) {
+        renderScoreboardOverlay();
+        sbOverlay.classList.add('active');
+    } else {
+        sbOverlay.classList.remove('active');
+    }
+
     if (phase === 'lobby' || phase === 'waiting') {
         document.getElementById('gp-waiting').classList.add('active');
+    } else if (phase === 'round_intro') {
+        renderRoundIntro(); document.getElementById('gp-round-intro').classList.add('active');
     } else if (phase === 'scoreboard') {
         renderScoreboard(); document.getElementById('gp-scoreboard').classList.add('active');
     } else if (phase === 'answer_revealed') {
@@ -576,6 +627,10 @@ function renderGamePhase() {
     } else {
         document.getElementById('gp-waiting').classList.add('active');
     }
+
+    _prevPlayerPhase = phase;
+    _prevPlayerQIdx = ps.questionIdx;
+    _prevPlayerOptsRevealed = ps.optionsRevealed;
 }
 
 // ── Multirespuesta ──
@@ -601,6 +656,17 @@ function renderMulti() {
         var sel = S.selectedOptions.indexOf(i) >= 0;
         return '<button class="option-btn ' + (sel ? 'selected' : '') + '" onclick="toggleOption(' + i + ')"><span class="opt-letter">' + letters[i] + '</span>' + esc(o) + '</button>';
     }).join('');
+
+    // Animations
+    if (window.GameShowShared) {
+        var GSA = GameShowShared.Animations;
+        var newQ = ps.questionIdx !== _prevPlayerQIdx;
+        var optionsJustRevealed = ps.optionsRevealed && !_prevPlayerOptsRevealed;
+        if (newQ) GSA.enterStatement(document.getElementById('multiStatement'));
+        if (optionsJustRevealed) {
+            GSA.staggerOptions(optDiv, '.option-btn', 120);
+        }
+    }
 }
 function toggleOption(idx) { if (S.submitted) return; var pos = S.selectedOptions.indexOf(idx); if (pos >= 0) S.selectedOptions.splice(pos, 1); else S.selectedOptions.push(idx); renderMulti(); }
 function submitMulti() {
@@ -709,7 +775,35 @@ function submitBoom() {
     renderBoom();
 }
 
-// ── Scoreboard ──
+// ── Round Intro ──
+function renderRoundIntro() {
+    var ps = S.ps; if (!ps) return;
+    document.getElementById('playerIntroTitle').textContent = ps.roundName || '-';
+    var typeSpan = document.getElementById('playerIntroType');
+    typeSpan.textContent = ps.roundType || '';
+    typeSpan.className = 'intro-type type-' + (ps.roundType || '');
+    var logo = (ps.roundTheme && ps.roundTheme.logo) || (ps.typeTheme && ps.typeTheme.logo) || null;
+    var logoWrap = document.getElementById('playerIntroLogo');
+    if (logo) { document.getElementById('playerIntroLogoImg').src = logo; logoWrap.style.display = ''; }
+    else { logoWrap.style.display = 'none'; }
+}
+
+// ── Scoreboard overlay (synced from server) ──
+function renderScoreboardOverlay() {
+    var ps = S.ps; if (!ps) return;
+    var scores = ps.scores || {};
+    var teams = (ps.equipos || []).map(function(e) { return { id: e.id, nombre: e.nombre, score: scores[e.id] || 0 }; })
+        .sort(function(a, b) { return b.score - a.score; });
+    document.getElementById('sbOverlayBody').innerHTML = teams.map(function(t, i) {
+        var isMe = t.id === S.myTeamId;
+        return '<tr class="' + (isMe ? 'sb-me' : '') + '">'
+            + '<td class="sb-rank">' + (i === 0 ? '&#127942;' : i + 1) + '</td>'
+            + '<td>' + esc(t.nombre) + (isMe ? ' (tu)' : '') + '</td>'
+            + '<td class="sb-score">' + t.score + '</td></tr>';
+    }).join('');
+}
+
+// ── Scoreboard (phase-based, legacy) ──
 function renderScoreboard() {
     var ps = S.ps; if (!ps) return;
     var scores = ps.scores || {};

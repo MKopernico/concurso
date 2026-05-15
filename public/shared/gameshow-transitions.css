@@ -1,0 +1,141 @@
+/* ═══════════════════════════════════════════════════════════════
+   GameShow — Shared Transition & Animation System
+   Include in all views: screen, director, play
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Phase crossfade ── */
+.gs-phase-out {
+    opacity: 0 !important;
+    transition: opacity .3s ease !important;
+}
+.gs-phase-in {
+    animation: gsFadeIn .3s ease both;
+}
+
+/* ── Statement entrance ── */
+.gs-statement-enter {
+    animation: gsStatementIn .6s cubic-bezier(.4,0,.2,1) both;
+}
+@keyframes gsStatementIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Statement slide-up (when options appear) ── */
+.gs-statement-lifted {
+    transition: transform .6s cubic-bezier(.4,0,.2,1), margin-bottom .6s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── Staggered option entry (from bottom) ── */
+.gs-opt-enter {
+    animation: gsOptSlideIn .45s cubic-bezier(.4,0,.2,1) both;
+}
+@keyframes gsOptSlideIn {
+    from { opacity: 0; transform: translateY(36px) scale(.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Answer reveal: correct glow + pulse ── */
+.gs-correct-glow {
+    animation: gsCorrectPulse .5s cubic-bezier(.34,1.56,.64,1),
+               gsCorrectGlow 2s ease-in-out .5s infinite;
+}
+@keyframes gsCorrectPulse {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.03); }
+    100% { transform: scale(1); }
+}
+@keyframes gsCorrectGlow {
+    0%, 100% { box-shadow: 0 0 12px rgba(34,197,94,.25), inset 0 0 10px rgba(34,197,94,.04); }
+    50%      { box-shadow: 0 0 28px rgba(34,197,94,.45), inset 0 0 20px rgba(34,197,94,.08); }
+}
+
+/* ── Answer reveal: wrong dim ── */
+.gs-wrong-dim {
+    transition: opacity .5s ease, filter .5s ease;
+    opacity: .3 !important;
+    filter: saturate(.3) brightness(.8);
+}
+
+/* ── Scoreboard overlay ── */
+.gs-scoreboard-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    background: rgba(10,10,26,0);
+    backdrop-filter: blur(0px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .4s ease, background .4s ease, backdrop-filter .4s ease;
+}
+.gs-scoreboard-overlay.active {
+    background: rgba(10,10,26,.88);
+    backdrop-filter: blur(14px);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ── Round intro ── */
+.gs-intro-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    text-align: center;
+}
+.gs-intro-logo {
+    max-height: 180px;
+    max-width: 400px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 30px rgba(0,0,0,.5));
+    animation: gsIntroLogoIn .8s cubic-bezier(.4,0,.2,1) both;
+}
+@keyframes gsIntroLogoIn {
+    from { opacity: 0; transform: scale(.8) translateY(20px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.gs-intro-title {
+    font-size: 48px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    animation: gsIntroTitleIn .6s cubic-bezier(.4,0,.2,1) .2s both;
+}
+@keyframes gsIntroTitleIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.gs-intro-sub {
+    font-size: 22px;
+    opacity: .6;
+    animation: gsIntroTitleIn .5s ease .4s both;
+}
+
+/* ── Background layer with transitions ── */
+.gs-bg-transition {
+    transition: opacity .5s ease, background-image .5s ease;
+}
+
+/* ── Fade in general ── */
+@keyframes gsFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@keyframes gsFadeOut {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+}
+
+/* ── Waiting screen ── */
+.gs-waiting-logo {
+    animation: gsFloat 3s ease-in-out infinite;
+}
+@keyframes gsFloat {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-12px); }
+}

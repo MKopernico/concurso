@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>GameShow · Coordinador</title>
+<link rel="stylesheet" href="/shared/gameshow-transitions.css">
 <style>
 :root { --bg: #0a0a10; --surface: #14141e; --surface2: #1c1c2a; --border: #2a2a3a; --text: #e4e4e7; --text2: #8888a0; --accent: #00d4ff; --accent-dim: #0097b8; --danger: #ef4444; --success: #22c55e; --gold: #facc15; --orange: #f97316; --radius: 10px; }
 
@@ -322,6 +323,18 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             </div>
         </div>
 
+        <!-- Phase: Round Intro -->
+        <div class="phase" id="phase-round_intro">
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;flex:1;text-align:center;">
+                <div id="introLogo" style="display:none;"><img style="max-height:120px;max-width:300px;object-fit:contain;border-radius:10px;" id="introLogoImg"></div>
+                <h2 id="introTitle" style="font-size:28px;color:var(--accent);">-</h2>
+                <span id="introType" class="round-type" style="font-size:13px;">-</span>
+                <p id="introSub" style="color:var(--text2);">Los jugadores ven la pantalla de intro de ronda.</p>
+                <button class="btn-success btn-lg" onclick="emit('director:start_round')">&#9654; Empezar ronda</button>
+                <button class="btn-ghost btn-sm" onclick="goToLobby()">Volver al lobby</button>
+            </div>
+        </div>
+
         <!-- Phase: Waiting -->
         <div class="phase" id="phase-waiting">
             <h2>&#9208; Pantalla de espera</h2>
@@ -419,6 +432,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 <div id="toast"></div>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="/shared/gameshow-transitions.js"></script>
 <script>
 const S = {
     gameId: null, game: null, rounds: [],
@@ -480,31 +494,45 @@ function onSync(state) {
 }
 
 // ═══════════════ Render ═══════════════
+var _prevPhase = null;
+var _prevQIdx = -1;
+var _prevOptionsRevealed = false;
+
 function render() {
     const ds = S.director;
     if (!ds) return;
-    // Scoreboard is now an overlay — don't change phase for it
-    if (ds.phase !== 'scoreboard') {
-        setPhase(ds.phase || 'lobby');
+    var phase = ds.phase || 'lobby';
+    // Scoreboard is now an overlay synced from server — don't change phase for it
+    if (phase === 'scoreboard') phase = 'lobby';
+    setPhase(phase);
+
+    // Scoreboard overlay synced from server
+    if (ds.scoreboardVisible) {
+        renderScoreboard();
+        document.getElementById('scoreboardOverlay').classList.add('active');
     } else {
-        // Server sent scoreboard phase — show overlay + keep current view
-        setPhase('lobby');
-        showScoreboardOverlay();
+        document.getElementById('scoreboardOverlay').classList.remove('active');
     }
+
     renderTimer();
     renderBuzzer();
     renderTeams();
     renderRoundsActive();
-    const p = ds.phase === 'scoreboard' ? 'lobby' : ds.phase;
-    if (p === 'lobby') renderLobby();
-    else if (p === 'question') renderQuestion();
-    else if (p === 'answer_revealed') renderAnswerRevealed();
+    if (phase === 'lobby') renderLobby();
+    else if (phase === 'round_intro') renderRoundIntro();
+    else if (phase === 'question') renderQuestion();
+    else if (phase === 'answer_revealed') renderAnswerRevealed();
+
+    _prevPhase = phase;
+    _prevQIdx = ds.currentQuestionIdx;
+    _prevOptionsRevealed = ds.optionsRevealed;
 }
 
 function setPhase(phase) {
     document.querySelectorAll('.phase').forEach(el => el.classList.remove('active'));
-    const id = 'phase-' + (phase === 'answer_revealed' ? 'answer' : phase);
-    const el = document.getElementById(id);
+    var mapped = phase;
+    if (phase === 'answer_revealed') mapped = 'answer';
+    var el = document.getElementById('phase-' + mapped);
     if (el) el.classList.add('active');
 }
 
@@ -618,6 +646,27 @@ function removeTeam(teamId) {
     emit('director:remove_team', { teamId: teamId });
 }
 
+// ── Round Intro ──
+function renderRoundIntro() {
+    var ds = S.director; if (!ds || !ds.currentRound) return;
+    document.getElementById('introTitle').textContent = ds.currentRound.name;
+    var typeSpan = document.getElementById('introType');
+    typeSpan.textContent = ds.currentRound.type;
+    typeSpan.className = 'round-type type-' + ds.currentRound.type;
+    document.getElementById('introSub').textContent = ds.questions.length + ' preguntas';
+    // Logo from round or type theme
+    var logoEl = document.getElementById('introLogo');
+    var logoImg = document.getElementById('introLogoImg');
+    var gt = S.game && S.game.theme || {};
+    var rc = ds.currentRound ? parseJson(ds.currentRound.config || '{}') : {};
+    var typeTheme = (gt.types && gt.types[ds.currentRound.type]) || {};
+    var logo = rc.logo || typeTheme.logo || null;
+    if (logo) { logoImg.src = logo; logoEl.style.display = ''; }
+    else { logoEl.style.display = 'none'; }
+}
+
+function parseJson(str) { try { return JSON.parse(str); } catch { return {}; } }
+
 // ── Edit team modal ──
 var editTeamId = null;
 function openEditTeamModal(teamId) {
@@ -713,6 +762,17 @@ function renderQuestion() {
 
     renderDirImageGrid(roundType, c, q);
     renderDirLetterPanel(roundType, c);
+
+    // Animations for multirespuesta
+    if (roundType === 'multirespuesta' && window.GameShowShared) {
+        var GSA = GameShowShared.Animations;
+        var newQ = ds.currentQuestionIdx !== _prevQIdx;
+        var optionsJustRevealed = ds.optionsRevealed && !_prevOptionsRevealed;
+        if (newQ) GSA.enterStatement(document.getElementById('questionStatement'));
+        if (optionsJustRevealed) {
+            GSA.staggerOptions(document.getElementById('questionOptions'), '.question-option', 120);
+        }
+    }
 }
 
 // ── Image grid controls (redesigned with thumbnail) ──
@@ -851,6 +911,19 @@ function renderAnswerRevealed() {
         btnTR.classList.remove('active');
         btnTR.innerHTML = '&#128101; Mostrar resultados';
     }
+
+    // Answer reveal animations for multirespuesta
+    var roundType = ds.currentRound ? ds.currentRound.type : '';
+    if (roundType === 'multirespuesta' && window.GameShowShared) {
+        var phaseJustChanged = _prevPhase !== 'answer_revealed';
+        if (phaseJustChanged) {
+            GameShowShared.Animations.revealAnswer(
+                document.getElementById('answerOptions'),
+                '.question-option.correct',
+                '.question-option:not(.correct)'
+            );
+        }
+    }
 }
 
 function renderTeamResults() {
@@ -903,20 +976,9 @@ function renderTeamResults() {
     el.innerHTML = html;
 }
 
-// ── Scoreboard (overlay) ──
+// ── Scoreboard (overlay — synced from server) ──
 function toggleScoreboard() {
-    var el = document.getElementById('scoreboardOverlay');
-    if (el.classList.contains('active')) {
-        el.classList.remove('active');
-    } else {
-        renderScoreboard();
-        el.classList.add('active');
-    }
-}
-
-function showScoreboardOverlay() {
-    renderScoreboard();
-    document.getElementById('scoreboardOverlay').classList.add('active');
+    emit('director:toggle_scoreboard');
 }
 
 function renderScoreboard() {

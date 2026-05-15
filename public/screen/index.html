@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GameShow — Pantalla</title>
+<link rel="stylesheet" href="/shared/gameshow-transitions.css">
 <style>
 /* ═══════════════ RESET & BASE ═══════════════ */
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -20,10 +21,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 #app { width: 100%; height: 100%; position: relative; }
 
 .phase { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column;
-    opacity: 0; transform: scale(.96); transition: opacity .5s ease, transform .5s ease; pointer-events: none; z-index: 1; }
-.phase.active { opacity: 1; transform: scale(1); pointer-events: auto; z-index: 2; }
+    opacity: 0; pointer-events: none; z-index: 1;
+    transition: opacity .35s ease; }
+.phase.active { opacity: 1; pointer-events: auto; z-index: 2; }
 
-/* ═══════════════ LOBBY ═══════════════ */
+/* ═══════════════ LOBBY / WAITING ═══════════════ */
 #phase-lobby { background: radial-gradient(ellipse at center, #12123a 0%, #0a0a1a 70%); }
 .lobby-title { font-size: 72px; font-weight: 800; letter-spacing: 6px; text-transform: uppercase;
     background: linear-gradient(135deg, var(--cyan), var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
@@ -31,6 +33,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .lobby-sub { font-size: 28px; color: var(--text2); margin-top: 20px; animation: fade-blink 2s ease-in-out infinite; }
 @keyframes pulse-glow { 0%,100% { filter: drop-shadow(0 0 30px rgba(0,212,255,.3)); } 50% { filter: drop-shadow(0 0 50px rgba(0,212,255,.5)); } }
 @keyframes fade-blink { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
+
+/* ═══════════════ ROUND INTRO ═══════════════ */
+#phase-round-intro { background: radial-gradient(ellipse at center, #1a1a3e 0%, #0a0a1a 70%); }
 
 /* ═══════════════ TIMER BAR (top) ═══════════════ */
 .timer-strip { position: absolute; top: 0; left: 0; right: 0; height: 8px; z-index: 50; background: var(--surface); }
@@ -49,7 +54,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 /* ═══════════════ QUESTION PHASE ═══════════════ */
 #phase-question { padding: 80px 60px 60px; }
 .q-statement { font-size: 52px; font-weight: 700; text-align: center; line-height: 1.3; max-width: 1200px;
-    text-shadow: 0 2px 20px rgba(0,0,0,.5); }
+    text-shadow: 0 2px 20px rgba(0,0,0,.5); transition: transform .6s cubic-bezier(.4,0,.2,1); }
 .q-media { max-width: 500px; max-height: 350px; border-radius: 16px; margin-top: 30px; box-shadow: var(--glow-cyan); }
 
 /* Options grid for multirespuesta */
@@ -93,14 +98,13 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 /* Options with correct/wrong highlighting */
 .revealed-options { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 40px; max-width: 1000px; width: 100%; }
 .rev-opt { border-radius: 16px; padding: 24px 32px; font-size: 28px; font-weight: 600; display: flex;
-    align-items: center; gap: 16px; background: var(--surface); border: 2px solid var(--border); opacity: .4; transition: all .4s ease; }
-.rev-opt.correct { opacity: 1; border-color: var(--green); background: linear-gradient(135deg, rgba(34,197,94,.15), rgba(34,197,94,.05));
-    box-shadow: 0 0 20px rgba(34,197,94,.3); }
+    align-items: center; gap: 16px; background: var(--surface); border: 2px solid var(--border); transition: all .4s ease; }
+.rev-opt.correct { border-color: var(--green); background: linear-gradient(135deg, rgba(34,197,94,.15), rgba(34,197,94,.05)); }
 .rev-opt .opt-letter { width: 44px; height: 44px; border-radius: 50%; background: var(--border); display: flex;
     align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: var(--cyan); flex-shrink: 0; }
 .rev-opt.correct .opt-letter { background: var(--green); color: #fff; }
 
-/* ═══════════════ SCOREBOARD ═══════════════ */
+/* ═══════════════ SCOREBOARD (full-phase + overlay) ═══════════════ */
 #phase-scoreboard { padding: 60px; background: radial-gradient(ellipse at center, #1a1a2e 0%, var(--bg) 70%); }
 .sb-title { font-size: 42px; font-weight: 800; text-transform: uppercase; letter-spacing: 4px;
     color: var(--gold); margin-bottom: 40px; text-shadow: var(--glow-gold); }
@@ -119,10 +123,15 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 @keyframes sb-slide-in { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: translateX(0); } }
 .sb-pos { width: 48px; height: 48px; border-radius: 50%; background: var(--border); display: flex;
     align-items: center; justify-content: center; font-size: 22px; font-weight: 800; color: var(--cyan); flex-shrink: 0; }
+.sb-photo { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--border); margin-left: 12px; }
 .sb-name { flex: 1; font-size: 28px; font-weight: 700; margin-left: 20px; }
 .sb-score { font-size: 36px; font-weight: 800; color: var(--cyan); font-variant-numeric: tabular-nums; text-shadow: var(--glow-cyan); }
 .sb-bar { flex: 0 0 200px; height: 12px; background: var(--border); border-radius: 6px; margin: 0 24px; overflow: hidden; }
 .sb-bar-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--gold)); border-radius: 6px; transition: width .6s ease; }
+
+/* Scoreboard overlay (global, z-index above everything) */
+#scoreboardOverlay { z-index: 80; }
+#scoreboardOverlay .sb-overlay-inner { width: 90%; max-width: 900px; max-height: 80vh; overflow-y: auto; }
 
 /* ═══════════════ WAITING ═══════════════ */
 #phase-waiting { background: radial-gradient(ellipse at center, #12123a 0%, #0a0a1a 70%); }
@@ -145,6 +154,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     backdrop-filter: blur(8px); }
 .mini-chip .mc-name { color: var(--text2); }
 .mini-chip .mc-score { color: var(--cyan); font-weight: 800; }
+.mini-chip.first .mc-score { color: var(--gold); }
+
 /* ═══════════════ IMAGE GRID ═══════════════ */
 .img-grid-wrap { position: relative; width: 500px; height: 500px; margin-top: 30px; border-radius: 16px; overflow: hidden; box-shadow: var(--glow-cyan); }
 .img-grid-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -162,8 +173,6 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .letter-cell.space { background: transparent; border-color: transparent; box-shadow: none; }
 .letter-cell.revealed { animation: letter-flip .4s ease; }
 @keyframes letter-flip { 0% { transform: scaleY(0); } 100% { transform: scaleY(1); } }
-
-.mini-chip.first .mc-score { color: var(--gold); }
 
 /* ═══════════════ TEAM RESULTS OVERLAY ═══════════════ */
 .team-results-overlay { position: absolute; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
@@ -211,7 +220,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .round-logo { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); max-height: 70px; max-width: 200px; object-fit: contain; z-index: 52; filter: drop-shadow(0 0 10px rgba(0,0,0,.5)); }
 
 /* ═══════════════ ANIMATED BACKGROUNDS ═══════════════ */
-.bg-layer { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.bg-layer { position: fixed; inset: 0; z-index: 0; pointer-events: none; transition: opacity .5s ease; }
 .bg-gradient-anim { animation: bgShift 12s ease-in-out infinite; background-size: 300% 300%; }
 @keyframes bgShift {
     0% { background-position: 0% 50%; }
@@ -250,6 +259,15 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
         <div class="lobby-sub">Esperando inicio...</div>
     </div>
 
+    <!-- ROUND INTRO -->
+    <div class="phase" id="phase-round-intro">
+        <div class="gs-intro-content">
+            <img class="gs-intro-logo" id="introLogo" style="display:none">
+            <div class="gs-intro-title" id="introTitle" style="color:var(--cyan); text-shadow:var(--glow-cyan);">-</div>
+            <div class="gs-intro-sub" id="introSub" style="color:var(--text2);">-</div>
+        </div>
+    </div>
+
     <!-- QUESTION -->
     <div class="phase" id="phase-question">
         <div class="q-statement" id="qStatement"></div>
@@ -282,7 +300,15 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
         </div>
     </div>
 
-    <!-- SCOREBOARD -->
+    <!-- SCOREBOARD OVERLAY (global) -->
+    <div class="gs-scoreboard-overlay" id="scoreboardOverlay">
+        <div class="sb-overlay-inner">
+            <div class="sb-title" style="text-align:center;">MARCADOR</div>
+            <div class="sb-table" id="sbOverlayTable"></div>
+        </div>
+    </div>
+
+    <!-- SCOREBOARD (phase, legacy fallback) -->
     <div class="phase" id="phase-scoreboard">
         <div class="sb-title">MARCADOR</div>
         <div class="sb-table" id="sbTable"></div>
@@ -290,7 +316,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 
     <!-- WAITING -->
     <div class="phase" id="phase-waiting">
-        <div class="waiting-icon">⏳</div>
+        <div class="waiting-icon">&#9203;</div>
         <div class="waiting-text">Siguiente prueba en breve...</div>
     </div>
 
@@ -301,14 +327,21 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="/shared/gameshow-transitions.js"></script>
 <script>
 (function() {
 'use strict';
+
+var GSA = GameShowShared.Animations;
+var GST = GameShowShared.Transitions;
 
 // ═══════════════ STATE ═══════════════
 var gameId = location.pathname.split('/').filter(Boolean)[1] || '';
 var ps = null;
 var socket = null;
+var prevPhaseKey = 'lobby';
+var prevOptionsRevealed = false;
+var prevQuestionIdx = -1;
 
 // ═══════════════ CONNECT ═══════════════
 function connect() {
@@ -347,18 +380,26 @@ function connect() {
 // ═══════════════ SYNC HANDLER ═══════════════
 function onSync(data) {
     var prevPhase = ps ? ps.phase : 'lobby';
+    var prevOptRevealed = ps ? ps.optionsRevealed : false;
+    var prevQIdx = ps ? ps.questionIdx : -1;
     ps = data;
     if (data.gameTheme) applyTheme(data.gameTheme);
     if (data.roundTheme) applyRoundTheme(data.roundTheme);
 
-    if (data.phase !== prevPhase) {
+    // Detect transitions
+    var phaseChanged = data.phase !== prevPhase;
+    var newQuestion = data.questionIdx !== prevQIdx;
+    var optionsJustRevealed = data.optionsRevealed && !prevOptRevealed;
+
+    if (phaseChanged) {
         if (data.phase === 'answer_revealed') sfxReveal();
         if (data.phase === 'question') { lastTimerVal = 999; }
     }
 
-    renderPhase();
+    renderPhase(phaseChanged, newQuestion, optionsJustRevealed);
     renderTimer();
     renderMiniScores();
+    renderScoreboardOverlay();
 }
 
 // ═══════════════ PHASE RENDERING ═══════════════
@@ -366,13 +407,36 @@ var currentPhase = 'lobby';
 
 function showPhase(id) {
     if (currentPhase === id) return;
+    var outEl = document.getElementById('phase-' + currentPhase);
     currentPhase = id;
-    document.querySelectorAll('.phase').forEach(function(el) { el.classList.remove('active'); });
-    var el = document.getElementById('phase-' + id);
-    if (el) el.classList.add('active');
+    var inEl = document.getElementById('phase-' + id);
+
+    // Use crossfade for smooth transition
+    if (outEl) {
+        outEl.style.transition = 'opacity .3s ease';
+        outEl.style.opacity = '0';
+    }
+    setTimeout(function() {
+        document.querySelectorAll('.phase').forEach(function(el) {
+            el.classList.remove('active');
+            el.style.opacity = '';
+            el.style.transition = '';
+        });
+        if (inEl) {
+            inEl.style.opacity = '0';
+            inEl.classList.add('active');
+            void inEl.offsetHeight;
+            inEl.style.transition = 'opacity .3s ease';
+            inEl.style.opacity = '1';
+            setTimeout(function() {
+                inEl.style.transition = '';
+                inEl.style.opacity = '';
+            }, 320);
+        }
+    }, outEl ? 300 : 0);
 }
 
-function renderPhase() {
+function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
     if (!ps) return;
     var phase = ps.phase;
     var type = ps.roundType;
@@ -395,7 +459,13 @@ function renderPhase() {
         showPhase('waiting');
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
+    } else if (phase === 'round_intro') {
+        showPhase('round-intro');
+        timerStrip.style.display = 'none';
+        timerBig.style.display = 'none';
+        renderRoundIntro();
     } else if (phase === 'scoreboard') {
+        // Legacy: show as full phase
         showPhase('scoreboard');
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
@@ -410,7 +480,7 @@ function renderPhase() {
         showPhase('question');
         timerStrip.style.display = '';
         timerBig.style.display = '';
-        renderQuestion(type);
+        renderQuestion(type, newQuestion, optionsJustRevealed);
     } else {
         showPhase('waiting');
         timerStrip.style.display = 'none';
@@ -418,13 +488,54 @@ function renderPhase() {
     }
 }
 
+// ═══════════════ ROUND INTRO ═══════════════
+function renderRoundIntro() {
+    if (!ps) return;
+    document.getElementById('introTitle').textContent = ps.roundName || 'Ronda';
+
+    // Type label
+    var typeLabels = {
+        multirespuesta: '50x15', pulsador: 'Pulsador', precio: 'Precio Justo',
+        imagen: 'Adivina la Imagen', cancion: 'Cancion', boom: 'Boom',
+        ruleta: 'Ruleta de la Suerte', imagen_fija: 'Imagen Fija'
+    };
+    document.getElementById('introSub').textContent = typeLabels[ps.roundType] || ps.roundType || '';
+
+    // Logo
+    var logo = document.getElementById('introLogo');
+    var logoSrc = (ps.roundTheme && ps.roundTheme.logo) || (ps.typeTheme && ps.typeTheme.logo) || null;
+    if (logoSrc) { logo.src = logoSrc; logo.style.display = ''; }
+    else { logo.style.display = 'none'; }
+
+    // Background
+    var bg = (ps.roundTheme && ps.roundTheme.background) || (ps.typeTheme && ps.typeTheme.background) || null;
+    if (bg) {
+        var bgLayer = document.getElementById('bgLayer');
+        bgLayer.className = 'bg-layer';
+        bgLayer.style.cssText = '';
+        if (bg.startsWith('#')) { bgLayer.style.background = bg; }
+        else if (bg.startsWith('linear') || bg.startsWith('radial')) {
+            bgLayer.style.background = bg; bgLayer.style.backgroundSize = '300% 300%'; bgLayer.classList.add('bg-gradient-anim');
+        } else if (bg.startsWith('/') || bg.startsWith('http')) {
+            bgLayer.style.backgroundImage = 'url(' + bg + ')'; bgLayer.classList.add('bg-image-cover');
+        }
+    }
+}
+
 // ═══════════════ QUESTION ═══════════════
-function renderQuestion(type) {
+function renderQuestion(type, newQuestion, optionsJustRevealed) {
     var q = ps.question;
     if (!q) return;
     var c = q.content || {};
+    var stmtEl = document.getElementById('qStatement');
 
-    document.getElementById('qStatement').textContent = c.statement || '';
+    stmtEl.textContent = c.statement || '';
+
+    // Animate statement entrance on new question
+    if (newQuestion) {
+        GSA.resetStatement(stmtEl);
+        GSA.enterStatement(stmtEl);
+    }
 
     // Media
     var media = document.getElementById('qMedia');
@@ -440,7 +551,7 @@ function renderQuestion(type) {
     document.getElementById('letterPanel').style.display = 'none';
 
     if (type === 'multirespuesta') {
-        renderMultiOptions(c);
+        renderMultiOptions(c, optionsJustRevealed, stmtEl);
     } else if (type === 'imagen') {
         renderImageGrid(c, q);
         renderBuzzerQueue();
@@ -450,9 +561,6 @@ function renderQuestion(type) {
         renderBuzzerQueue();
         document.getElementById('buzzerQueue').style.display = 'flex';
     } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen_fija') {
-        if (type === 'imagen_fija' && q.media_url) {
-            // Show the image bigger for imagen_fija
-        }
         renderBuzzerQueue();
         document.getElementById('buzzerQueue').style.display = 'flex';
     } else if (type === 'precio') {
@@ -462,10 +570,9 @@ function renderQuestion(type) {
     }
 }
 
-function renderMultiOptions(c) {
+function renderMultiOptions(c, optionsJustRevealed, stmtEl) {
     var opts = c.options || [];
     var container = document.getElementById('qOptions');
-    // Options might be hidden until optionsRevealed
     if (!opts.length || (ps && !ps.optionsRevealed)) {
         container.style.display = 'none';
         return;
@@ -475,6 +582,12 @@ function renderMultiOptions(c) {
     container.innerHTML = opts.map(function(o, i) {
         return '<div class="q-opt"><span class="opt-letter">' + letters[i] + '</span>' + esc(o) + '</div>';
     }).join('');
+
+    // Animate: stagger options in + lift statement
+    if (optionsJustRevealed) {
+        GSA.staggerOptions(container, '.q-opt', 130);
+        GSA.liftStatement(stmtEl, 'translateY(-60px)');
+    }
 }
 
 var lastBuzzerCount = 0;
@@ -490,7 +603,7 @@ function renderBuzzerQueue() {
     }
     container.style.display = 'flex';
     container.innerHTML = cola.map(function(p, i) {
-        return '<div class="buzzer-chip">' + (i === 0 ? '🔔 ' : '') + esc(p.nombre) + '</div>';
+        return '<div class="buzzer-chip">' + (i === 0 ? '\u{1F514} ' : '') + esc(p.nombre) + '</div>';
     }).join('');
 }
 
@@ -592,7 +705,6 @@ function renderRevealed() {
         var opts = c.options || [];
         var correct = c.correct;
         var letters = ['A', 'B', 'C', 'D', 'E', 'F'];
-        // Show "D — Canberra" format
         var correctIndices = Array.isArray(correct) ? correct : (typeof correct === 'number' ? [correct] : []);
         document.getElementById('revAnswer').textContent = correctIndices.map(function(i) { return letters[i] + ' — ' + (opts[i] || ''); }).join(', ');
         revOpts.style.display = 'grid';
@@ -601,12 +713,14 @@ function renderRevealed() {
             return '<div class="rev-opt' + (isCorrect ? ' correct' : '') + '">' +
                 '<span class="opt-letter">' + letters[i] + '</span>' + esc(o) + '</div>';
         }).join('');
+
+        // Apply shared animations: glow correct, dim wrong
+        GSA.revealAnswer(revOpts, '.rev-opt.correct', '.rev-opt:not(.correct)');
     } else if (type === 'precio') {
         document.getElementById('revAnswer').textContent = c.correct_value || c.answer || '';
     } else if (type === 'boom') {
         var order = c.correct_order || [];
         var items = c.items || [];
-        // Show item texts instead of indices
         document.getElementById('revAnswer').textContent = order.map(function(i) { return items[i] || i; }).join(' → ') || c.answer || '';
     } else {
         document.getElementById('revAnswer').textContent = c.answer || '';
@@ -670,29 +784,47 @@ function renderTeamResultsOverlay() {
     overlay.classList.add('active');
 }
 
+// ═══════════════ SCOREBOARD OVERLAY (global) ═══════════════
+function renderScoreboardOverlay() {
+    if (!ps) return;
+    var overlay = document.getElementById('scoreboardOverlay');
+    if (ps.scoreboardVisible) {
+        renderScoreboard('sbOverlayTable');
+        overlay.classList.add('active');
+    } else {
+        overlay.classList.remove('active');
+    }
+}
+
 // ═══════════════ SCOREBOARD ═══════════════
-function renderScoreboard() {
+function renderScoreboard(targetId) {
     if (!ps) return;
     var scores = ps.scores || {};
     var equipos = ps.equipos || [];
 
     var rows = Object.keys(scores).map(function(tid) {
         var eq = equipos.find(function(e) { return e.id === tid; });
-        return { id: tid, name: eq ? eq.nombre : tid, score: scores[tid] || 0 };
+        return { id: tid, name: eq ? eq.nombre : tid, photo_url: eq ? eq.photo_url : null, score: scores[tid] || 0 };
     });
     rows.sort(function(a, b) { return b.score - a.score; });
 
     var maxScore = rows.length > 0 ? Math.max(rows[0].score, 1) : 1;
-    var trophies = ['🏆', '🥈', '🥉'];
+    var trophies = ['\u{1F3C6}', '\u{1F948}', '\u{1F949}'];
 
-    document.getElementById('sbTable').innerHTML = rows.map(function(r, i) {
+    var html = rows.map(function(r, i) {
         var pct = (r.score / maxScore) * 100;
+        var photoHtml = r.photo_url
+            ? '<img class="sb-photo" src="' + esc(r.photo_url) + '">'
+            : '<div class="sb-photo" style="display:flex;align-items:center;justify-content:center;font-size:22px;">\u{1F464}</div>';
         return '<div class="sb-row" style="animation-delay:' + (i * 0.1) + 's">' +
             '<div class="sb-pos">' + (i < 3 ? trophies[i] : (i + 1)) + '</div>' +
+            photoHtml +
             '<div class="sb-name">' + esc(r.name) + '</div>' +
             '<div class="sb-bar"><div class="sb-bar-fill" style="width:' + pct + '%"></div></div>' +
             '<div class="sb-score">' + r.score + '</div></div>';
     }).join('');
+
+    document.getElementById(targetId || 'sbTable').innerHTML = html;
 }
 
 // ═══════════════ MINI SCORES ═══════════════
@@ -816,15 +948,11 @@ function createParticles(color) {
 }
 
 // ═══════════════ SOUND ENGINE ═══════════════
-var SFX = {};
-var sfxReady = false;
 var audioCtx = null;
-
 function initAudioCtx() {
     if (audioCtx) return;
-    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); sfxReady = true; } catch(e) {}
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
 }
-
 function playTone(freq, duration, type, vol) {
     initAudioCtx();
     if (!audioCtx) return;
@@ -839,7 +967,6 @@ function playTone(freq, duration, type, vol) {
     osc.start();
     osc.stop(audioCtx.currentTime + duration);
 }
-
 function sfxBuzzer() { playTone(880, 0.15, 'square', 0.12); setTimeout(function(){ playTone(1100, 0.12, 'square', 0.1); }, 100); }
 function sfxCorrect() { playTone(523, 0.12, 'sine', 0.15); setTimeout(function(){ playTone(659, 0.12, 'sine', 0.15); }, 120); setTimeout(function(){ playTone(784, 0.2, 'sine', 0.15); }, 240); }
 function sfxWrong() { playTone(200, 0.3, 'sawtooth', 0.1); setTimeout(function(){ playTone(150, 0.4, 'sawtooth', 0.08); }, 200); }
@@ -847,7 +974,6 @@ function sfxCountdown() { playTone(600, 0.08, 'sine', 0.1); }
 function sfxBlock() { playTone(150, 0.2, 'square', 0.08); setTimeout(function(){ playTone(100, 0.3, 'square', 0.06); }, 150); }
 function sfxReveal() { playTone(440, 0.1, 'sine', 0.12); setTimeout(function(){ playTone(660, 0.1, 'sine', 0.12); }, 80); setTimeout(function(){ playTone(880, 0.15, 'sine', 0.15); }, 160); }
 
-var lastPhase = 'lobby';
 var lastTimerVal = 999;
 
 // ═══════════════ FULLSCREEN ═══════════════
@@ -860,7 +986,6 @@ function toggleFullscreen() {
 }
 
 // ═══════════════ INIT ═══════════════
-// Click anywhere to enter fullscreen + init audio
 document.addEventListener('click', function(e) {
     initAudioCtx();
     if (!document.fullscreenElement && e.target.id !== 'fsBtn') {
@@ -868,9 +993,7 @@ document.addEventListener('click', function(e) {
     }
 }, { once: true });
 
-// Expose toggleFullscreen globally
 window.toggleFullscreen = toggleFullscreen;
-
 connect();
 
 })();
