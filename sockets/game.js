@@ -98,7 +98,13 @@ function getQuestionConfig(state) {
     };
 }
 
+function clearPreCountdown(state) {
+    if (state._preCountdownHandle) { clearInterval(state._preCountdownHandle); state._preCountdownHandle = null; }
+    delete state.director.preCountdown;
+}
+
 function stopTimer(state, gameId, io) {
+    clearPreCountdown(state);
     if (state._timerHandle) { clearInterval(state._timerHandle); state._timerHandle = null; }
     state.director.timer.running = false;
 }
@@ -221,6 +227,7 @@ function playerView(state) {
         lastQuestionScores: ds.lastQuestionScores,
         showTeamResults: ds.showTeamResults,
         scoreboardVisible: ds.scoreboardVisible,
+        preCountdown: ds.preCountdown || 0,
         gameTheme: state._gameTheme || {},
         typeTheme: resolveTypeTheme(state, ds.currentRound ? ds.currentRound.type : null),
         roundTheme: { logo: roundCfg.logo || null, background: roundCfg.background || null },
@@ -734,6 +741,7 @@ function attachSocketHandlers(io) {
 
         socket.on('director:start_timer', () => {
             const ds = state.director;
+            clearPreCountdown(state);
             if (ds.timer.running || ds.timer.remaining <= 0) return;
             ds.timer.running = true;
             // Auto-reveal options for multirespuesta when timer starts
@@ -925,8 +933,38 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:reveal_options', () => {
-            state.director.optionsRevealed = true;
+            const ds = state.director;
+            ds.optionsRevealed = true;
+            // Start 5-second pre-countdown before timer auto-starts
+            ds.preCountdown = 5;
             broadcastDirector(io, gameId, state);
+            state._preCountdownHandle = setInterval(() => {
+                ds.preCountdown = Math.max(0, (ds.preCountdown || 0) - 1);
+                if (ds.preCountdown <= 0) {
+                    clearPreCountdown(state);
+                    // Auto-start timer
+                    if (!ds.timer.running && ds.timer.remaining > 0) {
+                        ds.timer.running = true;
+                        state._timerHandle = setInterval(() => {
+                            ds.timer.remaining = Math.max(0, ds.timer.remaining - 1);
+                            io.to(roomOf(gameId)).emit('game:timer_tick', { remaining: ds.timer.remaining, total: ds.timer.total });
+                            if (ds.timer.remaining <= 0) {
+                                stopTimer(state, gameId, io);
+                                if (ds.phase === 'question') {
+                                    if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
+                                        autoScoreMultirespuesta(state);
+                                    }
+                                    ds.phase = 'answer_revealed';
+                                    state.pulsadorActivo = false;
+                                    computeLastQuestionScores(state);
+                                }
+                                broadcastDirector(io, gameId, state);
+                            }
+                        }, 1000);
+                    }
+                }
+                broadcastDirector(io, gameId, state);
+            }, 1000);
         });
 
         socket.on('director:toggle_team_results', () => {

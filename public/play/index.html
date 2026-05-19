@@ -68,10 +68,9 @@ input:focus { border-color: var(--accent); }
 .game-top .my-team img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
 .game-top .my-score { font-size: 20px; font-weight: 800; color: var(--accent); }
 .game-top .round-label { font-size: 12px; color: var(--text2); }
-.game-area { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+.game-area { flex: 1; display: flex; flex-direction: column; overflow-y: auto; position: relative; }
 
-.gphase { display: none; flex: 1; flex-direction: column; }
-.gphase.active { display: flex; }
+/* .gphase rules moved to "Phase fade transitions" block below */
 
 .gp-waiting { align-items: center; justify-content: center; gap: 16px; text-align: center; padding: 24px; }
 .gp-waiting h2 { font-size: 24px; color: var(--text2); }
@@ -137,6 +136,33 @@ input:focus { border-color: var(--accent); }
 .reveal-result { font-size: 16px; font-weight: 700; text-align: center; padding: 10px; }
 .reveal-result.win { color: var(--success); }
 .reveal-result.lose { color: var(--danger); }
+
+/* ── Background layer (same as /screen) ── */
+.play-bg-layer { position: fixed; inset: 0; z-index: 0; pointer-events: none; transition: opacity .5s ease; }
+.play-bg-layer.bg-gradient-anim { animation: bgShift 12s ease-in-out infinite; background-size: 300% 300%; }
+@keyframes bgShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.play-bg-layer.bg-image-cover { background-size: cover; background-position: center; }
+
+/* ── Timer progress bar (top of game) ── */
+.player-timer-bar { position: fixed; top: 0; left: 0; right: 0; height: 5px; z-index: 80; background: transparent; pointer-events: none; transition: opacity .3s ease; }
+.player-timer-fill { height: 100%; transition: width .3s linear, background .5s ease; border-radius: 0 3px 3px 0; }
+.player-timer-fill.green { background: linear-gradient(90deg, #22c55e, #4ade80); }
+.player-timer-fill.yellow { background: linear-gradient(90deg, #eab308, #facc15); }
+.player-timer-fill.red { background: linear-gradient(90deg, #ef4444, #f87171); animation: timer-flash .5s infinite; }
+@keyframes timer-flash { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
+
+/* ── Pre-countdown ── */
+.player-pre-countdown { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 85;
+    font-size: 72px; font-weight: 800; color: var(--accent); opacity: 0; pointer-events: none; transition: opacity .4s ease; }
+.player-pre-countdown.active { opacity: 1; animation: countPulse 1s ease-in-out infinite; }
+@keyframes countPulse { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.1); } }
+
+/* ── Round logo in game-top ── */
+.game-top .round-logo-img { max-height: 32px; max-width: 80px; object-fit: contain; border-radius: 4px; }
+
+/* ── Phase fade transitions ── */
+.gphase { transition: opacity 1s ease-in-out; opacity: 0; pointer-events: none; position: absolute; inset: 0; display: flex; flex: 1; flex-direction: column; overflow-y: auto; }
+.gphase.active { opacity: 1; pointer-events: auto; }
 
 /* ── Scoreboard overlay (synced from server) ── */
 .player-scoreboard-overlay {
@@ -215,9 +241,19 @@ input:focus { border-color: var(--accent); }
     <button class="btn-ghost" onclick="goBack()" style="margin-top:8px; font-size:14px;">Volver</button>
 </div>
 
+<!-- Background layer (round/type/game theme) -->
+<div class="play-bg-layer" id="playBgLayer"></div>
+
+<!-- Timer progress bar -->
+<div class="player-timer-bar" id="playerTimerBar"><div class="player-timer-fill" id="playerTimerFill"></div></div>
+
+<!-- Pre-countdown overlay -->
+<div class="player-pre-countdown" id="playerPreCountdown"></div>
+
 <!-- ═══ Screen 4: In-game ═══ -->
 <div class="screen" id="screen-game">
     <div class="game-top">
+        <img class="round-logo-img" id="playerRoundLogo" style="display:none;" src="">
         <div class="my-team" id="myTeamName">-</div>
         <div class="round-label" id="roundLabel">-</div>
         <div class="my-score" id="myScore">0</div>
@@ -560,6 +596,44 @@ function applyPlayerTheme(theme) {
     if (theme.secondaryColor) root.style.setProperty('--gold', theme.secondaryColor);
 }
 
+function applyPlayerRoundTheme(ps) {
+    var el = document.getElementById('playBgLayer');
+    if (!el) return;
+    var theme = ps.roundTheme || ps.typeTheme || ps.gameTheme || null;
+    // Background
+    el.className = 'play-bg-layer';
+    el.style.background = '';
+    el.style.backgroundImage = '';
+    if (theme && theme.background) {
+        if (theme.background.startsWith('/') || theme.background.startsWith('http')) {
+            el.style.backgroundImage = 'url("' + theme.background + '")';
+            el.classList.add('bg-image-cover');
+        } else {
+            el.style.background = theme.background;
+            if (theme.background.includes('gradient')) el.classList.add('bg-gradient-anim');
+        }
+    }
+    // Round logo in top bar
+    var logo = (theme && theme.logo) || null;
+    var logoEl = document.getElementById('playerRoundLogo');
+    if (logoEl) {
+        if (logo) { logoEl.src = logo; logoEl.style.display = ''; }
+        else { logoEl.style.display = 'none'; }
+    }
+}
+
+function renderPlayerPreCountdown(ps) {
+    var el = document.getElementById('playerPreCountdown');
+    if (!el) return;
+    var count = ps.preCountdown || 0;
+    if (count > 0) {
+        el.textContent = 'Empieza en ' + count + '...';
+        el.classList.add('active');
+    } else {
+        el.classList.remove('active');
+    }
+}
+
 var lastQIdx = -1;
 function onPlayerSync(ps) {
     // Reset answer state on new question
@@ -568,6 +642,8 @@ function onPlayerSync(ps) {
     S.ps = ps;
     S.submitted = S.myTeamId && ps.answeredTeams && ps.answeredTeams.indexOf(S.myTeamId) >= 0;
     if (ps.gameTheme) applyPlayerTheme(ps.gameTheme);
+    applyPlayerRoundTheme(ps);
+    renderPlayerPreCountdown(ps);
     var scores = ps.scores || {};
     document.getElementById('myScore').textContent = S.myTeamId ? (scores[S.myTeamId] || 0) : 0;
     document.getElementById('roundLabel').textContent = ps.roundName || '';
@@ -664,7 +740,7 @@ function renderMulti() {
         var optionsJustRevealed = ps.optionsRevealed && !_prevPlayerOptsRevealed;
         if (newQ) GSA.enterStatement(document.getElementById('multiStatement'));
         if (optionsJustRevealed) {
-            GSA.staggerOptions(optDiv, '.option-btn', 120);
+            GSA.staggerOptions(optDiv, '.option-btn', 200);
         }
     }
 }
@@ -845,10 +921,21 @@ function renderRevealed() {
 // ── Timer ──
 function renderTimer() {
     var ps = S.ps; var el = document.getElementById('gameTimer');
-    if (!ps || !ps.timer) { el.textContent = '--:--'; return; }
+    if (!ps || !ps.timer) { el.textContent = '--:--'; updateTimerBar(0, 1, false); return; }
     var t = ps.timer;
     el.textContent = String(Math.floor(t.remaining / 60)).padStart(2, '0') + ':' + String(t.remaining % 60).padStart(2, '0');
     el.className = 'q-timer ' + (t.running ? (t.remaining <= 5 ? 'danger' : 'running') : 'stopped');
+    updateTimerBar(t.remaining, t.total, t.running);
+}
+function updateTimerBar(remaining, total, running) {
+    var fill = document.getElementById('playerTimerFill');
+    var bar = document.getElementById('playerTimerBar');
+    if (!fill || !bar) return;
+    if (!running || !total) { bar.style.opacity = '0'; return; }
+    bar.style.opacity = '1';
+    var pct = Math.max(0, (remaining / total) * 100);
+    fill.style.width = pct + '%';
+    fill.className = 'player-timer-fill ' + (pct > 50 ? 'green' : pct > 20 ? 'yellow' : 'red');
 }
 
 // ═══════════════ Helpers ═══════════════

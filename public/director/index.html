@@ -348,6 +348,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 <div class="control-bar" id="controlBar">
     <div class="control-section">
         <div class="timer-display stopped" id="timerDisplay">--:--</div>
+        <span id="dirPreCountdown" style="display:none; font-size:13px; font-weight:700; color:var(--accent); margin:0 6px; white-space:nowrap;"></span>
         <button class="btn-success btn-sm" id="btnStartTimer" onclick="emit('director:start_timer')">&#9654;</button>
         <button class="btn-ghost btn-sm" id="btnStopTimer" onclick="emit('director:stop_timer')">&#9632;</button>
         <button class="btn-ghost btn-sm" onclick="emit('director:extend_timer', {seconds:10})">+10s</button>
@@ -1003,6 +1004,13 @@ function renderTimer() {
     el.className = 'timer-display ' + (t.running ? (t.remaining <= 5 ? 'danger' : 'running') : 'stopped');
     document.getElementById('btnStartTimer').disabled = t.running || t.remaining <= 0;
     document.getElementById('btnStopTimer').disabled = !t.running;
+    // Pre-countdown display
+    var pcEl = document.getElementById('dirPreCountdown');
+    if (pcEl) {
+        var pc = ds.preCountdown || 0;
+        if (pc > 0) { pcEl.textContent = 'Empieza en ' + pc + '...'; pcEl.style.display = ''; }
+        else { pcEl.style.display = 'none'; }
+    }
 }
 
 // ── Buzzer ──
