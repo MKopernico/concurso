@@ -687,8 +687,18 @@ function attachSocketHandlers(io) {
 
         socket.on('director:start_round', () => {
             const ds = state.director;
-            if (ds.currentRound) {
-                ds.phase = 'lobby';
+            if (ds.currentRound && ds.questions.length > 0) {
+                ds.currentQuestionIdx = 0;
+                ds.phase = 'question';
+                ds.answers = {};
+                ds.revealedCells = [];
+                ds.revealedLetters = [];
+                ds.optionsRevealed = false;
+                ds.lastQuestionScores = {};
+                ds.showTeamResults = false;
+                ds.scoreboardVisible = false;
+                ds.menuLevel = null;
+                ds.selectedCategory = null;
                 broadcastDirector(io, gameId, state);
             }
         });

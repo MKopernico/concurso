@@ -290,7 +290,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             <div id="lobbyTeamsList" class="lobby-teams"></div>
             <div id="lobbyRoundControl"></div>
             <div id="lobbyActions" style="display:flex; gap:10px; justify-content:center; margin-top:16px;">
-                <button class="btn-success btn-lg" id="btnStartGame" onclick="goToLobby()" disabled>&#9654; Iniciar juego</button>
+                <button class="btn-success btn-lg" id="btnStartGame" onclick="emit('director:show_home')" disabled>&#9654; Iniciar juego</button>
             </div>
         </div>
 
@@ -350,7 +350,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 <span id="introType" class="round-type" style="font-size:13px;">-</span>
                 <p id="introSub" style="color:var(--text2);">Los jugadores ven la pantalla de intro de ronda.</p>
                 <button class="btn-success btn-lg" onclick="emit('director:start_round')">&#9654; Empezar ronda</button>
-                <button class="btn-ghost btn-sm" onclick="goToLobby()">Volver al lobby</button>
+                <button class="btn-ghost btn-sm" onclick="emit('director:show_home')">&#8592; Volver al Home</button>
             </div>
         </div>
 
@@ -358,7 +358,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         <div class="phase" id="phase-waiting">
             <h2>&#9208; Pantalla de espera</h2>
             <p style="color:var(--text2)">Los jugadores ven la pantalla de espera.</p>
-            <button class="btn-ghost" onclick="goToLobby()" style="margin-top:16px;">&#127968; Volver al lobby</button>
+            <button class="btn-ghost" onclick="emit('director:show_home')" style="margin-top:16px;">&#8592; Volver al Home</button>
         </div>
     </div>
 </div>
@@ -649,10 +649,6 @@ function renderLobby() {
         }
     }
     renderLobbyTeams();
-}
-
-function goToLobby() {
-    emit('director:show_lobby');
 }
 
 const TYPE_LABELS = {

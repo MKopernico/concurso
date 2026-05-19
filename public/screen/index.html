@@ -488,6 +488,7 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         showPhase('lobby');
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
+        if (ps.gameTheme) applyTheme(ps.gameTheme);
         if (ps.menuLevel === 'home') renderScreenHomeMenu();
         else if (ps.menuLevel === 'category') renderScreenCategoryMenu();
         else renderScreenLobbyDefault();
@@ -496,6 +497,7 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
         document.getElementById('roundLogo').style.display = 'none';
+        if (ps.gameTheme) applyTheme(ps.gameTheme);
         var wLogo = document.getElementById('waitingLogo');
         var wLogoSrc = (ps.gameTheme && ps.gameTheme.logo) || null;
         if (wLogoSrc) { wLogo.src = wLogoSrc; wLogo.style.display = ''; }

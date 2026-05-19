@@ -698,12 +698,13 @@ function renderGamePhase() {
     if (phase === 'lobby' || phase === 'waiting') {
         var wl = document.getElementById('playerWaitingLogo');
         var wlSrc = (ps.gameTheme && ps.gameTheme.logo) || null;
-        if (wlSrc) { wl.src = wlSrc; wl.style.display = ''; } else { wl.style.display = 'none'; }
         document.getElementById('gp-waiting').classList.add('active');
         // Show menu if director is navigating
         if (ps.menuLevel === 'home' || ps.menuLevel === 'category') {
+            wl.style.display = 'none';
             renderPlayMenu();
         } else {
+            if (wlSrc) { wl.src = wlSrc; wl.style.display = ''; } else { wl.style.display = 'none'; }
             var pmEl = document.getElementById('playMenuContainer');
             if (pmEl) pmEl.style.display = 'none';
         }
