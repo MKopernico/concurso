@@ -1008,7 +1008,7 @@ function renderTimer() {
     var pcEl = document.getElementById('dirPreCountdown');
     if (pcEl) {
         var pc = ds.preCountdown || 0;
-        if (pc > 0) { pcEl.textContent = 'Empieza en ' + pc + '...'; pcEl.style.display = ''; }
+        if (pc > 0) { pcEl.textContent = pc; pcEl.style.display = ''; }
         else { pcEl.style.display = 'none'; }
     }
 }

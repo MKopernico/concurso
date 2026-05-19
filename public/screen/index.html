@@ -133,17 +133,15 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 #scoreboardOverlay .sb-overlay-inner { width: 90%; max-width: 900px; max-height: 80vh; overflow-y: auto; }
 
 /* ═══════════════ WAITING ═══════════════ */
-#phase-waiting { background: radial-gradient(ellipse at center, #12123a 0%, #0a0a1a 70%); }
-.waiting-icon { font-size: 80px; animation: float 3s ease-in-out infinite; }
-.waiting-text { font-size: 36px; color: var(--text2); margin-top: 20px; }
-@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+#phase-waiting { background: transparent; }
+#phase-waiting .gs-waiting-logo { max-height: 180px; max-width: 400px; object-fit: contain; filter: drop-shadow(0 0 30px rgba(0,0,0,.5)); }
 
 /* ═══════════════ PRE-COUNTDOWN ═══════════════ */
 .pre-countdown { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 55;
-    font-size: 120px; font-weight: 800; color: var(--cyan); text-shadow: var(--glow-cyan);
-    opacity: 0; pointer-events: none; transition: opacity .4s ease; }
-.pre-countdown.active { opacity: 1; animation: countPulse 1s ease-in-out infinite; }
-@keyframes countPulse { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.1); } }
+    font-size: 160px; font-weight: 800; color: var(--cyan); text-shadow: var(--glow-cyan);
+    opacity: 0; pointer-events: none; transition: opacity .3s ease; }
+.pre-countdown.active { opacity: 1; animation: countPop 1s ease-out; }
+@keyframes countPop { 0% { transform: translate(-50%,-50%) scale(1.6); opacity: .5; } 30% { transform: translate(-50%,-50%) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(.95); opacity: .8; } }
 
 /* ═══════════════ NOTIFICATION TOAST ═══════════════ */
 .notif { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 100;
@@ -322,8 +320,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 
     <!-- WAITING -->
     <div class="phase" id="phase-waiting">
-        <div class="waiting-icon">&#9203;</div>
-        <div class="waiting-text">Siguiente prueba en breve...</div>
+        <img class="gs-waiting-logo" id="waitingLogo" style="display:none">
     </div>
 
     <!-- Pre-countdown overlay -->
@@ -469,10 +466,16 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         showPhase('waiting');
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
+        document.getElementById('roundLogo').style.display = 'none';
+        var wLogo = document.getElementById('waitingLogo');
+        var wLogoSrc = (ps.gameTheme && ps.gameTheme.logo) || null;
+        if (wLogoSrc) { wLogo.src = wLogoSrc; wLogo.style.display = ''; }
+        else { wLogo.style.display = 'none'; }
     } else if (phase === 'round_intro') {
         showPhase('round-intro');
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
+        document.getElementById('roundLogo').style.display = 'none';
         renderRoundIntro();
     } else if (phase === 'scoreboard') {
         // Legacy: show as full phase
@@ -703,14 +706,22 @@ function renderTimer() {
 }
 
 // ═══════════════ PRE-COUNTDOWN ═══════════════
+var _lastPreCount = 0;
 function renderPreCountdown() {
     var el = document.getElementById('preCountdown');
     if (!ps || !ps.preCountdown || ps.preCountdown <= 0) {
         el.classList.remove('active');
+        _lastPreCount = 0;
         return;
     }
-    el.textContent = ps.preCountdown;
-    el.classList.add('active');
+    var count = ps.preCountdown;
+    if (count !== _lastPreCount) {
+        el.textContent = count;
+        el.classList.remove('active');
+        void el.offsetWidth; // force reflow
+        el.classList.add('active');
+    }
+    _lastPreCount = count;
 }
 
 // ═══════════════ ANSWER REVEALED ═══════════════

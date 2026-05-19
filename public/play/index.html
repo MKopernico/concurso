@@ -153,9 +153,9 @@ input:focus { border-color: var(--accent); }
 
 /* ── Pre-countdown ── */
 .player-pre-countdown { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 85;
-    font-size: 72px; font-weight: 800; color: var(--accent); opacity: 0; pointer-events: none; transition: opacity .4s ease; }
-.player-pre-countdown.active { opacity: 1; animation: countPulse 1s ease-in-out infinite; }
-@keyframes countPulse { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.1); } }
+    font-size: 96px; font-weight: 800; color: var(--accent); opacity: 0; pointer-events: none; transition: opacity .3s ease; }
+.player-pre-countdown.active { opacity: 1; animation: countPop 1s ease-out; }
+@keyframes countPop { 0% { transform: translate(-50%,-50%) scale(1.6); opacity: .5; } 30% { transform: translate(-50%,-50%) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(.95); opacity: .8; } }
 
 /* ── Round logo in game-top ── */
 .game-top .round-logo-img { max-height: 32px; max-width: 80px; object-fit: contain; border-radius: 4px; }
@@ -260,8 +260,7 @@ input:focus { border-color: var(--accent); }
     </div>
     <div class="game-area">
         <div class="gphase gp-waiting" id="gp-waiting">
-            <h2>Esperando...</h2>
-            <p style="color:var(--text2)">El coordinador lanzar&#225; la siguiente prueba.</p>
+            <img id="playerWaitingLogo" style="display:none; max-height:100px; max-width:200px; object-fit:contain; filter:drop-shadow(0 0 20px rgba(0,0,0,.5));">
         </div>
         <div class="gphase gp-round-intro" id="gp-round-intro">
             <div id="playerIntroLogo" style="display:none;"><img class="intro-logo" id="playerIntroLogoImg"></div>
@@ -622,16 +621,23 @@ function applyPlayerRoundTheme(ps) {
     }
 }
 
+var _lastPreCount = 0;
 function renderPlayerPreCountdown(ps) {
     var el = document.getElementById('playerPreCountdown');
     if (!el) return;
     var count = ps.preCountdown || 0;
     if (count > 0) {
-        el.textContent = 'Empieza en ' + count + '...';
-        el.classList.add('active');
+        if (count !== _lastPreCount) {
+            el.textContent = count;
+            // Re-trigger animation by removing and re-adding class
+            el.classList.remove('active');
+            void el.offsetWidth; // force reflow
+            el.classList.add('active');
+        }
     } else {
         el.classList.remove('active');
     }
+    _lastPreCount = count;
 }
 
 var lastQIdx = -1;
@@ -679,6 +685,9 @@ function renderGamePhase() {
     }
 
     if (phase === 'lobby' || phase === 'waiting') {
+        var wl = document.getElementById('playerWaitingLogo');
+        var wlSrc = (ps.gameTheme && ps.gameTheme.logo) || null;
+        if (wlSrc) { wl.src = wlSrc; wl.style.display = ''; } else { wl.style.display = 'none'; }
         document.getElementById('gp-waiting').classList.add('active');
     } else if (phase === 'round_intro') {
         renderRoundIntro(); document.getElementById('gp-round-intro').classList.add('active');
@@ -690,7 +699,11 @@ function renderGamePhase() {
         timerBar.style.display = 'flex';
         if (type === 'multirespuesta') {
             renderMulti(); document.getElementById('gp-multi').classList.add('active');
-            if (!S.submitted) document.getElementById('submitMultiBtn').style.display = 'block';
+            var submitBtn = document.getElementById('submitMultiBtn');
+            if (!S.submitted && ps.optionsRevealed) {
+                submitBtn.style.display = 'block';
+                submitBtn.disabled = !!(ps.preCountdown && ps.preCountdown > 0);
+            }
         } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen' || type === 'imagen_fija' || type === 'ruleta') {
             renderBuzzer(); document.getElementById('gp-buzzer').classList.add('active');
         } else if (type === 'precio') {
@@ -747,6 +760,7 @@ function renderMulti() {
 function toggleOption(idx) { if (S.submitted) return; var pos = S.selectedOptions.indexOf(idx); if (pos >= 0) S.selectedOptions.splice(pos, 1); else S.selectedOptions.push(idx); renderMulti(); }
 function submitMulti() {
     if (S.submitted || !S.selectedOptions.length) return;
+    if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return;
     emit('player:submit_answer', { answer: S.selectedOptions.length === 1 ? S.selectedOptions[0] : S.selectedOptions });
     S.submitted = true;
     document.getElementById('submitMultiBtn').style.display = 'none';
