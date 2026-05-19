@@ -27,7 +27,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 
 /* ═══════════════ LOBBY / WAITING ═══════════════ */
 #phase-lobby { background: radial-gradient(ellipse at center, #12123a 0%, #0a0a1a 70%); }
-.lobby-title { font-size: 72px; font-weight: 800; letter-spacing: 6px; text-transform: uppercase;
+.lobby-title { font-size: clamp(36px, 6vw, 72px); font-weight: 800; letter-spacing: 6px; text-transform: uppercase;
     background: linear-gradient(135deg, var(--cyan), var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     text-shadow: none; filter: drop-shadow(0 0 30px rgba(0,212,255,.3)); animation: pulse-glow 3s ease-in-out infinite; }
 .lobby-sub { font-size: 28px; color: var(--text2); margin-top: 20px; animation: fade-blink 2s ease-in-out infinite; }
@@ -43,7 +43,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .timer-strip-fill.danger { background: linear-gradient(90deg, var(--danger), #ff6b6b); animation: timer-flash .5s infinite; }
 @keyframes timer-flash { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
 
-.timer-big { position: absolute; top: 20px; right: 40px; font-size: 64px; font-weight: 800; font-variant-numeric: tabular-nums;
+.timer-big { position: absolute; top: 20px; right: 40px; font-size: clamp(36px, 5vw, 64px); font-weight: 800; font-variant-numeric: tabular-nums;
     color: var(--cyan); z-index: 51; text-shadow: var(--glow-cyan); }
 .timer-big.danger { color: var(--danger); text-shadow: 0 0 20px rgba(239,68,68,.5); }
 
@@ -51,15 +51,15 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .round-label { display: none; }
 
 /* ═══════════════ QUESTION PHASE ═══════════════ */
-#phase-question { padding: 80px 60px 60px; }
-.q-statement { font-size: 52px; font-weight: 700; text-align: center; line-height: 1.3; max-width: 1200px;
+#phase-question { padding: clamp(40px, 6vh, 80px) clamp(20px, 4vw, 60px) clamp(30px, 4vh, 60px); }
+.q-statement { font-size: clamp(28px, 4vw, 52px); font-weight: 700; text-align: center; line-height: 1.3; max-width: 90%;
     text-shadow: 0 2px 20px rgba(0,0,0,.5); transition: transform .6s cubic-bezier(.4,0,.2,1); }
-.q-media { max-width: 500px; max-height: 350px; border-radius: 16px; margin-top: 30px; box-shadow: var(--glow-cyan); }
+.q-media { max-width: min(500px, 50vw); max-height: 35vh; border-radius: 16px; margin-top: 30px; box-shadow: var(--glow-cyan); object-fit: contain; }
 
 /* Options grid for multirespuesta */
 .q-options { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 40px; max-width: 1000px; width: 100%; }
-.q-opt { background: var(--surface); border: 2px solid var(--border); border-radius: 16px; padding: 24px 32px;
-    font-size: 28px; font-weight: 600; display: flex; align-items: center; gap: 16px; transition: all 1s ease-in-out; }
+.q-opt { background: var(--surface); border: 2px solid var(--border); border-radius: 16px; padding: clamp(14px, 2vh, 24px) clamp(18px, 2vw, 32px);
+    font-size: clamp(18px, 2.2vw, 28px); font-weight: 600; display: flex; align-items: center; gap: 16px; transition: all 1s ease-in-out; }
 .q-opt .opt-letter { width: 44px; height: 44px; border-radius: 50%; background: var(--border); display: flex;
     align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: var(--cyan); flex-shrink: 0; }
 
@@ -89,7 +89,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 #phase-revealed { padding: 60px; background: rgba(0,0,0,.5); }
 .revealed-label { font-size: 28px; font-weight: 700; text-transform: uppercase; letter-spacing: 4px;
     color: var(--green); margin-bottom: 20px; text-shadow: 0 0 20px rgba(34,197,94,.4); }
-.revealed-answer { font-size: 64px; font-weight: 800; text-align: center; max-width: 1000px;
+.revealed-answer { font-size: clamp(32px, 5vw, 64px); font-weight: 800; text-align: center; max-width: 90%;
     background: linear-gradient(135deg, var(--green), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     animation: reveal-pop .6s cubic-bezier(.34,1.56,.64,1); }
 @keyframes reveal-pop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
@@ -161,7 +161,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .mini-chip.first .mc-score { color: var(--gold); }
 
 /* ═══════════════ IMAGE GRID ═══════════════ */
-.img-grid-wrap { position: relative; width: 500px; height: 500px; margin-top: 30px; border-radius: 16px; overflow: hidden; box-shadow: var(--glow-cyan); }
+.img-grid-wrap { position: relative; width: min(500px, 60vh); height: min(500px, 60vh); margin-top: 30px; border-radius: 16px; overflow: hidden; box-shadow: var(--glow-cyan); }
 .img-grid-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .img-grid-overlay { position: absolute; inset: 0; display: grid; }
 .img-grid-cell { background: var(--surface); border: 1px solid var(--border); transition: opacity .5s ease; display: flex; align-items: center; justify-content: center;
@@ -208,6 +208,32 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .tr-card.correct { border-color: var(--green); background: linear-gradient(135deg, rgba(34,197,94,.08), transparent); }
 .tr-card.wrong { border-color: var(--danger); background: linear-gradient(135deg, rgba(239,68,68,.05), transparent); opacity: .7; }
 .tr-card.no-answer { opacity: .4; }
+
+/* ═══════════════ MENU GRID (HOME/CATEGORY) ═══════════════ */
+.screen-menu { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 40px; }
+.screen-menu-logo { max-height: 100px; max-width: 280px; object-fit: contain; margin-bottom: 30px; filter: drop-shadow(0 0 20px rgba(0,0,0,.5)); }
+.screen-menu-grid { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 30px; max-width: 900px; }
+.screen-menu-item { border-radius: 18px; border: 2px solid var(--border); background: rgba(18,18,42,.7); backdrop-filter: blur(8px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center;
+    transition: all .4s ease; animation: menu-item-in .5s ease backwards; padding: 20px; }
+.screen-menu-item img { max-width: 100%; max-height: 140px; object-fit: contain; border-radius: 10px; filter: drop-shadow(0 0 10px rgba(0,0,0,.3)); }
+.screen-menu-item .smi-label { font-size: 22px; font-weight: 700; color: var(--text); }
+.screen-menu-item .smi-sub { font-size: 14px; color: var(--text2); }
+.screen-menu-item.completed { opacity: .4; border-color: var(--danger); }
+.screen-menu-item.completed .smi-label { text-decoration: line-through; color: var(--danger); }
+@keyframes menu-item-in { from { opacity: 0; transform: translateY(30px) scale(.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.screen-menu-item:nth-child(1) { animation-delay: 0s; }
+.screen-menu-item:nth-child(2) { animation-delay: .1s; }
+.screen-menu-item:nth-child(3) { animation-delay: .2s; }
+.screen-menu-item:nth-child(4) { animation-delay: .3s; }
+.screen-menu-item:nth-child(5) { animation-delay: .4s; }
+.screen-menu-item:nth-child(6) { animation-delay: .5s; }
+.screen-menu-grid[data-count="1"] .screen-menu-item { width: 260px; height: 260px; }
+.screen-menu-grid[data-count="2"] .screen-menu-item { width: 260px; height: 260px; }
+.screen-menu-grid[data-count="3"] .screen-menu-item { width: 220px; height: 220px; }
+.screen-menu-grid[data-count="4"] .screen-menu-item { width: 220px; height: 220px; }
+.screen-menu-grid[data-count="5"] .screen-menu-item,
+.screen-menu-grid[data-count="6"] .screen-menu-item { width: 200px; height: 200px; }
 
 /* ═══════════════ CONNECTION STATUS ═══════════════ */
 .conn-dot { position: fixed; bottom: 12px; right: 12px; width: 14px; height: 14px; border-radius: 50%;
@@ -462,6 +488,9 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         showPhase('lobby');
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
+        if (ps.menuLevel === 'home') renderScreenHomeMenu();
+        else if (ps.menuLevel === 'category') renderScreenCategoryMenu();
+        else renderScreenLobbyDefault();
     } else if (phase === 'waiting') {
         showPhase('waiting');
         timerStrip.style.display = 'none';
@@ -505,18 +534,11 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
 function renderRoundIntro() {
     if (!ps) return;
     document.getElementById('introTitle').textContent = ps.roundName || 'Ronda';
-
-    // Type label
-    var typeLabels = {
-        multirespuesta: '50x15', pulsador: 'Pulsador', precio: 'Precio Justo',
-        imagen: 'Adivina la Imagen', cancion: 'Cancion', boom: 'Boom',
-        ruleta: 'Ruleta de la Suerte', imagen_fija: 'Imagen Fija'
-    };
-    document.getElementById('introSub').textContent = typeLabels[ps.roundType] || ps.roundType || '';
+    document.getElementById('introSub').textContent = '';
 
     // Logo
     var logo = document.getElementById('introLogo');
-    var logoSrc = (ps.roundTheme && ps.roundTheme.logo) || (ps.typeTheme && ps.typeTheme.logo) || null;
+    var logoSrc = (ps.roundTheme && ps.roundTheme.logo) || (ps.typeTheme && ps.typeTheme.logo) || (ps.gameTheme && ps.gameTheme.logo) || null;
     if (logoSrc) { logo.src = logoSrc; logo.style.display = ''; }
     else { logo.style.display = 'none'; }
 
@@ -1024,6 +1046,111 @@ document.addEventListener('click', function(e) {
         document.documentElement.requestFullscreen().catch(function(){});
     }
 }, { once: true });
+
+// ═══════════════ MENU RENDERING ═══════════════
+var TYPE_LABELS = {
+    multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
+    imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija'
+};
+
+function renderScreenLobbyDefault() {
+    var el = document.getElementById('phase-lobby');
+    var gt = ps.gameTheme || {};
+    var logoEl = document.getElementById('gameLogo');
+    if (gt.logo) { logoEl.src = gt.logo; logoEl.style.display = ''; } else { logoEl.style.display = 'none'; }
+    document.getElementById('lobbyTitle').style.display = '';
+    document.querySelector('.lobby-sub').style.display = '';
+    var menuEl = document.getElementById('screenMenuContainer');
+    if (menuEl) menuEl.style.display = 'none';
+}
+
+function getScreenCategories() {
+    var rounds = ps.rounds || [];
+    var cats = {};
+    rounds.forEach(function(r) {
+        if (!cats[r.type]) cats[r.type] = [];
+        cats[r.type].push(r);
+    });
+    return cats;
+}
+
+function renderScreenHomeMenu() {
+    var gt = ps.gameTheme || {};
+    var cats = getScreenCategories();
+    var catKeys = Object.keys(cats);
+    var completedRounds = ps.completedRounds || [];
+
+    // Hide default lobby elements
+    document.getElementById('lobbyTitle').style.display = 'none';
+    document.querySelector('.lobby-sub').style.display = 'none';
+    document.getElementById('gameLogo').style.display = 'none';
+
+    var container = document.getElementById('screenMenuContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'screenMenuContainer';
+        document.getElementById('phase-lobby').appendChild(container);
+    }
+    container.style.display = '';
+
+    var html = '<div class="screen-menu">';
+    if (gt.logo) html += '<img class="screen-menu-logo" src="' + esc(gt.logo) + '">';
+    html += '<div class="screen-menu-grid" data-count="' + Math.min(catKeys.length, 6) + '">';
+    catKeys.forEach(function(type) {
+        var typeLogo = (gt.types && gt.types[type] && gt.types[type].logo) || null;
+        var label = TYPE_LABELS[type] || type;
+        var allCompleted = cats[type].every(function(r) { return completedRounds.indexOf(r.id) >= 0; });
+        var cls = allCompleted ? 'screen-menu-item completed' : 'screen-menu-item';
+        html += '<div class="' + cls + '">';
+        if (typeLogo) html += '<img src="' + esc(typeLogo) + '">';
+        else html += '<div style="font-size:48px;opacity:.4">&#127919;</div>';
+        html += '<div class="smi-label">' + esc(label) + '</div>';
+        html += '<div class="smi-sub">' + cats[type].length + ' ronda' + (cats[type].length > 1 ? 's' : '') + '</div>';
+        html += '</div>';
+    });
+    html += '</div></div>';
+    container.innerHTML = html;
+}
+
+function renderScreenCategoryMenu() {
+    var gt = ps.gameTheme || {};
+    var category = ps.selectedCategory;
+    var rounds = (ps.rounds || []).filter(function(r) { return r.type === category; });
+    var completedRounds = ps.completedRounds || [];
+    var typeLogo = (gt.types && gt.types[category] && gt.types[category].logo) || null;
+
+    // Hide default lobby elements
+    document.getElementById('lobbyTitle').style.display = 'none';
+    document.querySelector('.lobby-sub').style.display = 'none';
+    document.getElementById('gameLogo').style.display = 'none';
+
+    var container = document.getElementById('screenMenuContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'screenMenuContainer';
+        document.getElementById('phase-lobby').appendChild(container);
+    }
+    container.style.display = '';
+
+    var html = '<div class="screen-menu">';
+    if (typeLogo) html += '<img class="screen-menu-logo" src="' + esc(typeLogo) + '">';
+    html += '<div class="screen-menu-grid" data-count="' + Math.min(rounds.length, 6) + '">';
+    rounds.forEach(function(r) {
+        var roundLogo = r.logo || null;
+        var isCompleted = completedRounds.indexOf(r.id) >= 0;
+        var cls = isCompleted ? 'screen-menu-item completed' : 'screen-menu-item';
+        html += '<div class="' + cls + '">';
+        if (roundLogo) html += '<img src="' + esc(roundLogo) + '">';
+        else if (typeLogo) html += '<img src="' + esc(typeLogo) + '" style="opacity:.3">';
+        else html += '<div style="font-size:48px;opacity:.4">&#127919;</div>';
+        html += '<div class="smi-label">' + esc(r.name) + '</div>';
+        if (isCompleted) html += '<div class="smi-sub" style="color:var(--green)">&#10003; Completada</div>';
+        html += '</div>';
+    });
+    html += '</div></div>';
+    container.innerHTML = html;
+}
 
 window.toggleFullscreen = toggleFullscreen;
 connect();

@@ -76,7 +76,7 @@ input:focus { border-color: var(--accent); }
 .gp-waiting h2 { font-size: 24px; color: var(--text2); }
 
 .gp-multi { padding: 20px; gap: 14px; }
-.gp-multi .q-statement { font-size: 19px; font-weight: 600; line-height: 1.4; text-align: center; }
+.gp-multi .q-statement { font-size: 28px; font-weight: 600; line-height: 1.4; text-align: center; }
 .gp-multi .q-media { max-width: 80%; max-height: 180px; border-radius: 8px; align-self: center; }
 .options-list { display: flex; flex-direction: column; gap: 10px; flex: 1; }
 .option-btn { background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius); padding: 16px 20px; font-size: 17px; font-weight: 600; text-align: left; color: var(--text); transition: .15s; }
@@ -85,13 +85,14 @@ input:focus { border-color: var(--accent); }
 .option-btn.wrong { border-color: var(--danger); background: rgba(239,68,68,.1); }
 .option-btn .opt-letter { color: var(--accent); margin-right: 10px; }
 .q-bottom { padding: 12px 20px; flex-shrink: 0; display: flex; gap: 10px; align-items: center; }
+#submitMultiBtn { min-height: 56px; font-size: 20px; padding: 14px 32px; flex: 1; max-width: 300px; margin: 0 auto; }
 .q-timer { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .q-timer.danger { color: var(--danger); }
 .q-timer.running { color: var(--success); }
 .q-submitted { text-align: center; color: var(--success); font-weight: 700; font-size: 15px; padding: 10px; }
 
 .gp-buzzer { align-items: center; justify-content: center; padding: 24px; gap: 20px; }
-.gp-buzzer .q-statement { font-size: 19px; font-weight: 600; line-height: 1.4; text-align: center; max-width: 500px; }
+.gp-buzzer .q-statement { font-size: 28px; font-weight: 600; line-height: 1.4; text-align: center; max-width: 500px; }
 .buzz-btn { width: 180px; height: 180px; border-radius: 50%; font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; border: 4px solid var(--danger); background: radial-gradient(circle, #dc2626 0%, #991b1b 100%); color: #fff; box-shadow: 0 8px 30px rgba(220,38,38,.4); }
 .buzz-btn:active:not(:disabled) { transform: scale(.92); box-shadow: 0 4px 15px rgba(220,38,38,.6); }
 .buzz-btn:disabled { background: var(--surface); border-color: var(--border); color: var(--text2); box-shadow: none; }
@@ -109,12 +110,12 @@ input:focus { border-color: var(--accent); }
 .p-letter.space { background: transparent; border: none; width: 16px; }
 
 .gp-precio { align-items: center; justify-content: center; padding: 24px; gap: 20px; }
-.gp-precio .q-statement { font-size: 19px; font-weight: 600; line-height: 1.4; text-align: center; }
+.gp-precio .q-statement { font-size: 28px; font-weight: 600; line-height: 1.4; text-align: center; }
 .gp-precio .q-media { max-width: 70%; max-height: 200px; border-radius: 8px; }
 .price-input { max-width: 200px; text-align: center; font-size: 28px; font-weight: 800; }
 
 .gp-boom { padding: 20px; gap: 14px; }
-.gp-boom .q-statement { font-size: 18px; font-weight: 600; text-align: center; }
+.gp-boom .q-statement { font-size: 28px; font-weight: 600; text-align: center; }
 .boom-list { display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .boom-item { background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius); padding: 14px 16px; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
 .boom-item .boom-num { color: var(--accent); font-weight: 800; width: 24px; text-align: center; }
@@ -193,6 +194,17 @@ input:focus { border-color: var(--accent); }
 
 .conn-banner { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 300; background: var(--gold); color: #000; font-size: 13px; font-weight: 700; text-align: center; padding: 6px; gap: 8px; align-items: center; justify-content: center; }
 .conn-banner.active { display: flex; }
+
+/* ── Menu grid (mirrors director home/category) ── */
+.play-menu { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px; width: 100%; }
+.play-menu-logo { max-height: 70px; max-width: 180px; object-fit: contain; }
+.play-menu-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; max-width: 500px; }
+.play-menu-item { border-radius: var(--radius); border: 2px solid var(--border); background: var(--surface); padding: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; width: 130px; height: 130px; }
+.play-menu-item img { max-width: 100%; max-height: 70px; object-fit: contain; border-radius: 8px; }
+.play-menu-item .pmi-label { font-size: 13px; font-weight: 700; }
+.play-menu-item .pmi-sub { font-size: 11px; color: var(--text2); }
+.play-menu-item.completed { opacity: .4; border-color: var(--danger); }
+.play-menu-item.completed .pmi-label { text-decoration: line-through; }
 .conn-spinner { width: 14px; height: 14px; border: 2px solid rgba(0,0,0,.3); border-top-color: #000; border-radius: 50%; animation: spin .6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -260,13 +272,12 @@ input:focus { border-color: var(--accent); }
     </div>
     <div class="game-area">
         <div class="gphase gp-waiting" id="gp-waiting">
-            <img id="playerWaitingLogo" style="display:none; max-height:100px; max-width:200px; object-fit:contain; filter:drop-shadow(0 0 20px rgba(0,0,0,.5));">
+            <img id="playerWaitingLogo" class="gs-waiting-logo" style="display:none; max-height:100px; max-width:200px; object-fit:contain;">
         </div>
         <div class="gphase gp-round-intro" id="gp-round-intro">
             <div id="playerIntroLogo" style="display:none;"><img class="intro-logo" id="playerIntroLogoImg"></div>
             <h2 id="playerIntroTitle">-</h2>
-            <span id="playerIntroType" class="intro-type">-</span>
-            <p>Prep&#225;rate para la siguiente ronda</p>
+            <span id="playerIntroType" class="intro-type" style="display:none"></span>
         </div>
         <div class="gphase gp-multi" id="gp-multi">
             <div class="q-statement" id="multiStatement">-</div>
@@ -689,6 +700,13 @@ function renderGamePhase() {
         var wlSrc = (ps.gameTheme && ps.gameTheme.logo) || null;
         if (wlSrc) { wl.src = wlSrc; wl.style.display = ''; } else { wl.style.display = 'none'; }
         document.getElementById('gp-waiting').classList.add('active');
+        // Show menu if director is navigating
+        if (ps.menuLevel === 'home' || ps.menuLevel === 'category') {
+            renderPlayMenu();
+        } else {
+            var pmEl = document.getElementById('playMenuContainer');
+            if (pmEl) pmEl.style.display = 'none';
+        }
     } else if (phase === 'round_intro') {
         renderRoundIntro(); document.getElementById('gp-round-intro').classList.add('active');
     } else if (phase === 'scoreboard') {
@@ -865,6 +883,74 @@ function submitBoom() {
     renderBoom();
 }
 
+// ── Menu (mirrors director navigation) ──
+var PLAY_TYPE_LABELS = {
+    multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
+    imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija'
+};
+
+function renderPlayMenu() {
+    var ps = S.ps; if (!ps) return;
+    var gt = ps.gameTheme || {};
+    var rounds = ps.rounds || [];
+    var completedRounds = ps.completedRounds || [];
+
+    var container = document.getElementById('playMenuContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'playMenuContainer';
+        document.getElementById('gp-waiting').appendChild(container);
+    }
+    container.style.display = '';
+    // Hide default waiting text
+    var wh2 = document.querySelector('#gp-waiting > h2');
+    if (wh2) wh2.style.display = 'none';
+
+    var html = '<div class="play-menu">';
+
+    if (ps.menuLevel === 'home') {
+        if (gt.logo) html += '<img class="play-menu-logo" src="' + esc(gt.logo) + '">';
+        // Group rounds by type
+        var cats = {};
+        rounds.forEach(function(r) { if (!cats[r.type]) cats[r.type] = []; cats[r.type].push(r); });
+        html += '<div class="play-menu-grid">';
+        Object.keys(cats).forEach(function(type) {
+            var typeLogo = (gt.types && gt.types[type] && gt.types[type].logo) || null;
+            var allDone = cats[type].every(function(r) { return completedRounds.indexOf(r.id) >= 0; });
+            var cls = allDone ? 'play-menu-item completed' : 'play-menu-item';
+            html += '<div class="' + cls + '">';
+            if (typeLogo) html += '<img src="' + esc(typeLogo) + '">';
+            else html += '<div style="font-size:28px;opacity:.4">&#127919;</div>';
+            html += '<div class="pmi-label">' + esc(PLAY_TYPE_LABELS[type] || type) + '</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+    } else if (ps.menuLevel === 'category') {
+        var category = ps.selectedCategory;
+        var typeLogo = (gt.types && gt.types[category] && gt.types[category].logo) || null;
+        if (typeLogo) html += '<img class="play-menu-logo" src="' + esc(typeLogo) + '">';
+        var catRounds = rounds.filter(function(r) { return r.type === category; });
+        html += '<div class="play-menu-grid">';
+        catRounds.forEach(function(r) {
+            var roundLogo = r.logo || null;
+            var isDone = completedRounds.indexOf(r.id) >= 0;
+            var cls = isDone ? 'play-menu-item completed' : 'play-menu-item';
+            html += '<div class="' + cls + '">';
+            if (roundLogo) html += '<img src="' + esc(roundLogo) + '">';
+            else if (typeLogo) html += '<img src="' + esc(typeLogo) + '" style="opacity:.3">';
+            else html += '<div style="font-size:28px;opacity:.4">&#127919;</div>';
+            html += '<div class="pmi-label">' + esc(r.name) + '</div>';
+            if (isDone) html += '<div class="pmi-sub" style="color:var(--success)">&#10003;</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
 // ── Round Intro ──
 function renderRoundIntro() {
     var ps = S.ps; if (!ps) return;
@@ -872,7 +958,7 @@ function renderRoundIntro() {
     var typeSpan = document.getElementById('playerIntroType');
     typeSpan.textContent = ps.roundType || '';
     typeSpan.className = 'intro-type type-' + (ps.roundType || '');
-    var logo = (ps.roundTheme && ps.roundTheme.logo) || (ps.typeTheme && ps.typeTheme.logo) || null;
+    var logo = (ps.roundTheme && ps.roundTheme.logo) || (ps.typeTheme && ps.typeTheme.logo) || (ps.gameTheme && ps.gameTheme.logo) || null;
     var logoWrap = document.getElementById('playerIntroLogo');
     if (logo) { document.getElementById('playerIntroLogoImg').src = logo; logoWrap.style.display = ''; }
     else { logoWrap.style.display = 'none'; }

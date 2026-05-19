@@ -25,6 +25,8 @@ function createGameState() {
         },
         director: {
             phase: 'lobby',
+            menuLevel: null, // 'home' | 'category' | null
+            selectedCategory: null, // round type string when in category view
             currentRoundId: null, currentRound: null,
             questions: [], currentQuestionIdx: -1,
             timer: { total: 0, remaining: 0, running: false },
@@ -48,6 +50,7 @@ function getOrCreateState(gameId) {
     if (!s) {
         s = createGameState();
         s._gameTheme = loadGameTheme(gameId);
+        s._rounds = db.prepare('SELECT id, name, type, config FROM rounds WHERE game_id = ? ORDER BY sort_order, id').all(gameId);
         // Load teams from active session in DB
         const session = db.prepare('SELECT id FROM sessions WHERE game_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(gameId);
         if (session) {
@@ -67,7 +70,7 @@ function getOrCreateState(gameId) {
 }
 
 function publicView(state) {
-    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _gameTheme, _sessionId, ...rest } = state;
+    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _gameTheme, _sessionId, _rounds, ...rest } = state;
     rest.gameTheme = _gameTheme || {};
     return rest;
 }
@@ -206,8 +209,15 @@ function playerView(state) {
         question = { id: curQ.id, content: c, media_url: curQ.media_url };
     }
     const roundCfg = ds.currentRound ? parseJson(ds.currentRound.config) : {};
+    // Build rounds summary for menu navigation (lightweight: id, name, type, config logo)
+    const roundsSummary = (state._rounds || []).map(r => {
+        const cfg = parseJson(r.config);
+        return { id: r.id, name: r.name, type: r.type, logo: cfg.logo || null };
+    });
     return {
         phase: ds.phase,
+        menuLevel: ds.menuLevel,
+        selectedCategory: ds.selectedCategory,
         roundType: ds.currentRound ? ds.currentRound.type : null,
         roundName: ds.currentRound ? ds.currentRound.name : null,
         question,
@@ -231,6 +241,7 @@ function playerView(state) {
         gameTheme: state._gameTheme || {},
         typeTheme: resolveTypeTheme(state, ds.currentRound ? ds.currentRound.type : null),
         roundTheme: { logo: roundCfg.logo || null, background: roundCfg.background || null },
+        rounds: roundsSummary,
     };
 }
 
@@ -889,8 +900,10 @@ function attachSocketHandlers(io) {
             state.director.scoreboardVisible = !state.director.scoreboardVisible;
             broadcastDirector(io, gameId, state);
         });
-        socket.on('director:show_waiting', () => { stopTimer(state, gameId, io); state.director.phase = 'waiting'; state.director.scoreboardVisible = false; broadcastDirector(io, gameId, state); });
-        socket.on('director:show_lobby', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.scoreboardVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_waiting', () => { stopTimer(state, gameId, io); state.director.phase = 'waiting'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_lobby', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_home', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = 'home'; state.director.selectedCategory = null; state.director.scoreboardVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:select_category', (data) => { if (!data || !data.category) return; state.director.phase = 'lobby'; state.director.menuLevel = 'category'; state.director.selectedCategory = data.category; state.director.scoreboardVisible = false; broadcastDirector(io, gameId, state); });
 
         socket.on('director:block_team', (data) => {
             if (!data || !data.teamId) return;

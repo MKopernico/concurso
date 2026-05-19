@@ -281,6 +281,9 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 </div>
             </div>
 
+            <div class="section-label">Logos por categoria</div>
+            <div id="type-logos-container"></div>
+
             <input type="hidden" name="id">
             <div class="modal-footer">
                 <button type="button" class="btn-ghost" onclick="closeModal('modal-game-overlay')">Cancelar</button>
@@ -1120,6 +1123,24 @@ const GRADIENT_PRESETS = {
     fire:      'radial-gradient(ellipse at bottom, #2a0a00 0%, #0a0a0a 70%)',
 };
 
+function renderTypeLogos(typesObj) {
+    typesObj = typesObj || {};
+    const container = document.getElementById('type-logos-container');
+    if (!container) return;
+    container.innerHTML = Object.keys(TYPE_LABELS).map(function(t) {
+        const val = (typesObj[t] && typesObj[t].logo) || '';
+        const fieldName = 'type_logo_' + t;
+        return '<div class="field" style="margin-bottom:10px">' +
+            '<label>' + esc(TYPE_LABELS[t]) + '</label>' +
+            '<div class="upload-row">' +
+                '<input type="text" name="' + fieldName + '" placeholder="URL logo ' + esc(TYPE_LABELS[t]) + '" value="' + esc(val) + '">' +
+                '<label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,\'' + fieldName + '\')"></label>' +
+                '<button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker(\'images\', function(url){ document.querySelector(\'[name=' + fieldName + ']\').value = url; })">&#128193;</button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
 function buildThemeFromForm(form) {
     const theme = {};
     const logo = form.theme_logo.value.trim();
@@ -1138,6 +1159,15 @@ function buildThemeFromForm(form) {
         }
         else if (bgType === 'image') theme.backgroundImage = form.theme_bg_image.value.trim();
     }
+    // Collect per-type logos
+    const types = {};
+    Object.keys(TYPE_LABELS).forEach(function(t) {
+        const field = document.querySelector('[name="type_logo_' + t + '"]');
+        if (field && field.value.trim()) {
+            types[t] = { logo: field.value.trim() };
+        }
+    });
+    if (Object.keys(types).length) theme.types = types;
     return Object.keys(theme).length ? theme : null;
 }
 
@@ -1159,6 +1189,8 @@ function populateThemeForm(form, theme) {
         else { form.theme_bg_gradient.value = 'custom'; form.theme_bg_gradient_custom.value = val; form.theme_bg_gradient_custom.style.display = ''; }
     }
     if (bgType === 'image') { form.theme_bg_image.value = theme.backgroundImage || ''; }
+    // Render per-type logo fields
+    renderTypeLogos(theme.types || {});
 }
 
 // ─── Session management ───

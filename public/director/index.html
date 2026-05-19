@@ -216,6 +216,25 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 @keyframes toastIn { to { opacity: 1; } }
 @keyframes toastOut { to { opacity: 0; } }
 
+/* Menu navigation */
+.menu-grid { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 20px; max-width: 700px; margin: 0 auto; padding: 20px 0; }
+.menu-item { cursor: pointer; border-radius: 14px; border: 2px solid var(--border); background: var(--surface); padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; transition: .2s; text-align: center; }
+.menu-item:hover { border-color: var(--accent); background: rgba(0,212,255,.06); transform: scale(1.03); }
+.menu-item img { max-width: 100%; max-height: 120px; object-fit: contain; border-radius: 8px; }
+.menu-item .menu-label { font-size: 14px; font-weight: 700; color: var(--text); }
+.menu-item .menu-sublabel { font-size: 11px; color: var(--text2); }
+.menu-item.completed { opacity: .5; border-color: var(--danger); }
+.menu-item.completed .menu-label { text-decoration: line-through; color: var(--danger); }
+/* Dynamic sizing */
+.menu-grid[data-count="1"] .menu-item { width: 200px; height: 200px; }
+.menu-grid[data-count="2"] .menu-item { width: 200px; height: 200px; }
+.menu-grid[data-count="3"] .menu-item { width: 180px; height: 180px; }
+.menu-grid[data-count="4"] .menu-item { width: 180px; height: 180px; }
+.menu-grid[data-count="5"] .menu-item,
+.menu-grid[data-count="6"] .menu-item { width: 160px; height: 160px; }
+.menu-logo { margin-bottom: 10px; }
+.menu-logo img { max-height: 80px; max-width: 200px; object-fit: contain; }
+
 /* Responsive */
 @media (max-width: 768px) {
     .sidebar { width: 180px; }
@@ -236,7 +255,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
     <span class="header-game" id="headerGameName">Cargando...</span>
     <div class="header-actions">
         <button class="btn-ghost btn-sm" onclick="toggleSidebar()" title="Rondas">&#9776;</button>
-        <button class="btn-ghost btn-sm" onclick="goToLobby()" title="Lobby">&#127968;</button>
+        <button class="btn-ghost btn-sm" onclick="emit('director:show_home')" title="Menu Home">&#127968;</button>
         <button class="btn-ghost btn-sm" onclick="toggleScoreboard()" title="Marcador">&#127942;</button>
         <button class="btn-ghost btn-sm" onclick="emit('director:show_waiting')" title="Espera">&#9208;</button>
         <button class="btn-danger btn-sm" onclick="resetSession()" title="Reiniciar partida">&#128260;</button>
@@ -519,7 +538,11 @@ function render() {
     renderBuzzer();
     renderTeams();
     renderRoundsActive();
-    if (phase === 'lobby') renderLobby();
+    if (phase === 'lobby') {
+        if (ds.menuLevel === 'home') renderHomeMenu();
+        else if (ds.menuLevel === 'category') renderCategoryMenu();
+        else renderLobby();
+    }
     else if (phase === 'round_intro') renderRoundIntro();
     else if (phase === 'question') renderQuestion();
     else if (phase === 'answer_revealed') renderAnswerRevealed();
@@ -545,13 +568,26 @@ function renderRounds() {
         list.innerHTML = '<div style="padding:16px;color:var(--text2);font-size:13px;">Sin rondas.<br><a href="/admin" target="_blank" style="color:var(--accent)">Crear en backoffice</a></div>';
         return;
     }
-    list.innerHTML = S.rounds.map(r => {
-        const qCount = (r.questions || []).length;
-        return '<div class="round-item" data-id="' + r.id + '" onclick="launchRound(\'' + r.id + '\')">'
-            + '<div class="round-name">' + esc(r.name) + '</div>'
-            + '<div class="round-meta"><span class="round-type type-' + r.type + '">' + r.type + '</span>'
-            + '<span>' + qCount + ' preg.</span></div></div>';
-    }).join('');
+    // Group rounds by type
+    var groups = {};
+    var groupOrder = [];
+    S.rounds.forEach(function(r) {
+        if (!groups[r.type]) { groups[r.type] = []; groupOrder.push(r.type); }
+        groups[r.type].push(r);
+    });
+    var html = '';
+    groupOrder.forEach(function(type) {
+        var label = TYPE_LABELS[type] || type;
+        html += '<div style="padding:8px 12px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-top:4px;">' + esc(label) + '</div>';
+        groups[type].forEach(function(r) {
+            var qCount = (r.questions || []).length;
+            html += '<div class="round-item" data-id="' + r.id + '" onclick="launchRound(\'' + r.id + '\')">'
+                + '<div class="round-name">' + esc(r.name) + '</div>'
+                + '<div class="round-meta"><span class="round-type type-' + r.type + '">' + r.type + '</span>'
+                + '<span>' + qCount + ' preg.</span></div></div>';
+        });
+    });
+    list.innerHTML = html;
 }
 
 function renderRoundsActive() {
@@ -619,6 +655,111 @@ function goToLobby() {
     emit('director:show_lobby');
 }
 
+const TYPE_LABELS = {
+    multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio justo',
+    imagen: 'Adivina imagen', cancion: 'Adivina cancion', boom: 'Boom',
+    ruleta: 'Ruleta', imagen_fija: 'Imagen fija'
+};
+
+function getCategories() {
+    // Get types that have at least one round
+    var types = {};
+    S.rounds.forEach(function(r) {
+        if (!types[r.type]) types[r.type] = [];
+        types[r.type].push(r);
+    });
+    return types;
+}
+
+function renderHomeMenu() {
+    var gt = (S.game && S.game.theme) || {};
+    var cats = getCategories();
+    var catKeys = Object.keys(cats);
+    var completedRounds = (S.director && S.director.completedRounds) || [];
+
+    document.getElementById('lobbyTitle').textContent = S.game ? S.game.name : 'Menu';
+    document.getElementById('lobbyActions').style.display = 'none';
+    document.getElementById('lobbyRoundControl').innerHTML = '';
+
+    // Game logo on top
+    var logoHtml = '';
+    if (gt.logo) {
+        logoHtml = '<div class="menu-logo"><img src="' + esc(gt.logo) + '"></div>';
+    }
+
+    // Build category grid
+    var gridHtml = '<div class="menu-grid" data-count="' + Math.min(catKeys.length, 6) + '">';
+    catKeys.forEach(function(type) {
+        var typeLogo = (gt.types && gt.types[type] && gt.types[type].logo) || null;
+        var label = TYPE_LABELS[type] || type;
+        var roundCount = cats[type].length;
+        var allCompleted = cats[type].every(function(r) { return completedRounds.indexOf(r.id) >= 0; });
+        var cls = allCompleted ? 'menu-item completed' : 'menu-item';
+        gridHtml += '<div class="' + cls + '" onclick="emit(\'director:select_category\',{category:\'' + type + '\'})">';
+        if (typeLogo) {
+            gridHtml += '<img src="' + esc(typeLogo) + '">';
+        } else {
+            gridHtml += '<div style="font-size:36px;opacity:.5">&#127919;</div>';
+        }
+        gridHtml += '<div class="menu-label">' + esc(label) + '</div>';
+        gridHtml += '<div class="menu-sublabel">' + roundCount + ' ronda' + (roundCount > 1 ? 's' : '') + '</div>';
+        gridHtml += '</div>';
+    });
+    gridHtml += '</div>';
+
+    document.getElementById('lobbySubtitle').innerHTML = logoHtml + gridHtml;
+    renderLobbyTeams();
+}
+
+function renderCategoryMenu() {
+    var ds = S.director;
+    var gt = (S.game && S.game.theme) || {};
+    var category = ds.selectedCategory;
+    var completedRounds = ds.completedRounds || [];
+    var catRounds = S.rounds.filter(function(r) { return r.type === category; });
+    var label = TYPE_LABELS[category] || category;
+
+    document.getElementById('lobbyTitle').textContent = label;
+    document.getElementById('lobbyActions').style.display = 'none';
+    document.getElementById('lobbyRoundControl').innerHTML = '';
+
+    // Type logo on top
+    var typeLogo = (gt.types && gt.types[category] && gt.types[category].logo) || null;
+    var logoHtml = '';
+    if (typeLogo) {
+        logoHtml = '<div class="menu-logo"><img src="' + esc(typeLogo) + '"></div>';
+    }
+
+    // Build rounds grid
+    var gridHtml = '<div class="menu-grid" data-count="' + Math.min(catRounds.length, 6) + '">';
+    catRounds.forEach(function(r) {
+        var cfg = r.config || {};
+        if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch(e) { cfg = {}; } }
+        var roundLogo = cfg.logo || null;
+        var isCompleted = completedRounds.indexOf(r.id) >= 0;
+        var cls = isCompleted ? 'menu-item completed' : 'menu-item';
+        gridHtml += '<div class="' + cls + '" onclick="launchRound(\'' + r.id + '\')">';
+        if (roundLogo) {
+            gridHtml += '<img src="' + esc(roundLogo) + '">';
+        } else if (typeLogo) {
+            gridHtml += '<img src="' + esc(typeLogo) + '" style="opacity:.4">';
+        } else {
+            gridHtml += '<div style="font-size:36px;opacity:.5">&#127919;</div>';
+        }
+        gridHtml += '<div class="menu-label">' + esc(r.name) + '</div>';
+        var qCount = (r.questions || []).length;
+        gridHtml += '<div class="menu-sublabel">' + qCount + ' preg.</div>';
+        if (isCompleted) gridHtml += '<div class="menu-sublabel" style="color:var(--success)">&#10003; Completada</div>';
+        gridHtml += '</div>';
+    });
+    gridHtml += '</div>';
+
+    var backBtn = '<button class="btn-ghost" onclick="emit(\'director:show_home\')" style="margin-bottom:10px">&#8592; Volver</button>';
+
+    document.getElementById('lobbySubtitle').innerHTML = backBtn + logoHtml + gridHtml;
+    renderLobbyTeams();
+}
+
 function renderLobbyTeams() {
     var el = document.getElementById('lobbyTeamsList');
     if (!S.equipos.length) {
@@ -661,7 +802,7 @@ function renderRoundIntro() {
     var gt = S.game && S.game.theme || {};
     var rc = ds.currentRound ? parseJson(ds.currentRound.config || '{}') : {};
     var typeTheme = (gt.types && gt.types[ds.currentRound.type]) || {};
-    var logo = rc.logo || typeTheme.logo || null;
+    var logo = rc.logo || typeTheme.logo || gt.logo || null;
     if (logo) { logoImg.src = logo; logoEl.style.display = ''; }
     else { logoEl.style.display = 'none'; }
 }

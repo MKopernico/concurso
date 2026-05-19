@@ -154,7 +154,7 @@ function resolveTheme(gameTheme, roundConfig, roundType) {
 
     return {
         background: rc.background || typeTheme.background || null,
-        logo: rc.logo || typeTheme.logo || null,
+        logo: rc.logo || typeTheme.logo || gt.logo || null,
         waitingImage: gt.waitingImage || null,
         ipadBackground: gt.ipadBackground || 'black', // 'black' | 'color' | 'round'
         ipadBackgroundColor: gt.ipadBackgroundColor || null,
