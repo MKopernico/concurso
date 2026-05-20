@@ -207,7 +207,8 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 <button class="filter-tab" data-val="audio" onclick="switchMediaType('audio')">&#127925; Audio</button>
             </div>
             <div class="toolbar-right">
-                <label class="btn-primary" style="cursor:pointer">+ Subir archivo<input type="file" id="mediaUploadInput" style="display:none" onchange="uploadMediaFile(this)"></label>
+                <label class="btn-primary" style="cursor:pointer">+ Subir archivos<input type="file" id="mediaUploadInput" style="display:none" multiple onchange="uploadMediaFiles(this)"></label>
+                <span id="mediaUploadProgress" style="display:none; margin-left:10px; font-size:13px; color:var(--accent);"></span>
             </div>
         </div>
         <div id="media-grid"></div>
@@ -1281,19 +1282,30 @@ async function deleteMedia(type, filename) {
     } catch (e) { toast('Error: ' + e.message); }
 }
 
-async function uploadMediaFile(input) {
-    const file = input.files[0];
-    if (!file) return;
+async function uploadMediaFiles(input) {
+    const files = Array.from(input.files);
+    if (!files.length) return;
     const endpoint = mediaType === 'images' ? '/upload/image' : '/upload/audio';
-    const form = new FormData();
-    form.append('file', file);
-    try {
-        const res = await fetch(API + endpoint, { method: 'POST', body: form });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        toast('Archivo subido: ' + data.originalName);
-        loadMediaFiles();
-    } catch (e) { toast('Error: ' + e.message); }
+    const prog = document.getElementById('mediaUploadProgress');
+    const total = files.length;
+    let done = 0, errors = 0;
+    prog.style.display = '';
+    prog.textContent = 'Subiendo 0/' + total + '...';
+    for (const file of files) {
+        const form = new FormData();
+        form.append('file', file);
+        try {
+            const res = await fetch(API + endpoint, { method: 'POST', body: form });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            done++;
+        } catch (e) { errors++; done++; }
+        prog.textContent = 'Subiendo ' + done + '/' + total + (errors ? ' (' + errors + ' error' + (errors > 1 ? 'es' : '') + ')' : '') + '...';
+    }
+    prog.textContent = total + ' archivo' + (total > 1 ? 's' : '') + ' subido' + (total > 1 ? 's' : '') + (errors ? ' (' + errors + ' con error)' : '');
+    setTimeout(function() { prog.style.display = 'none'; }, 3000);
+    toast(done - errors + ' archivo' + (done - errors > 1 ? 's' : '') + ' subido' + (done - errors > 1 ? 's' : ''));
+    loadMediaFiles();
     input.value = '';
 }
 
