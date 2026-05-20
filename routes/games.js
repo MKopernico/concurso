@@ -295,11 +295,14 @@ const xlsxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize:
 
 // Sheet name → round type mapping
 const SHEET_TYPE_MAP = {
-    '50x15 — Multirespuesta': 'multirespuesta',
-    'Pulsador — Rápido': 'pulsador',
+    '50x15': 'multirespuesta',
+    'Boom': 'boom',
     'Precio Justo': 'precio',
-    'Boom — Ordenar': 'boom',
-    'Ruleta — La Suerte': 'ruleta',
+    'Pulsador': 'pulsador',
+    'Adivina Imagen': 'imagen',
+    'Adivina Cancion': 'cancion',
+    'Ruleta': 'ruleta',
+    'Identity': 'identity',
     'Imagen Fija': 'imagen_fija',
 };
 
@@ -442,6 +445,10 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
 
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
 
+    console.log('[Excel Import] Hojas encontradas:', wb.SheetNames);
+    console.log('[Excel Import] Hojas reconocidas:', wb.SheetNames.filter(s => SHEET_TYPE_MAP[s]).map(s => `${s} → ${SHEET_TYPE_MAP[s]}`));
+    console.log('[Excel Import] Hojas ignoradas:', wb.SheetNames.filter(s => !SHEET_TYPE_MAP[s]));
+
     const results = { rounds: 0, questions: 0, errors: [] };
 
     // Get max sort_order for existing rounds
@@ -488,6 +495,7 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
         }
     })();
 
+    console.log(`[Excel Import] Resultado: ${results.rounds} rondas, ${results.questions} preguntas importadas`);
     res.json(results);
 });
 

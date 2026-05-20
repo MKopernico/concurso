@@ -91,8 +91,11 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .type-imagen_fija { background: #365314; color: #bef264; }
 
 /* Sortable highlight */
-.sort-handle { cursor: grab; color: var(--text2); user-select: none; }
+.sort-handle { cursor: grab; color: var(--text2); user-select: none; font-size: 18px; }
 .sort-handle:hover { color: var(--text); }
+.sort-handle:active { cursor: grabbing; }
+.round-draggable.dragging { opacity: 0.4; }
+.round-draggable.drag-over { border-top: 3px solid var(--accent); margin-top: -3px; }
 
 /* Dynamic options list */
 .option-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
@@ -177,6 +180,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
         <div id="game-info" class="card" style="margin-bottom:24px"></div>
         <div class="toolbar">
             <button class="btn-primary" onclick="openRoundModal()">+ Nueva ronda</button>
+            <button class="btn-ghost btn-sm" onclick="openImportModal()">📥 Importar Excel</button>
             <div class="toolbar-right">
                 <button class="btn-success btn-sm" id="btnStartSession" onclick="startSession(currentGame.id)" style="display:none">▶ Iniciar partida</button>
                 <button class="btn-ghost btn-sm" onclick="openGameModal(currentGame)">Editar juego</button>
@@ -193,7 +197,6 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
             <button class="btn-primary" onclick="openQuestionModal()">+ Nueva pregunta</button>
             <div class="toolbar-right">
                 <button class="btn-ghost btn-sm" onclick="openRoundModal(currentRound)">Editar ronda</button>
-                <button class="btn-ghost btn-sm" onclick="openImportModal()">Importar Excel</button>
             </div>
         </div>
         <div id="questions-list"></div>
@@ -646,15 +649,13 @@ function renderRounds() {
         return;
     }
     el.innerHTML = rounds.map((r, idx) => `
-        <div class="card" data-id="${r.id}">
+        <div class="card round-draggable" data-id="${r.id}" draggable="true">
             <div class="card-header">
-                <span class="sort-handle" title="Reordenar">⠿</span>
+                <span class="sort-handle" title="Arrastra para reordenar">⠿</span>
                 <span class="card-title" onclick="loadRound('${r.id}')">${esc(r.name)}</span>
                 ${typeBadge(r.type)}
                 <span style="font-size:12px; color:var(--text2)">${(r.questions||[]).length} preg.</span>
                 <div class="card-actions">
-                    ${idx > 0 ? `<button class="btn-icon btn-sm" onclick="moveRound('${r.id}',-1)" title="Subir">↑</button>` : ''}
-                    ${idx < rounds.length - 1 ? `<button class="btn-icon btn-sm" onclick="moveRound('${r.id}',1)" title="Bajar">↓</button>` : ''}
                     <button class="btn-icon btn-sm" onclick="openRoundModal(${JSON.stringify(r).replace(/"/g,'&quot;')})" title="Editar">✏️</button>
                     <button class="btn-icon btn-sm" onclick="deleteRound('${r.id}')" title="Eliminar">🗑️</button>
                 </div>
@@ -727,18 +728,67 @@ async function deleteRound(id) {
     } catch (e) { toast('Error: ' + e.message); }
 }
 
-async function moveRound(id, direction) {
-    const ids = currentGame.rounds.map(r => r.id);
-    const idx = ids.indexOf(id);
-    if (idx < 0) return;
-    const swapIdx = idx + direction;
-    if (swapIdx < 0 || swapIdx >= ids.length) return;
-    [ids[idx], ids[swapIdx]] = [ids[swapIdx], ids[idx]];
-    try {
-        await api(`/games/${currentGame.id}/rounds/reorder`, { method: 'PUT', body: { order: ids } });
-        await loadGame(currentGame.id);
-    } catch (e) { toast('Error: ' + e.message); }
+// ── Drag & Drop reordering for rounds ──
+let dragSrcId = null;
+
+function initRoundDragDrop() {
+    const container = document.getElementById('rounds-list');
+    if (!container) return;
+
+    container.addEventListener('dragstart', e => {
+        const card = e.target.closest('.round-draggable');
+        if (!card) return;
+        dragSrcId = card.dataset.id;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', dragSrcId);
+    });
+
+    container.addEventListener('dragend', e => {
+        const card = e.target.closest('.round-draggable');
+        if (card) card.classList.remove('dragging');
+        container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        dragSrcId = null;
+    });
+
+    container.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const card = e.target.closest('.round-draggable');
+        if (!card || card.dataset.id === dragSrcId) return;
+        container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        card.classList.add('drag-over');
+    });
+
+    container.addEventListener('dragleave', e => {
+        const card = e.target.closest('.round-draggable');
+        if (card) card.classList.remove('drag-over');
+    });
+
+    container.addEventListener('drop', async e => {
+        e.preventDefault();
+        container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        const targetCard = e.target.closest('.round-draggable');
+        if (!targetCard || !dragSrcId || targetCard.dataset.id === dragSrcId) return;
+
+        const ids = currentGame.rounds.map(r => r.id);
+        const fromIdx = ids.indexOf(dragSrcId);
+        const toIdx = ids.indexOf(targetCard.dataset.id);
+        if (fromIdx < 0 || toIdx < 0) return;
+
+        // Move element from fromIdx to toIdx
+        ids.splice(fromIdx, 1);
+        ids.splice(toIdx, 0, dragSrcId);
+
+        try {
+            await api(`/games/${currentGame.id}/rounds/reorder`, { method: 'PUT', body: { order: ids } });
+            await loadGame(currentGame.id);
+        } catch (err) { toast('Error: ' + err.message); }
+    });
 }
+
+// Initialize drag-drop after first render
+document.addEventListener('DOMContentLoaded', initRoundDragDrop);
 
 // ─────────────────── ROUND DETAIL (questions) ───────────────────
 
