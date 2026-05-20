@@ -557,6 +557,21 @@ function connectSocket(onReady) {
         goScreen('screen-register');
     });
 
+    socket.on('game:reset_full', function() {
+        // Full reset: clear all local state and go back to game selection
+        S.myTeamId = null; S.myTeam = null; S.ps = null; S.gameId = null; S.game = null; S.photoUrl = null;
+        S.selectedOptions = []; S.boomOrder = []; S.submitted = false;
+        localStorage.removeItem('gs_session');
+        localStorage.removeItem('gs_deviceId');
+        // Regenerate deviceId for fresh identity
+        deviceId = 'dev_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+        localStorage.setItem('gs_deviceId', deviceId);
+        if (socket) { socket.disconnect(); socket = null; }
+        goScreen('screen-games');
+        loadGames();
+        toast('Partida reiniciada por el coordinador');
+    });
+
     socket.on('actualizar_admin_equipos', function(equipos) {
         if (!S.myTeamId) return;
         var me = equipos.find(function(e) { return e.id === S.myTeamId; });

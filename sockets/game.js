@@ -1014,6 +1014,16 @@ function attachSocketHandlers(io) {
                 ds.completedRounds.push(ds.currentRoundId);
             }
             stopTimer(state, gameId, io);
+            ds.currentRoundId = null;
+            ds.currentRound = null;
+            ds.questions = [];
+            ds.currentQuestionIdx = -1;
+            ds.answers = {};
+            ds.revealedCells = [];
+            ds.revealedLetters = [];
+            ds.optionsRevealed = false;
+            ds.lastQuestionScores = {};
+            ds.showTeamResults = false;
             ds.phase = 'lobby';
             ds.menuLevel = 'home';
             ds.selectedCategory = null;
@@ -1044,6 +1054,40 @@ function attachSocketHandlers(io) {
             state.pulsadorActivo = false;
             state.colaPulsador = [];
             // Keep teams connected — don't touch state.equipos
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:reset_full', () => {
+            const ds = state.director;
+            stopTimer(state, gameId, io);
+            // Delete all teams from DB for this session
+            if (state._sessionId) {
+                db.prepare('DELETE FROM teams WHERE session_id = ?').run(state._sessionId);
+            }
+            // Reset all director state
+            ds.scores = {};
+            ds.completedRounds = [];
+            ds.currentRoundId = null;
+            ds.currentRound = null;
+            ds.questions = [];
+            ds.currentQuestionIdx = -1;
+            ds.phase = 'lobby';
+            ds.menuLevel = null;
+            ds.selectedCategory = null;
+            ds.answers = {};
+            ds.revealedCells = [];
+            ds.revealedLetters = [];
+            ds.optionsRevealed = false;
+            ds.lastQuestionScores = {};
+            ds.showTeamResults = false;
+            ds.scoreboardVisible = false;
+            // Clear teams from memory
+            state.equipos = [];
+            state.juegoIniciado = false;
+            state.pulsadorActivo = false;
+            state.colaPulsador = [];
+            // Notify all players to reset their local state
+            io.to(roomOf(gameId)).emit('game:reset_full');
             broadcastDirector(io, gameId, state);
         });
 

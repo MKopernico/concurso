@@ -258,7 +258,8 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         <button class="btn-ghost btn-sm" onclick="emit('director:show_home')" title="Menu Home">&#127968;</button>
         <button class="btn-ghost btn-sm" onclick="toggleScoreboard()" title="Marcador">&#127942;</button>
         <button class="btn-ghost btn-sm" onclick="emit('director:show_waiting')" title="Espera">&#9208;</button>
-        <button class="btn-danger btn-sm" onclick="resetSession()" title="Reiniciar partida">&#128260;</button>
+        <button class="btn-danger btn-sm" onclick="resetSession()" title="Reiniciar puntos">&#128260;</button>
+        <button class="btn-danger btn-sm" onclick="resetFull()" title="Reset total (borra equipos)">&#128465;</button>
         <button class="btn-ghost btn-sm" onclick="openAdmin()" title="Backoffice">&#9881;</button>
         <button class="btn-accent btn-sm" onclick="openScreen()" title="Abrir pantalla proyector">&#128250; Pantalla</button>
     </div>
@@ -1244,6 +1245,12 @@ function resetSession() {
     if (!confirm('Seguro? Esto borrara todos los puntos y el progreso actual. Los equipos seguiran conectados.')) return;
     emit('director:reset_session');
     toast('Partida reiniciada');
+}
+
+function resetFull() {
+    if (!confirm('RESET TOTAL: Esto borrara todos los equipos, puntos y progreso. Los jugadores tendran que volver a registrarse. Continuar?')) return;
+    emit('director:reset_full');
+    toast('Reset total completado');
 }
 
 // ── Navigation ──
