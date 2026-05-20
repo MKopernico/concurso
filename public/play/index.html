@@ -85,7 +85,7 @@ input:focus { border-color: var(--accent); }
 .option-btn.wrong { border-color: var(--danger); background: rgba(239,68,68,.1); }
 .option-btn .opt-letter { color: var(--accent); margin-right: 10px; }
 .q-bottom { padding: 12px 20px; flex-shrink: 0; display: flex; gap: 10px; align-items: center; }
-#submitMultiBtn { min-height: 56px; font-size: 20px; padding: 14px 32px; flex: 1; max-width: 300px; margin: 0 auto; }
+/* submitMultiBtn styles are inline on the element */
 .q-timer { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .q-timer.danger { color: var(--danger); }
 .q-timer.running { color: var(--success); }
@@ -294,8 +294,6 @@ input:focus { border-color: var(--accent); }
         </div>
         <div class="gphase gp-round-intro" id="gp-round-intro">
             <div id="playerIntroLogo" style="display:none;"><img class="intro-logo" id="playerIntroLogoImg"></div>
-            <h2 id="playerIntroTitle">-</h2>
-            <span id="playerIntroType" class="intro-type" style="display:none"></span>
         </div>
         <div class="gphase gp-multi" id="gp-multi">
             <div class="q-statement" id="multiStatement">-</div>
@@ -338,7 +336,7 @@ input:focus { border-color: var(--accent); }
     <div class="q-bottom" id="timerBar" style="display:none;">
         <div class="q-timer stopped" id="gameTimer">--:--</div>
         <div style="flex:1"></div>
-        <button class="btn-accent" id="submitMultiBtn" onclick="submitMulti()" style="display:none;">Enviar</button>
+        <button id="submitMultiBtn" onclick="submitMulti()" style="display:none; width:80%; max-width:400px; margin:20px auto; padding:18px; font-size:22px; font-weight:bold; text-align:center; background:#00d4ff; color:#000; border:none; border-radius:12px; cursor:pointer;">Enviar</button>
     </div>
 </div>
 
@@ -762,7 +760,6 @@ function renderGamePhase() {
     var phase = ps.phase, type = ps.roundType;
     var timerBar = document.getElementById('timerBar');
     timerBar.style.display = 'none';
-    if (phase !== 'question') document.getElementById('submitMultiBtn').style.display = 'none';
 
     // Scoreboard overlay (synced from server, independent of phase)
     var sbOverlay = document.getElementById('playerScoreboardOverlay');
@@ -797,12 +794,13 @@ function renderGamePhase() {
         if (type === 'multirespuesta') {
             renderMulti(); document.getElementById('gp-multi').classList.add('active');
             var submitBtn = document.getElementById('submitMultiBtn');
-            var duringPreCount = !!(ps.preCountdown && ps.preCountdown > 0);
-            if (!S.submitted && ps.optionsRevealed) {
-                submitBtn.style.display = 'block';
-                submitBtn.disabled = duringPreCount;
-            } else if (S.submitted) {
+            if (S.submitted) {
                 submitBtn.style.display = 'none';
+            } else if (ps.optionsRevealed) {
+                submitBtn.style.display = 'block';
+                var duringPreCount = !!(ps.preCountdown && ps.preCountdown > 0);
+                submitBtn.style.opacity = duringPreCount ? '0.5' : '1';
+                submitBtn.style.pointerEvents = duringPreCount ? 'none' : 'auto';
             }
         } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen' || type === 'imagen_fija' || type === 'ruleta') {
             renderBuzzer(); document.getElementById('gp-buzzer').classList.add('active');
@@ -835,7 +833,7 @@ function renderMulti() {
     var optDiv = document.getElementById('multiOptions');
     // Hide options until optionsRevealed
     if (!ps.optionsRevealed || !c.options || !c.options.length) {
-        optDiv.innerHTML = '<div style="text-align:center;color:var(--text2);padding:20px;">Esperando opciones...</div>';
+        optDiv.innerHTML = '';
         return;
     }
     if (S.submitted) return;
@@ -863,7 +861,8 @@ function submitMulti() {
     if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return;
     emit('player:submit_answer', { answer: S.selectedOptions.length === 1 ? S.selectedOptions[0] : S.selectedOptions });
     S.submitted = true;
-    document.getElementById('submitMultiBtn').style.display = 'none';
+    var sb = document.getElementById('submitMultiBtn');
+    sb.style.display = 'none'; sb.style.opacity = '1'; sb.style.pointerEvents = 'auto';
     document.getElementById('multiSubmitted').style.display = 'block';
 }
 
@@ -1065,10 +1064,6 @@ function renderPlayMenu() {
 // ── Round Intro ──
 function renderRoundIntro() {
     var ps = S.ps; if (!ps) return;
-    document.getElementById('playerIntroTitle').textContent = ps.roundName || '-';
-    var typeSpan = document.getElementById('playerIntroType');
-    typeSpan.textContent = ps.roundType || '';
-    typeSpan.className = 'intro-type type-' + (ps.roundType || '');
     var logo = (ps.roundTheme && ps.roundTheme.logo) || (ps.typeTheme && ps.typeTheme.logo) || (ps.gameTheme && ps.gameTheme.logo) || null;
     var logoWrap = document.getElementById('playerIntroLogo');
     if (logo) { document.getElementById('playerIntroLogoImg').src = logo; logoWrap.style.display = ''; }

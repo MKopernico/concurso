@@ -26,7 +26,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .phase.active { opacity: 1; pointer-events: auto; z-index: 2; }
 
 /* ═══════════════ LOBBY / WAITING ═══════════════ */
-#phase-lobby { background: radial-gradient(ellipse at center, #12123a 0%, #0a0a1a 70%); }
+#phase-lobby { background: transparent; }
 .lobby-title { font-size: clamp(36px, 6vw, 72px); font-weight: 800; letter-spacing: 6px; text-transform: uppercase;
     background: linear-gradient(135deg, var(--cyan), var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     text-shadow: none; filter: drop-shadow(0 0 30px rgba(0,212,255,.3)); animation: pulse-glow 3s ease-in-out infinite; }
@@ -35,7 +35,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 @keyframes fade-blink { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
 
 /* ═══════════════ ROUND INTRO ═══════════════ */
-#phase-round-intro { background: radial-gradient(ellipse at center, #1a1a3e 0%, #0a0a1a 70%); }
+#phase-round-intro { background: transparent; }
 
 /* ═══════════════ TIMER BAR (top) ═══════════════ */
 .timer-strip { position: absolute; top: 0; left: 0; right: 0; height: 8px; z-index: 50; background: var(--surface); }
@@ -299,8 +299,6 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     <div class="phase" id="phase-round-intro">
         <div class="gs-intro-content">
             <img class="gs-intro-logo" id="introLogo" style="display:none">
-            <div class="gs-intro-title" id="introTitle" style="color:var(--cyan); text-shadow:var(--glow-cyan);">-</div>
-            <div class="gs-intro-sub" id="introSub" style="color:var(--text2);">-</div>
         </div>
     </div>
 
@@ -544,8 +542,6 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
 // ═══════════════ ROUND INTRO ═══════════════
 function renderRoundIntro() {
     if (!ps) return;
-    document.getElementById('introTitle').textContent = ps.roundName || 'Ronda';
-    document.getElementById('introSub').textContent = '';
 
     // Logo
     var logo = document.getElementById('introLogo');
@@ -1075,6 +1071,8 @@ function renderScreenLobbyDefault() {
     document.querySelector('.lobby-sub').style.display = '';
     var menuEl = document.getElementById('screenMenuContainer');
     if (menuEl) menuEl.style.display = 'none';
+    // Reset bgLayer to game base background (clear any menu background)
+    currentTheme = {}; if (ps.gameTheme) applyTheme(ps.gameTheme);
 }
 
 function getScreenCategories() {
