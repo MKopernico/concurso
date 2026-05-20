@@ -1097,7 +1097,7 @@ function renderScreenHomeMenu() {
     container.style.display = '';
 
     var html = '<div class="screen-menu">';
-    if (gt.logo) html += '<img class="screen-menu-logo" src="' + esc(gt.logo) + '">';
+    if (gt.logo) html += '<img class="screen-menu-logo" src="' + esc(gt.logo) + '" onerror="this.style.display=\'none\'">';
     html += '<div class="screen-menu-grid" data-count="' + Math.min(catKeys.length, 6) + '">';
     catKeys.forEach(function(type) {
         var typeLogo = (gt.types && gt.types[type] && gt.types[type].logo) || null;
@@ -1105,7 +1105,7 @@ function renderScreenHomeMenu() {
         var allCompleted = cats[type].every(function(r) { return completedRounds.indexOf(r.id) >= 0; });
         var cls = allCompleted ? 'screen-menu-item completed' : 'screen-menu-item';
         html += '<div class="' + cls + '">';
-        if (typeLogo) html += '<img src="' + esc(typeLogo) + '">';
+        if (typeLogo) html += '<img src="' + esc(typeLogo) + '" onerror="this.style.display=\'none\'">';
         else html += '<div style="font-size:48px;opacity:.4">&#127919;</div>';
         html += '<div class="smi-label">' + esc(label) + '</div>';
         html += '<div class="smi-sub">' + cats[type].length + ' ronda' + (cats[type].length > 1 ? 's' : '') + '</div>';
@@ -1136,15 +1136,15 @@ function renderScreenCategoryMenu() {
     container.style.display = '';
 
     var html = '<div class="screen-menu">';
-    if (typeLogo) html += '<img class="screen-menu-logo" src="' + esc(typeLogo) + '">';
+    if (typeLogo) html += '<img class="screen-menu-logo" src="' + esc(typeLogo) + '" onerror="this.style.display=\'none\'">';
     html += '<div class="screen-menu-grid" data-count="' + Math.min(rounds.length, 6) + '">';
     rounds.forEach(function(r) {
         var roundLogo = r.logo || null;
         var isCompleted = completedRounds.indexOf(r.id) >= 0;
         var cls = isCompleted ? 'screen-menu-item completed' : 'screen-menu-item';
         html += '<div class="' + cls + '">';
-        if (roundLogo) html += '<img src="' + esc(roundLogo) + '">';
-        else if (typeLogo) html += '<img src="' + esc(typeLogo) + '" style="opacity:.3">';
+        if (roundLogo) html += '<img src="' + esc(roundLogo) + '" onerror="this.style.display=\'none\'">';
+        else if (typeLogo) html += '<img src="' + esc(typeLogo) + '" style="opacity:.3" onerror="this.style.display=\'none\'">';
         else html += '<div style="font-size:48px;opacity:.4">&#127919;</div>';
         html += '<div class="smi-label">' + esc(r.name) + '</div>';
         if (isCompleted) html += '<div class="smi-sub" style="color:var(--green)">&#10003; Completada</div>';

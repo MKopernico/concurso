@@ -693,7 +693,7 @@ function renderHomeMenu() {
         var cls = allCompleted ? 'menu-item completed' : 'menu-item';
         gridHtml += '<div class="' + cls + '" onclick="emit(\'director:select_category\',{category:\'' + type + '\'})">';
         if (typeLogo) {
-            gridHtml += '<img src="' + esc(typeLogo) + '">';
+            gridHtml += '<img src="' + esc(typeLogo) + '" onerror="this.style.display=\'none\'">';
         } else {
             gridHtml += '<div style="font-size:36px;opacity:.5">&#127919;</div>';
         }
@@ -723,7 +723,7 @@ function renderCategoryMenu() {
     var typeLogo = (gt.types && gt.types[category] && gt.types[category].logo) || null;
     var logoHtml = '';
     if (typeLogo) {
-        logoHtml = '<div class="menu-logo"><img src="' + esc(typeLogo) + '"></div>';
+        logoHtml = '<div class="menu-logo"><img src="' + esc(typeLogo) + '" onerror="this.style.display=\'none\'"></div>';
     }
 
     // Build rounds grid
@@ -736,9 +736,9 @@ function renderCategoryMenu() {
         var cls = isCompleted ? 'menu-item completed' : 'menu-item';
         gridHtml += '<div class="' + cls + '" onclick="launchRound(\'' + r.id + '\')">';
         if (roundLogo) {
-            gridHtml += '<img src="' + esc(roundLogo) + '">';
+            gridHtml += '<img src="' + esc(roundLogo) + '" onerror="this.style.display=\'none\'">';
         } else if (typeLogo) {
-            gridHtml += '<img src="' + esc(typeLogo) + '" style="opacity:.4">';
+            gridHtml += '<img src="' + esc(typeLogo) + '" style="opacity:.4" onerror="this.style.display=\'none\'">';
         } else {
             gridHtml += '<div style="font-size:36px;opacity:.5">&#127919;</div>';
         }
