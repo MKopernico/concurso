@@ -210,30 +210,36 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .tr-card.no-answer { opacity: .4; }
 
 /* ═══════════════ MENU GRID (HOME/CATEGORY) ═══════════════ */
-.screen-menu { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 40px; }
-.screen-menu-logo { max-height: 100px; max-width: 280px; object-fit: contain; margin-bottom: 30px; filter: drop-shadow(0 0 20px rgba(0,0,0,.5)); }
-.screen-menu-grid { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 30px; max-width: 900px; }
-.screen-menu-item { border-radius: 18px; border: 2px solid var(--border); background: rgba(18,18,42,.7); backdrop-filter: blur(8px);
+.screen-menu { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 40px; transition: opacity .5s ease; }
+.screen-menu.fade-out { opacity: 0; }
+.screen-menu-logo { max-height: 180px; max-width: 400px; object-fit: contain; margin-bottom: 30px; filter: drop-shadow(0 4px 20px rgba(0,0,0,.6)); }
+.screen-menu-grid { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 40px; max-width: 1000px; }
+.screen-menu-item { background: none; border: none;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center;
     transition: all .4s ease; animation: menu-item-in .5s ease backwards; padding: 20px; }
-.screen-menu-item img { max-width: 100%; max-height: 140px; object-fit: contain; border-radius: 10px; filter: drop-shadow(0 0 10px rgba(0,0,0,.3)); }
-.screen-menu-item .smi-label { font-size: 22px; font-weight: 700; color: var(--text); }
-.screen-menu-item .smi-sub { font-size: 14px; color: var(--text2); }
-.screen-menu-item.completed { opacity: .4; border-color: var(--danger); }
-.screen-menu-item.completed .smi-label { text-decoration: line-through; color: var(--danger); }
+.screen-menu-item img { max-width: 100%; object-fit: contain; filter: drop-shadow(0 4px 16px rgba(0,0,0,.5)); }
+.screen-menu-item .smi-label { font-size: 20px; font-weight: 700; color: var(--text); text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+.screen-menu-item .smi-sub { font-size: 14px; color: var(--text2); text-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.screen-menu-item.completed { opacity: .35; }
+.screen-menu-item.completed .smi-label { text-decoration: line-through; color: var(--text2); }
 @keyframes menu-item-in { from { opacity: 0; transform: translateY(30px) scale(.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .screen-menu-item:nth-child(1) { animation-delay: 0s; }
 .screen-menu-item:nth-child(2) { animation-delay: .1s; }
-.screen-menu-item:nth-child(3) { animation-delay: .2s; }
-.screen-menu-item:nth-child(4) { animation-delay: .3s; }
-.screen-menu-item:nth-child(5) { animation-delay: .4s; }
-.screen-menu-item:nth-child(6) { animation-delay: .5s; }
-.screen-menu-grid[data-count="1"] .screen-menu-item { width: 260px; height: 260px; }
-.screen-menu-grid[data-count="2"] .screen-menu-item { width: 260px; height: 260px; }
-.screen-menu-grid[data-count="3"] .screen-menu-item { width: 220px; height: 220px; }
-.screen-menu-grid[data-count="4"] .screen-menu-item { width: 220px; height: 220px; }
+.screen-menu-item:nth-child(3) { animation-delay: .15s; }
+.screen-menu-item:nth-child(4) { animation-delay: .2s; }
+.screen-menu-item:nth-child(5) { animation-delay: .25s; }
+.screen-menu-item:nth-child(6) { animation-delay: .3s; }
+/* Category logos: 140px */
+.screen-menu-grid.menu-categories .screen-menu-item img { max-height: 140px; }
+/* Round logos: 110px */
+.screen-menu-grid.menu-rounds .screen-menu-item img { max-height: 110px; }
+/* Adaptive widths */
+.screen-menu-grid[data-count="1"] .screen-menu-item { width: 280px; }
+.screen-menu-grid[data-count="2"] .screen-menu-item { width: 260px; }
+.screen-menu-grid[data-count="3"] .screen-menu-item { width: 220px; }
+.screen-menu-grid[data-count="4"] .screen-menu-item { width: 220px; }
 .screen-menu-grid[data-count="5"] .screen-menu-item,
-.screen-menu-grid[data-count="6"] .screen-menu-item { width: 200px; height: 200px; }
+.screen-menu-grid[data-count="6"] .screen-menu-item { width: 180px; }
 
 /* ═══════════════ CONNECTION STATUS ═══════════════ */
 .conn-dot { position: fixed; bottom: 12px; right: 12px; width: 14px; height: 14px; border-radius: 50%;
@@ -494,6 +500,7 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         else if (ps.menuLevel === 'category') renderScreenCategoryMenu();
         else renderScreenLobbyDefault();
     } else if (phase === 'waiting') {
+        _screenMenuLevel = null;
         showPhase('waiting');
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
@@ -1058,6 +1065,7 @@ var TYPE_LABELS = {
 };
 
 function renderScreenLobbyDefault() {
+    _screenMenuLevel = null;
     var el = document.getElementById('phase-lobby');
     var gt = ps.gameTheme || {};
     var logoEl = document.getElementById('gameLogo');
@@ -1078,6 +1086,18 @@ function getScreenCategories() {
     return cats;
 }
 
+// Apply a menu-level background image on top of the base game background
+function applyMenuBackground(imgUrl) {
+    var bgLayer = document.getElementById('bgLayer');
+    if (imgUrl) {
+        bgLayer.className = 'bg-layer bg-image-cover';
+        bgLayer.style.cssText = 'background-image: url(' + imgUrl + ')';
+    }
+    // If no imgUrl, the base game theme background (already applied) stays
+}
+
+var _screenMenuLevel = null; // track for transitions
+
 function renderScreenHomeMenu() {
     var gt = ps.gameTheme || {};
     var cats = getScreenCategories();
@@ -1089,6 +1109,9 @@ function renderScreenHomeMenu() {
     document.querySelector('.lobby-sub').style.display = 'none';
     document.getElementById('gameLogo').style.display = 'none';
 
+    // Apply home background: homeBackground → fall through to game background (already applied)
+    if (gt.homeBackground) applyMenuBackground(gt.homeBackground);
+
     var container = document.getElementById('screenMenuContainer');
     if (!container) {
         container = document.createElement('div');
@@ -1097,9 +1120,13 @@ function renderScreenHomeMenu() {
     }
     container.style.display = '';
 
-    var html = '<div class="screen-menu">';
+    // Fade transition
+    var doFade = _screenMenuLevel !== null && _screenMenuLevel !== 'home';
+    _screenMenuLevel = 'home';
+
+    var html = '<div class="screen-menu' + (doFade ? ' fade-out' : '') + '">';
     if (gt.logo) html += '<img class="screen-menu-logo" src="' + esc(gt.logo) + '" onerror="this.style.display=\'none\'">';
-    html += '<div class="screen-menu-grid" data-count="' + Math.min(catKeys.length, 6) + '">';
+    html += '<div class="screen-menu-grid menu-categories" data-count="' + Math.min(catKeys.length, 6) + '">';
     catKeys.forEach(function(type) {
         var typeLogo = (gt.types && gt.types[type] && gt.types[type].logo) || null;
         var label = TYPE_LABELS[type] || type;
@@ -1114,6 +1141,13 @@ function renderScreenHomeMenu() {
     });
     html += '</div></div>';
     container.innerHTML = html;
+
+    if (doFade) {
+        requestAnimationFrame(function() {
+            var menu = container.querySelector('.screen-menu');
+            if (menu) menu.classList.remove('fade-out');
+        });
+    }
 }
 
 function renderScreenCategoryMenu() {
@@ -1122,11 +1156,16 @@ function renderScreenCategoryMenu() {
     var rounds = (ps.rounds || []).filter(function(r) { return r.type === category; });
     var completedRounds = ps.completedRounds || [];
     var typeLogo = (gt.types && gt.types[category] && gt.types[category].logo) || null;
+    var typeBg = (gt.types && gt.types[category] && gt.types[category].background) || null;
 
     // Hide default lobby elements
     document.getElementById('lobbyTitle').style.display = 'none';
     document.querySelector('.lobby-sub').style.display = 'none';
     document.getElementById('gameLogo').style.display = 'none';
+
+    // Apply category background: type bg → homeBackground → game background (already applied)
+    if (typeBg) applyMenuBackground(typeBg);
+    else if (gt.homeBackground) applyMenuBackground(gt.homeBackground);
 
     var container = document.getElementById('screenMenuContainer');
     if (!container) {
@@ -1136,9 +1175,13 @@ function renderScreenCategoryMenu() {
     }
     container.style.display = '';
 
-    var html = '<div class="screen-menu">';
+    // Fade transition
+    var doFade = _screenMenuLevel !== null && _screenMenuLevel !== 'category';
+    _screenMenuLevel = 'category';
+
+    var html = '<div class="screen-menu' + (doFade ? ' fade-out' : '') + '">';
     if (typeLogo) html += '<img class="screen-menu-logo" src="' + esc(typeLogo) + '" onerror="this.style.display=\'none\'">';
-    html += '<div class="screen-menu-grid" data-count="' + Math.min(rounds.length, 6) + '">';
+    html += '<div class="screen-menu-grid menu-rounds" data-count="' + Math.min(rounds.length, 6) + '">';
     rounds.forEach(function(r) {
         var roundLogo = r.logo || null;
         var isCompleted = completedRounds.indexOf(r.id) >= 0;
@@ -1148,11 +1191,18 @@ function renderScreenCategoryMenu() {
         else if (typeLogo) html += '<img src="' + esc(typeLogo) + '" style="opacity:.3" onerror="this.style.display=\'none\'">';
         else html += '<div style="font-size:48px;opacity:.4">&#127919;</div>';
         html += '<div class="smi-label">' + esc(r.name) + '</div>';
-        if (isCompleted) html += '<div class="smi-sub" style="color:var(--green)">&#10003; Completada</div>';
+        if (isCompleted) html += '<div class="smi-sub" style="color:var(--success)">&#10003; Completada</div>';
         html += '</div>';
     });
     html += '</div></div>';
     container.innerHTML = html;
+
+    if (doFade) {
+        requestAnimationFrame(function() {
+            var menu = container.querySelector('.screen-menu');
+            if (menu) menu.classList.remove('fade-out');
+        });
+    }
 }
 
 window.toggleFullscreen = toggleFullscreen;

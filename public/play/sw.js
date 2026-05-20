@@ -2,7 +2,7 @@
 // Cache-first para shell y assets estáticos. Precarga bajo demanda de assets de un juego
 // (imágenes de preguntas, logos, fondos) vía mensaje 'PRECACHE_GAME' desde el cliente.
 
-const CACHE_NAME = 'gameshow-play-v2';
+const CACHE_NAME = 'gameshow-play-v3';
 const SHELL = [
     '/play/',
     '/play/index.html',

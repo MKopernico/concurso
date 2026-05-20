@@ -196,15 +196,33 @@ input:focus { border-color: var(--accent); }
 .conn-banner.active { display: flex; }
 
 /* ── Menu grid (mirrors director home/category) ── */
-.play-menu { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px; width: 100%; }
-.play-menu-logo { max-height: 70px; max-width: 180px; object-fit: contain; }
-.play-menu-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; max-width: 500px; }
-.play-menu-item { border-radius: var(--radius); border: 2px solid var(--border); background: var(--surface); padding: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; width: 130px; height: 130px; }
-.play-menu-item img { max-width: 100%; max-height: 70px; object-fit: contain; border-radius: 8px; }
-.play-menu-item .pmi-label { font-size: 13px; font-weight: 700; }
-.play-menu-item .pmi-sub { font-size: 11px; color: var(--text2); }
-.play-menu-item.completed { opacity: .4; border-color: var(--danger); }
-.play-menu-item.completed .pmi-label { text-decoration: line-through; }
+.play-menu { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px; width: 100%; transition: opacity .5s ease; }
+.play-menu.fade-out { opacity: 0; }
+.play-menu-logo { max-height: 120px; max-width: 240px; object-fit: contain; filter: drop-shadow(0 3px 12px rgba(0,0,0,.5)); }
+.play-menu-grid { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 16px; max-width: 500px; }
+.play-menu-item { background: none; border: none; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; animation: play-menu-in .4s ease backwards; }
+.play-menu-item img { max-width: 100%; object-fit: contain; filter: drop-shadow(0 3px 10px rgba(0,0,0,.4)); }
+.play-menu-item .pmi-label { font-size: 13px; font-weight: 700; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
+.play-menu-item .pmi-sub { font-size: 11px; color: var(--text2); text-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.play-menu-item.completed { opacity: .35; }
+.play-menu-item.completed .pmi-label { text-decoration: line-through; color: var(--text2); }
+@keyframes play-menu-in { from { opacity: 0; transform: translateY(20px) scale(.9); } to { opacity: 1; transform: none; } }
+.play-menu-item:nth-child(1) { animation-delay: 0s; }
+.play-menu-item:nth-child(2) { animation-delay: .08s; }
+.play-menu-item:nth-child(3) { animation-delay: .12s; }
+.play-menu-item:nth-child(4) { animation-delay: .16s; }
+.play-menu-item:nth-child(5) { animation-delay: .2s; }
+.play-menu-item:nth-child(6) { animation-delay: .24s; }
+/* Category logos: 90px, round logos: 70px */
+.play-menu-grid.menu-categories .play-menu-item img { max-height: 90px; }
+.play-menu-grid.menu-rounds .play-menu-item img { max-height: 70px; }
+/* Adaptive widths */
+.play-menu-grid[data-count="1"] .play-menu-item { width: 180px; }
+.play-menu-grid[data-count="2"] .play-menu-item { width: 160px; }
+.play-menu-grid[data-count="3"] .play-menu-item { width: 140px; }
+.play-menu-grid[data-count="4"] .play-menu-item { width: 140px; }
+.play-menu-grid[data-count="5"] .play-menu-item,
+.play-menu-grid[data-count="6"] .play-menu-item { width: 120px; }
 .conn-spinner { width: 14px; height: 14px; border: 2px solid rgba(0,0,0,.3); border-top-color: #000; border-radius: 50%; animation: spin .6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -955,6 +973,16 @@ var PLAY_TYPE_LABELS = {
     ruleta: 'Ruleta', imagen_fija: 'Imagen Fija'
 };
 
+var _playMenuLevel = null;
+
+function applyPlayMenuBackground(imgUrl) {
+    var el = document.getElementById('playBgLayer');
+    if (!el || !imgUrl) return;
+    el.className = 'play-bg-layer bg-image-cover';
+    el.style.background = '';
+    el.style.backgroundImage = 'url("' + imgUrl + '")';
+}
+
 function renderPlayMenu() {
     var ps = S.ps; if (!ps) return;
     var gt = ps.gameTheme || {};
@@ -972,31 +1000,45 @@ function renderPlayMenu() {
     var wh2 = document.querySelector('#gp-waiting > h2');
     if (wh2) wh2.style.display = 'none';
 
-    var html = '<div class="play-menu">';
+    var html = '';
+    var doFade = _playMenuLevel !== null && _playMenuLevel !== ps.menuLevel;
 
     if (ps.menuLevel === 'home') {
-        if (gt.logo) html += '<img class="play-menu-logo" src="' + esc(gt.logo) + '">';
-        // Group rounds by type
+        // Apply home background
+        if (gt.homeBackground) applyPlayMenuBackground(gt.homeBackground);
+        _playMenuLevel = 'home';
+
+        html = '<div class="play-menu' + (doFade ? ' fade-out' : '') + '">';
+        if (gt.logo) html += '<img class="play-menu-logo" src="' + esc(gt.logo) + '" onerror="this.style.display=\'none\'">';
         var cats = {};
         rounds.forEach(function(r) { if (!cats[r.type]) cats[r.type] = []; cats[r.type].push(r); });
-        html += '<div class="play-menu-grid">';
-        Object.keys(cats).forEach(function(type) {
+        var catKeys = Object.keys(cats);
+        html += '<div class="play-menu-grid menu-categories" data-count="' + Math.min(catKeys.length, 6) + '">';
+        catKeys.forEach(function(type) {
             var typeLogo = (gt.types && gt.types[type] && gt.types[type].logo) || null;
             var allDone = cats[type].every(function(r) { return completedRounds.indexOf(r.id) >= 0; });
             var cls = allDone ? 'play-menu-item completed' : 'play-menu-item';
             html += '<div class="' + cls + '">';
-            if (typeLogo) html += '<img src="' + esc(typeLogo) + '" onerror="this.style.display=\'none\';this.nextElementSibling&&(this.nextElementSibling.style.display=\'\')">';
+            if (typeLogo) html += '<img src="' + esc(typeLogo) + '" onerror="this.style.display=\'none\'">';
             else html += '<div style="font-size:28px;opacity:.4">&#127919;</div>';
             html += '<div class="pmi-label">' + esc(PLAY_TYPE_LABELS[type] || type) + '</div>';
+            html += '<div class="pmi-sub">' + cats[type].length + ' ronda' + (cats[type].length > 1 ? 's' : '') + '</div>';
             html += '</div>';
         });
-        html += '</div>';
+        html += '</div></div>';
     } else if (ps.menuLevel === 'category') {
         var category = ps.selectedCategory;
         var typeLogo = (gt.types && gt.types[category] && gt.types[category].logo) || null;
+        var typeBg = (gt.types && gt.types[category] && gt.types[category].background) || null;
+        // Apply category background: type bg → homeBackground → game bg (already applied)
+        if (typeBg) applyPlayMenuBackground(typeBg);
+        else if (gt.homeBackground) applyPlayMenuBackground(gt.homeBackground);
+        _playMenuLevel = 'category';
+
+        html = '<div class="play-menu' + (doFade ? ' fade-out' : '') + '">';
         if (typeLogo) html += '<img class="play-menu-logo" src="' + esc(typeLogo) + '" onerror="this.style.display=\'none\'">';
         var catRounds = rounds.filter(function(r) { return r.type === category; });
-        html += '<div class="play-menu-grid">';
+        html += '<div class="play-menu-grid menu-rounds" data-count="' + Math.min(catRounds.length, 6) + '">';
         catRounds.forEach(function(r) {
             var roundLogo = r.logo || null;
             var isDone = completedRounds.indexOf(r.id) >= 0;
@@ -1009,11 +1051,17 @@ function renderPlayMenu() {
             if (isDone) html += '<div class="pmi-sub" style="color:var(--success)">&#10003;</div>';
             html += '</div>';
         });
-        html += '</div>';
+        html += '</div></div>';
     }
 
-    html += '</div>';
     container.innerHTML = html;
+
+    if (doFade) {
+        requestAnimationFrame(function() {
+            var menu = container.querySelector('.play-menu');
+            if (menu) menu.classList.remove('fade-out');
+        });
+    }
 }
 
 // ── Round Intro ──

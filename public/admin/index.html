@@ -285,7 +285,15 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 </div>
             </div>
 
-            <div class="section-label">Logos por categoria</div>
+            <div class="field"><label>Fondo del Home (pantalla de categorías)</label>
+                <div class="upload-row">
+                    <input type="text" name="theme_home_bg" placeholder="URL imagen de fondo del Home">
+                    <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'theme_home_bg')"></label>
+                    <button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker('images', function(url){ document.querySelector('[name=theme_home_bg]').value = url; })">&#128193;</button>
+                </div>
+            </div>
+
+            <div class="section-label">Logos y fondos por categoría</div>
             <div id="type-logos-container"></div>
 
             <input type="hidden" name="id">
@@ -1179,14 +1187,21 @@ function renderTypeLogos(typesObj) {
     const container = document.getElementById('type-logos-container');
     if (!container) return;
     container.innerHTML = Object.keys(TYPE_LABELS).map(function(t) {
-        const val = (typesObj[t] && typesObj[t].logo) || '';
-        const fieldName = 'type_logo_' + t;
+        const logoVal = (typesObj[t] && typesObj[t].logo) || '';
+        const bgVal = (typesObj[t] && typesObj[t].background) || '';
+        const logoField = 'type_logo_' + t;
+        const bgField = 'type_bg_' + t;
         return '<div class="field" style="margin-bottom:10px">' +
             '<label>' + esc(TYPE_LABELS[t]) + '</label>' +
+            '<div class="upload-row" style="margin-bottom:4px">' +
+                '<input type="text" name="' + logoField + '" placeholder="Logo ' + esc(TYPE_LABELS[t]) + '" value="' + esc(logoVal) + '">' +
+                '<label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,\'' + logoField + '\')"></label>' +
+                '<button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker(\'images\', function(url){ document.querySelector(\'[name=' + logoField + ']\').value = url; })">&#128193;</button>' +
+            '</div>' +
             '<div class="upload-row">' +
-                '<input type="text" name="' + fieldName + '" placeholder="URL logo ' + esc(TYPE_LABELS[t]) + '" value="' + esc(val) + '">' +
-                '<label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,\'' + fieldName + '\')"></label>' +
-                '<button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker(\'images\', function(url){ document.querySelector(\'[name=' + fieldName + ']\').value = url; })">&#128193;</button>' +
+                '<input type="text" name="' + bgField + '" placeholder="Fondo ' + esc(TYPE_LABELS[t]) + '" value="' + esc(bgVal) + '">' +
+                '<label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,\'' + bgField + '\')"></label>' +
+                '<button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker(\'images\', function(url){ document.querySelector(\'[name=' + bgField + ']\').value = url; })">&#128193;</button>' +
             '</div>' +
         '</div>';
     }).join('');
@@ -1210,12 +1225,20 @@ function buildThemeFromForm(form) {
         }
         else if (bgType === 'image') theme.backgroundImage = form.theme_bg_image.value.trim();
     }
-    // Collect per-type logos
+    // Home background
+    const homeBg = form.theme_home_bg.value.trim();
+    if (homeBg) theme.homeBackground = homeBg;
+    // Collect per-type logos and backgrounds
     const types = {};
     Object.keys(TYPE_LABELS).forEach(function(t) {
-        const field = document.querySelector('[name="type_logo_' + t + '"]');
-        if (field && field.value.trim()) {
-            types[t] = { logo: field.value.trim() };
+        const logoField = document.querySelector('[name="type_logo_' + t + '"]');
+        const bgField = document.querySelector('[name="type_bg_' + t + '"]');
+        const logo = logoField && logoField.value.trim();
+        const bg = bgField && bgField.value.trim();
+        if (logo || bg) {
+            types[t] = {};
+            if (logo) types[t].logo = logo;
+            if (bg) types[t].background = bg;
         }
     });
     if (Object.keys(types).length) theme.types = types;
@@ -1240,7 +1263,9 @@ function populateThemeForm(form, theme) {
         else { form.theme_bg_gradient.value = 'custom'; form.theme_bg_gradient_custom.value = val; form.theme_bg_gradient_custom.style.display = ''; }
     }
     if (bgType === 'image') { form.theme_bg_image.value = theme.backgroundImage || ''; }
-    // Render per-type logo fields
+    // Home background
+    form.theme_home_bg.value = theme.homeBackground || '';
+    // Render per-type logo and background fields
     renderTypeLogos(theme.types || {});
 }
 
