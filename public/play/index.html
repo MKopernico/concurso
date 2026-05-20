@@ -798,10 +798,10 @@ function renderGamePhase() {
             renderMulti(); document.getElementById('gp-multi').classList.add('active');
             var submitBtn = document.getElementById('submitMultiBtn');
             var duringPreCount = !!(ps.preCountdown && ps.preCountdown > 0);
-            if (!S.submitted && ps.optionsRevealed && !duringPreCount) {
+            if (!S.submitted && ps.optionsRevealed) {
                 submitBtn.style.display = 'block';
-                submitBtn.disabled = false;
-            } else {
+                submitBtn.disabled = duringPreCount;
+            } else if (S.submitted) {
                 submitBtn.style.display = 'none';
             }
         } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen' || type === 'imagen_fija' || type === 'ruleta') {
@@ -836,7 +836,6 @@ function renderMulti() {
     // Hide options until optionsRevealed
     if (!ps.optionsRevealed || !c.options || !c.options.length) {
         optDiv.innerHTML = '<div style="text-align:center;color:var(--text2);padding:20px;">Esperando opciones...</div>';
-        document.getElementById('submitMultiBtn').style.display = 'none';
         return;
     }
     if (S.submitted) return;
@@ -978,8 +977,9 @@ var _playMenuLevel = null;
 function applyPlayMenuBackground(imgUrl) {
     var el = document.getElementById('playBgLayer');
     if (!el || !imgUrl) return;
+    console.log('[DEBUG play] applyPlayMenuBackground:', imgUrl);
     el.className = 'play-bg-layer bg-image-cover';
-    el.style.background = '';
+    el.style.cssText = '';
     el.style.backgroundImage = 'url("' + imgUrl + '")';
 }
 
@@ -1005,6 +1005,7 @@ function renderPlayMenu() {
 
     if (ps.menuLevel === 'home') {
         // Apply home background
+        console.log('[DEBUG play] renderPlayMenu home — gt.homeBackground:', gt.homeBackground, 'gt.types:', JSON.stringify(gt.types));
         if (gt.homeBackground) applyPlayMenuBackground(gt.homeBackground);
         _playMenuLevel = 'home';
 
@@ -1021,8 +1022,6 @@ function renderPlayMenu() {
             html += '<div class="' + cls + '">';
             if (typeLogo) html += '<img src="' + esc(typeLogo) + '" onerror="this.style.display=\'none\'">';
             else html += '<div style="font-size:28px;opacity:.4">&#127919;</div>';
-            html += '<div class="pmi-label">' + esc(PLAY_TYPE_LABELS[type] || type) + '</div>';
-            html += '<div class="pmi-sub">' + cats[type].length + ' ronda' + (cats[type].length > 1 ? 's' : '') + '</div>';
             html += '</div>';
         });
         html += '</div></div>';
@@ -1031,6 +1030,7 @@ function renderPlayMenu() {
         var typeLogo = (gt.types && gt.types[category] && gt.types[category].logo) || null;
         var typeBg = (gt.types && gt.types[category] && gt.types[category].background) || null;
         // Apply category background: type bg → homeBackground → game bg (already applied)
+        console.log('[DEBUG play] renderPlayMenu category —', category, 'typeBg:', typeBg, 'homeBackground:', gt.homeBackground);
         if (typeBg) applyPlayMenuBackground(typeBg);
         else if (gt.homeBackground) applyPlayMenuBackground(gt.homeBackground);
         _playMenuLevel = 'category';
@@ -1047,8 +1047,6 @@ function renderPlayMenu() {
             if (roundLogo) html += '<img src="' + esc(roundLogo) + '" onerror="this.style.display=\'none\'">';
             else if (typeLogo) html += '<img src="' + esc(typeLogo) + '" style="opacity:.3" onerror="this.style.display=\'none\'">';
             else html += '<div style="font-size:28px;opacity:.4">&#127919;</div>';
-            html += '<div class="pmi-label">' + esc(r.name) + '</div>';
-            if (isDone) html += '<div class="pmi-sub" style="color:var(--success)">&#10003;</div>';
             html += '</div>';
         });
         html += '</div></div>';

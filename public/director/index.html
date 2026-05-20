@@ -698,8 +698,6 @@ function renderHomeMenu() {
         } else {
             gridHtml += '<div style="font-size:36px;opacity:.5">&#127919;</div>';
         }
-        gridHtml += '<div class="menu-label">' + esc(label) + '</div>';
-        gridHtml += '<div class="menu-sublabel">' + roundCount + ' ronda' + (roundCount > 1 ? 's' : '') + '</div>';
         gridHtml += '</div>';
     });
     gridHtml += '</div>';
@@ -743,10 +741,6 @@ function renderCategoryMenu() {
         } else {
             gridHtml += '<div style="font-size:36px;opacity:.5">&#127919;</div>';
         }
-        gridHtml += '<div class="menu-label">' + esc(r.name) + '</div>';
-        var qCount = (r.questions || []).length;
-        gridHtml += '<div class="menu-sublabel">' + qCount + ' preg.</div>';
-        if (isCompleted) gridHtml += '<div class="menu-sublabel" style="color:var(--success)">&#10003; Completada</div>';
         gridHtml += '</div>';
     });
     gridHtml += '</div>';

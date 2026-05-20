@@ -495,6 +495,7 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
         document.getElementById('roundLogo').style.display = 'none';
+        console.log('[DEBUG screen] lobby phase, menuLevel:', ps.menuLevel, 'gameTheme.homeBackground:', ps.gameTheme && ps.gameTheme.homeBackground, 'selectedCategory:', ps.selectedCategory);
         if (ps.gameTheme) applyTheme(ps.gameTheme);
         if (ps.menuLevel === 'home') renderScreenHomeMenu();
         else if (ps.menuLevel === 'category') renderScreenCategoryMenu();
@@ -1089,9 +1090,12 @@ function getScreenCategories() {
 // Apply a menu-level background image on top of the base game background
 function applyMenuBackground(imgUrl) {
     var bgLayer = document.getElementById('bgLayer');
+    if (!bgLayer) return;
+    console.log('[DEBUG screen] applyMenuBackground:', imgUrl);
     if (imgUrl) {
         bgLayer.className = 'bg-layer bg-image-cover';
-        bgLayer.style.cssText = 'background-image: url(' + imgUrl + ')';
+        bgLayer.style.cssText = '';
+        bgLayer.style.backgroundImage = 'url("' + imgUrl + '")';
     }
     // If no imgUrl, the base game theme background (already applied) stays
 }
@@ -1110,6 +1114,7 @@ function renderScreenHomeMenu() {
     document.getElementById('gameLogo').style.display = 'none';
 
     // Apply home background: homeBackground → fall through to game background (already applied)
+    console.log('[DEBUG screen] renderScreenHomeMenu — gt.homeBackground:', gt.homeBackground, 'gt.types:', JSON.stringify(gt.types));
     if (gt.homeBackground) applyMenuBackground(gt.homeBackground);
 
     var container = document.getElementById('screenMenuContainer');
@@ -1129,14 +1134,11 @@ function renderScreenHomeMenu() {
     html += '<div class="screen-menu-grid menu-categories" data-count="' + Math.min(catKeys.length, 6) + '">';
     catKeys.forEach(function(type) {
         var typeLogo = (gt.types && gt.types[type] && gt.types[type].logo) || null;
-        var label = TYPE_LABELS[type] || type;
         var allCompleted = cats[type].every(function(r) { return completedRounds.indexOf(r.id) >= 0; });
         var cls = allCompleted ? 'screen-menu-item completed' : 'screen-menu-item';
         html += '<div class="' + cls + '">';
         if (typeLogo) html += '<img src="' + esc(typeLogo) + '" onerror="this.style.display=\'none\'">';
         else html += '<div style="font-size:48px;opacity:.4">&#127919;</div>';
-        html += '<div class="smi-label">' + esc(label) + '</div>';
-        html += '<div class="smi-sub">' + cats[type].length + ' ronda' + (cats[type].length > 1 ? 's' : '') + '</div>';
         html += '</div>';
     });
     html += '</div></div>';
@@ -1164,6 +1166,7 @@ function renderScreenCategoryMenu() {
     document.getElementById('gameLogo').style.display = 'none';
 
     // Apply category background: type bg → homeBackground → game background (already applied)
+    console.log('[DEBUG screen] renderScreenCategoryMenu — category:', category, 'typeBg:', typeBg, 'homeBackground:', gt.homeBackground);
     if (typeBg) applyMenuBackground(typeBg);
     else if (gt.homeBackground) applyMenuBackground(gt.homeBackground);
 
@@ -1190,8 +1193,6 @@ function renderScreenCategoryMenu() {
         if (roundLogo) html += '<img src="' + esc(roundLogo) + '" onerror="this.style.display=\'none\'">';
         else if (typeLogo) html += '<img src="' + esc(typeLogo) + '" style="opacity:.3" onerror="this.style.display=\'none\'">';
         else html += '<div style="font-size:48px;opacity:.4">&#127919;</div>';
-        html += '<div class="smi-label">' + esc(r.name) + '</div>';
-        if (isCompleted) html += '<div class="smi-sub" style="color:var(--success)">&#10003; Completada</div>';
         html += '</div>';
     });
     html += '</div></div>';

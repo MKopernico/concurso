@@ -72,6 +72,7 @@ function getOrCreateState(gameId) {
 function publicView(state) {
     const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _gameTheme, _sessionId, _rounds, ...rest } = state;
     rest.gameTheme = _gameTheme || {};
+    console.log('[DEBUG gameTheme]', JSON.stringify(rest.gameTheme));
     return rest;
 }
 
