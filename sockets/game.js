@@ -699,6 +699,10 @@ function attachSocketHandlers(io) {
                 ds.scoreboardVisible = false;
                 ds.menuLevel = null;
                 ds.selectedCategory = null;
+                const cfg = getQuestionConfig(state);
+                ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
+                state.pulsadorActivo = false;
+                state.colaPulsador = [];
                 broadcastDirector(io, gameId, state);
             }
         });
@@ -1001,6 +1005,19 @@ function attachSocketHandlers(io) {
             if (ds.completedRounds.indexOf(data.roundId) === -1) {
                 ds.completedRounds.push(data.roundId);
             }
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:finish_round', () => {
+            const ds = state.director;
+            if (ds.currentRoundId && ds.completedRounds.indexOf(ds.currentRoundId) === -1) {
+                ds.completedRounds.push(ds.currentRoundId);
+            }
+            stopTimer(state, gameId, io);
+            ds.phase = 'lobby';
+            ds.menuLevel = 'home';
+            ds.selectedCategory = null;
+            ds.scoreboardVisible = false;
             broadcastDirector(io, gameId, state);
         });
 

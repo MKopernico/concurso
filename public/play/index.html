@@ -684,7 +684,7 @@ function renderGamePhase() {
     var phase = ps.phase, type = ps.roundType;
     var timerBar = document.getElementById('timerBar');
     timerBar.style.display = 'none';
-    document.getElementById('submitMultiBtn').style.display = 'none';
+    if (phase !== 'question') document.getElementById('submitMultiBtn').style.display = 'none';
 
     // Scoreboard overlay (synced from server, independent of phase)
     var sbOverlay = document.getElementById('playerScoreboardOverlay');
@@ -719,9 +719,12 @@ function renderGamePhase() {
         if (type === 'multirespuesta') {
             renderMulti(); document.getElementById('gp-multi').classList.add('active');
             var submitBtn = document.getElementById('submitMultiBtn');
-            if (!S.submitted && ps.optionsRevealed) {
+            var duringPreCount = !!(ps.preCountdown && ps.preCountdown > 0);
+            if (!S.submitted && ps.optionsRevealed && !duringPreCount) {
                 submitBtn.style.display = 'block';
-                submitBtn.disabled = !!(ps.preCountdown && ps.preCountdown > 0);
+                submitBtn.disabled = false;
+            } else {
+                submitBtn.style.display = 'none';
             }
         } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen' || type === 'imagen_fija' || type === 'ruleta') {
             renderBuzzer(); document.getElementById('gp-buzzer').classList.add('active');
@@ -759,10 +762,11 @@ function renderMulti() {
         return;
     }
     if (S.submitted) return;
+    var duringPre = !!(ps.preCountdown && ps.preCountdown > 0);
     var letters = 'ABCDEFGHIJKLMNOP';
     optDiv.innerHTML = c.options.map(function(o, i) {
         var sel = S.selectedOptions.indexOf(i) >= 0;
-        return '<button class="option-btn ' + (sel ? 'selected' : '') + '" onclick="toggleOption(' + i + ')"><span class="opt-letter">' + letters[i] + '</span>' + esc(o) + '</button>';
+        return '<button class="option-btn ' + (sel ? 'selected' : '') + (duringPre ? ' disabled' : '') + '" ' + (duringPre ? 'disabled' : '') + ' onclick="toggleOption(' + i + ')"><span class="opt-letter">' + letters[i] + '</span>' + esc(o) + '</button>';
     }).join('');
 
     // Animations
@@ -776,7 +780,7 @@ function renderMulti() {
         }
     }
 }
-function toggleOption(idx) { if (S.submitted) return; var pos = S.selectedOptions.indexOf(idx); if (pos >= 0) S.selectedOptions.splice(pos, 1); else S.selectedOptions.push(idx); renderMulti(); }
+function toggleOption(idx) { if (S.submitted) return; if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return; var pos = S.selectedOptions.indexOf(idx); if (pos >= 0) S.selectedOptions.splice(pos, 1); else S.selectedOptions.push(idx); renderMulti(); }
 function submitMulti() {
     if (S.submitted || !S.selectedOptions.length) return;
     if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return;

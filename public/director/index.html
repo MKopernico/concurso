@@ -323,7 +323,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             <div class="question-nav">
                 <button class="btn-ghost btn-sm" onclick="emit('director:prev_question')">&#9664; Anterior</button>
                 <span class="question-counter" id="answerCounter">-</span>
-                <button class="btn-ghost btn-sm" onclick="emit('director:next_question')">Siguiente &#9654;</button>
+                <button class="btn-ghost btn-sm" id="btnAnswerNext" onclick="emit('director:next_question')">Siguiente &#9654;</button>
             </div>
             <div id="answerQuestionCard" class="question-card">
                 <div class="question-statement" id="answerStatement">-</div>
@@ -335,7 +335,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             </div>
             <div id="teamResultsPanel"></div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;">
-                <button class="btn-success" onclick="emit('director:next_question')">Siguiente pregunta &#9654;</button>
+                <button class="btn-success" id="btnAnswerNextBig" onclick="emit('director:next_question')">Siguiente pregunta &#9654;</button>
                 <button class="btn-ghost btn-sm" id="btnShowTeamResults" onclick="emit('director:toggle_team_results')">&#128101; Mostrar resultados</button>
                 <button class="btn-ghost btn-sm" onclick="toggleScoreboard()">&#127942; Marcador</button>
                 <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Marcar ronda completada</button>
@@ -856,7 +856,16 @@ function renderQuestion() {
     const idx = ds.currentQuestionIdx, total = ds.questions.length;
     document.getElementById('questionCounter').textContent = 'Pregunta ' + (idx + 1) + ' de ' + total;
     document.getElementById('btnPrevQ').disabled = idx <= 0;
-    document.getElementById('btnNextQ').disabled = idx >= total - 1;
+    var btnNext = document.getElementById('btnNextQ');
+    if (idx >= total - 1) {
+        btnNext.textContent = '✓ Terminar ronda';
+        btnNext.disabled = false;
+        btnNext.onclick = function() { emit('director:finish_round'); };
+    } else {
+        btnNext.innerHTML = 'Siguiente &#9654;';
+        btnNext.disabled = false;
+        btnNext.onclick = function() { emit('director:next_question'); };
+    }
 
     const c = q.content || {};
     document.getElementById('questionStatement').textContent = c.statement || c.phrase || '-';
@@ -1013,6 +1022,22 @@ function renderAnswerRevealed() {
     const c = q.content || {};
     const idx = ds.currentQuestionIdx, total = ds.questions.length;
     document.getElementById('answerCounter').textContent = 'Pregunta ' + (idx + 1) + ' de ' + total;
+    var isLast = idx >= total - 1;
+    var btnANnav = document.getElementById('btnAnswerNext');
+    var btnANbig = document.getElementById('btnAnswerNextBig');
+    if (isLast) {
+        btnANnav.textContent = '✓ Terminar ronda';
+        btnANnav.onclick = function() { emit('director:finish_round'); };
+        btnANbig.textContent = '✓ Terminar ronda';
+        btnANbig.onclick = function() { emit('director:finish_round'); };
+        btnANbig.className = 'btn-accent';
+    } else {
+        btnANnav.innerHTML = 'Siguiente &#9654;';
+        btnANnav.onclick = function() { emit('director:next_question'); };
+        btnANbig.innerHTML = 'Siguiente pregunta &#9654;';
+        btnANbig.onclick = function() { emit('director:next_question'); };
+        btnANbig.className = 'btn-success';
+    }
     document.getElementById('answerStatement').textContent = c.statement || c.phrase || '-';
 
     var optDiv = document.getElementById('answerOptions');
