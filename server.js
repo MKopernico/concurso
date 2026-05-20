@@ -4,9 +4,13 @@
 // La lógica de tiempo real (pulsador, precio justo, bloqueos, bonos, escenas) está en sockets/game.js.
 
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const http = require('http');
 const { Server: SocketIOServer } = require('socket.io');
+
+// Directorio de uploads: disco persistente en Render (/data/uploads) o local (./uploads)
+const UPLOADS_DIR = fs.existsSync('/data') ? '/data/uploads' : path.join(__dirname, 'uploads');
 
 require('./db'); // arranca la BD e inserta el juego 'default' si no existe (efecto colateral)
 const apiRoutes = require('./routes/games');
@@ -40,7 +44,7 @@ app.get('/screen/:gameId', (req, res) => {
 });
 app.use('/admin',    express.static(path.join(__dirname, 'public', 'admin')));
 app.use('/shared',   express.static(path.join(__dirname, 'public', 'shared')));
-app.use('/uploads',  express.static(process.env.UPLOADS_DIR || path.join(__dirname, 'uploads')));
+app.use('/uploads',  express.static(UPLOADS_DIR));
 app.use(express.static(path.join(__dirname, 'public'))); // legacy `/` y assets sueltos (espera.jpg, etc.)
 
 // Handlers de Socket.io (los listeners se enganchan al objeto io una sola vez al arrancar).
@@ -49,7 +53,7 @@ attachSocketHandlers(io);
 // Arranque robusto: si el puerto está ocupado, abortar limpio (Render reintenta).
 const port = process.env.PORT || 3000;
 const listener = server.listen(port, '0.0.0.0', () => {
-    console.log('🚀 GameShow ON · puerto', listener.address().port);
+    console.log('🚀 GameShow ON · puerto', listener.address().port, '· uploads:', UPLOADS_DIR);
 });
 listener.on('error', (e) => {
     if (e.code === 'EADDRINUSE') process.exit(1);

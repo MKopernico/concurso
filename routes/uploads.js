@@ -1,5 +1,6 @@
 // Rutas para subir imágenes y audio (spec §10.3).
 // Los archivos se guardan en /uploads/{images,audio}/ con nombre único basado en timestamp + random.
+// En producción (Render), usa /data/uploads/ (disco persistente). En local, ./uploads/.
 
 const path = require('path');
 const fs = require('fs');
@@ -9,7 +10,14 @@ const multer = require('multer');
 
 const router = express.Router();
 
-const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, '..', 'uploads');
+const UPLOADS_DIR = fs.existsSync('/data') ? '/data/uploads' : path.join(__dirname, '..', 'uploads');
+
+// Crear subdirectorios al cargar el módulo
+[path.join(UPLOADS_DIR, 'images'), path.join(UPLOADS_DIR, 'audio')].forEach(dir => {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
+console.log('[Uploads] Directorio de uploads:', UPLOADS_DIR);
 
 function makeStorage(subfolder) {
     const dest = path.join(UPLOADS_DIR, subfolder);
