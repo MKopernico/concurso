@@ -79,8 +79,8 @@ input:focus { border-color: var(--accent); }
 .gp-multi .q-statement { font-size: 22px; font-weight: 600; line-height: 1.4; text-align: center;
     background: rgba(0,0,0,.6); border-radius: 16px; padding: 16px 20px; color: #fff; backdrop-filter: blur(6px); flex-shrink: 0; }
 .gp-multi .q-media { max-width: 80%; max-height: 140px; border-radius: 8px; align-self: center; flex-shrink: 0; }
-.options-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: auto; padding-bottom: 10px; }
-.option-btn { background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.15); border-radius: 16px; padding: 14px 16px; font-size: 15px; font-weight: 600; text-align: left; color: #fff; transition: .2s; backdrop-filter: blur(6px); }
+.options-list { display: flex; flex-direction: column; gap: 10px; margin-top: auto; padding-bottom: 16px; }
+.option-btn { background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.15); border-radius: 16px; padding: 16px 20px; font-size: 17px; font-weight: 600; text-align: left; color: #fff; transition: .2s; backdrop-filter: blur(6px); }
 .option-btn.selected { border-color: #00d4ff; background: rgba(0,212,255,.25); box-shadow: 0 0 12px rgba(0,212,255,.3); }
 .option-btn.correct { border-color: #22c55e; background: rgba(34,197,94,.3); }
 .option-btn.wrong { border-color: #ef4444; background: rgba(239,68,68,.2); opacity: .7; }
@@ -141,11 +141,16 @@ input:focus { border-color: var(--accent); }
 .reveal-result.lose { color: #fff; background: rgba(239,68,68,.3); border: 2px solid #ef4444; }
 
 /* ── Round End ── */
-.gp-round-end { align-items: center; justify-content: center; gap: 16px; padding: 24px; background: rgba(0,0,0,.50); }
+.gp-round-end { align-items: center; justify-content: center; padding: 24px;
+    position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,.50); z-index: 60; }
 .gp-round-end .round-end-title { font-size: clamp(24px, 7vw, 40px); font-weight: 800; text-align: center; text-transform: uppercase;
     color: #fff; animation: round-end-in .8s cubic-bezier(.34,1.56,.64,1); }
-.gp-round-end .round-end-sub { font-size: 14px; color: rgba(255,255,255,.6); text-align: center; }
 @keyframes round-end-in { 0% { opacity: 0; transform: scale(.6); } 100% { opacity: 1; transform: scale(1); } }
+
+/* ── Pre-countdown dark overlay ── */
+.player-pre-overlay { position: fixed; inset: 0; z-index: 84; background: rgba(0,0,0,.80); pointer-events: none;
+    opacity: 0; transition: opacity .6s ease; }
+.player-pre-overlay.active { opacity: 1; }
 
 /* ── Background layer (same as /screen) ── */
 .play-bg-layer { position: fixed; inset: 0; z-index: 0; pointer-events: none; transition: opacity .5s ease; }
@@ -162,9 +167,9 @@ input:focus { border-color: var(--accent); }
 @keyframes timer-flash { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
 
 /* ── Pre-countdown ── */
-.player-pre-countdown { position: fixed; top: 30%; left: 50%; transform: translate(-50%,-50%); z-index: 85;
-    font-size: 80px; font-weight: 800; color: var(--accent); opacity: 0; pointer-events: none; transition: opacity .3s ease;
-    text-shadow: 0 0 20px rgba(0,212,255,.5), 0 2px 4px rgba(0,0,0,.8); }
+.player-pre-countdown { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 85;
+    font-size: clamp(80px, 20vw, 160px); font-weight: 800; color: #fff; opacity: 0; pointer-events: none; transition: opacity .3s ease;
+    text-shadow: 0 0 40px var(--accent), 0 0 80px rgba(0,212,255,.4), 0 4px 8px rgba(0,0,0,.9); }
 .player-pre-countdown.active { opacity: 1; animation: countPop 1s ease-out; }
 @keyframes countPop { 0% { transform: translate(-50%,-50%) scale(1.6); opacity: .5; } 30% { transform: translate(-50%,-50%) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(.95); opacity: .8; } }
 
@@ -287,7 +292,8 @@ input:focus { border-color: var(--accent); }
 <!-- Timer progress bar -->
 <div class="player-timer-bar" id="playerTimerBar"><div class="player-timer-fill" id="playerTimerFill"></div></div>
 
-<!-- Pre-countdown overlay -->
+<!-- Pre-countdown dark overlay + number -->
+<div class="player-pre-overlay" id="playerPreOverlay"></div>
 <div class="player-pre-countdown" id="playerPreCountdown"></div>
 
 <!-- ═══ Screen 4: In-game ═══ -->
@@ -345,7 +351,6 @@ input:focus { border-color: var(--accent); }
         </div>
         <div class="gphase gp-round-end" id="gp-round-end">
             <div class="round-end-title">¡FIN DE LA RONDA!</div>
-            <div class="round-end-sub" id="playerRoundEndName"></div>
         </div>
     </div>
     <div class="q-bottom" id="timerBar" style="display:none;">
@@ -724,18 +729,20 @@ function applySimpleBg(el, bg) {
 var _lastPreCount = 0;
 function renderPlayerPreCountdown(ps) {
     var el = document.getElementById('playerPreCountdown');
+    var overlay = document.getElementById('playerPreOverlay');
     if (!el) return;
     var count = ps.preCountdown || 0;
     if (count > 0) {
+        if (overlay) overlay.classList.add('active');
         if (count !== _lastPreCount) {
             el.textContent = count;
-            // Re-trigger animation by removing and re-adding class
             el.classList.remove('active');
-            void el.offsetWidth; // force reflow
+            void el.offsetWidth;
             el.classList.add('active');
         }
     } else {
         el.classList.remove('active');
+        if (overlay) overlay.classList.remove('active');
     }
     _lastPreCount = count;
 }
@@ -825,7 +832,6 @@ function renderGamePhase() {
             document.getElementById('gp-waiting').classList.add('active');
         }
     } else if (phase === 'round_end') {
-        document.getElementById('playerRoundEndName').textContent = ps.roundName || '';
         document.getElementById('gp-round-end').classList.add('active');
     } else {
         document.getElementById('gp-waiting').classList.add('active');
