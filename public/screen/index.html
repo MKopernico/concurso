@@ -51,19 +51,26 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .round-label { display: none; }
 
 /* ═══════════════ QUESTION PHASE ═══════════════ */
-#phase-question { padding: 140px clamp(20px, 4vw, 60px) clamp(20px, 3vh, 40px); justify-content: flex-start; }
-.q-statement { font-size: clamp(28px, 4vw, 52px); font-weight: 700; text-align: center; line-height: 1.3; max-width: 85%;
-    background: rgba(0,0,0,.6); border-radius: 16px; padding: clamp(20px, 3vh, 36px) clamp(24px, 3vw, 48px);
-    color: #fff; backdrop-filter: blur(6px); align-self: center; }
-.q-media { max-width: min(500px, 50vw); max-height: 30vh; border-radius: 16px; margin-top: 20px; box-shadow: var(--glow-cyan); object-fit: contain; }
+#phase-question { position: absolute; top: 0; left: 0; right: 0; bottom: auto; height: 82vh;
+    padding: 130px 4vw 0; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; }
+.q-statement { flex-shrink: 0; max-height: 28vh; overflow: hidden;
+    font-size: clamp(1.4rem, 2.8vw, 2.4rem); font-weight: 700; text-align: center; line-height: 1.4;
+    width: 88%; margin: 0 auto;
+    padding: clamp(16px, 2vh, 28px) clamp(20px, 3vw, 40px);
+    background: rgba(0,0,0,.60); border-radius: 16px; color: #fff; backdrop-filter: blur(6px); }
+.q-media { max-width: min(500px, 50vw); max-height: 20vh; border-radius: 16px; margin: 10px auto 0; box-shadow: var(--glow-cyan); object-fit: contain; flex-shrink: 0; }
 
-/* Options grid for multirespuesta */
-.q-options { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(8px, 1.5vh, 20px); margin-top: auto; max-width: 1000px; width: 85%; align-self: center; padding-bottom: 2vh; }
-.q-opt { background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.15); border-radius: 16px; padding: clamp(10px, 1.5vh, 24px) clamp(14px, 1.5vw, 32px);
-    font-size: clamp(16px, 2vw, 28px); font-weight: 600; display: flex; align-items: center; gap: 16px; transition: all 1s ease-in-out;
-    color: #fff; backdrop-filter: blur(6px); }
-.q-opt .opt-letter { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.1); display: flex;
-    align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: var(--cyan); flex-shrink: 0; }
+/* Options grid for multirespuesta — 2×2, fills remaining space */
+.q-options { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+    gap: clamp(10px, 1.5vh, 20px); padding: clamp(10px, 2vh, 24px) 0;
+    width: 88%; margin: 0 auto; }
+.q-opt { height: 100%; min-height: 56px; display: flex; align-items: center; gap: 16px;
+    font-size: clamp(1rem, 1.9vw, 1.7rem); font-weight: 600; line-height: 1.3; overflow: hidden;
+    padding: clamp(8px, 1.2vh, 16px) clamp(12px, 2vw, 24px);
+    background: rgba(0,0,0,.60); border: 2px solid rgba(255,255,255,.15); border-radius: 16px;
+    color: #fff; backdrop-filter: blur(6px); transition: all 1s ease-in-out; }
+.q-opt .opt-letter { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.1); display: flex;
+    align-items: center; justify-content: center; font-size: 18px; font-weight: 800; color: var(--cyan); flex-shrink: 0; }
 
 /* Buzzer queue */
 .buzzer-queue { margin-top: 40px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap; justify-content: center; }
@@ -88,22 +95,30 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; flex-shrink: 0; }
 
 /* ═══════════════ ANSWER REVEALED ═══════════════ */
-#phase-revealed { padding: 140px clamp(20px, 4vw, 60px) clamp(20px, 3vh, 40px); justify-content: flex-start; background: transparent; }
-.revealed-label { font-size: 28px; font-weight: 700; text-transform: uppercase; letter-spacing: 4px;
-    color: var(--green); margin-bottom: 20px; text-shadow: 0 0 20px rgba(34,197,94,.4); }
-.revealed-answer { font-size: clamp(28px, 4vw, 52px); font-weight: 800; text-align: center; max-width: 90%;
-    background: rgba(0,0,0,.6); border-radius: 16px; padding: clamp(16px, 2vh, 28px) clamp(20px, 3vw, 40px);
-    color: var(--green); backdrop-filter: blur(6px);
+#phase-revealed { position: absolute; top: 0; left: 0; right: 0; bottom: auto; height: 82vh;
+    padding: 130px 4vw 0; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; background: transparent; }
+.revealed-label { font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 4px;
+    color: var(--green); text-shadow: 0 0 20px rgba(34,197,94,.4); flex-shrink: 0; text-align: center; margin-bottom: 8px; }
+.revealed-answer { flex-shrink: 0; max-height: 28vh; overflow: hidden;
+    font-size: clamp(1.4rem, 2.8vw, 2.4rem); font-weight: 800; text-align: center; line-height: 1.4;
+    width: 88%; margin: 0 auto;
+    padding: clamp(16px, 2vh, 28px) clamp(20px, 3vw, 40px);
+    background: rgba(0,0,0,.60); border-radius: 16px; color: var(--green); backdrop-filter: blur(6px);
     animation: reveal-pop .6s cubic-bezier(.34,1.56,.64,1); }
 @keyframes reveal-pop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
 
-/* Options with correct/wrong highlighting */
-.revealed-options { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(8px, 1.5vh, 20px); margin-top: auto; max-width: 1000px; width: 85%; align-self: center; padding-bottom: 2vh; }
-.rev-opt { border-radius: 16px; padding: clamp(10px, 1.5vh, 24px) clamp(14px, 1.5vw, 32px); font-size: clamp(16px, 2vw, 28px); font-weight: 600; display: flex;
-    align-items: center; gap: 16px; background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.15); transition: all 1s ease-in-out; color: #fff; backdrop-filter: blur(6px); }
+/* Options with correct/wrong highlighting — same 2×2 layout */
+.revealed-options { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+    gap: clamp(10px, 1.5vh, 20px); padding: clamp(10px, 2vh, 24px) 0;
+    width: 88%; margin: 0 auto; }
+.rev-opt { height: 100%; min-height: 56px; display: flex; align-items: center; gap: 16px;
+    font-size: clamp(1rem, 1.9vw, 1.7rem); font-weight: 600; line-height: 1.3; overflow: hidden;
+    padding: clamp(8px, 1.2vh, 16px) clamp(12px, 2vw, 24px);
+    background: rgba(0,0,0,.60); border: 2px solid rgba(255,255,255,.15); border-radius: 16px;
+    color: #fff; backdrop-filter: blur(6px); transition: all 1s ease-in-out; }
 .rev-opt.correct { border-color: var(--green); background: rgba(34,197,94,.25); }
-.rev-opt .opt-letter { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.1); display: flex;
-    align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: var(--cyan); flex-shrink: 0; }
+.rev-opt .opt-letter { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.1); display: flex;
+    align-items: center; justify-content: center; font-size: 18px; font-weight: 800; color: var(--cyan); flex-shrink: 0; }
 .rev-opt.correct .opt-letter { background: var(--green); color: #fff; }
 
 /* ═══════════════ SCOREBOARD (full-phase + overlay) ═══════════════ */
