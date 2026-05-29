@@ -212,7 +212,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 /* ═══════════════ MENU GRID (HOME/CATEGORY) ═══════════════ */
 .screen-menu { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 40px; transition: opacity .5s ease; }
 .screen-menu.fade-out { opacity: 0; }
-.screen-menu-logo { max-height: 180px; max-width: 400px; object-fit: contain; margin-bottom: 30px; filter: drop-shadow(0 4px 20px rgba(0,0,0,.6)); }
+.screen-menu-logo { max-height: 240px; max-width: 540px; object-fit: contain; margin-bottom: 36px; filter: drop-shadow(0 4px 20px rgba(0,0,0,.6)); }
 .screen-menu-grid { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 40px; max-width: 1000px; }
 .screen-menu-item { background: none; border: none;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center;
@@ -229,17 +229,34 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .screen-menu-item:nth-child(4) { animation-delay: .2s; }
 .screen-menu-item:nth-child(5) { animation-delay: .25s; }
 .screen-menu-item:nth-child(6) { animation-delay: .3s; }
-/* Category logos: 140px */
-.screen-menu-grid.menu-categories .screen-menu-item img { max-height: 140px; }
-/* Round logos: 110px */
-.screen-menu-grid.menu-rounds .screen-menu-item img { max-height: 110px; }
-/* Adaptive widths */
-.screen-menu-grid[data-count="1"] .screen-menu-item { width: 280px; }
-.screen-menu-grid[data-count="2"] .screen-menu-item { width: 260px; }
-.screen-menu-grid[data-count="3"] .screen-menu-item { width: 220px; }
+/* Category logos: scale by count */
+.screen-menu-grid.menu-categories[data-count="1"] .screen-menu-item img { max-height: 260px; }
+.screen-menu-grid.menu-categories[data-count="2"] .screen-menu-item img { max-height: 220px; }
+.screen-menu-grid.menu-categories[data-count="3"] .screen-menu-item img { max-height: 190px; }
+.screen-menu-grid.menu-categories[data-count="4"] .screen-menu-item img { max-height: 160px; }
+.screen-menu-grid.menu-categories[data-count="5"] .screen-menu-item img,
+.screen-menu-grid.menu-categories[data-count="6"] .screen-menu-item img { max-height: 130px; }
+/* Round logos: scale by count */
+.screen-menu-grid.menu-rounds[data-count="1"] .screen-menu-item img { max-height: 200px; }
+.screen-menu-grid.menu-rounds[data-count="2"] .screen-menu-item img { max-height: 170px; }
+.screen-menu-grid.menu-rounds[data-count="3"] .screen-menu-item img { max-height: 140px; }
+.screen-menu-grid.menu-rounds[data-count="4"] .screen-menu-item img { max-height: 120px; }
+.screen-menu-grid.menu-rounds[data-count="5"] .screen-menu-item img,
+.screen-menu-grid.menu-rounds[data-count="6"] .screen-menu-item img { max-height: 100px; }
+/* Adaptive widths by count */
+.screen-menu-grid[data-count="1"] .screen-menu-item { width: 320px; }
+.screen-menu-grid[data-count="2"] .screen-menu-item { width: 280px; }
+.screen-menu-grid[data-count="3"] .screen-menu-item { width: 240px; }
 .screen-menu-grid[data-count="4"] .screen-menu-item { width: 220px; }
 .screen-menu-grid[data-count="5"] .screen-menu-item,
 .screen-menu-grid[data-count="6"] .screen-menu-item { width: 180px; }
+/* Adaptive gap by count */
+.screen-menu-grid[data-count="1"],
+.screen-menu-grid[data-count="2"] { gap: 60px; }
+.screen-menu-grid[data-count="3"] { gap: 50px; }
+.screen-menu-grid[data-count="4"] { gap: 40px; }
+.screen-menu-grid[data-count="5"],
+.screen-menu-grid[data-count="6"] { gap: 30px; }
 
 /* ═══════════════ CONNECTION STATUS ═══════════════ */
 .conn-dot { position: fixed; bottom: 12px; right: 12px; width: 14px; height: 14px; border-radius: 50%;
@@ -250,13 +267,14 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 /* Fullscreen button */
 .fs-btn { position: fixed; bottom: 16px; right: 16px; z-index: 200; width: 48px; height: 48px; border-radius: 50%; background: rgba(18,18,42,.7); border: 1px solid var(--border); color: var(--text2); font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); transition: .2s; }
 .fs-btn:hover { color: var(--cyan); border-color: var(--cyan); }
+.fs-btn.hidden { display: none; }
 
 /* ═══════════════ GAME LOGO ═══════════════ */
 .game-logo { max-height: 120px; max-width: 300px; object-fit: contain; margin-bottom: 20px; filter: drop-shadow(0 0 20px rgba(0,0,0,.5)); }
 .round-logo { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); min-height: 120px; max-height: 140px; max-width: 400px; object-fit: contain; z-index: 52; filter: drop-shadow(0 0 10px rgba(0,0,0,.5)); }
 
 /* ═══════════════ ANIMATED BACKGROUNDS ═══════════════ */
-.bg-layer { position: fixed; inset: 0; z-index: 0; pointer-events: none; transition: opacity .5s ease; }
+.bg-layer { position: fixed; inset: 0; z-index: 0; pointer-events: none; transition: background-image .6s ease, background-color .6s ease, opacity .5s ease; }
 .bg-gradient-anim { animation: bgShift 12s ease-in-out infinite; background-size: 300% 300%; }
 @keyframes bgShift {
     0% { background-position: 0% 50%; }
@@ -1122,12 +1140,9 @@ function renderScreenHomeMenu() {
         document.getElementById('phase-lobby').appendChild(container);
     }
     container.style.display = '';
-
-    // Fade transition
-    var doFade = _screenMenuLevel !== null && _screenMenuLevel !== 'home';
     _screenMenuLevel = 'home';
 
-    var html = '<div class="screen-menu' + (doFade ? ' fade-out' : '') + '">';
+    var html = '<div class="screen-menu fade-out">';
     if (gt.logo) html += '<img class="screen-menu-logo" src="' + esc(gt.logo) + '" onerror="this.style.display=\'none\'">';
     html += '<div class="screen-menu-grid menu-categories" data-count="' + Math.min(catKeys.length, 6) + '">';
     catKeys.forEach(function(type) {
@@ -1142,12 +1157,10 @@ function renderScreenHomeMenu() {
     html += '</div></div>';
     container.innerHTML = html;
 
-    if (doFade) {
-        requestAnimationFrame(function() {
-            var menu = container.querySelector('.screen-menu');
-            if (menu) menu.classList.remove('fade-out');
-        });
-    }
+    requestAnimationFrame(function() {
+        var menu = container.querySelector('.screen-menu');
+        if (menu) menu.classList.remove('fade-out');
+    });
 }
 
 function renderScreenCategoryMenu() {
@@ -1176,11 +1189,9 @@ function renderScreenCategoryMenu() {
     }
     container.style.display = '';
 
-    // Fade transition
-    var doFade = _screenMenuLevel !== null && _screenMenuLevel !== 'category';
     _screenMenuLevel = 'category';
 
-    var html = '<div class="screen-menu' + (doFade ? ' fade-out' : '') + '">';
+    var html = '<div class="screen-menu fade-out">';
     if (typeLogo) html += '<img class="screen-menu-logo" src="' + esc(typeLogo) + '" onerror="this.style.display=\'none\'">';
     html += '<div class="screen-menu-grid menu-rounds" data-count="' + Math.min(rounds.length, 6) + '">';
     rounds.forEach(function(r) {
@@ -1196,13 +1207,21 @@ function renderScreenCategoryMenu() {
     html += '</div></div>';
     container.innerHTML = html;
 
-    if (doFade) {
-        requestAnimationFrame(function() {
-            var menu = container.querySelector('.screen-menu');
-            if (menu) menu.classList.remove('fade-out');
-        });
+    requestAnimationFrame(function() {
+        var menu = container.querySelector('.screen-menu');
+        if (menu) menu.classList.remove('fade-out');
     }
 }
+
+// ═══════════════ FULLSCREEN VISIBILITY ═══════════════
+document.addEventListener('fullscreenchange', function() {
+    var btn = document.getElementById('fsBtn');
+    if (document.fullscreenElement) {
+        btn.classList.add('hidden');
+    } else {
+        btn.classList.remove('hidden');
+    }
+});
 
 window.toggleFullscreen = toggleFullscreen;
 connect();
