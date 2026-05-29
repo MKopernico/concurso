@@ -148,7 +148,7 @@ input:focus { border-color: var(--accent); }
 @keyframes round-end-in { 0% { opacity: 0; transform: scale(.6); } 100% { opacity: 1; transform: scale(1); } }
 
 /* ── Pre-countdown dark overlay ── */
-.player-pre-overlay { position: fixed; inset: 0; z-index: 84; background: rgba(0,0,0,.80); pointer-events: none;
+.player-pre-overlay { position: fixed; inset: 0; z-index: 84; background: rgba(0,0,0,.75); pointer-events: none;
     opacity: 0; transition: opacity .6s ease; }
 .player-pre-overlay.active { opacity: 1; }
 
@@ -813,15 +813,8 @@ function renderGamePhase() {
         timerBar.style.display = 'flex';
         if (type === 'multirespuesta') {
             renderMulti(); document.getElementById('gp-multi').classList.add('active');
-            var submitBtn = document.getElementById('submitMultiBtn');
-            if (S.submitted) {
-                submitBtn.style.display = 'none';
-            } else if (ps.optionsRevealed) {
-                submitBtn.style.display = 'block';
-                var duringPreCount = !!(ps.preCountdown && ps.preCountdown > 0);
-                submitBtn.style.opacity = duringPreCount ? '0.5' : '1';
-                submitBtn.style.pointerEvents = duringPreCount ? 'none' : 'auto';
-            }
+            // Submit button always hidden — tapping an option auto-submits
+            document.getElementById('submitMultiBtn').style.display = 'none';
         } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen' || type === 'imagen_fija' || type === 'ruleta') {
             renderBuzzer(); document.getElementById('gp-buzzer').classList.add('active');
         } else if (type === 'precio') {
@@ -877,7 +870,18 @@ function renderMulti() {
         }
     }
 }
-function toggleOption(idx) { if (S.submitted) return; if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return; var pos = S.selectedOptions.indexOf(idx); if (pos >= 0) S.selectedOptions.splice(pos, 1); else S.selectedOptions.push(idx); renderMulti(); }
+function toggleOption(idx) {
+    if (S.submitted) return;
+    if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return;
+    // Single-tap: select this option and submit immediately
+    S.selectedOptions = [idx];
+    emit('player:submit_answer', { answer: idx });
+    S.submitted = true;
+    var sb = document.getElementById('submitMultiBtn');
+    if (sb) { sb.style.display = 'none'; }
+    document.getElementById('multiSubmitted').style.display = 'block';
+    renderMulti();
+}
 function submitMulti() {
     if (S.submitted || !S.selectedOptions.length) return;
     if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return;

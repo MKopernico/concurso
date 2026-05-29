@@ -589,13 +589,8 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         timerBig.style.display = 'none';
     }
 
-    // Dark overlay: show ONLY during pre-countdown (5,4,3,2,1 before question starts)
-    var timerOverlay = document.getElementById('timerOverlay');
-    if (phase === 'question' && ps.preCountdown && ps.preCountdown > 0) {
-        timerOverlay.classList.add('active');
-    } else {
-        timerOverlay.classList.remove('active');
-    }
+    // No overlay on /screen — projector always shows clean view
+    document.getElementById('timerOverlay').classList.remove('active');
 }
 
 // ═══════════════ ROUND INTRO ═══════════════
@@ -793,22 +788,10 @@ function renderTimer() {
 }
 
 // ═══════════════ PRE-COUNTDOWN ═══════════════
+// /screen (projector) does NOT show pre-countdown — only /play (iPad) shows it
 var _lastPreCount = 0;
 function renderPreCountdown() {
-    var el = document.getElementById('preCountdown');
-    if (!ps || !ps.preCountdown || ps.preCountdown <= 0) {
-        el.classList.remove('active');
-        _lastPreCount = 0;
-        return;
-    }
-    var count = ps.preCountdown;
-    if (count !== _lastPreCount) {
-        el.textContent = count;
-        el.classList.remove('active');
-        void el.offsetWidth; // force reflow
-        el.classList.add('active');
-    }
-    _lastPreCount = count;
+    // No-op on screen: projector shows question + options clean, no overlay, no countdown
 }
 
 // ═══════════════ ANSWER REVEALED ═══════════════
