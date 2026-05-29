@@ -139,6 +139,11 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 #phase-waiting { align-items: center; justify-content: center; text-align: center; gap: 16px; }
 #phase-waiting h2 { font-size: 28px; color: var(--text2); }
 
+/* Round End */
+#phase-round_end { align-items: center; justify-content: center; text-align: center; gap: 24px; }
+#phase-round_end h2 { font-size: 28px; background: linear-gradient(135deg, var(--accent), var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+#phase-round_end p { color: var(--text2); font-size: 15px; }
+
 /* Control bar */
 .control-bar { background: var(--surface); border-top: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; flex-wrap: wrap; }
 .control-section { display: flex; align-items: center; gap: 8px; }
@@ -355,6 +360,15 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             </div>
         </div>
 
+        <!-- Phase: Round End -->
+        <div class="phase" id="phase-round_end">
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;flex:1;text-align:center;">
+                <h2>&#127881; ¡Fin de la ronda!</h2>
+                <p id="dirRoundEndName"></p>
+                <button class="btn-accent btn-lg" onclick="emit('director:go_home')">&#127968; Ir al menú</button>
+            </div>
+        </div>
+
         <!-- Phase: Waiting -->
         <div class="phase" id="phase-waiting">
             <h2>&#9208; Pantalla de espera</h2>
@@ -547,6 +561,7 @@ function render() {
     else if (phase === 'round_intro') renderRoundIntro();
     else if (phase === 'question') renderQuestion();
     else if (phase === 'answer_revealed') renderAnswerRevealed();
+    else if (phase === 'round_end') renderRoundEnd();
 
     _prevPhase = phase;
     _prevQIdx = ds.currentQuestionIdx;
@@ -796,6 +811,14 @@ function renderRoundIntro() {
     var logo = rc.logo || typeTheme.logo || gt.logo || null;
     if (logo) { logoImg.src = logo; logoEl.style.display = ''; }
     else { logoEl.style.display = 'none'; }
+}
+
+// ── Round End ──
+function renderRoundEnd() {
+    var ds = S.director; if (!ds) return;
+    setPhase('round_end');
+    var name = ds.currentRound ? ds.currentRound.name : '';
+    document.getElementById('dirRoundEndName').textContent = name;
 }
 
 function parseJson(str) { try { return JSON.parse(str); } catch { return {}; } }

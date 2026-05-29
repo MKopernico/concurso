@@ -1015,6 +1015,16 @@ function attachSocketHandlers(io) {
                 ds.completedRounds.push(ds.currentRoundId);
             }
             stopTimer(state, gameId, io);
+            ds.optionsRevealed = false;
+            ds.lastQuestionScores = {};
+            ds.showTeamResults = false;
+            ds.scoreboardVisible = false;
+            ds.phase = 'round_end';
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:go_home', () => {
+            const ds = state.director;
             ds.currentRoundId = null;
             ds.currentRound = null;
             ds.questions = [];
@@ -1022,13 +1032,9 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.optionsRevealed = false;
-            ds.lastQuestionScores = {};
-            ds.showTeamResults = false;
             ds.phase = 'lobby';
             ds.menuLevel = 'home';
             ds.selectedCategory = null;
-            ds.scoreboardVisible = false;
             broadcastDirector(io, gameId, state);
         });
 

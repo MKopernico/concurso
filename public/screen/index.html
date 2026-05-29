@@ -111,11 +111,13 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .sb-title { font-size: 42px; font-weight: 800; text-transform: uppercase; letter-spacing: 4px;
     color: var(--gold); margin-bottom: 40px; text-shadow: var(--glow-gold); }
 .sb-table { width: 100%; max-width: 900px; }
-.sb-row { display: flex; align-items: center; padding: 16px 24px; border-radius: 12px; margin-bottom: 12px;
-    background: var(--surface); border: 1px solid var(--border); transition: all .4s ease;
-    animation: sb-slide-in .5s ease backwards; }
-.sb-row:nth-child(1) { background: linear-gradient(135deg, rgba(251,191,36,.15), rgba(251,191,36,.05));
-    border-color: var(--gold); box-shadow: var(--glow-gold); }
+.sb-row { display: flex; align-items: center; padding: 16px 24px; border-radius: 14px; margin-bottom: 14px;
+    background: rgba(18,18,42,.85); border: 1px solid rgba(255,255,255,.06); transition: all .4s ease;
+    animation: sb-slide-in .5s ease backwards; backdrop-filter: blur(8px);
+    box-shadow: 0 0 12px 3px rgba(0,212,255,.15), 0 0 24px 6px rgba(0,212,255,.06); }
+.sb-row:nth-child(1) { background: linear-gradient(135deg, rgba(251,191,36,.18), rgba(251,191,36,.06));
+    border-color: rgba(251,191,36,.2);
+    box-shadow: 0 0 15px 4px rgba(255,200,0,.4), 0 0 30px 8px rgba(0,212,255,.15); }
 .sb-row:nth-child(1) .sb-pos { background: var(--gold); color: var(--bg); }
 .sb-row:nth-child(2) { animation-delay: .1s; }
 .sb-row:nth-child(3) { animation-delay: .2s; }
@@ -138,6 +140,21 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 /* ═══════════════ WAITING ═══════════════ */
 #phase-waiting { background: transparent; }
 #phase-waiting .gs-waiting-logo { max-height: 180px; max-width: 400px; object-fit: contain; filter: drop-shadow(0 0 30px rgba(0,0,0,.5)); }
+
+/* ═══════════════ TIMER DARK OVERLAY ═══════════════ */
+.timer-overlay { position: fixed; inset: 0; z-index: 3; background: rgba(0,0,0,.45); pointer-events: none;
+    opacity: 0; transition: opacity .6s ease; }
+.timer-overlay.active { opacity: 1; }
+
+/* ═══════════════ ROUND END ═══════════════ */
+#phase-round-end { background: transparent; }
+.round-end-content { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+    animation: round-end-in .8s cubic-bezier(.34,1.56,.64,1); }
+.round-end-title { font-size: clamp(40px, 6vw, 80px); font-weight: 800; text-align: center;
+    background: linear-gradient(135deg, var(--cyan), var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 30px rgba(0,212,255,.4)); }
+.round-end-sub { font-size: clamp(20px, 3vw, 36px); color: var(--text2); text-align: center; }
+@keyframes round-end-in { 0% { opacity: 0; transform: scale(.6); } 100% { opacity: 1; transform: scale(1); } }
 
 /* ═══════════════ PRE-COUNTDOWN ═══════════════ */
 .pre-countdown { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 55;
@@ -374,6 +391,17 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
         <img class="gs-waiting-logo" id="waitingLogo" style="display:none">
     </div>
 
+    <!-- ROUND END -->
+    <div class="phase" id="phase-round-end">
+        <div class="round-end-content">
+            <div class="round-end-title">¡Fin de la ronda!</div>
+            <div class="round-end-sub" id="roundEndName"></div>
+        </div>
+    </div>
+
+    <!-- Timer dark overlay -->
+    <div class="timer-overlay" id="timerOverlay"></div>
+
     <!-- Pre-countdown overlay -->
     <div class="pre-countdown" id="preCountdown"></div>
 
@@ -553,10 +581,24 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         timerStrip.style.display = '';
         timerBig.style.display = '';
         renderQuestion(type, newQuestion, optionsJustRevealed);
+    } else if (phase === 'round_end') {
+        showPhase('round-end');
+        timerStrip.style.display = 'none';
+        timerBig.style.display = 'none';
+        document.getElementById('roundLogo').style.display = 'none';
+        document.getElementById('roundEndName').textContent = ps.roundName || '';
     } else {
         showPhase('waiting');
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
+    }
+
+    // Timer overlay: show during question phase when timer is running
+    var timerOverlay = document.getElementById('timerOverlay');
+    if (phase === 'question' && ps.timer && ps.timer.running) {
+        timerOverlay.classList.add('active');
+    } else {
+        timerOverlay.classList.remove('active');
     }
 }
 
