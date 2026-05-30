@@ -52,7 +52,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 
 /* ═══════════════ QUESTION PHASE ═══════════════ */
 #phase-question { position: absolute; top: 0; left: 0; right: 0; bottom: auto; height: 82vh;
-    padding: 130px 4vw 0; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; }
+    padding: 130px 4vw 0; display: flex; flex-direction: column; justify-content: center; gap: clamp(10px, 2vh, 24px); box-sizing: border-box; }
 .q-statement { flex-shrink: 0; max-height: 28vh; overflow: hidden;
     font-size: clamp(1.4rem, 2.8vw, 2.4rem); font-weight: 700; text-align: center; line-height: 1.4;
     width: 88%; margin: 0 auto;
@@ -61,12 +61,12 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .q-media { max-width: min(500px, 50vw); max-height: 20vh; border-radius: 16px; margin: 10px auto 0; box-shadow: var(--glow-cyan); object-fit: contain; flex-shrink: 0; }
 
 /* Options grid for multirespuesta — 2×2, fills remaining space */
-.q-options { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+.q-options { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto;
     gap: clamp(10px, 1.5vh, 20px); padding: clamp(10px, 2vh, 24px) 0;
-    width: 88%; margin: 0 auto; }
-.q-opt { height: 100%; min-height: 56px; display: flex; align-items: center; gap: 16px;
-    font-size: clamp(1rem, 1.9vw, 1.7rem); font-weight: 600; line-height: 1.3; overflow: hidden;
-    padding: clamp(8px, 1.2vh, 16px) clamp(12px, 2vw, 24px);
+    width: 88%; margin: 0 auto; align-content: center; }
+.q-opt { height: auto; min-height: 56px; display: flex; align-items: center; gap: 16px;
+    font-size: clamp(1.1rem, 2vw, 1.9rem); font-weight: 600; line-height: 1.3; overflow: hidden;
+    padding: clamp(14px, 2vh, 28px) clamp(16px, 2vw, 32px);
     background: rgba(0,0,0,.60); border: 2px solid rgba(255,255,255,.15); border-radius: 16px;
     color: #fff; backdrop-filter: blur(6px); transition: all 1s ease-in-out; }
 .q-opt .opt-letter { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.1); display: flex;
@@ -184,7 +184,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .notif.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* ═══════════════ SCOREBOARD MINI (overlay during question) ═══════════════ */
-.mini-scores { position: absolute; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center;
+.mini-scores { position: fixed; bottom: 22vh; left: 50%; transform: translateX(-50%); display: flex; justify-content: center;
     gap: 16px; z-index: 40; flex-wrap: wrap; padding: 0 20px; }
 .mini-chip { background: rgba(18,18,42,.85); border: 1px solid var(--border); border-radius: 20px;
     padding: 6px 16px; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px;
