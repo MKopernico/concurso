@@ -87,6 +87,7 @@ input:focus { border-color: var(--accent); }
 .option-btn .opt-letter { color: var(--accent); margin-right: 10px; font-weight: 800; }
 .q-bottom { padding: 12px 20px; flex-shrink: 0; display: flex; gap: 10px; align-items: center; }
 #submitMultiBtn { flex-shrink: 0; }
+@keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
 .q-timer { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .q-timer.danger { color: var(--danger); }
 .q-timer.running { color: var(--success); }
@@ -813,8 +814,11 @@ function renderGamePhase() {
         timerBar.style.display = 'flex';
         if (type === 'multirespuesta') {
             renderMulti(); document.getElementById('gp-multi').classList.add('active');
-            // Submit button always hidden — tapping an option auto-submits
-            document.getElementById('submitMultiBtn').style.display = 'none';
+            // Show submit button (disabled during precountdown, enabled after)
+            var _sb = document.getElementById('submitMultiBtn');
+            _sb.style.display = 'block';
+            var _pre = !!(S.ps && S.ps.preCountdown && S.ps.preCountdown > 0);
+            _sb.disabled = _pre || S.submitted;
         } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen' || type === 'imagen_fija' || type === 'ruleta') {
             renderBuzzer(); document.getElementById('gp-buzzer').classList.add('active');
         } else if (type === 'precio') {
@@ -851,8 +855,10 @@ function renderMulti() {
         optDiv.innerHTML = '';
         return;
     }
-    if (S.submitted) return;
+    var sb = document.getElementById('submitMultiBtn');
+    if (S.submitted) { if (sb) sb.disabled = true; return; }
     var duringPre = !!(ps.preCountdown && ps.preCountdown > 0);
+    if (sb) sb.disabled = duringPre;
     var letters = 'ABCDEFGHIJKLMNOP';
     optDiv.innerHTML = c.options.map(function(o, i) {
         var sel = S.selectedOptions.indexOf(i) >= 0;
@@ -873,22 +879,28 @@ function renderMulti() {
 function toggleOption(idx) {
     if (S.submitted) return;
     if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return;
-    // Single-tap: select this option and submit immediately
+    // Select visually — do NOT submit yet (user must press Enviar)
     S.selectedOptions = [idx];
-    emit('player:submit_answer', { answer: idx });
-    S.submitted = true;
-    var sb = document.getElementById('submitMultiBtn');
-    if (sb) { sb.style.display = 'none'; }
-    document.getElementById('multiSubmitted').style.display = 'block';
-    renderMulti();
+    // Update visual selection without full re-render (avoids animation re-trigger)
+    var btns = document.querySelectorAll('#multiOptions .option-btn');
+    btns.forEach(function(b, i) { b.classList.toggle('selected', i === idx); });
 }
 function submitMulti() {
-    if (S.submitted || !S.selectedOptions.length) return;
+    if (S.submitted) return;
     if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return;
+    if (!S.selectedOptions.length) {
+        // No option selected — shake the button as feedback
+        var sb = document.getElementById('submitMultiBtn');
+        sb.style.animation = 'none'; sb.offsetHeight; // reflow
+        sb.style.animation = 'shake .4s ease';
+        return;
+    }
     emit('player:submit_answer', { answer: S.selectedOptions.length === 1 ? S.selectedOptions[0] : S.selectedOptions });
     S.submitted = true;
     var sb = document.getElementById('submitMultiBtn');
-    sb.style.display = 'none'; sb.style.opacity = '1'; sb.style.pointerEvents = 'auto';
+    sb.disabled = true;
+    // Disable all option buttons
+    document.querySelectorAll('#multiOptions .option-btn').forEach(function(b) { b.disabled = true; });
     document.getElementById('multiSubmitted').style.display = 'block';
 }
 
