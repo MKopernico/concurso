@@ -51,11 +51,13 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .round-label { display: none; }
 
 /* ═══════════════ QUESTION PHASE ═══════════════ */
-#phase-question { position: absolute; top: 0; left: 0; right: 0; bottom: auto; height: 82vh;
-    padding: 130px 4vw 0; display: flex; flex-direction: column; justify-content: flex-start; gap: clamp(10px, 2vh, 24px); box-sizing: border-box; }
+/* Three-zone layout: header (logo+timer ~12vh), content (flex:1 centered), footer margin (~5vh) */
+#phase-question { position: absolute; inset: 0; height: 100vh;
+    padding: clamp(100px, 14vh, 160px) clamp(1rem, 3vw, 3rem) clamp(3vh, 5vh, 6vh);
+    display: flex; flex-direction: column; justify-content: center; gap: clamp(10px, 2vh, 24px); box-sizing: border-box; }
 .q-statement { flex-shrink: 0; max-height: 28vh; overflow: hidden;
     font-size: clamp(1.4rem, 2.8vw, 2.4rem); font-weight: 700; text-align: center; line-height: 1.4;
-    width: 88%; margin: 0 auto;
+    width: 100%; margin: 0 auto;
     padding: clamp(16px, 2vh, 28px) clamp(20px, 3vw, 40px);
     background: rgba(0,0,0,.60); border-radius: 16px; color: #fff; backdrop-filter: blur(6px); }
 .q-media { max-width: min(500px, 50vw); max-height: 20vh; border-radius: 16px; margin: 10px auto 0; box-shadow: var(--glow-cyan); object-fit: contain; flex-shrink: 0; }
@@ -63,7 +65,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 /* Options grid for multirespuesta — 2×2, fills remaining space */
 .q-options { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto;
     gap: clamp(10px, 1.5vh, 20px); padding: clamp(10px, 2vh, 24px) 0;
-    width: 88%; margin: 0 auto; align-content: center; }
+    width: 100%; margin: 0 auto; align-content: center; }
 .q-opt { height: auto; min-height: 56px; display: flex; align-items: center; gap: 16px;
     font-size: clamp(1.1rem, 2vw, 1.9rem); font-weight: 600; line-height: 1.3; overflow: hidden;
     padding: clamp(14px, 2vh, 28px) clamp(16px, 2vw, 32px);
@@ -104,8 +106,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; flex-shrink: 0; }
 
 /* ═══════════════ ANSWER REVEALED ═══════════════ */
-#phase-revealed { position: absolute; top: 0; left: 0; right: 0; bottom: auto; height: 82vh;
-    padding: 130px 4vw 0; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; background: transparent; }
+#phase-revealed { position: absolute; inset: 0; height: 100vh;
+    padding: clamp(100px, 14vh, 160px) clamp(1rem, 3vw, 3rem) clamp(3vh, 5vh, 6vh);
+    display: flex; flex-direction: column; justify-content: center; gap: clamp(10px, 2vh, 24px); box-sizing: border-box; background: transparent; }
 .revealed-label { font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 4px;
     color: var(--green); text-shadow: 0 0 20px rgba(34,197,94,.4); flex-shrink: 0; text-align: center; margin-bottom: 8px; }
 .revealed-answer { flex-shrink: 0; max-height: 28vh; overflow: hidden;
