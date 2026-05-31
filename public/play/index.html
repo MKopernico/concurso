@@ -758,7 +758,13 @@ function renderPlayerPreCountdown(ps) {
 var lastQIdx = -1;
 function onPlayerSync(ps) {
     // Reset answer state on new question
-    if (ps.questionIdx !== lastQIdx) { S.selectedOptions = []; S.boomOrder = []; S.submitted = false; lastQIdx = ps.questionIdx; }
+    if (ps.questionIdx !== lastQIdx) {
+        S.selectedOptions = []; S.boomOrder = []; S.submitted = false; lastQIdx = ps.questionIdx;
+        if (_boomDragState.dragging) {
+            if (_boomIndicator && _boomIndicator.parentNode) _boomIndicator.parentNode.removeChild(_boomIndicator);
+            _boomDragState.dragging = false; _boomDragState.dragIdx = -1; _boomDragState.dropIdx = -1;
+        }
+    }
 
     S.ps = ps;
     S.submitted = S.myTeamId && ps.answeredTeams && ps.answeredTeams.indexOf(S.myTeamId) >= 0;
@@ -1021,11 +1027,15 @@ function boomRenderItems(list) {
     }).join('');
 }
 
-// Drag-to-reorder with drop indicator line
+var _boomDragState = { inited: false, dragging: false, dragIdx: -1, dropIdx: -1 };
+var _boomIndicator = null;
+
 function boomInitDrag(list) {
-    var dragIdx = -1;
-    var dropIdx = -1;
-    var indicator = null;
+    if (_boomDragState.inited) return;
+    _boomDragState.inited = true;
+
+    _boomIndicator = document.createElement('div');
+    _boomIndicator.className = 'boom-drop-indicator';
 
     function getDropIdx(y) {
         var items = list.querySelectorAll('.boom-item');
@@ -1037,29 +1047,37 @@ function boomInitDrag(list) {
     }
 
     function showIndicator(idx) {
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.className = 'boom-drop-indicator';
-        }
-        // Remove from current position
-        if (indicator.parentNode) indicator.parentNode.removeChild(indicator);
-        // Don't show indicator at drag origin or adjacent
-        if (idx === dragIdx || idx === dragIdx + 1) { dropIdx = -1; return; }
-        dropIdx = idx;
+        if (_boomIndicator.parentNode) _boomIndicator.parentNode.removeChild(_boomIndicator);
+        if (idx === _boomDragState.dragIdx || idx === _boomDragState.dragIdx + 1) { _boomDragState.dropIdx = -1; return; }
+        _boomDragState.dropIdx = idx;
         var items = list.querySelectorAll('.boom-item');
         if (idx < items.length) {
-            list.insertBefore(indicator, items[idx]);
+            list.insertBefore(_boomIndicator, items[idx]);
         } else {
-            list.appendChild(indicator);
+            list.appendChild(_boomIndicator);
         }
     }
 
+    function cleanupDrag() {
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        document.removeEventListener('mouseup', onEnd);
+        if (_boomIndicator.parentNode) _boomIndicator.parentNode.removeChild(_boomIndicator);
+        var dragging = list.querySelector('.boom-item.dragging');
+        if (dragging) dragging.classList.remove('dragging');
+        _boomDragState.dragging = false;
+        _boomDragState.dragIdx = -1;
+        _boomDragState.dropIdx = -1;
+    }
+
     function onStart(e) {
-        if (S.submitted) return;
+        if (S.submitted || _boomDragState.dragging) return;
         var el = e.target.closest('.boom-item');
         if (!el) return;
         e.preventDefault();
-        dragIdx = parseInt(el.dataset.idx);
+        _boomDragState.dragging = true;
+        _boomDragState.dragIdx = parseInt(el.dataset.idx);
         el.classList.add('dragging');
         document.addEventListener('touchmove', onMove, { passive: false });
         document.addEventListener('mousemove', onMove);
@@ -1068,30 +1086,23 @@ function boomInitDrag(list) {
     }
 
     function onMove(e) {
+        if (!_boomDragState.dragging) return;
         e.preventDefault();
         var y = (e.touches ? e.touches[0] : e).clientY;
         showIndicator(getDropIdx(y));
     }
 
     function onEnd() {
-        document.removeEventListener('touchmove', onMove);
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('touchend', onEnd);
-        document.removeEventListener('mouseup', onEnd);
-        // Remove indicator
-        if (indicator && indicator.parentNode) indicator.parentNode.removeChild(indicator);
-        // Perform the move
+        if (!_boomDragState.dragging) return;
+        var dragIdx = _boomDragState.dragIdx;
+        var dropIdx = _boomDragState.dropIdx;
+        cleanupDrag();
         if (dropIdx >= 0 && dropIdx !== dragIdx && dropIdx !== dragIdx + 1) {
             var target = dropIdx > dragIdx ? dropIdx - 1 : dropIdx;
             var moved = S.boomOrder.splice(dragIdx, 1)[0];
             S.boomOrder.splice(target, 0, moved);
         }
-        dragIdx = -1;
-        dropIdx = -1;
-        // Re-render with updated numbers
         boomRenderItems(list);
-        // Re-init drag on new elements
-        boomInitDrag(list);
     }
 
     list.addEventListener('touchstart', onStart, { passive: false });
