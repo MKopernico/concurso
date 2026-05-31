@@ -125,11 +125,12 @@ input:focus { border-color: var(--accent); }
     padding: 12px 16px; font-size: clamp(0.9rem, 2.5vh, 1.4rem); font-weight: 600; color: #fff;
     display: flex; align-items: center; gap: 12px; flex: 1; min-height: 0;
     backdrop-filter: blur(6px); transition: transform .15s, box-shadow .15s; touch-action: none; cursor: grab; user-select: none; }
-.boom-item.dragging { opacity: 0.5; box-shadow: 0 0 20px rgba(0,212,255,.4); }
+.boom-item.dragging { opacity: 0.3; }
 .boom-item .boom-grip { color: var(--text2); font-size: 18px; flex-shrink: 0; line-height: 1; }
 .boom-item .boom-num { color: var(--accent); font-weight: 800; width: 24px; text-align: center; flex-shrink: 0; }
+.boom-drop-indicator { height: 4px; background: var(--accent); border-radius: 2px; box-shadow: 0 0 10px rgba(0,212,255,.6); flex-shrink: 0; transition: opacity .1s; }
 #boomBtn { flex-shrink: 0; }
-.boom-item.submitted { opacity: .5; cursor: default; }
+.boom-item.submitted { opacity: .5; cursor: default; pointer-events: none; }
 
 .gp-scoreboard { padding: 20px; gap: 14px; }
 .gp-scoreboard h2 { font-size: 22px; color: var(--gold); text-align: center; }
@@ -831,11 +832,6 @@ function renderGamePhase() {
             renderPrecio(); document.getElementById('gp-precio').classList.add('active');
         } else if (type === 'boom') {
             renderBoom(); document.getElementById('gp-boom').classList.add('active');
-            // Show submit button (disabled during precountdown, enabled after)
-            var _bsb = document.getElementById('boomBtn');
-            _bsb.style.display = 'block';
-            var _bpre = !!(S.ps && S.ps.preCountdown && S.ps.preCountdown > 0);
-            _bsb.disabled = _bpre || S.submitted;
         } else {
             document.getElementById('gp-waiting').classList.add('active');
         }
@@ -990,7 +986,16 @@ function renderBoom() {
     document.getElementById('boomStatement').textContent = c.statement || '-';
     document.getElementById('boomSubmitted').style.display = S.submitted ? 'block' : 'none';
 
+    var list = document.getElementById('boomList');
     var sb = document.getElementById('boomBtn');
+
+    // Hide items until optionsRevealed (same as multirespuesta)
+    if (!ps.optionsRevealed || !c.items || !c.items.length) {
+        list.innerHTML = '';
+        sb.style.display = 'none';
+        return;
+    }
+    sb.style.display = 'block';
     if (S.submitted) { sb.disabled = true; return; }
     var duringPre = !!(ps.preCountdown && ps.preCountdown > 0);
     sb.disabled = duringPre;
@@ -1003,26 +1008,50 @@ function renderBoom() {
             var tmp = S.boomOrder[i]; S.boomOrder[i] = S.boomOrder[j]; S.boomOrder[j] = tmp;
         }
     }
-    var list = document.getElementById('boomList');
+    boomRenderItems(list);
+    if (!duringPre && !S.submitted) boomInitDrag(list);
+}
+
+function boomRenderItems(list) {
     list.innerHTML = S.boomOrder.map(function(item, i) {
-        return '<div class="boom-item" data-idx="' + i + '"' + (duringPre ? '' : '') + '>'
+        return '<div class="boom-item" data-idx="' + i + '">'
             + '<span class="boom-grip">⠿</span>'
             + '<span class="boom-num">' + (i + 1) + '</span>'
             + '<span>' + esc(item.text) + '</span></div>';
     }).join('');
-    if (!duringPre && !S.submitted) boomInitDrag(list);
 }
 
-// Lightweight touch/mouse drag-to-reorder
+// Drag-to-reorder with drop indicator line
 function boomInitDrag(list) {
-    var items, dragIdx, placeholder, startY, currentY;
+    var dragIdx = -1;
+    var dropIdx = -1;
+    var indicator = null;
 
-    function getItemAtY(y) {
+    function getDropIdx(y) {
+        var items = list.querySelectorAll('.boom-item');
         for (var i = 0; i < items.length; i++) {
             var r = items[i].getBoundingClientRect();
             if (y < r.top + r.height / 2) return i;
         }
         return items.length;
+    }
+
+    function showIndicator(idx) {
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.className = 'boom-drop-indicator';
+        }
+        // Remove from current position
+        if (indicator.parentNode) indicator.parentNode.removeChild(indicator);
+        // Don't show indicator at drag origin or adjacent
+        if (idx === dragIdx || idx === dragIdx + 1) { dropIdx = -1; return; }
+        dropIdx = idx;
+        var items = list.querySelectorAll('.boom-item');
+        if (idx < items.length) {
+            list.insertBefore(indicator, items[idx]);
+        } else {
+            list.appendChild(indicator);
+        }
     }
 
     function onStart(e) {
@@ -1032,8 +1061,6 @@ function boomInitDrag(list) {
         e.preventDefault();
         dragIdx = parseInt(el.dataset.idx);
         el.classList.add('dragging');
-        startY = (e.touches ? e.touches[0] : e).clientY;
-        items = Array.from(list.querySelectorAll('.boom-item'));
         document.addEventListener('touchmove', onMove, { passive: false });
         document.addEventListener('mousemove', onMove);
         document.addEventListener('touchend', onEnd);
@@ -1042,23 +1069,8 @@ function boomInitDrag(list) {
 
     function onMove(e) {
         e.preventDefault();
-        currentY = (e.touches ? e.touches[0] : e).clientY;
-        var overIdx = getItemAtY(currentY);
-        if (overIdx !== dragIdx && overIdx !== dragIdx + 1) {
-            var target = overIdx > dragIdx ? overIdx - 1 : overIdx;
-            // Swap in data
-            var moved = S.boomOrder.splice(dragIdx, 1)[0];
-            S.boomOrder.splice(target, 0, moved);
-            // Re-render items
-            list.innerHTML = S.boomOrder.map(function(item, i) {
-                return '<div class="boom-item' + (i === target ? ' dragging' : '') + '" data-idx="' + i + '">'
-                    + '<span class="boom-grip">⠿</span>'
-                    + '<span class="boom-num">' + (i + 1) + '</span>'
-                    + '<span>' + esc(item.text) + '</span></div>';
-            }).join('');
-            items = Array.from(list.querySelectorAll('.boom-item'));
-            dragIdx = target;
-        }
+        var y = (e.touches ? e.touches[0] : e).clientY;
+        showIndicator(getDropIdx(y));
     }
 
     function onEnd() {
@@ -1066,8 +1078,20 @@ function boomInitDrag(list) {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('touchend', onEnd);
         document.removeEventListener('mouseup', onEnd);
-        var dragging = list.querySelector('.dragging');
-        if (dragging) dragging.classList.remove('dragging');
+        // Remove indicator
+        if (indicator && indicator.parentNode) indicator.parentNode.removeChild(indicator);
+        // Perform the move
+        if (dropIdx >= 0 && dropIdx !== dragIdx && dropIdx !== dragIdx + 1) {
+            var target = dropIdx > dragIdx ? dropIdx - 1 : dropIdx;
+            var moved = S.boomOrder.splice(dragIdx, 1)[0];
+            S.boomOrder.splice(target, 0, moved);
+        }
+        dragIdx = -1;
+        dropIdx = -1;
+        // Re-render with updated numbers
+        boomRenderItems(list);
+        // Re-init drag on new elements
+        boomInitDrag(list);
     }
 
     list.addEventListener('touchstart', onStart, { passive: false });

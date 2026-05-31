@@ -751,8 +751,12 @@ function renderPriceAnswers() {
 
 function renderBoomItems(c) {
     var items = c.items || c.options || [];
-    if (items.length === 0) return;
     var container = document.getElementById('boomItems');
+    // Hide items until optionsRevealed (same as multirespuesta)
+    if (!items.length || (ps && !ps.optionsRevealed)) {
+        container.style.display = 'none';
+        return;
+    }
     container.style.display = 'flex';
     container.innerHTML = items.map(function(item, i) {
         return '<div class="boom-item"><span class="boom-num">' + (i + 1) + '</span>' + esc(item) + '</div>';
