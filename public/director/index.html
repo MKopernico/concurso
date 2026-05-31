@@ -902,10 +902,10 @@ function renderQuestion() {
         }).join('');
     }
 
-    // Show/hide "Abrir opciones" button for multirespuesta
+    // Show/hide "Abrir opciones" button for multirespuesta and boom
     var roundType = ds.currentRound ? ds.currentRound.type : '';
     var btnRevealOpts = document.getElementById('btnRevealOptions');
-    if (roundType === 'multirespuesta' && !ds.optionsRevealed) {
+    if ((roundType === 'multirespuesta' || roundType === 'boom') && !ds.optionsRevealed) {
         btnRevealOpts.style.display = '';
     } else {
         btnRevealOpts.style.display = 'none';
