@@ -985,11 +985,13 @@ function renderBuzzerStatus() {
     // Strip pulsador-specific classes
     btn.classList.remove('bz-closed', 'bz-open', 'bz-first', 'bz-other', 'bz-blocked');
 
+    if (isPulsadorType) status.style.display = 'none';
+    else status.style.display = '';
+
     if (isPulsadorType && isBlocked) {
         btn.disabled = true;
         btn.classList.add('bz-blocked');
         btn.textContent = '❄';
-        status.className = 'buzz-status'; status.textContent = 'Bloqueado';
     } else if (hasBuzzed) {
         btn.disabled = true;
         if (isPulsadorType) {
@@ -1000,8 +1002,6 @@ function renderBuzzerStatus() {
                 btn.classList.add('bz-other');
                 btn.textContent = myPos + 'º';
             }
-            status.className = 'buzz-status buzzed';
-            status.textContent = 'Has pulsado — posición ' + myPos + 'º';
         } else {
             btn.textContent = 'PULSAR';
             status.className = 'buzz-status buzzed'; status.textContent = 'Has pulsado';
@@ -1010,12 +1010,12 @@ function renderBuzzerStatus() {
         btn.disabled = false;
         btn.textContent = 'PULSAR';
         if (isPulsadorType) btn.classList.add('bz-open');
-        status.className = 'buzz-status'; status.textContent = 'Pulsador abierto';
+        else { status.className = 'buzz-status'; status.textContent = 'Pulsador abierto'; }
     } else {
         btn.disabled = true;
         btn.textContent = 'PULSAR';
         if (isPulsadorType) btn.classList.add('bz-closed');
-        status.className = 'buzz-status'; status.textContent = 'Esperando apertura...';
+        else { status.className = 'buzz-status'; status.textContent = 'Esperando apertura...'; }
     }
 }
 function doBuzz() { emit('pulsar_boton'); }
