@@ -308,9 +308,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .screen-menu-grid[data-count="6"] { gap: 30px; }
 
 /* ═══════════════ PULSADOR SCREEN ═══════════════ */
-.pulsador-screen-status { font-size: clamp(2rem, 5vw, 4rem); font-weight: 800; text-transform: uppercase; letter-spacing: 4px; text-align: center; padding: 20px 40px; border-radius: 20px; }
-.pulsador-screen-status.ps-open { color: var(--green); text-shadow: 0 0 30px rgba(34,197,94,.5); }
-.pulsador-screen-status.ps-closed { color: var(--text2); opacity: .6; }
+.pulsador-screen-status { font-size: clamp(2rem, 5vw, 4rem); font-weight: 800; text-transform: uppercase; letter-spacing: 4px; text-align: center; padding: 20px 60px; border-radius: 20px; }
+.pulsador-screen-status.ps-open { color: #fff; background: rgba(34,197,94,.25); border: 2px solid var(--green); text-shadow: 0 0 30px rgba(34,197,94,.5); box-shadow: 0 0 40px rgba(34,197,94,.2); }
+.pulsador-screen-status.ps-closed { color: #fff; background: rgba(239,68,68,.25); border: 2px solid var(--danger); text-shadow: 0 0 30px rgba(239,68,68,.5); box-shadow: 0 0 40px rgba(239,68,68,.2); }
 .pulsador-screen-queue { display: flex; flex-direction: column; gap: clamp(10px, 1.5vh, 20px); margin-top: 40px; width: 80%; max-width: 700px; }
 .psq-item { display: flex; align-items: center; gap: 20px; padding: clamp(14px, 2vh, 24px) clamp(20px, 3vw, 36px);
     background: rgba(0,0,0,.60); border: 2px solid rgba(255,255,255,.15); border-radius: 16px;
