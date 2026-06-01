@@ -96,7 +96,7 @@ input:focus { border-color: var(--accent); }
 
 .gp-buzzer { align-items: center; justify-content: center; padding: 24px; gap: 20px; }
 .gp-buzzer .q-statement { font-size: 28px; font-weight: 600; line-height: 1.4; text-align: center; max-width: 500px; }
-.buzz-btn { width: 180px; height: 180px; border-radius: 50%; font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; border: 4px solid var(--danger); background: radial-gradient(circle, #dc2626 0%, #991b1b 100%); color: #fff; box-shadow: 0 8px 30px rgba(220,38,38,.4); }
+.buzz-btn { width: min(80vw, 80vh, 500px); height: min(80vw, 80vh, 500px); border-radius: 50%; font-size: clamp(4rem, 20vw, 12rem); font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: 6px solid var(--danger); background: radial-gradient(circle, #dc2626 0%, #991b1b 100%); color: #fff; box-shadow: 0 8px 30px rgba(220,38,38,.4); flex-shrink: 0; }
 .buzz-btn:active:not(:disabled) { transform: scale(.92); box-shadow: 0 4px 15px rgba(220,38,38,.6); }
 .buzz-btn:disabled { background: var(--surface); border-color: var(--border); color: var(--text2); box-shadow: none; }
 /* Pulsador-specific button states */
@@ -105,7 +105,7 @@ input:focus { border-color: var(--accent); }
 .buzz-btn.bz-open:active { transform: scale(.92); box-shadow: 0 4px 15px rgba(34,197,94,.6); animation: none; }
 .buzz-btn.bz-first { border-color: var(--gold); background: radial-gradient(circle, #facc15 0%, #ca8a04 100%); color: #000; box-shadow: 0 8px 30px rgba(250,204,21,.4); animation: none; }
 .buzz-btn.bz-other { border-color: #f97316; background: radial-gradient(circle, #f97316 0%, #c2410c 100%); color: #fff; box-shadow: 0 8px 30px rgba(249,115,22,.4); animation: none; }
-.buzz-btn.bz-blocked { background: var(--surface); border-color: var(--border); color: var(--text2); box-shadow: none; animation: none; font-size: 32px; }
+.buzz-btn.bz-blocked { background: var(--surface); border-color: var(--border); color: var(--text2); box-shadow: none; animation: none; }
 @keyframes bz-pulse { 0%,100% { box-shadow: 0 8px 30px rgba(34,197,94,.4); transform: scale(1); } 50% { box-shadow: 0 8px 50px rgba(34,197,94,.7); transform: scale(1.04); } }
 .buzz-status { font-size: 14px; color: var(--text2); text-align: center; }
 .buzz-status.buzzed { color: var(--gold); font-weight: 700; }
@@ -832,7 +832,7 @@ function renderGamePhase() {
     } else if (phase === 'answer_revealed') {
         renderRevealed(); document.getElementById('gp-revealed').classList.add('active');
     } else if (phase === 'question') {
-        timerBar.style.display = 'flex';
+        timerBar.style.display = (type === 'pulsador') ? 'none' : 'flex';
         if (type === 'multirespuesta') {
             renderMulti(); document.getElementById('gp-multi').classList.add('active');
             // Show submit button (disabled during precountdown, enabled after)
@@ -995,7 +995,7 @@ function renderBuzzerStatus() {
         if (isPulsadorType) {
             if (myPos === 1) {
                 btn.classList.add('bz-first');
-                btn.textContent = '¡1º!';
+                btn.textContent = '1º';
             } else {
                 btn.classList.add('bz-other');
                 btn.textContent = myPos + 'º';

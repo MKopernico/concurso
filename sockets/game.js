@@ -202,9 +202,11 @@ function playerView(state) {
     if (curQ && (ds.phase === 'question' || ds.phase === 'answer_revealed')) {
         const c = { ...curQ.content };
         if (ds.phase === 'question') {
-            // For multirespuesta, hide options until explicitly revealed
             if (ds.currentRound && ds.currentRound.type === 'multirespuesta' && !ds.optionsRevealed) {
                 delete c.options;
+            }
+            if (ds.currentRound && ds.currentRound.type === 'boom' && !ds.optionsRevealed) {
+                delete c.items;
             }
             delete c.correct; delete c.answer; delete c.correct_value; delete c.correct_order;
         }
@@ -702,8 +704,12 @@ function attachSocketHandlers(io) {
                 ds.scoreboardVisible = false;
                 ds.menuLevel = null;
                 ds.selectedCategory = null;
-                const cfg = getQuestionConfig(state);
-                ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
+                if (ds.currentRound.type === 'pulsador') {
+                    ds.timer = { total: 0, remaining: 0, running: false };
+                } else {
+                    const cfg = getQuestionConfig(state);
+                    ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
+                }
                 state.pulsadorActivo = false;
                 state.colaPulsador = [];
                 broadcastDirector(io, gameId, state);
@@ -724,8 +730,12 @@ function attachSocketHandlers(io) {
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
-            const cfg = getQuestionConfig(state);
-            ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
+            if (ds.currentRound && ds.currentRound.type === 'pulsador') {
+                ds.timer = { total: 0, remaining: 0, running: false };
+            } else {
+                const cfg = getQuestionConfig(state);
+                ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
+            }
             state.pulsadorActivo = false;
             state.colaPulsador = [];
             broadcastDirector(io, gameId, state);
@@ -741,8 +751,12 @@ function attachSocketHandlers(io) {
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
                 ds.optionsRevealed = false;
-                const cfg = getQuestionConfig(state);
-                ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
+                if (ds.currentRound && ds.currentRound.type === 'pulsador') {
+                    ds.timer = { total: 0, remaining: 0, running: false };
+                } else {
+                    const cfg = getQuestionConfig(state);
+                    ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
+                }
                 state.pulsadorActivo = false;
                 state.colaPulsador = [];
                 broadcastDirector(io, gameId, state);
@@ -759,8 +773,12 @@ function attachSocketHandlers(io) {
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
                 ds.optionsRevealed = false;
-                const cfg = getQuestionConfig(state);
-                ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
+                if (ds.currentRound && ds.currentRound.type === 'pulsador') {
+                    ds.timer = { total: 0, remaining: 0, running: false };
+                } else {
+                    const cfg = getQuestionConfig(state);
+                    ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
+                }
                 state.pulsadorActivo = false;
                 state.colaPulsador = [];
                 broadcastDirector(io, gameId, state);

@@ -630,8 +630,9 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         renderTeamResultsOverlay();
     } else if (phase === 'question') {
         showPhase('question');
-        timerStrip.style.display = '';
-        timerBig.style.display = '';
+        var isPulsador = type === 'pulsador';
+        timerStrip.style.display = isPulsador ? 'none' : '';
+        timerBig.style.display = isPulsador ? 'none' : '';
         renderQuestion(type, newQuestion, optionsJustRevealed);
     } else if (phase === 'round_end') {
         showPhase('round-end');
@@ -768,7 +769,10 @@ function renderPulsadorScreen() {
     if (!ps) return;
     var container = document.getElementById('pulsadorScreen');
     var stmtEl = document.getElementById('qStatement');
-    stmtEl.textContent = ''; // Hide statement for pulsador (coordinator manages verbally)
+    stmtEl.textContent = '';
+    stmtEl.style.display = 'none';
+    document.getElementById('qMedia').style.display = 'none';
+    document.getElementById('roundLogo').style.display = 'none';
 
     container.style.display = 'flex';
     var cola = ps.colaPulsador || [];

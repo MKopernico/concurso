@@ -324,7 +324,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 </select>
             </div>
             <div class="field-row-3">
-                <div class="field"><label>Tiempo (seg)</label><input type="number" name="cfg_time" value="30" min="5"></div>
+                <div class="field" id="field-cfg-time"><label>Tiempo (seg)</label><input type="number" name="cfg_time" value="30" min="5"></div>
                 <div class="field"><label>Puntos base</label><input type="number" name="cfg_basePoints" value="100" min="0"></div>
                 <div class="field"><label>Bonus máx</label><input type="number" name="cfg_bonusMax" value="50" min="0"></div>
             </div>
@@ -679,6 +679,21 @@ function renderRounds() {
     `).join('');
 }
 
+function toggleTimeField(type) {
+    var el = document.getElementById('field-cfg-time');
+    if (type === 'pulsador') {
+        el.style.opacity = '.4';
+        el.querySelector('input').disabled = true;
+        el.querySelector('label').textContent = 'Tiempo (N/A)';
+        el.title = 'No aplica en pulsador rápido';
+    } else {
+        el.style.opacity = '';
+        el.querySelector('input').disabled = false;
+        el.querySelector('label').textContent = 'Tiempo (seg)';
+        el.title = '';
+    }
+}
+
 function openRoundModal(round = null) {
     const form = document.getElementById('form-round');
     form.reset();
@@ -698,14 +713,17 @@ function openRoundModal(round = null) {
         document.getElementById('modal-round-title').textContent = 'Nueva ronda';
         form.id.value = '';
     }
+    toggleTimeField(form.type.value);
+    form.type.addEventListener('change', function() { toggleTimeField(this.value); });
     openModal('modal-round-overlay');
 }
 
 async function saveRound(e) {
     e.preventDefault();
     const form = document.getElementById('form-round');
+    const isPulsador = form.type.value === 'pulsador';
     const config = {
-        time: Number(form.cfg_time.value) || 30,
+        time: isPulsador ? 0 : (Number(form.cfg_time.value) || 30),
         basePoints: Number(form.cfg_basePoints.value) || 100,
         bonusMax: Number(form.cfg_bonusMax.value) || 50,
         penalty: Number(form.cfg_penalty.value) || 0,
@@ -958,6 +976,10 @@ function addOption() {
 }
 
 function fieldsPulsador(c) {
+    setTimeout(function() {
+        var timeOverride = document.querySelector('[name="q_time"]');
+        if (timeOverride) { timeOverride.disabled = true; timeOverride.closest('.field').style.opacity = '.4'; timeOverride.closest('.field').title = 'No aplica en pulsador rápido'; }
+    }, 0);
     return `
         <div class="field"><label>Enunciado</label><textarea name="c_statement" required>${esc(c.statement || '')}</textarea></div>
         <div class="field"><label>Respuesta correcta</label><input name="c_answer" value="${esc(c.answer || '')}"></div>

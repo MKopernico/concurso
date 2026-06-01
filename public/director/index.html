@@ -1371,12 +1371,20 @@ function renderTimer() {
     const ds = S.director;
     const el = document.getElementById('timerDisplay');
     if (!ds || !ds.timer) { el.textContent = '--:--'; el.className = 'timer-display stopped'; return; }
+    var isPulsador = ds.currentRound && ds.currentRound.type === 'pulsador';
+    if (isPulsador) {
+        el.textContent = '--:--'; el.className = 'timer-display stopped';
+        document.getElementById('btnStartTimer').disabled = true;
+        document.getElementById('btnStopTimer').disabled = true;
+        var pcEl = document.getElementById('dirPreCountdown');
+        if (pcEl) pcEl.style.display = 'none';
+        return;
+    }
     const t = ds.timer;
     el.textContent = String(Math.floor(t.remaining / 60)).padStart(2, '0') + ':' + String(t.remaining % 60).padStart(2, '0');
     el.className = 'timer-display ' + (t.running ? (t.remaining <= 5 ? 'danger' : 'running') : 'stopped');
     document.getElementById('btnStartTimer').disabled = t.running || t.remaining <= 0;
     document.getElementById('btnStopTimer').disabled = !t.running;
-    // Pre-countdown display
     var pcEl = document.getElementById('dirPreCountdown');
     if (pcEl) {
         var pc = ds.preCountdown || 0;
