@@ -18,6 +18,7 @@ function createGameState() {
         escenas: { espera: 'espera.jpg' },
         pulsadorActivo: false,
         colaPulsador: [],
+        buzzerOpenedAt: null,
         bloqueoGlobal: false,
         precio: {
             tiempoSegundos: 30, tiempoInicio: null, respuestas: {},
@@ -546,7 +547,8 @@ function attachSocketHandlers(io) {
             if (!e) return;
             if (!state.pulsadorActivo || state.bloqueoGlobal || e.bloqueado) return;
             if (state.colaPulsador.find(p => p.id === e.id)) return;
-            state.colaPulsador.push({ id: e.id, nombre: e.nombre, tiempo: Date.now() });
+            var elapsed = state.buzzerOpenedAt ? Date.now() - state.buzzerOpenedAt : 0;
+            state.colaPulsador.push({ id: e.id, nombre: e.nombre, tiempo: Date.now(), elapsed: elapsed });
             io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             broadcastDirector(io, gameId, state);
         });
@@ -821,6 +823,7 @@ function attachSocketHandlers(io) {
         socket.on('director:open_buzzer', () => {
             state.pulsadorActivo = true;
             state.colaPulsador = [];
+            state.buzzerOpenedAt = Date.now();
             io.to(roomOf(gameId)).emit('estado_pulsador_cambio', { activo: true, cola: [] });
             broadcastDirector(io, gameId, state);
         });

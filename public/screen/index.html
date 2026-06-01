@@ -307,6 +307,28 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .screen-menu-grid[data-count="5"],
 .screen-menu-grid[data-count="6"] { gap: 30px; }
 
+/* ═══════════════ PULSADOR SCREEN ═══════════════ */
+.pulsador-screen-status { font-size: clamp(2rem, 5vw, 4rem); font-weight: 800; text-transform: uppercase; letter-spacing: 4px; text-align: center; padding: 20px 40px; border-radius: 20px; }
+.pulsador-screen-status.ps-open { color: var(--green); text-shadow: 0 0 30px rgba(34,197,94,.5); }
+.pulsador-screen-status.ps-closed { color: var(--text2); opacity: .6; }
+.pulsador-screen-queue { display: flex; flex-direction: column; gap: clamp(10px, 1.5vh, 20px); margin-top: 40px; width: 80%; max-width: 700px; }
+.psq-item { display: flex; align-items: center; gap: 20px; padding: clamp(14px, 2vh, 24px) clamp(20px, 3vw, 36px);
+    background: rgba(0,0,0,.60); border: 2px solid rgba(255,255,255,.15); border-radius: 16px;
+    backdrop-filter: blur(6px); animation: psq-in .4s ease backwards; }
+.psq-item:first-child { border-color: var(--gold); background: linear-gradient(135deg, rgba(251,191,36,.15), rgba(0,0,0,.60)); box-shadow: var(--glow-gold); }
+.psq-item:nth-child(1) { animation-delay: 0s; }
+.psq-item:nth-child(2) { animation-delay: .08s; }
+.psq-item:nth-child(3) { animation-delay: .12s; }
+.psq-item:nth-child(4) { animation-delay: .16s; }
+.psq-item:nth-child(5) { animation-delay: .2s; }
+@keyframes psq-in { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: none; } }
+.psq-pos { font-size: clamp(1.5rem, 3vw, 2.5rem); font-weight: 800; color: var(--gold); min-width: 60px; text-align: center; }
+.psq-item:first-child .psq-pos { font-size: clamp(2rem, 4vw, 3rem); }
+.psq-photo { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--surface); }
+.psq-name { flex: 1; font-size: clamp(1.2rem, 2.5vw, 2rem); font-weight: 700; color: #fff; }
+.psq-time { font-size: clamp(1rem, 2vw, 1.5rem); color: var(--cyan); font-weight: 600; font-variant-numeric: tabular-nums; }
+.pulsador-screen-empty { font-size: clamp(1.2rem, 2.5vw, 1.8rem); color: var(--text2); text-align: center; margin-top: 60px; }
+
 /* ═══════════════ CONNECTION STATUS ═══════════════ */
 .conn-dot { position: fixed; bottom: 12px; right: 12px; width: 14px; height: 14px; border-radius: 50%;
     background: var(--green); z-index: 200; display: none; transition: background .3s; }
@@ -375,6 +397,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
         <img class="q-media" id="qMedia" style="display:none">
         <div class="q-options" id="qOptions" style="display:none"></div>
         <div class="buzzer-queue" id="buzzerQueue" style="display:none"></div>
+        <div id="pulsadorScreen" style="display:none; width:100%; display:none; flex-direction:column; align-items:center;"></div>
         <div class="price-answers" id="priceAnswers" style="display:none"></div>
         <div class="boom-items" id="boomItems" style="display:none"></div>
         <div class="img-grid-wrap" id="imgGrid" style="display:none">
@@ -677,6 +700,7 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     document.getElementById('boomItems').style.display = 'none';
     document.getElementById('imgGrid').style.display = 'none';
     document.getElementById('letterPanel').style.display = 'none';
+    document.getElementById('pulsadorScreen').style.display = 'none';
 
     if (type === 'multirespuesta') {
         renderMultiOptions(c, optionsJustRevealed, stmtEl);
@@ -688,7 +712,9 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
         renderLetterPanel(c);
         renderBuzzerQueue();
         document.getElementById('buzzerQueue').style.display = 'flex';
-    } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen_fija') {
+    } else if (type === 'pulsador') {
+        renderPulsadorScreen();
+    } else if (type === 'cancion' || type === 'imagen_fija') {
         renderBuzzerQueue();
         document.getElementById('buzzerQueue').style.display = 'flex';
     } else if (type === 'precio') {
@@ -736,6 +762,45 @@ function renderBuzzerQueue() {
     container.innerHTML = cola.map(function(p, i) {
         return '<div class="buzzer-chip">' + (i === 0 ? '\u{1F514} ' : '') + esc(p.nombre) + '</div>';
     }).join('');
+}
+
+function renderPulsadorScreen() {
+    if (!ps) return;
+    var container = document.getElementById('pulsadorScreen');
+    var stmtEl = document.getElementById('qStatement');
+    stmtEl.textContent = ''; // Hide statement for pulsador (coordinator manages verbally)
+
+    container.style.display = 'flex';
+    var cola = ps.colaPulsador || [];
+    var equipos = ps.equipos || [];
+    var statusClass = ps.pulsadorActivo ? 'ps-open' : 'ps-closed';
+    var statusText = ps.pulsadorActivo ? 'PULSADOR ABIERTO' : 'PULSADOR CERRADO';
+
+    var html = '<div class="pulsador-screen-status ' + statusClass + '">' + statusText + '</div>';
+
+    if (cola.length > 0) {
+        html += '<div class="pulsador-screen-queue">';
+        cola.forEach(function(p, i) {
+            var eq = equipos.find(function(e) { return e.id === p.id; });
+            var photoHtml = eq && eq.photo_url
+                ? '<img class="psq-photo" src="' + esc(eq.photo_url) + '">'
+                : '<div class="psq-photo" style="display:flex;align-items:center;justify-content:center;font-size:22px;">\u{1F464}</div>';
+            var timeStr = p.elapsed !== undefined ? (p.elapsed / 1000).toFixed(3) + 's' : '';
+            html += '<div class="psq-item">'
+                + '<span class="psq-pos">' + (i + 1) + 'º</span>'
+                + photoHtml
+                + '<span class="psq-name">' + esc(p.nombre) + '</span>'
+                + '<span class="psq-time">' + timeStr + '</span>'
+                + '</div>';
+        });
+        html += '</div>';
+    } else if (!ps.pulsadorActivo) {
+        html += '<div class="pulsador-screen-empty">Esperando inicio...</div>';
+    } else {
+        html += '<div class="pulsador-screen-empty">Esperando pulsaciones...</div>';
+    }
+
+    container.innerHTML = html;
 }
 
 function renderPriceAnswers() {

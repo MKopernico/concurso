@@ -99,6 +99,14 @@ input:focus { border-color: var(--accent); }
 .buzz-btn { width: 180px; height: 180px; border-radius: 50%; font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; border: 4px solid var(--danger); background: radial-gradient(circle, #dc2626 0%, #991b1b 100%); color: #fff; box-shadow: 0 8px 30px rgba(220,38,38,.4); }
 .buzz-btn:active:not(:disabled) { transform: scale(.92); box-shadow: 0 4px 15px rgba(220,38,38,.6); }
 .buzz-btn:disabled { background: var(--surface); border-color: var(--border); color: var(--text2); box-shadow: none; }
+/* Pulsador-specific button states */
+.buzz-btn.bz-closed { background: var(--surface); border-color: var(--border); color: var(--text2); box-shadow: none; }
+.buzz-btn.bz-open { border-color: var(--success); background: radial-gradient(circle, #22c55e 0%, #15803d 100%); color: #fff; box-shadow: 0 8px 30px rgba(34,197,94,.4); animation: bz-pulse 1.5s ease-in-out infinite; }
+.buzz-btn.bz-open:active { transform: scale(.92); box-shadow: 0 4px 15px rgba(34,197,94,.6); animation: none; }
+.buzz-btn.bz-first { border-color: var(--gold); background: radial-gradient(circle, #facc15 0%, #ca8a04 100%); color: #000; box-shadow: 0 8px 30px rgba(250,204,21,.4); animation: none; }
+.buzz-btn.bz-other { border-color: #f97316; background: radial-gradient(circle, #f97316 0%, #c2410c 100%); color: #fff; box-shadow: 0 8px 30px rgba(249,115,22,.4); animation: none; }
+.buzz-btn.bz-blocked { background: var(--surface); border-color: var(--border); color: var(--text2); box-shadow: none; animation: none; font-size: 32px; }
+@keyframes bz-pulse { 0%,100% { box-shadow: 0 8px 30px rgba(34,197,94,.4); transform: scale(1); } 50% { box-shadow: 0 8px 50px rgba(34,197,94,.7); transform: scale(1.04); } }
 .buzz-status { font-size: 14px; color: var(--text2); text-align: center; }
 .buzz-status.buzzed { color: var(--gold); font-weight: 700; }
 .p-img-grid { position: relative; width: 260px; height: 260px; border-radius: 12px; overflow: hidden; margin: 12px auto; }
@@ -921,7 +929,15 @@ function submitMulti() {
 function renderBuzzer() {
     var ps = S.ps, q = ps.question; if (!q) return;
     var c = q.content || {};
-    document.getElementById('buzzerStatement').textContent = c.statement || c.phrase || '-';
+    var isPulsadorType = ps.roundType === 'pulsador';
+    // For pulsador type: hide statement (coordinator manages content verbally)
+    var stmtEl = document.getElementById('buzzerStatement');
+    if (isPulsadorType) {
+        stmtEl.style.display = 'none';
+    } else {
+        stmtEl.style.display = '';
+        stmtEl.textContent = c.statement || c.phrase || '-';
+    }
     renderPlayerImgGrid(ps, q);
     renderPlayerLetterPanel(ps, c);
     renderBuzzerStatus();
@@ -956,10 +972,51 @@ function renderBuzzerStatus() {
     var ps = S.ps; if (!ps) return;
     var btn = document.getElementById('buzzBtn');
     var status = document.getElementById('buzzStatus');
-    var hasBuzzed = ps.colaPulsador && ps.colaPulsador.some(function(p) { return p.id === S.myTeamId; });
-    if (hasBuzzed) { btn.disabled = true; status.className = 'buzz-status buzzed'; status.textContent = 'Has pulsado'; }
-    else if (ps.pulsadorActivo) { btn.disabled = false; status.className = 'buzz-status'; status.textContent = 'Pulsador abierto'; }
-    else { btn.disabled = true; status.className = 'buzz-status'; status.textContent = 'Esperando apertura...'; }
+    var isPulsadorType = ps.roundType === 'pulsador';
+    var myEntry = ps.colaPulsador && ps.colaPulsador.find(function(p) { return p.id === S.myTeamId; });
+    var hasBuzzed = !!myEntry;
+    var myPos = hasBuzzed ? ps.colaPulsador.indexOf(myEntry) + 1 : 0;
+    var isBlocked = false;
+    if (S.myTeamId && ps.equipos) {
+        var me = ps.equipos.find(function(e) { return e.id === S.myTeamId; });
+        if (me && me.bloqueado) isBlocked = true;
+    }
+
+    // Strip pulsador-specific classes
+    btn.classList.remove('bz-closed', 'bz-open', 'bz-first', 'bz-other', 'bz-blocked');
+
+    if (isPulsadorType && isBlocked) {
+        btn.disabled = true;
+        btn.classList.add('bz-blocked');
+        btn.textContent = '❄';
+        status.className = 'buzz-status'; status.textContent = 'Bloqueado';
+    } else if (hasBuzzed) {
+        btn.disabled = true;
+        if (isPulsadorType) {
+            if (myPos === 1) {
+                btn.classList.add('bz-first');
+                btn.textContent = '¡1º!';
+            } else {
+                btn.classList.add('bz-other');
+                btn.textContent = myPos + 'º';
+            }
+            status.className = 'buzz-status buzzed';
+            status.textContent = 'Has pulsado — posición ' + myPos + 'º';
+        } else {
+            btn.textContent = 'PULSAR';
+            status.className = 'buzz-status buzzed'; status.textContent = 'Has pulsado';
+        }
+    } else if (ps.pulsadorActivo) {
+        btn.disabled = false;
+        btn.textContent = 'PULSAR';
+        if (isPulsadorType) btn.classList.add('bz-open');
+        status.className = 'buzz-status'; status.textContent = 'Pulsador abierto';
+    } else {
+        btn.disabled = true;
+        btn.textContent = 'PULSAR';
+        if (isPulsadorType) btn.classList.add('bz-closed');
+        status.className = 'buzz-status'; status.textContent = 'Esperando apertura...';
+    }
 }
 function doBuzz() { emit('pulsar_boton'); }
 

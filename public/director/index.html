@@ -240,6 +240,37 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .menu-logo { margin-bottom: 10px; }
 .menu-logo img { max-height: 80px; max-width: 200px; object-fit: contain; }
 
+/* ── Pulsador director panel ── */
+.pulsador-layout { display: flex; gap: 20px; flex: 1; min-height: 0; }
+.pulsador-left { flex: 2; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+.pulsador-right { flex: 1; display: flex; flex-direction: column; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.pulsador-right h4 { font-size: 12px; text-transform: uppercase; color: var(--text2); letter-spacing: .5px; margin-bottom: 8px; flex-shrink: 0; }
+.pulsador-stmt { font-size: 15px; color: var(--text2); line-height: 1.4; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.pulsador-answer-box { background: rgba(34,197,94,.1); border: 1px solid var(--success); border-radius: 8px; padding: 12px; font-size: 15px; }
+.pulsador-controls { display: flex; gap: 10px; }
+.btn-pulsador { flex: 1; padding: 18px 12px; font-size: 15px; font-weight: 800; border-radius: 10px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; border: none; font-family: inherit; transition: .15s; }
+.btn-pulsador.open { background: var(--success); color: #000; }
+.btn-pulsador.open:disabled { opacity: .4; }
+.btn-pulsador.close { background: var(--danger); color: #fff; }
+.btn-pulsador.close:disabled { opacity: .4; }
+.btn-pulsador.reset { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.pulsador-status-bar { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-align: center; padding: 8px; border-radius: 6px; }
+.pulsador-status-bar.st-open { background: rgba(34,197,94,.15); color: var(--success); }
+.pulsador-status-bar.st-closed { background: rgba(239,68,68,.1); color: var(--danger); }
+.pulsador-queue-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; overflow-y: auto; }
+.pq-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; animation: pq-in .3s ease; }
+@keyframes pq-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+.pq-item:first-child { border-color: var(--gold); background: rgba(250,204,21,.08); }
+.pq-pos { font-size: 18px; font-weight: 800; color: var(--gold); min-width: 32px; text-align: center; }
+.pq-name { flex: 1; font-size: 14px; font-weight: 600; }
+.pq-time { font-size: 13px; color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.pq-empty { color: var(--text2); font-size: 13px; padding: 16px; text-align: center; }
+.pt-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.pt-name { flex: 1; font-size: 13px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-score { font-size: 16px; font-weight: 800; color: var(--accent); min-width: 50px; text-align: right; font-variant-numeric: tabular-nums; }
+.pt-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.pt-actions button { padding: 4px 10px; font-size: 12px; border-radius: 4px; }
+
 /* Responsive */
 @media (max-width: 768px) {
     .sidebar { width: 180px; }
@@ -307,6 +338,37 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 <span class="question-counter" id="questionCounter">-</span>
                 <button class="btn-ghost btn-sm" id="btnNextQ" onclick="emit('director:next_question')">Siguiente &#9654;</button>
             </div>
+            <!-- Pulsador director panel (shown only for pulsador round type) -->
+            <div id="pulsadorDirectorPanel" style="display:none; flex:1; overflow-y:auto;">
+                <div class="pulsador-layout">
+                    <div class="pulsador-left">
+                        <div id="pulsadorLogo" style="text-align:center;"></div>
+                        <div class="pulsador-stmt" id="pulsadorStatement"></div>
+                        <div class="pulsador-answer-box" id="pulsadorAnswerBox" style="display:none">
+                            <span style="color:var(--success);font-weight:700;">Respuesta: </span>
+                            <span id="pulsadorAnswerText"></span>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <button class="btn-ghost btn-sm" id="btnTogglePulsadorAnswer" onclick="togglePulsadorAnswer()">&#128065; Mostrar respuesta</button>
+                            <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
+                        </div>
+                        <div class="pulsador-controls">
+                            <button class="btn-pulsador open" id="btnPulsadorOpen" onclick="emit('director:open_buzzer')">&#128994; ABRIR</button>
+                            <button class="btn-pulsador close" id="btnPulsadorClose" onclick="emit('director:close_buzzer')">&#128308; CERRAR</button>
+                            <button class="btn-pulsador reset" onclick="emit('director:reset_buzzer')">&#128260; RESET</button>
+                        </div>
+                        <div class="pulsador-status-bar st-closed" id="pulsadorStatusBar">PULSADOR CERRADO</div>
+                        <div class="pulsador-queue-list" id="pulsadorQueueList">
+                            <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
+                        </div>
+                    </div>
+                    <div class="pulsador-right">
+                        <h4>&#127942; Equipos &amp; puntos</h4>
+                        <div id="pulsadorTeamsList"></div>
+                    </div>
+                </div>
+            </div>
+
             <div class="question-card" id="questionCard">
                 <div id="questionMedia"></div>
                 <div class="question-statement" id="questionStatement">-</div>
@@ -315,7 +377,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 <div id="dirLetterPanel" style="display:none; margin-top:12px;"></div>
                 <div class="question-answer" id="questionAnswer" style="display:none"></div>
             </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;">
+            <div id="questionDefaultActions" style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;">
                 <button class="btn-accent" id="btnRevealOptions" style="display:none" onclick="emit('director:reveal_options')">&#128065; Abrir opciones</button>
                 <button class="btn-accent" onclick="emit('director:reveal_answer')">&#128064; Revelar respuesta</button>
                 <button class="btn-orange btn-sm" id="btnRevealNext" style="display:none" onclick="revealNext()">&#128065; Siguiente cuadrado</button>
@@ -562,6 +624,15 @@ function render() {
     else if (phase === 'question') renderQuestion();
     else if (phase === 'answer_revealed') renderAnswerRevealed();
     else if (phase === 'round_end') renderRoundEnd();
+
+    // Reset pulsador answer toggle on question change
+    if (ds.currentQuestionIdx !== _prevQIdx) {
+        _pulsadorAnswerVisible = false;
+        var pab = document.getElementById('pulsadorAnswerBox');
+        if (pab) pab.style.display = 'none';
+        var bta = document.getElementById('btnTogglePulsadorAnswer');
+        if (bta) bta.innerHTML = '&#128065; Mostrar respuesta';
+    }
 
     _prevPhase = phase;
     _prevQIdx = ds.currentQuestionIdx;
@@ -865,10 +936,131 @@ document.getElementById('editTeamPhotoFile').addEventListener('change', async fu
 
 document.getElementById('editTeamName').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitEditTeam(); });
 
+// ── Pulsador director rendering ──
+var _pulsadorAnswerVisible = false;
+function togglePulsadorAnswer() {
+    _pulsadorAnswerVisible = !_pulsadorAnswerVisible;
+    var box = document.getElementById('pulsadorAnswerBox');
+    var btn = document.getElementById('btnTogglePulsadorAnswer');
+    box.style.display = _pulsadorAnswerVisible ? 'block' : 'none';
+    btn.innerHTML = _pulsadorAnswerVisible ? '&#128065; Ocultar respuesta' : '&#128065; Mostrar respuesta';
+}
+
+function renderQuestionPulsador() {
+    var ds = S.director;
+    if (!ds || ds.currentQuestionIdx < 0) return;
+    var q = ds.questions[ds.currentQuestionIdx];
+    if (!q) return;
+    var c = q.content || {};
+    var idx = ds.currentQuestionIdx, total = ds.questions.length;
+
+    // Nav bar (shared)
+    document.getElementById('questionCounter').textContent = 'Pregunta ' + (idx + 1) + ' de ' + total;
+    document.getElementById('btnPrevQ').disabled = idx <= 0;
+    var btnNext = document.getElementById('btnNextQ');
+    if (idx >= total - 1) {
+        btnNext.textContent = '✓ Terminar ronda';
+        btnNext.onclick = function() { emit('director:finish_round'); };
+    } else {
+        btnNext.innerHTML = 'Siguiente &#9654;';
+        btnNext.onclick = function() { emit('director:next_question'); };
+    }
+
+    // Show pulsador panel, hide default
+    document.getElementById('pulsadorDirectorPanel').style.display = 'flex';
+    document.getElementById('questionCard').style.display = 'none';
+    document.getElementById('questionDefaultActions').style.display = 'none';
+
+    // Logo
+    var gt = S.game && S.game.theme || {};
+    var rc = ds.currentRound ? parseJson(ds.currentRound.config) : {};
+    var typeTheme = (gt.types && gt.types['pulsador']) || {};
+    var logo = rc.logo || typeTheme.logo || gt.logo || null;
+    var logoEl = document.getElementById('pulsadorLogo');
+    if (logo) { logoEl.innerHTML = '<img src="' + esc(logo) + '" style="max-height:80px;max-width:200px;object-fit:contain;border-radius:8px;" onerror="this.style.display=\'none\'">'; }
+    else { logoEl.innerHTML = ''; }
+
+    // Statement & answer
+    document.getElementById('pulsadorStatement').textContent = c.statement || 'Sin enunciado';
+    document.getElementById('pulsadorAnswerText').textContent = c.answer || '-';
+
+    // Buzzer status
+    var statusEl = document.getElementById('pulsadorStatusBar');
+    var btnOpen = document.getElementById('btnPulsadorOpen');
+    var btnClose = document.getElementById('btnPulsadorClose');
+    if (S.pulsadorActivo) {
+        statusEl.textContent = 'PULSADOR ABIERTO';
+        statusEl.className = 'pulsador-status-bar st-open';
+        btnOpen.disabled = true;
+        btnClose.disabled = false;
+    } else {
+        statusEl.textContent = 'PULSADOR CERRADO';
+        statusEl.className = 'pulsador-status-bar st-closed';
+        btnOpen.disabled = false;
+        btnClose.disabled = true;
+    }
+
+    // Queue
+    var queueEl = document.getElementById('pulsadorQueueList');
+    if (!S.colaPulsador.length) {
+        queueEl.innerHTML = '<div class="pq-empty">Nadie ha pulsado aún</div>';
+    } else {
+        queueEl.innerHTML = S.colaPulsador.map(function(p, i) {
+            var timeStr = p.elapsed !== undefined ? (p.elapsed / 1000).toFixed(3) + 's' : '';
+            return '<div class="pq-item">'
+                + '<span class="pq-pos">' + (i + 1) + 'º</span>'
+                + '<span class="pq-name">' + esc(p.nombre) + '</span>'
+                + '<span class="pq-time">' + timeStr + '</span>'
+                + '</div>';
+        }).join('');
+    }
+
+    // Team scores panel
+    var cfg = getQuestionConfig(ds);
+    var scores = ds.scores || {};
+    var teamsEl = document.getElementById('pulsadorTeamsList');
+    teamsEl.innerHTML = S.equipos.map(function(e) {
+        var score = scores[e.id] || 0;
+        return '<div class="pt-row">'
+            + '<span class="pt-name" title="' + esc(e.nombre) + '">' + esc(e.nombre) + '</span>'
+            + '<span class="pt-score">' + score + '</span>'
+            + '<div class="pt-actions">'
+            + '<button class="btn-success" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:' + cfg.basePoints + '})" title="+' + cfg.basePoints + '">+' + cfg.basePoints + '</button>'
+            + '<button class="btn-danger" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:' + (-cfg.basePoints) + '})" title="-' + cfg.basePoints + '">-' + cfg.basePoints + '</button>'
+            + '</div></div>';
+    }).join('');
+}
+
+function getQuestionConfig(ds) {
+    var q = ds.questions[ds.currentQuestionIdx];
+    if (!q) return { time: 30, basePoints: 100, bonusMax: 50, penalty: 0 };
+    var rCfg = ds.currentRound ? parseJson(ds.currentRound.config) : {};
+    var qCfg = q.config || {};
+    return {
+        time: qCfg.time || rCfg.time || 30,
+        basePoints: qCfg.basePoints !== undefined ? qCfg.basePoints : (rCfg.basePoints !== undefined ? rCfg.basePoints : 100),
+        bonusMax: qCfg.bonusMax !== undefined ? qCfg.bonusMax : (rCfg.bonusMax !== undefined ? rCfg.bonusMax : 50),
+        penalty: qCfg.penalty !== undefined ? qCfg.penalty : (rCfg.penalty !== undefined ? rCfg.penalty : 0),
+    };
+}
+
 // ── Question ──
 function renderQuestion() {
     const ds = S.director;
     if (!ds || ds.currentQuestionIdx < 0) return;
+
+    // Pulsador type: dedicated layout
+    var roundType = ds.currentRound ? ds.currentRound.type : '';
+    if (roundType === 'pulsador') {
+        renderQuestionPulsador();
+        return;
+    }
+
+    // Default: hide pulsador panel, show normal card
+    document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+    document.getElementById('questionCard').style.display = '';
+    document.getElementById('questionDefaultActions').style.display = '';
+
     const q = ds.questions[ds.currentQuestionIdx];
     if (!q) return;
     const idx = ds.currentQuestionIdx, total = ds.questions.length;
