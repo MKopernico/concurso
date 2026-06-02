@@ -92,6 +92,19 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 @keyframes chip-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Precio justo */
+.precio-screen { display: flex; flex-direction: column; align-items: center; gap: clamp(12px, 2vh, 24px); width: 100%; }
+.precio-screen-img { max-width: min(500px, 55vw); max-height: 38vh; border-radius: 16px; border: 2px solid rgba(255,255,255,.12);
+    box-shadow: 0 8px 40px rgba(0,0,0,.5); object-fit: contain; }
+.precio-screen-value { font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 800; color: var(--text2); text-align: center;
+    padding: 12px 40px; border-radius: 16px; background: rgba(0,0,0,.40); backdrop-filter: blur(6px); }
+.precio-screen-value.revealed { color: var(--green); text-shadow: 0 0 30px rgba(34,197,94,.4);
+    animation: precio-reveal .6s cubic-bezier(.34,1.56,.64,1); }
+@keyframes precio-reveal { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
+.precio-screen-winner { font-size: clamp(1.4rem, 3vw, 2.2rem); font-weight: 700; color: var(--gold); text-align: center;
+    padding: 12px 32px; border-radius: 16px; background: rgba(251,191,36,.12); border: 2px solid var(--gold);
+    box-shadow: var(--glow-gold); animation: precio-reveal .6s cubic-bezier(.34,1.56,.64,1) .3s backwards; }
+.precio-screen-nobody { font-size: clamp(1.2rem, 2.5vw, 1.8rem); color: var(--danger); text-align: center; }
+.precio-answered-count { font-size: 18px; color: var(--text2); text-align: center; }
 .price-answers { display: flex; gap: 24px; margin-top: 40px; flex-wrap: wrap; justify-content: center; }
 .price-chip { background: var(--surface); border: 2px solid var(--border); border-radius: 16px; padding: 16px 28px;
     font-size: 22px; font-weight: 600; text-align: center; min-width: 160px; }
@@ -689,9 +702,9 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
         GSA.enterStatement(stmtEl);
     }
 
-    // Media
+    // Media (precio uses its own image inside priceAnswers container)
     var media = document.getElementById('qMedia');
-    if (q.media_url) { media.src = q.media_url; media.style.display = ''; }
+    if (q.media_url && type !== 'precio') { media.src = q.media_url; media.style.display = ''; }
     else { media.style.display = 'none'; }
 
     // Hide all type-specific
@@ -719,7 +732,7 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
         renderBuzzerQueue();
         document.getElementById('buzzerQueue').style.display = 'flex';
     } else if (type === 'precio') {
-        renderPriceAnswers();
+        renderPrecioScreen(c, q, newQuestion);
     } else if (type === 'boom') {
         renderBoomItems(c);
     }
@@ -805,6 +818,51 @@ function renderPulsadorScreen() {
     }
 
     container.innerHTML = html;
+}
+
+function renderPrecioScreen(c, q, newQuestion) {
+    var stmtEl = document.getElementById('qStatement');
+    stmtEl.textContent = c.statement || '';
+    if (newQuestion) { GSA.resetStatement(stmtEl); GSA.enterStatement(stmtEl); }
+    document.getElementById('qMedia').style.display = 'none';
+
+    var container = document.getElementById('priceAnswers');
+    container.style.display = 'flex';
+    var imgSrc = q.media_url || c.image || '/shared/placeholder-precio.svg';
+    var answeredCount = (ps.answeredTeams || []).length;
+    var totalTeams = (ps.equipos || []).length;
+
+    container.innerHTML = '<div class="precio-screen">'
+        + '<img class="precio-screen-img" src="' + esc(imgSrc) + '">'
+        + '<div class="precio-screen-value">??</div>'
+        + '<div class="precio-answered-count">' + answeredCount + '/' + totalTeams + ' respuestas</div>'
+        + '</div>';
+}
+
+function renderPrecioRevealScreen() {
+    if (!ps || !ps.question) return;
+    var c = ps.question.content || {};
+    var q = ps.question;
+    var imgSrc = q.media_url || c.image || '/shared/placeholder-precio.svg';
+    var stmtEl = document.getElementById('qStatement');
+    stmtEl.textContent = c.statement || '';
+    document.getElementById('qMedia').style.display = 'none';
+
+    var container = document.getElementById('priceAnswers');
+    container.style.display = 'flex';
+
+    var winnerHtml = '';
+    if (ps.precioWinner) {
+        winnerHtml = '<div class="precio-screen-winner">\u{1F3C6} ' + esc(ps.precioWinner.name) + ' — ' + ps.precioWinner.value + '</div>';
+    } else {
+        winnerHtml = '<div class="precio-screen-nobody">Nadie gana — todos se pasaron</div>';
+    }
+
+    container.innerHTML = '<div class="precio-screen">'
+        + '<img class="precio-screen-img" src="' + esc(imgSrc) + '">'
+        + '<div class="precio-screen-value revealed">' + (c.correct_value !== undefined ? c.correct_value : '??') + '</div>'
+        + winnerHtml
+        + '</div>';
 }
 
 function renderPriceAnswers() {
@@ -982,6 +1040,8 @@ function renderRevealedInPlace() {
             html += '<div class="boom-item correct"><span class="boom-num">' + (pos + 1) + '</span>' + esc(items[origIdx] || '') + '</div>';
         });
         container.innerHTML = html;
+    } else if (type === 'precio') {
+        renderPrecioRevealScreen();
     } else {
         // For other types, fall back to legacy revealed phase
         renderRevealed();

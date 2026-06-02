@@ -988,13 +988,24 @@ function fieldsPulsador(c) {
 }
 
 function fieldsPrecio(c) {
+    const imgSrc = c.image || '';
     return `
-        <div class="field"><label>Enunciado</label><textarea name="c_statement" required>${esc(c.statement || '')}</textarea></div>
-        <div class="field-row">
-            <div class="field"><label>Valor correcto</label><input type="number" name="c_correct_value" value="${c.correct_value || ''}" required></div>
-            <div class="field"><label>Imagen URL</label><div class="upload-row"><input name="c_image" value="${esc(c.image || '')}"><label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_image')"></label>${libBtn('c_image','images')}</div></div>
+        <div class="field"><label>Imagen (obligatoria)</label>
+            <div class="upload-row">
+                <input name="c_image" value="${esc(imgSrc)}" placeholder="Sube una imagen o elige de la biblioteca" onchange="updatePrecioPreview(this.value)">
+                <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_image'); setTimeout(function(){updatePrecioPreview(document.querySelector('[name=c_image]').value)},500)"></label>
+                ${libBtn('c_image','images')}
+            </div>
+            <img id="precio-img-preview" src="${esc(imgSrc || '/shared/placeholder-precio.svg')}" style="margin-top:8px; max-width:200px; max-height:150px; border-radius:8px; border:1px solid var(--border); object-fit:contain; background:#1a1a2e; display:block;">
+            <p style="font-size:11px; color:var(--text2); margin-top:4px">Si no subes imagen se usará un placeholder genérico</p>
         </div>
+        <div class="field"><label>Enunciado</label><textarea name="c_statement" required placeholder="¿Cuánto cuesta este coche?">${esc(c.statement || '')}</textarea></div>
+        <div class="field"><label>Valor correcto (número)</label><input type="number" name="c_correct_value" value="${c.correct_value || ''}" required step="any" placeholder="Ej: 35000"></div>
     `;
+}
+function updatePrecioPreview(url) {
+    var el = document.getElementById('precio-img-preview');
+    if (el) el.src = url || '/shared/placeholder-precio.svg';
 }
 
 function fieldsImagen(c) {
@@ -1113,8 +1124,11 @@ function extractContent(type, form) {
             const hints = val(form, 'c_hints').split('\n').map(s => s.trim()).filter(Boolean);
             return { statement: val(form, 'c_statement'), answer: val(form, 'c_answer'), hints: hints.length ? hints : undefined };
         }
-        case 'precio':
-            return { statement: val(form, 'c_statement'), correct_value: Number(val(form, 'c_correct_value')), image: val(form, 'c_image') || undefined };
+        case 'precio': {
+            const img = val(form, 'c_image') || '/shared/placeholder-precio.svg';
+            if (img && !form.media_url.value) form.media_url.value = img;
+            return { statement: val(form, 'c_statement'), correct_value: Number(val(form, 'c_correct_value')), image: img };
+        }
         case 'imagen': {
             const rows = Number(val(form, 'c_grid_rows')) || 4;
             const cols = Number(val(form, 'c_grid_cols')) || 4;

@@ -114,6 +114,36 @@ function stopTimer(state, gameId, io) {
     state.director.timer.running = false;
 }
 
+function autoScorePrecio(state) {
+    const ds = state.director;
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (!q || !q.content || q.content.correct_value === undefined) return;
+    const correctValue = Number(q.content.correct_value);
+    const cfg = getQuestionConfig(state);
+
+    const entries = [];
+    for (const [teamId, ans] of Object.entries(ds.answers)) {
+        const value = Number(ans.answer);
+        if (isNaN(value)) continue;
+        entries.push({ teamId, value, timestamp: ans.timestamp, timerRemaining: ans.timerRemaining });
+    }
+
+    const valid = entries
+        .filter(e => e.value <= correctValue)
+        .sort((a, b) => {
+            const da = correctValue - a.value, db = correctValue - b.value;
+            if (da !== db) return da - db;
+            return a.timestamp - b.timestamp;
+        });
+
+    const winnerId = valid.length > 0 ? valid[0].teamId : null;
+    if (winnerId) {
+        if (!ds.scores[winnerId]) ds.scores[winnerId] = 0;
+        const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (valid[0].timerRemaining / ds.timer.total)) : 0;
+        ds.scores[winnerId] += cfg.basePoints + bonus;
+    }
+}
+
 function autoScoreMultirespuesta(state) {
     const ds = state.director;
     const q = ds.questions[ds.currentQuestionIdx];
@@ -142,6 +172,17 @@ function computeLastQuestionScores(state) {
     const roundType = ds.currentRound ? ds.currentRound.type : '';
     const results = {};
 
+    // Pre-calculate precio winner (needs all answers before per-team loop)
+    let precioWinnerId = null;
+    if (roundType === 'precio' && c.correct_value !== undefined) {
+        const cv = Number(c.correct_value);
+        const valid = Object.entries(ds.answers)
+            .map(([tid, a]) => ({ teamId: tid, value: Number(a.answer), timestamp: a.timestamp, timerRemaining: a.timerRemaining }))
+            .filter(e => !isNaN(e.value) && e.value <= cv)
+            .sort((a, b) => { const da = cv - a.value, db = cv - b.value; return da !== db ? da - db : a.timestamp - b.timestamp; });
+        precioWinnerId = valid.length > 0 ? valid[0].teamId : null;
+    }
+
     for (const [teamId, ans] of Object.entries(ds.answers)) {
         const entry = { answer: ans.answer, correct: false, points: 0 };
 
@@ -157,8 +198,14 @@ function computeLastQuestionScores(state) {
             }
         } else if (roundType === 'precio' && c.correct_value !== undefined) {
             const val = Number(ans.answer);
-            entry.correct = val <= c.correct_value;
-            // precio scoring is handled separately via finalizarPrecio
+            const cv = Number(c.correct_value);
+            entry.correct = teamId === precioWinnerId;
+            entry.passed = val > cv;
+            entry.delta = cv - val;
+            if (entry.correct) {
+                const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+                entry.points = cfg.basePoints + bonus;
+            }
         } else if (roundType === 'boom' && c.correct_order) {
             const order = c.correct_order;
             const submitted = Array.isArray(ans.answer) ? ans.answer : [];
@@ -212,6 +259,19 @@ function playerView(state) {
         }
         question = { id: curQ.id, content: c, media_url: curQ.media_url };
     }
+    // Compute precio winner for display
+    let precioWinner = null;
+    if (ds.phase === 'answer_revealed' && ds.currentRound && ds.currentRound.type === 'precio') {
+        const lqs = ds.lastQuestionScores || {};
+        for (const [tid, r] of Object.entries(lqs)) {
+            if (r.correct) {
+                const eq = state.equipos.find(e => e.id === tid);
+                precioWinner = { teamId: tid, name: eq ? eq.nombre : tid, value: r.answer, points: r.points };
+                break;
+            }
+        }
+    }
+
     const roundCfg = ds.currentRound ? parseJson(ds.currentRound.config) : {};
     // Build rounds summary for menu navigation (lightweight: id, name, type, config logo)
     const roundsSummary = (state._rounds || []).map(r => {
@@ -246,6 +306,7 @@ function playerView(state) {
         typeTheme: resolveTypeTheme(state, ds.currentRound ? ds.currentRound.type : null),
         roundTheme: { logo: roundCfg.logo || null, background: roundCfg.background || null },
         rounds: roundsSummary,
+        precioWinner,
     };
 }
 
@@ -790,8 +851,8 @@ function attachSocketHandlers(io) {
             clearPreCountdown(state);
             if (ds.timer.running || ds.timer.remaining <= 0) return;
             ds.timer.running = true;
-            // Auto-reveal options for multirespuesta when timer starts
-            if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
+            // Auto-reveal options for multirespuesta/precio when timer starts
+            if (ds.currentRound && (ds.currentRound.type === 'multirespuesta' || ds.currentRound.type === 'precio')) {
                 ds.optionsRevealed = true;
             }
             state._timerHandle = setInterval(() => {
@@ -803,6 +864,8 @@ function attachSocketHandlers(io) {
                     if (ds.phase === 'question') {
                         if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
                             autoScoreMultirespuesta(state);
+                        } else if (ds.currentRound && ds.currentRound.type === 'precio') {
+                            autoScorePrecio(state);
                         }
                         ds.phase = 'answer_revealed';
                         state.pulsadorActivo = false;
@@ -831,6 +894,8 @@ function attachSocketHandlers(io) {
             const ds = state.director;
             if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
                 autoScoreMultirespuesta(state);
+            } else if (ds.currentRound && ds.currentRound.type === 'precio') {
+                autoScorePrecio(state);
             }
             ds.phase = 'answer_revealed';
             state.pulsadorActivo = false;
@@ -1002,6 +1067,8 @@ function attachSocketHandlers(io) {
                                 if (ds.phase === 'question') {
                                     if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
                                         autoScoreMultirespuesta(state);
+                                    } else if (ds.currentRound && ds.currentRound.type === 'precio') {
+                                        autoScorePrecio(state);
                                     }
                                     ds.phase = 'answer_revealed';
                                     state.pulsadorActivo = false;

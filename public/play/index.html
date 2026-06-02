@@ -120,10 +120,27 @@ input:focus { border-color: var(--accent); }
 .p-letter.shown { background: rgba(0,212,255,.1); border: 1px solid var(--accent); color: var(--accent); }
 .p-letter.space { background: transparent; border: none; width: 16px; }
 
-.gp-precio { align-items: center; justify-content: center; padding: 24px; gap: 20px; }
-.gp-precio .q-statement { font-size: 28px; font-weight: 600; line-height: 1.4; text-align: center; }
-.gp-precio .q-media { max-width: 70%; max-height: 200px; border-radius: 8px; }
-.price-input { max-width: 200px; text-align: center; font-size: 28px; font-weight: 800; }
+.gp-precio { padding: 16px 16px 10px; gap: clamp(8px, 1.5vh, 14px); justify-content: flex-start; align-items: center; }
+.gp-precio .q-statement { font-size: clamp(16px, 4vw, 22px); font-weight: 600; line-height: 1.4; text-align: center;
+    background: rgba(0,0,0,.6); border-radius: 16px; padding: 12px 20px; color: #fff; backdrop-filter: blur(6px); flex-shrink: 0; width: 100%; }
+.gp-precio .precio-play-img { max-width: 85%; max-height: 38vh; border-radius: 12px; border: 2px solid rgba(255,255,255,.12);
+    box-shadow: 0 4px 20px rgba(0,0,0,.4); object-fit: contain; flex-shrink: 0; }
+.precio-input-area { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; align-items: center; flex-shrink: 0; }
+.precio-input-area .price-input { max-width: 240px; text-align: center; font-size: 32px; font-weight: 800; border-radius: 16px;
+    background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.15); color: #fff; backdrop-filter: blur(6px); padding: 16px; }
+.precio-input-area .price-input:focus { border-color: var(--accent); }
+.precio-input-area .price-input:disabled { opacity: .4; }
+.precio-submit-btn { width: 100%; max-width: 240px; padding: 18px; font-size: 22px; font-weight: bold; text-align: center;
+    background: var(--accent); color: #000; border: none; border-radius: 12px; cursor: pointer; }
+.precio-submit-btn:disabled { opacity: .4; }
+.precio-wait-msg { font-size: 14px; color: var(--text2); text-align: center; }
+.precio-reveal-card { width: 100%; max-width: 340px; text-align: center; padding: 16px 20px; border-radius: 16px;
+    background: rgba(0,0,0,.6); backdrop-filter: blur(6px); }
+.precio-reveal-correct { font-size: 28px; font-weight: 800; color: var(--success); margin-bottom: 8px; }
+.precio-reveal-mine { font-size: 16px; color: var(--text2); margin-bottom: 8px; }
+.precio-reveal-result { font-size: 22px; font-weight: 800; padding: 12px 20px; border-radius: 12px; }
+.precio-reveal-result.win { color: #fff; background: rgba(34,197,94,.35); border: 2px solid var(--success); }
+.precio-reveal-result.lose { color: #fff; background: rgba(239,68,68,.25); border: 2px solid var(--danger); }
 
 .gp-boom { padding: 16px 16px 10px; gap: clamp(8px, 1.5vh, 16px); justify-content: flex-start; }
 .gp-boom .q-statement { font-size: 22px; font-weight: 600; line-height: 1.4; text-align: center;
@@ -343,10 +360,14 @@ input:focus { border-color: var(--accent); }
         </div>
         <div class="gphase gp-precio" id="gp-precio">
             <div class="q-statement" id="precioStatement">-</div>
-            <div id="precioMedia"></div>
-            <input type="number" class="price-input" id="precioInput" placeholder="0" inputmode="numeric">
-            <button class="btn-accent" id="precioBtn" onclick="submitPrice()">Enviar</button>
-            <div class="q-submitted" id="precioSubmitted" style="display:none">Respuesta enviada</div>
+            <img class="precio-play-img" id="precioPlayImg" src="/shared/placeholder-precio.svg">
+            <div class="precio-input-area" id="precioInputArea">
+                <div class="precio-wait-msg" id="precioWaitMsg">Espera el inicio...</div>
+                <input type="number" class="price-input" id="precioInput" placeholder="0" inputmode="numeric" disabled>
+                <button class="precio-submit-btn" id="precioBtn" onclick="submitPrice()" disabled>Enviar</button>
+            </div>
+            <div class="q-submitted" id="precioSubmitted" style="display:none"></div>
+            <div class="precio-reveal-card" id="precioRevealCard" style="display:none"></div>
         </div>
         <div class="gphase gp-boom" id="gp-boom">
             <div class="q-statement" id="boomStatement">-</div>
@@ -767,7 +788,7 @@ var lastQIdx = -1;
 function onPlayerSync(ps) {
     // Reset answer state on new question
     if (ps.questionIdx !== lastQIdx) {
-        S.selectedOptions = []; S.boomOrder = []; S.submitted = false; lastQIdx = ps.questionIdx;
+        S.selectedOptions = []; S.boomOrder = []; S.submitted = false; S._precioSubmittedValue = undefined; lastQIdx = ps.questionIdx;
         if (_boomDragState.dragging) {
             if (_boomIndicator && _boomIndicator.parentNode) _boomIndicator.parentNode.removeChild(_boomIndicator);
             _boomDragState.dragging = false; _boomDragState.dragIdx = -1; _boomDragState.dropIdx = -1;
@@ -830,7 +851,11 @@ function renderGamePhase() {
     } else if (phase === 'scoreboard') {
         renderScoreboard(); document.getElementById('gp-scoreboard').classList.add('active');
     } else if (phase === 'answer_revealed') {
-        renderRevealed(); document.getElementById('gp-revealed').classList.add('active');
+        if (type === 'precio') {
+            renderPrecioRevealed(); document.getElementById('gp-precio').classList.add('active');
+        } else {
+            renderRevealed(); document.getElementById('gp-revealed').classList.add('active');
+        }
     } else if (phase === 'question') {
         timerBar.style.display = (type === 'pulsador') ? 'none' : 'flex';
         if (type === 'multirespuesta') {
@@ -843,6 +868,7 @@ function renderGamePhase() {
         } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen' || type === 'imagen_fija' || type === 'ruleta') {
             renderBuzzer(); document.getElementById('gp-buzzer').classList.add('active');
         } else if (type === 'precio') {
+            timerBar.style.display = 'flex';
             renderPrecio(); document.getElementById('gp-precio').classList.add('active');
         } else if (type === 'boom') {
             renderBoom(); document.getElementById('gp-boom').classList.add('active');
@@ -1025,21 +1051,87 @@ function renderPrecio() {
     var ps = S.ps, q = ps.question; if (!q) return;
     var c = q.content || {};
     document.getElementById('precioStatement').textContent = c.statement || '-';
-    var mediaDiv = document.getElementById('precioMedia');
-    mediaDiv.innerHTML = '';
-    var imgSrc = q.media_url || c.image;
-    if (imgSrc) mediaDiv.innerHTML = '<img src="' + esc(imgSrc) + '" class="q-media">';
-    document.getElementById('precioSubmitted').style.display = S.submitted ? 'block' : 'none';
-    document.getElementById('precioInput').style.display = S.submitted ? 'none' : 'block';
-    document.getElementById('precioBtn').style.display = S.submitted ? 'none' : 'inline-flex';
+    var imgSrc = q.media_url || c.image || '/shared/placeholder-precio.svg';
+    document.getElementById('precioPlayImg').src = imgSrc;
+    document.getElementById('precioRevealCard').style.display = 'none';
+
+    var duringPre = !!(ps.preCountdown && ps.preCountdown > 0);
+    var inputEnabled = ps.optionsRevealed && !duringPre && !S.submitted;
+
+    var inputArea = document.getElementById('precioInputArea');
+    var waitMsg = document.getElementById('precioWaitMsg');
+    var input = document.getElementById('precioInput');
+    var btn = document.getElementById('precioBtn');
+    var submitted = document.getElementById('precioSubmitted');
+
+    if (S.submitted) {
+        inputArea.style.display = 'none';
+        submitted.style.display = 'block';
+        submitted.textContent = 'Respuesta enviada: ' + (S._precioSubmittedValue || '');
+    } else {
+        submitted.style.display = 'none';
+        inputArea.style.display = 'flex';
+        if (!ps.optionsRevealed) {
+            waitMsg.style.display = '';
+            waitMsg.textContent = 'Espera el inicio...';
+            input.disabled = true;
+            btn.disabled = true;
+        } else if (duringPre) {
+            waitMsg.style.display = '';
+            waitMsg.textContent = 'Preparados...';
+            input.disabled = true;
+            btn.disabled = true;
+        } else {
+            waitMsg.style.display = 'none';
+            input.disabled = false;
+            btn.disabled = false;
+        }
+    }
 }
 function submitPrice() {
     if (S.submitted) return;
+    if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return;
     var val = parseFloat(document.getElementById('precioInput').value);
-    if (!isFinite(val)) return;
+    if (!isFinite(val)) {
+        var btn = document.getElementById('precioBtn');
+        btn.style.animation = 'none'; btn.offsetHeight;
+        btn.style.animation = 'shake .4s ease';
+        return;
+    }
+    S._precioSubmittedValue = val;
     emit('player:submit_price', { value: val });
     S.submitted = true;
     renderPrecio();
+}
+function renderPrecioRevealed() {
+    var ps = S.ps; if (!ps || !ps.question) return;
+    var c = ps.question.content || {};
+    var correctValue = c.correct_value;
+    var revealCard = document.getElementById('precioRevealCard');
+    revealCard.style.display = 'block';
+    document.getElementById('precioInputArea').style.display = 'none';
+
+    var imgSrc = ps.question.media_url || c.image || '/shared/placeholder-precio.svg';
+    document.getElementById('precioPlayImg').src = imgSrc;
+    document.getElementById('precioStatement').textContent = c.statement || '-';
+
+    var html = '<div class="precio-reveal-correct">' + (correctValue !== undefined ? correctValue : '?') + '</div>';
+    if (S.submitted && S._precioSubmittedValue !== undefined) {
+        html += '<div class="precio-reveal-mine">Tu respuesta: ' + S._precioSubmittedValue + '</div>';
+    }
+
+    var isWinner = ps.precioWinner && ps.precioWinner.teamId === S.myTeamId;
+    if (isWinner) {
+        html += '<div class="precio-reveal-result win">&#127942; ¡HAS GANADO!</div>';
+    } else if (S.submitted) {
+        var myVal = S._precioSubmittedValue;
+        var passed = myVal > correctValue;
+        html += '<div class="precio-reveal-result lose">' + (passed ? '&#128200; Te pasaste' : '&#128201; Te quedaste corto') + '</div>';
+    } else {
+        html += '<div class="precio-reveal-result lose">Sin respuesta</div>';
+    }
+    revealCard.innerHTML = html;
+    document.getElementById('precioSubmitted').style.display = 'none';
 }
 
 // ── Boom (drag & drop ordering) ──

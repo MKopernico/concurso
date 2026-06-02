@@ -240,6 +240,26 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .menu-logo { margin-bottom: 10px; }
 .menu-logo img { max-height: 80px; max-width: 200px; object-fit: contain; }
 
+/* ── Precio director panel ── */
+.precio-layout { display: flex; gap: 20px; flex: 1; min-height: 0; }
+.precio-left { flex: 2; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+.precio-right { flex: 1; display: flex; flex-direction: column; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.precio-right h4 { font-size: 12px; text-transform: uppercase; color: var(--text2); letter-spacing: .5px; margin-bottom: 8px; flex-shrink: 0; }
+.precio-img-wrap { text-align: center; }
+.precio-img-wrap img { max-width: 240px; max-height: 160px; border-radius: 10px; border: 2px solid var(--border); object-fit: contain; background: #1a1a2e; }
+.precio-stmt { font-size: 15px; color: var(--text2); line-height: 1.4; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.precio-correct-box { background: rgba(34,197,94,.1); border: 1px solid var(--success); border-radius: 8px; padding: 12px; font-size: 15px; }
+.precio-answers-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; overflow-y: auto; }
+.pa-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; animation: pq-in .3s ease; }
+.pa-item.winner { border-color: var(--gold); background: rgba(250,204,21,.08); }
+.pa-item.passed { opacity: .6; }
+.pa-item.passed .pa-value { color: var(--danger); }
+.pa-name { flex: 1; font-size: 14px; font-weight: 600; }
+.pa-value { font-size: 16px; font-weight: 800; color: var(--accent); min-width: 80px; text-align: right; font-variant-numeric: tabular-nums; }
+.pa-delta { font-size: 12px; color: var(--text2); min-width: 60px; text-align: right; }
+.pa-passed-badge { font-size: 10px; color: var(--danger); font-weight: 700; text-transform: uppercase; }
+.pa-empty { color: var(--text2); font-size: 13px; padding: 16px; text-align: center; }
+
 /* ── Pulsador director panel ── */
 .pulsador-layout { display: flex; gap: 20px; flex: 1; min-height: 0; }
 .pulsador-left { flex: 2; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
@@ -365,6 +385,34 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                     <div class="pulsador-right">
                         <h4>&#127942; Equipos &amp; puntos</h4>
                         <div id="pulsadorTeamsList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Precio director panel (shown only for precio round type) -->
+            <div id="precioDirectorPanel" style="display:none; flex:1; overflow-y:auto;">
+                <div class="precio-layout">
+                    <div class="precio-left">
+                        <div id="precioLogo" style="text-align:center;"></div>
+                        <div class="precio-img-wrap" id="precioImage"></div>
+                        <div class="precio-stmt" id="precioDirStatement"></div>
+                        <div class="precio-correct-box" id="precioDirCorrectBox">
+                            <span style="color:var(--success);font-weight:700;">Valor correcto: </span>
+                            <span id="precioDirCorrectValue"></span>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button class="btn-accent" id="btnPrecioRevealOpts" onclick="emit('director:reveal_options')">&#9654; Iniciar tiempo</button>
+                            <button class="btn-accent" id="btnPrecioRevealAnswer" onclick="emit('director:reveal_answer')">&#128064; Revelar respuesta</button>
+                            <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
+                        </div>
+                        <div style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--text2); margin-top:8px;">Respuestas recibidas</div>
+                        <div class="precio-answers-list" id="precioAnswersList">
+                            <div class="pa-empty">Esperando respuestas...</div>
+                        </div>
+                    </div>
+                    <div class="precio-right">
+                        <h4>&#127942; Equipos &amp; puntos</h4>
+                        <div id="precioTeamsList"></div>
                     </div>
                 </div>
             </div>
@@ -1031,6 +1079,104 @@ function renderQuestionPulsador() {
     }).join('');
 }
 
+function renderQuestionPrecio() {
+    var ds = S.director;
+    if (!ds || ds.currentQuestionIdx < 0) return;
+    var q = ds.questions[ds.currentQuestionIdx];
+    if (!q) return;
+    var c = q.content || {};
+    var idx = ds.currentQuestionIdx, total = ds.questions.length;
+
+    // Nav bar
+    document.getElementById('questionCounter').textContent = 'Pregunta ' + (idx + 1) + ' de ' + total;
+    document.getElementById('btnPrevQ').disabled = idx <= 0;
+    var btnNext = document.getElementById('btnNextQ');
+    if (idx >= total - 1) {
+        btnNext.textContent = '✓ Terminar ronda';
+        btnNext.onclick = function() { emit('director:finish_round'); };
+    } else {
+        btnNext.innerHTML = 'Siguiente &#9654;';
+        btnNext.onclick = function() { emit('director:next_question'); };
+    }
+
+    // Show precio panel, hide others
+    document.getElementById('precioDirectorPanel').style.display = 'flex';
+    document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+    document.getElementById('questionCard').style.display = 'none';
+    document.getElementById('questionDefaultActions').style.display = 'none';
+
+    // Logo
+    var gt = S.game && S.game.theme || {};
+    var rc = ds.currentRound ? parseJson(ds.currentRound.config) : {};
+    var typeTheme = (gt.types && gt.types['precio']) || {};
+    var logo = rc.logo || typeTheme.logo || gt.logo || null;
+    var logoEl = document.getElementById('precioLogo');
+    if (logo) { logoEl.innerHTML = '<img src="' + esc(logo) + '" style="max-height:80px;max-width:200px;object-fit:contain;border-radius:8px;" onerror="this.style.display=\'none\'">'; }
+    else { logoEl.innerHTML = ''; }
+
+    // Image
+    var imgSrc = q.media_url || c.image || '/shared/placeholder-precio.svg';
+    document.getElementById('precioImage').innerHTML = '<img src="' + esc(imgSrc) + '">';
+
+    // Statement & correct value
+    document.getElementById('precioDirStatement').textContent = c.statement || 'Sin enunciado';
+    document.getElementById('precioDirCorrectValue').textContent = c.correct_value !== undefined ? c.correct_value : '-';
+
+    // Buttons state
+    var btnRevealOpts = document.getElementById('btnPrecioRevealOpts');
+    var btnRevealAns = document.getElementById('btnPrecioRevealAnswer');
+    if (ds.optionsRevealed) {
+        btnRevealOpts.disabled = true;
+        btnRevealOpts.textContent = 'Tiempo en curso...';
+    } else {
+        btnRevealOpts.disabled = false;
+        btnRevealOpts.innerHTML = '&#9654; Iniciar tiempo';
+    }
+
+    // Answers list sorted by proximity
+    var correctValue = Number(c.correct_value);
+    var answers = Object.entries(ds.answers || {}).map(function(pair) {
+        var teamId = pair[0], ans = pair[1];
+        var eq = S.equipos.find(function(e) { return e.id === teamId; });
+        var val = Number(ans.answer);
+        return { teamId: teamId, name: eq ? eq.nombre : teamId, value: val, passed: val > correctValue, delta: correctValue - val, timestamp: ans.timestamp };
+    });
+    // Sort: not-passed first by delta asc, then passed by delta asc
+    answers.sort(function(a, b) {
+        if (a.passed !== b.passed) return a.passed ? 1 : -1;
+        if (!a.passed && !b.passed) return a.delta !== b.delta ? a.delta - b.delta : a.timestamp - b.timestamp;
+        return Math.abs(a.delta) - Math.abs(b.delta);
+    });
+
+    var listEl = document.getElementById('precioAnswersList');
+    if (!answers.length) {
+        listEl.innerHTML = '<div class="pa-empty">Esperando respuestas...</div>';
+    } else {
+        listEl.innerHTML = answers.map(function(a, i) {
+            var cls = 'pa-item' + (a.passed ? ' passed' : '') + (!a.passed && i === 0 ? ' winner' : '');
+            return '<div class="' + cls + '">'
+                + '<span class="pa-name">' + esc(a.name) + '</span>'
+                + '<span class="pa-value">' + a.value + '</span>'
+                + (a.passed ? '<span class="pa-passed-badge">PASADO</span>' : '<span class="pa-delta">-' + a.delta + '</span>')
+                + '</div>';
+        }).join('');
+    }
+
+    // Team scores panel (right side)
+    var cfg = getQuestionConfig(ds);
+    var scores = ds.scores || {};
+    document.getElementById('precioTeamsList').innerHTML = S.equipos.map(function(e) {
+        var score = scores[e.id] || 0;
+        return '<div class="pt-row">'
+            + '<span class="pt-name" title="' + esc(e.nombre) + '">' + esc(e.nombre) + '</span>'
+            + '<span class="pt-score">' + score + '</span>'
+            + '<div class="pt-actions">'
+            + '<button class="btn-success" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:' + cfg.basePoints + '})" title="+' + cfg.basePoints + '">+' + cfg.basePoints + '</button>'
+            + '<button class="btn-danger" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:' + (-cfg.basePoints) + '})" title="-' + cfg.basePoints + '">-' + cfg.basePoints + '</button>'
+            + '</div></div>';
+    }).join('');
+}
+
 function getQuestionConfig(ds) {
     var q = ds.questions[ds.currentQuestionIdx];
     if (!q) return { time: 30, basePoints: 100, bonusMax: 50, penalty: 0 };
@@ -1052,12 +1198,20 @@ function renderQuestion() {
     // Pulsador type: dedicated layout
     var roundType = ds.currentRound ? ds.currentRound.type : '';
     if (roundType === 'pulsador') {
+        document.getElementById('precioDirectorPanel').style.display = 'none';
         renderQuestionPulsador();
         return;
     }
+    // Precio type: dedicated layout
+    if (roundType === 'precio') {
+        document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+        renderQuestionPrecio();
+        return;
+    }
 
-    // Default: hide pulsador panel, show normal card
+    // Default: hide dedicated panels, show normal card
     document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+    document.getElementById('precioDirectorPanel').style.display = 'none';
     document.getElementById('questionCard').style.display = '';
     document.getElementById('questionDefaultActions').style.display = '';
 
@@ -1094,10 +1248,10 @@ function renderQuestion() {
         }).join('');
     }
 
-    // Show/hide "Abrir opciones" button for multirespuesta and boom
-    var roundType = ds.currentRound ? ds.currentRound.type : '';
+    // Show/hide "Abrir opciones" button for multirespuesta, boom (precio uses its own panel)
+    var roundType2 = ds.currentRound ? ds.currentRound.type : '';
     var btnRevealOpts = document.getElementById('btnRevealOptions');
-    if ((roundType === 'multirespuesta' || roundType === 'boom') && !ds.optionsRevealed) {
+    if ((roundType2 === 'multirespuesta' || roundType2 === 'boom') && !ds.optionsRevealed) {
         btnRevealOpts.style.display = '';
     } else {
         btnRevealOpts.style.display = 'none';
@@ -1226,6 +1380,9 @@ function revealNextLetter() {
 // ── Answer revealed ──
 function renderAnswerRevealed() {
     const ds = S.director;
+    // Hide dedicated panels from question phase
+    document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+    document.getElementById('precioDirectorPanel').style.display = 'none';
     if (!ds || ds.currentQuestionIdx < 0) return;
     const q = ds.questions[ds.currentQuestionIdx];
     if (!q) return;
