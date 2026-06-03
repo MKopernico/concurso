@@ -145,31 +145,49 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 #phase-round_end h2 { font-size: 28px; background: linear-gradient(135deg, var(--accent), var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 #phase-round_end p { color: var(--text2); font-size: 15px; }
 
-/* Control bar */
-.control-bar { background: var(--surface); border-top: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; flex-wrap: wrap; }
-.control-section { display: flex; align-items: center; gap: 8px; }
-.control-divider { width: 1px; height: 28px; background: var(--border); flex-shrink: 0; }
-.timer-display { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 80px; text-align: center; }
+/* Timer inline (header) */
+.header-timer { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.timer-display { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 56px; text-align: center; }
 .timer-display.running { color: var(--success); }
 .timer-display.stopped { color: var(--text2); }
 .timer-display.danger { color: var(--danger); animation: pulse .5s infinite alternate; }
 @keyframes pulse { to { opacity: .5; } }
+
+/* Right collapsible panel */
+.right-panel { width: 320px; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+.right-panel-scroll { flex: 1; overflow-y: auto; }
+
+/* Collapsible section */
+.collapse-section { border-bottom: 1px solid var(--border); }
+.collapse-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; user-select: none; transition: background .15s; }
+.collapse-header:hover { background: var(--surface2); }
+.collapse-chevron { font-size: 10px; color: var(--text2); transition: transform .2s; flex-shrink: 0; width: 16px; text-align: center; }
+.collapse-section.open .collapse-chevron { transform: rotate(90deg); }
+.collapse-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); }
+.collapse-body { display: none; padding: 0 14px 14px; }
+.collapse-section.open .collapse-body { display: block; }
+
+/* Buzzer compact row (collapsed state) */
+.buzzer-compact { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .buzzer-indicator { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .buzzer-indicator.on { background: var(--success); box-shadow: 0 0 8px var(--success); }
 .buzzer-indicator.off { background: var(--danger); }
-.buzzer-label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text2); }
-.buzzer-queue { font-size: 12px; color: var(--text2); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.buzzer-queue strong { color: var(--gold); }
+.buzzer-indicator.blink { animation: buzzerBlink .5s infinite alternate; }
+@keyframes buzzerBlink { from { opacity: 1; box-shadow: 0 0 8px var(--gold); } to { opacity: .3; box-shadow: none; } }
+.buzzer-first-name { font-size: 12px; font-weight: 700; color: var(--gold); max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Teams bar */
-.teams-bar { background: var(--surface2); border-top: 1px solid var(--border); padding: 8px 12px; display: flex; gap: 8px; overflow-x: auto; flex-shrink: 0; align-items: stretch; }
-.team-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 110px; flex-shrink: 0; position: relative; }
-.team-chip.blocked { opacity: .5; border-color: var(--danger); }
-.team-chip .team-name { font-size: 12px; font-weight: 600; white-space: nowrap; max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
-.team-chip .team-score { font-size: 18px; font-weight: 800; color: var(--accent); }
-.team-chip .team-actions { display: flex; gap: 3px; }
-.team-chip .team-actions button { padding: 3px 7px; font-size: 11px; border-radius: 4px; }
-.team-chip .blocked-badge { position: absolute; top: -4px; right: -4px; background: var(--danger); color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 700; }
+/* Ruleta compact row (collapsed state) */
+.ruleta-compact { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.rlc-kb-btn { min-width: 28px; height: 28px; border-radius: 4px; font-size: 12px; font-weight: 800;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; transition: .15s; }
+.rlc-kb-btn:hover { border-color: var(--accent); color: var(--accent); }
+.rlc-kb-btn.done { opacity: .2; pointer-events: none; }
+.rlc-kb-btn.vowel { border-color: var(--gold); color: var(--gold); }
+
+/* Teams in right panel */
+.rp-teams { padding: 10px 14px; border-top: 1px solid var(--border); }
+.rp-teams h4 { font-size: 11px; text-transform: uppercase; color: var(--text2); letter-spacing: .5px; margin-bottom: 6px; }
 
 /* Director image grid (legacy cells) */
 .dir-grid { display: inline-grid; gap: 3px; }
@@ -345,6 +363,13 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 <div class="header">
     <span class="header-logo">Mesa de control</span>
     <span class="header-game" id="headerGameName">Cargando...</span>
+    <div class="header-timer" id="headerTimer">
+        <div class="timer-display stopped" id="timerDisplay">--:--</div>
+        <span id="dirPreCountdown" style="display:none; font-size:13px; font-weight:700; color:var(--accent); white-space:nowrap;"></span>
+        <button class="btn-success btn-sm" id="btnStartTimer" onclick="emit('director:start_timer')">&#9654;</button>
+        <button class="btn-ghost btn-sm" id="btnStopTimer" onclick="emit('director:stop_timer')">&#9632;</button>
+        <button class="btn-ghost btn-sm" onclick="emit('director:extend_timer', {seconds:10})">+10s</button>
+    </div>
     <div class="header-actions">
         <button class="btn-ghost btn-sm" onclick="toggleSidebar()" title="Rondas">&#9776;</button>
         <button class="btn-ghost btn-sm" onclick="emit('director:show_home')" title="Menu Home">&#127968;</button>
@@ -396,98 +421,51 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             </div>
             <!-- Pulsador director panel (shown only for pulsador round type) -->
             <div id="pulsadorDirectorPanel" style="display:none; flex:1; overflow-y:auto;">
-                <div class="pulsador-layout">
-                    <div class="pulsador-left">
-                        <div id="pulsadorLogo" style="text-align:center;"></div>
-                        <div class="pulsador-stmt" id="pulsadorStatement"></div>
-                        <div class="pulsador-answer-box" id="pulsadorAnswerBox" style="display:none">
-                            <span style="color:var(--success);font-weight:700;">Respuesta: </span>
-                            <span id="pulsadorAnswerText"></span>
-                        </div>
-                        <div style="display:flex; gap:8px; align-items:center;">
-                            <button class="btn-ghost btn-sm" id="btnTogglePulsadorAnswer" onclick="togglePulsadorAnswer()">&#128065; Mostrar respuesta</button>
-                            <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
-                        </div>
-                        <div class="pulsador-controls">
-                            <button class="btn-pulsador open" id="btnPulsadorOpen" onclick="emit('director:open_buzzer')">&#128994; ABRIR</button>
-                            <button class="btn-pulsador close" id="btnPulsadorClose" onclick="emit('director:close_buzzer')">&#128308; CERRAR</button>
-                            <button class="btn-pulsador reset" onclick="emit('director:reset_buzzer')">&#128260; RESET</button>
-                        </div>
-                        <div class="pulsador-status-bar st-closed" id="pulsadorStatusBar">PULSADOR CERRADO</div>
-                        <div class="pulsador-queue-list" id="pulsadorQueueList">
-                            <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
-                        </div>
-                    </div>
-                    <div class="pulsador-right">
-                        <h4>&#127942; Equipos &amp; puntos</h4>
-                        <div id="pulsadorTeamsList"></div>
-                    </div>
+                <div id="pulsadorLogo" style="text-align:center;"></div>
+                <div class="pulsador-stmt" id="pulsadorStatement"></div>
+                <div class="pulsador-answer-box" id="pulsadorAnswerBox" style="display:none">
+                    <span style="color:var(--success);font-weight:700;">Respuesta: </span>
+                    <span id="pulsadorAnswerText"></span>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+                    <button class="btn-ghost btn-sm" id="btnTogglePulsadorAnswer" onclick="togglePulsadorAnswer()">&#128065; Mostrar respuesta</button>
+                    <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
                 </div>
             </div>
 
             <!-- Precio director panel (shown only for precio round type) -->
             <div id="precioDirectorPanel" style="display:none; flex:1; overflow-y:auto;">
-                <div class="precio-layout">
-                    <div class="precio-left">
-                        <div id="precioLogo" style="text-align:center;"></div>
-                        <div class="precio-img-wrap" id="precioImage"></div>
-                        <div class="precio-stmt" id="precioDirStatement"></div>
-                        <div class="precio-correct-box" id="precioDirCorrectBox">
-                            <span style="color:var(--success);font-weight:700;">Valor correcto: </span>
-                            <span id="precioDirCorrectValue"></span>
-                        </div>
-                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                            <button class="btn-accent" id="btnPrecioRevealOpts" onclick="emit('director:reveal_options')">&#9654; Iniciar tiempo</button>
-                            <button class="btn-accent" id="btnPrecioRevealAnswer" onclick="emit('director:reveal_answer')">&#128064; Revelar respuesta</button>
-                            <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
-                        </div>
-                        <div style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--text2); margin-top:8px;">Respuestas recibidas</div>
-                        <div class="precio-answers-list" id="precioAnswersList">
-                            <div class="pa-empty">Esperando respuestas...</div>
-                        </div>
-                    </div>
-                    <div class="precio-right">
-                        <h4>&#127942; Equipos &amp; puntos</h4>
-                        <div id="precioTeamsList"></div>
-                    </div>
+                <div id="precioLogo" style="text-align:center;"></div>
+                <div class="precio-img-wrap" id="precioImage"></div>
+                <div class="precio-stmt" id="precioDirStatement"></div>
+                <div class="precio-correct-box" id="precioDirCorrectBox">
+                    <span style="color:var(--success);font-weight:700;">Valor correcto: </span>
+                    <span id="precioDirCorrectValue"></span>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                    <button class="btn-accent" id="btnPrecioRevealOpts" onclick="emit('director:reveal_options')">&#9654; Iniciar tiempo</button>
+                    <button class="btn-accent" id="btnPrecioRevealAnswer" onclick="emit('director:reveal_answer')">&#128064; Revelar respuesta</button>
+                    <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
+                </div>
+                <div style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--text2); margin-top:8px;">Respuestas recibidas</div>
+                <div class="precio-answers-list" id="precioAnswersList">
+                    <div class="pa-empty">Esperando respuestas...</div>
                 </div>
             </div>
 
-            <!-- Ruleta director panel (two-column: 60% panel+control / 40% pulsador) -->
-            <div id="ruletaDirectorPanel" style="display:none; flex:1; overflow:hidden;">
-                <div class="ruleta-layout">
-                    <!-- LEFT: Panel de letras + control -->
-                    <div class="ruleta-left">
-                        <!-- Sub-state A: before panel visible -->
-                        <div id="rlStateA" class="rl-pre">
-                            <div class="rl-pre-phrase" id="rlPrePhrase">-</div>
-                            <div class="rl-pre-hint" id="rlPreHint">-</div>
-                            <button class="rl-pre-btn" onclick="emit('director:show_roulette_panel')">&#127919; Mostrar panel</button>
-                        </div>
-                        <!-- Sub-state B: panel active -->
-                        <div id="rlStateB" style="display:none; flex:1; display:none; flex-direction:column; gap:10px;">
-                            <div class="rl-panel-wrap" id="ruletaPanelPreview"></div>
-                            <div class="rl-keyboard" id="ruletaKeyboard"></div>
-                            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                                <button class="rl-solve-btn" id="btnSolveRoulette" onclick="emit('director:solve_roulette')">&#9989; RESOLVER</button>
-                                <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- RIGHT: Pulsador rápido -->
-                    <div class="ruleta-right">
-                        <h4>&#128308; Pulsador</h4>
-                        <div class="pulsador-controls" style="margin-bottom:8px;">
-                            <button class="btn-pulsador open" id="rlBtnOpen" onclick="emit('director:open_buzzer')">&#128994; ABRIR</button>
-                            <button class="btn-pulsador close" id="rlBtnClose" onclick="emit('director:close_buzzer')">&#128308; CERRAR</button>
-                            <button class="btn-pulsador reset" onclick="emit('director:reset_buzzer')">&#128260; RESET</button>
-                        </div>
-                        <div class="pulsador-status-bar st-closed" id="rlPulsadorStatus">PULSADOR CERRADO</div>
-                        <div class="pulsador-queue-list" id="ruletaQueueList">
-                            <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
-                        </div>
-                        <h4 style="margin-top:12px;">&#127942; Equipos &amp; puntos</h4>
-                        <div id="ruletaTeamsList"></div>
+            <!-- Ruleta director panel -->
+            <div id="ruletaDirectorPanel" style="display:none; flex:1; overflow-y:auto;">
+                <!-- Sub-state A: before panel visible -->
+                <div id="rlStateA" class="rl-pre">
+                    <div class="rl-pre-phrase" id="rlPrePhrase">-</div>
+                    <div class="rl-pre-hint" id="rlPreHint">-</div>
+                    <button class="rl-pre-btn" onclick="emit('director:show_roulette_panel')">&#127919; Mostrar panel</button>
+                </div>
+                <!-- Sub-state B: panel active -->
+                <div id="rlStateB" style="display:none; flex-direction:column; gap:10px;">
+                    <div class="rl-panel-wrap" id="ruletaPanelPreview"></div>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                        <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
                     </div>
                 </div>
             </div>
@@ -561,43 +539,58 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             <button class="btn-ghost" onclick="emit('director:show_home')" style="margin-top:16px;">&#8592; Volver al Home</button>
         </div>
     </div>
+
+    <!-- Right collapsible panel -->
+    <aside class="right-panel" id="rightPanel">
+        <div class="right-panel-scroll">
+            <!-- PULSADOR section -->
+            <div class="collapse-section" id="secPulsador">
+                <div class="collapse-header" onclick="toggleSection('secPulsador')">
+                    <span class="collapse-chevron">&#9654;</span>
+                    <span class="collapse-title">&#128308; Pulsador</span>
+                    <div class="buzzer-indicator off" id="rpBuzzerDot" style="margin-left:auto;"></div>
+                </div>
+                <div class="collapse-body">
+                    <div class="buzzer-compact" id="rpBuzzerCompact">
+                        <button class="btn-success btn-sm" id="rpBtnOpen" onclick="emit('director:open_buzzer')">Abrir</button>
+                        <button class="btn-danger btn-sm" id="rpBtnClose" onclick="emit('director:close_buzzer')">Cerrar</button>
+                        <button class="btn-ghost btn-sm" onclick="emit('director:reset_buzzer')">Reset</button>
+                        <span class="buzzer-first-name" id="rpFirstName"></span>
+                        <button class="btn-success btn-sm" id="rpBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004;</button>
+                        <button class="btn-danger btn-sm" id="rpBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008;</button>
+                        <button class="btn-ghost btn-sm" id="rpBtnBlockAll" onclick="toggleBlockAll()">&#128274;</button>
+                    </div>
+                    <div id="rpQueueFull" style="margin-top:10px;">
+                        <div class="pulsador-queue-list" id="rpQueueList">
+                            <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RULETA section -->
+            <div class="collapse-section open" id="secRuleta" style="display:none;">
+                <div class="collapse-header" onclick="toggleSection('secRuleta')">
+                    <span class="collapse-chevron">&#9654;</span>
+                    <span class="collapse-title">&#127921; Ruleta</span>
+                </div>
+                <div class="collapse-body">
+                    <div class="ruleta-compact" id="rpRuletaKeyboard"></div>
+                    <div style="margin-top:8px;">
+                        <button class="rl-solve-btn" id="rpBtnSolve" onclick="emit('director:solve_roulette')" style="padding:8px 16px; font-size:13px;">&#9989; RESOLVER</button>
+                    </div>
+                    <div id="rpRuletaPhrase" style="margin-top:10px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="rp-teams">
+            <h4>&#127942; Equipos &amp; puntos</h4>
+            <div id="rpTeamsList"></div>
+        </div>
+    </aside>
 </div>
 
-<!-- Control bar -->
-<div class="control-bar" id="controlBar">
-    <div class="control-section">
-        <div class="timer-display stopped" id="timerDisplay">--:--</div>
-        <span id="dirPreCountdown" style="display:none; font-size:13px; font-weight:700; color:var(--accent); margin:0 6px; white-space:nowrap;"></span>
-        <button class="btn-success btn-sm" id="btnStartTimer" onclick="emit('director:start_timer')">&#9654;</button>
-        <button class="btn-ghost btn-sm" id="btnStopTimer" onclick="emit('director:stop_timer')">&#9632;</button>
-        <button class="btn-ghost btn-sm" onclick="emit('director:extend_timer', {seconds:10})">+10s</button>
-    </div>
-    <div class="control-divider"></div>
-    <div class="control-section">
-        <div class="buzzer-indicator off" id="buzzerDot"></div>
-        <span class="buzzer-label">Pulsador</span>
-        <button class="btn-success btn-sm" id="btnOpenBuzzer" onclick="emit('director:open_buzzer')">Abrir</button>
-        <button class="btn-danger btn-sm" id="btnCloseBuzzer" onclick="emit('director:close_buzzer')">Cerrar</button>
-        <button class="btn-ghost btn-sm" onclick="emit('director:reset_buzzer')">Reset</button>
-    </div>
-    <div class="control-divider"></div>
-    <div class="control-section" style="flex:1; min-width:0;">
-        <div class="buzzer-queue" id="buzzerQueue">Cola vac&iacute;a</div>
-    </div>
-    <div class="control-divider"></div>
-    <div class="control-section" id="queueActions" style="display:none;">
-        <button class="btn-success btn-sm" onclick="markFirst(true)">&#10004; Acierto</button>
-        <button class="btn-danger btn-sm" onclick="markFirst(false)">&#10008; Fallo</button>
-    </div>
-    <div class="control-section">
-        <button class="btn-ghost btn-sm" id="btnBlockAll" onclick="toggleBlockAll()">&#128274;</button>
-    </div>
-</div>
-
-<!-- Teams bar -->
-<div class="teams-bar" id="teamsBar">
-    <div style="color:var(--text2); font-size:12px; padding:12px;">Sin equipos</div>
-</div>
 
 <!-- Scoreboard overlay -->
 <div class="scoreboard-overlay" id="scoreboardOverlay" onclick="if(event.target===this)toggleScoreboard()">
@@ -738,7 +731,19 @@ function render() {
     renderTimer();
     renderBuzzer();
     renderTeams();
+    renderRightPanelRuleta();
     renderRoundsActive();
+
+    // Auto-collapse/expand on new question
+    if (ds.currentQuestionIdx !== _prevQIdx || phase !== _prevPhase) {
+        var roundType = ds.currentRound ? ds.currentRound.type : '';
+        if (phase === 'question') {
+            document.getElementById('secPulsador').classList.remove('open');
+            if (roundType === 'ruleta') {
+                document.getElementById('secRuleta').classList.add('open');
+            }
+        }
+    }
     if (phase === 'lobby') {
         if (ds.menuLevel === 'home') renderHomeMenu();
         else if (ds.menuLevel === 'category') renderCategoryMenu();
@@ -1107,52 +1112,6 @@ function renderQuestionPulsador() {
     // Statement & answer
     document.getElementById('pulsadorStatement').textContent = c.statement || 'Sin enunciado';
     document.getElementById('pulsadorAnswerText').textContent = c.answer || '-';
-
-    // Buzzer status
-    var statusEl = document.getElementById('pulsadorStatusBar');
-    var btnOpen = document.getElementById('btnPulsadorOpen');
-    var btnClose = document.getElementById('btnPulsadorClose');
-    if (S.pulsadorActivo) {
-        statusEl.textContent = 'PULSADOR ABIERTO';
-        statusEl.className = 'pulsador-status-bar st-open';
-        btnOpen.disabled = true;
-        btnClose.disabled = false;
-    } else {
-        statusEl.textContent = 'PULSADOR CERRADO';
-        statusEl.className = 'pulsador-status-bar st-closed';
-        btnOpen.disabled = false;
-        btnClose.disabled = true;
-    }
-
-    // Queue
-    var queueEl = document.getElementById('pulsadorQueueList');
-    if (!S.colaPulsador.length) {
-        queueEl.innerHTML = '<div class="pq-empty">Nadie ha pulsado aún</div>';
-    } else {
-        queueEl.innerHTML = S.colaPulsador.map(function(p, i) {
-            var timeStr = p.elapsed !== undefined ? (p.elapsed / 1000).toFixed(3) + 's' : '';
-            return '<div class="pq-item">'
-                + '<span class="pq-pos">' + (i + 1) + 'º</span>'
-                + '<span class="pq-name">' + esc(p.nombre) + '</span>'
-                + '<span class="pq-time">' + timeStr + '</span>'
-                + '</div>';
-        }).join('');
-    }
-
-    // Team scores panel
-    var cfg = getQuestionConfig(ds);
-    var scores = ds.scores || {};
-    var teamsEl = document.getElementById('pulsadorTeamsList');
-    teamsEl.innerHTML = S.equipos.map(function(e) {
-        var score = scores[e.id] || 0;
-        return '<div class="pt-row">'
-            + '<span class="pt-name" title="' + esc(e.nombre) + '">' + esc(e.nombre) + '</span>'
-            + '<span class="pt-score">' + score + '</span>'
-            + '<div class="pt-actions">'
-            + '<button class="btn-success" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:' + cfg.basePoints + '})" title="+' + cfg.basePoints + '">+' + cfg.basePoints + '</button>'
-            + '<button class="btn-danger" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:' + (-cfg.basePoints) + '})" title="-' + cfg.basePoints + '">-' + cfg.basePoints + '</button>'
-            + '</div></div>';
-    }).join('');
 }
 
 function renderQuestionPrecio() {
@@ -1238,19 +1197,6 @@ function renderQuestionPrecio() {
         }).join('');
     }
 
-    // Team scores panel (right side)
-    var cfg = getQuestionConfig(ds);
-    var scores = ds.scores || {};
-    document.getElementById('precioTeamsList').innerHTML = S.equipos.map(function(e) {
-        var score = scores[e.id] || 0;
-        return '<div class="pt-row">'
-            + '<span class="pt-name" title="' + esc(e.nombre) + '">' + esc(e.nombre) + '</span>'
-            + '<span class="pt-score">' + score + '</span>'
-            + '<div class="pt-actions">'
-            + '<button class="btn-success" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:' + cfg.basePoints + '})" title="+' + cfg.basePoints + '">+' + cfg.basePoints + '</button>'
-            + '<button class="btn-danger" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:' + (-cfg.basePoints) + '})" title="-' + cfg.basePoints + '">-' + cfg.basePoints + '</button>'
-            + '</div></div>';
-    }).join('');
 }
 
 function renderQuestionRuleta() {
@@ -1288,17 +1234,14 @@ function renderQuestionRuleta() {
     var stateA = document.getElementById('rlStateA');
     var stateB = document.getElementById('rlStateB');
     if (!panelVisible) {
-        // State A: show phrase + hint + big button
         stateA.style.display = 'flex';
         stateB.style.display = 'none';
         document.getElementById('rlPrePhrase').textContent = c.phrase || '-';
         document.getElementById('rlPreHint').textContent = 'Pista: ' + (c.hint || '-');
     } else {
-        // State B: panel active
         stateA.style.display = 'none';
         stateB.style.display = 'flex';
 
-        // Render mini RoulettePanel (director preview — all cells visible at low opacity, revealed at full)
         var gt = S.game && S.game.theme || {};
         var rc = ds.currentRound ? parseJson(ds.currentRound.config) : {};
         var typeTheme = (gt.types && gt.types['ruleta']) || {};
@@ -1309,7 +1252,6 @@ function renderQuestionRuleta() {
             logo: logo, size: 'medium', panelVisible: true, solved: solved
         });
 
-        // Make unrevealed cells show the letter at low opacity (director can see all)
         var previewEl = document.getElementById('ruletaPanelPreview');
         var hiddenCells = previewEl.querySelectorAll('.rp-cell.hidden');
         for (var hi = 0; hi < hiddenCells.length; hi++) {
@@ -1318,73 +1260,7 @@ function renderQuestionRuleta() {
                 hiddenCells[hi].innerHTML = '<span class="rp-char" style="opacity:.35">' + esc(letter) + '</span>';
             }
         }
-
-        // ── Keyboard: consonants row + vowels row ──
-        var VOWELS = 'AEIOUÁÉÍÓÚÜ';
-        var allLetters = RoulettePanel.uniqueLetters(c.phrase || '');
-        var revSet = {};
-        for (var ri = 0; ri < revealed.length; ri++) revSet[revealed[ri]] = true;
-        var consonants = [], vowels = [];
-        for (var li = 0; li < allLetters.length; li++) {
-            var ch = allLetters[li];
-            if (VOWELS.indexOf(ch) >= 0) vowels.push(ch);
-            else consonants.push(ch);
-        }
-        consonants.sort(); vowels.sort();
-
-        var kbHtml = '';
-        if (consonants.length) {
-            kbHtml += '<div class="rl-kb-label">Consonantes</div><div class="rl-kb-row">';
-            kbHtml += consonants.map(function(l) {
-                var done = revSet[l] || solved;
-                return '<button class="rl-kb-btn' + (done ? ' done' : '') + '" onclick="emit(\'director:reveal_letter\',{letter:\'' + l + '\'})">' + l + '</button>';
-            }).join('');
-            kbHtml += '</div>';
-        }
-        if (vowels.length) {
-            kbHtml += '<div class="rl-kb-label">Vocales</div><div class="rl-kb-row">';
-            kbHtml += vowels.map(function(l) {
-                var done = revSet[l] || solved;
-                return '<button class="rl-kb-btn vowel' + (done ? ' done' : '') + '" onclick="emit(\'director:reveal_letter\',{letter:\'' + l + '\'})">' + l + '</button>';
-            }).join('');
-            kbHtml += '</div>';
-        }
-        document.getElementById('ruletaKeyboard').innerHTML = kbHtml;
-        document.getElementById('btnSolveRoulette').disabled = solved;
     }
-
-    // ── RIGHT: Pulsador status + queue + teams ──
-    var statusEl = document.getElementById('rlPulsadorStatus');
-    var btnOpen = document.getElementById('rlBtnOpen');
-    var btnClose = document.getElementById('rlBtnClose');
-    if (S.pulsadorActivo) {
-        statusEl.textContent = 'PULSADOR ABIERTO';
-        statusEl.className = 'pulsador-status-bar st-open';
-        btnOpen.disabled = true; btnClose.disabled = false;
-    } else {
-        statusEl.textContent = 'PULSADOR CERRADO';
-        statusEl.className = 'pulsador-status-bar st-closed';
-        btnOpen.disabled = false; btnClose.disabled = true;
-    }
-
-    var queueEl = document.getElementById('ruletaQueueList');
-    if (!S.colaPulsador.length) {
-        queueEl.innerHTML = '<div class="pq-empty">Nadie ha pulsado aún</div>';
-    } else {
-        queueEl.innerHTML = S.colaPulsador.map(function(p, i) {
-            var timeStr = p.elapsed !== undefined ? (p.elapsed / 1000).toFixed(3) + 's' : '';
-            return '<div class="pq-item"><span class="pq-pos">' + (i + 1) + 'º</span><span class="pq-name">' + esc(p.nombre) + '</span><span class="pq-time">' + timeStr + '</span></div>';
-        }).join('');
-    }
-
-    var cfg = getQuestionConfig(ds);
-    var scores = ds.scores || {};
-    document.getElementById('ruletaTeamsList').innerHTML = S.equipos.map(function(e) {
-        var score = scores[e.id] || 0;
-        return '<div class="pt-row"><span class="pt-name">' + esc(e.nombre) + '</span><span class="pt-score">' + score + '</span>'
-            + '<div class="pt-actions"><button class="btn-success" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:' + cfg.basePoints + '})">+' + cfg.basePoints + '</button>'
-            + '<button class="btn-danger" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:' + (-cfg.basePoints) + '})">-' + cfg.basePoints + '</button></div></div>';
-    }).join('');
 }
 
 function getQuestionConfig(ds) {
@@ -1770,21 +1646,52 @@ function renderTimer() {
     }
 }
 
-// ── Buzzer ──
+// ── Right panel sections ──
+function toggleSection(id) {
+    document.getElementById(id).classList.toggle('open');
+}
+
 function renderBuzzer() {
-    document.getElementById('buzzerDot').className = 'buzzer-indicator ' + (S.pulsadorActivo ? 'on' : 'off');
-    document.getElementById('btnOpenBuzzer').disabled = S.pulsadorActivo;
-    document.getElementById('btnCloseBuzzer').disabled = !S.pulsadorActivo;
-    var queueEl = document.getElementById('buzzerQueue');
-    var actionsEl = document.getElementById('queueActions');
-    if (!S.colaPulsador.length) {
-        queueEl.innerHTML = 'Cola vacía';
-        actionsEl.style.display = 'none';
+    // Right panel buzzer indicator
+    var dot = document.getElementById('rpBuzzerDot');
+    var hasPulsado = S.colaPulsador.length > 0;
+    if (S.pulsadorActivo && hasPulsado) {
+        dot.className = 'buzzer-indicator on blink';
+    } else {
+        dot.className = 'buzzer-indicator ' + (S.pulsadorActivo ? 'on' : 'off');
+    }
+
+    // Buttons
+    document.getElementById('rpBtnOpen').disabled = S.pulsadorActivo;
+    document.getElementById('rpBtnClose').disabled = !S.pulsadorActivo;
+
+    // First in queue name
+    var firstName = document.getElementById('rpFirstName');
+    var btnCorrect = document.getElementById('rpBtnCorrect');
+    var btnWrong = document.getElementById('rpBtnWrong');
+    if (hasPulsado) {
+        firstName.textContent = S.colaPulsador[0].nombre;
+        btnCorrect.style.display = '';
+        btnWrong.style.display = '';
+    } else {
+        firstName.textContent = '';
+        btnCorrect.style.display = 'none';
+        btnWrong.style.display = 'none';
+    }
+
+    // Full queue list
+    var queueEl = document.getElementById('rpQueueList');
+    if (!hasPulsado) {
+        queueEl.innerHTML = '<div class="pq-empty">Nadie ha pulsado aún</div>';
     } else {
         queueEl.innerHTML = S.colaPulsador.map(function(p, i) {
-            return i === 0 ? '<strong>' + esc(p.nombre) + '</strong>' : esc(p.nombre);
-        }).join(' → ');
-        actionsEl.style.display = 'flex';
+            var timeStr = p.elapsed !== undefined ? (p.elapsed / 1000).toFixed(3) + 's' : '';
+            return '<div class="pq-item">'
+                + '<span class="pq-pos">' + (i + 1) + 'º</span>'
+                + '<span class="pq-name">' + esc(p.nombre) + '</span>'
+                + '<span class="pq-time">' + timeStr + '</span>'
+                + '</div>';
+        }).join('');
     }
 }
 
@@ -1793,19 +1700,73 @@ function markFirst(correct) {
     emit(correct ? 'director:mark_correct' : 'director:mark_wrong', { teamId: S.colaPulsador[0].id });
 }
 
-// ── Teams bar ──
+// ── Right panel: Ruleta section ──
+function renderRightPanelRuleta() {
+    var ds = S.director;
+    if (!ds) return;
+    var roundType = ds.currentRound ? ds.currentRound.type : '';
+    var secRuleta = document.getElementById('secRuleta');
+
+    if (roundType !== 'ruleta' || ds.phase === 'lobby' || ds.phase === 'round_end') {
+        secRuleta.style.display = 'none';
+        return;
+    }
+    secRuleta.style.display = '';
+
+    var q = ds.questions[ds.currentQuestionIdx];
+    if (!q) return;
+    var c = q.content || {};
+    var revealed = ds.rouletteRevealed || [];
+    var solved = ds.rouletteSolved || false;
+    var panelVisible = ds.roulettePanelVisible || false;
+
+    // Keyboard in compact view
+    var VOWELS = 'AEIOUÁÉÍÓÚÜ';
+    var allLetters = RoulettePanel.uniqueLetters(c.phrase || '');
+    var revSet = {};
+    for (var ri = 0; ri < revealed.length; ri++) revSet[revealed[ri]] = true;
+
+    var kbHtml = '';
+    allLetters.sort();
+    for (var li = 0; li < allLetters.length; li++) {
+        var ch = allLetters[li];
+        var isVowel = VOWELS.indexOf(ch) >= 0;
+        var done = revSet[ch] || solved;
+        kbHtml += '<button class="rlc-kb-btn' + (done ? ' done' : '') + (isVowel ? ' vowel' : '') + '" onclick="emit(\'director:reveal_letter\',{letter:\'' + ch + '\'})">' + ch + '</button>';
+    }
+    document.getElementById('rpRuletaKeyboard').innerHTML = kbHtml;
+    document.getElementById('rpBtnSolve').disabled = solved;
+
+    // Phrase preview (expanded)
+    var phraseEl = document.getElementById('rpRuletaPhrase');
+    if (panelVisible) {
+        var phrase = c.phrase || '';
+        var html = '<div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Frase:</div><div style="font-size:14px;letter-spacing:2px;line-height:1.8;font-weight:700;">';
+        for (var pi = 0; pi < phrase.length; pi++) {
+            if (phrase[pi] === ' ') { html += '&nbsp;&nbsp;'; continue; }
+            var isRev = revSet[phrase[pi].toUpperCase()] || solved;
+            html += '<span style="' + (isRev ? 'color:var(--accent)' : 'color:var(--border)') + '">' + esc(phrase[pi]) + '</span>';
+        }
+        html += '</div>';
+        phraseEl.innerHTML = html;
+    } else {
+        phraseEl.innerHTML = '<div style="font-size:11px;color:var(--text2);">Panel no visible aún</div>';
+    }
+}
+
+// ── Right panel: Teams ──
 function renderTeams() {
-    var bar = document.getElementById('teamsBar');
+    var el = document.getElementById('rpTeamsList');
     var scores = (S.director && S.director.scores) || {};
-    if (!S.equipos.length) { bar.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:12px;">Sin equipos</div>'; return; }
-    bar.innerHTML = S.equipos.map(function(e) {
+    if (!S.equipos.length) { el.innerHTML = '<div style="color:var(--text2);font-size:12px;">Sin equipos</div>'; return; }
+    el.innerHTML = S.equipos.map(function(e) {
         var score = scores[e.id] || 0;
         var blocked = e.bloqueado;
-        return '<div class="team-chip ' + (blocked ? 'blocked' : '') + '">'
-            + (blocked ? '<span class="blocked-badge">&#128274;</span>' : '')
-            + '<div class="team-name" title="' + esc(e.nombre) + '" ondblclick="openEditTeamModal(\'' + e.id + '\')">' + esc(e.nombre) + '</div>'
-            + '<div class="team-score">' + score + '</div>'
-            + '<div class="team-actions">'
+        return '<div class="pt-row">'
+            + '<span class="pt-name" title="' + esc(e.nombre) + '" ondblclick="openEditTeamModal(\'' + e.id + '\')">'
+            + (blocked ? '&#128274; ' : '') + esc(e.nombre) + '</span>'
+            + '<span class="pt-score">' + score + '</span>'
+            + '<div class="pt-actions">'
             + '<button class="btn-success" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:100})" title="+100">+</button>'
             + '<button class="btn-danger" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:-100})" title="-100">-</button>'
             + '<button class="btn-ghost" onclick="openPointsModal(\'' + e.id + '\')" title="Ajustar">&#9998;</button>'
