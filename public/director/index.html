@@ -261,6 +261,41 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .pa-passed-badge { font-size: 10px; color: var(--danger); font-weight: 700; text-transform: uppercase; }
 .pa-empty { color: var(--text2); font-size: 13px; padding: 16px; text-align: center; }
 
+/* ── Ruleta director panel ── */
+.ruleta-layout { display: flex; gap: 16px; flex: 1; min-height: 0; }
+.ruleta-left { flex: 3; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; min-width: 0; }
+.ruleta-right { flex: 2; display: flex; flex-direction: column; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; gap: 10px; }
+.ruleta-right h4 { font-size: 12px; text-transform: uppercase; color: var(--text2); letter-spacing: .5px; margin-bottom: 4px; flex-shrink: 0; }
+
+/* Sub-state A: before panel visible */
+.rl-pre { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; flex: 1;
+    text-align: center; padding: 30px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.rl-pre-phrase { font-size: 22px; font-weight: 800; color: var(--accent); line-height: 1.4; letter-spacing: 2px; text-transform: uppercase; }
+.rl-pre-hint { font-size: 14px; color: var(--text2); }
+.rl-pre-btn { padding: 16px 40px; font-size: 18px; font-weight: 800; border-radius: 12px; background: var(--accent); color: #000; border: none; cursor: pointer; }
+.rl-pre-btn:hover { background: var(--accent-dim); }
+
+/* Sub-state B: panel active */
+.rl-panel-wrap { border-radius: 10px; overflow: hidden; min-height: 220px; background: #0d2a5a; position: relative; }
+.rl-panel-wrap .rp-cell.hidden { opacity: .25; background: #e8e4dc; }
+.rl-panel-wrap .rp-cell.revealed { opacity: 1; }
+
+.rl-keyboard { display: flex; flex-direction: column; gap: 6px; }
+.rl-kb-row { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.rl-kb-label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text2); letter-spacing: 1px; padding: 2px 0; }
+.rl-kb-btn { min-width: 38px; height: 36px; border-radius: 6px; font-size: 15px; font-weight: 800;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: .15s; }
+.rl-kb-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,.08); }
+.rl-kb-btn.done { opacity: .2; pointer-events: none; }
+.rl-kb-btn.vowel { border-color: var(--gold); color: var(--gold); }
+.rl-kb-btn.vowel:hover { background: rgba(250,204,21,.1); }
+
+.rl-solve-btn { padding: 12px 24px; font-size: 15px; font-weight: 800; border-radius: 10px;
+    background: var(--orange); color: #000; border: none; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+.rl-solve-btn:hover { opacity: .85; }
+.rl-solve-btn:disabled { opacity: .3; cursor: not-allowed; }
+
 /* ── Pulsador director panel ── */
 .pulsador-layout { display: flex; gap: 20px; flex: 1; min-height: 0; }
 .pulsador-left { flex: 2; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
@@ -418,27 +453,40 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 </div>
             </div>
 
-            <!-- Ruleta director panel -->
-            <div id="ruletaDirectorPanel" style="display:none; flex:1; overflow-y:auto;">
-                <div class="pulsador-layout">
-                    <div class="pulsador-left">
-                        <div id="ruletaPanelPreview" style="border-radius:12px;overflow:hidden;min-height:300px;background:#0d2a5a;"></div>
-                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                            <button class="btn-accent" id="btnShowRoulettePanel" onclick="emit('director:show_roulette_panel')">Mostrar panel</button>
-                            <button class="btn-accent" id="btnSolveRoulette" onclick="emit('director:solve_roulette')">Resolver todo</button>
-                            <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
+            <!-- Ruleta director panel (two-column: 60% panel+control / 40% pulsador) -->
+            <div id="ruletaDirectorPanel" style="display:none; flex:1; overflow:hidden;">
+                <div class="ruleta-layout">
+                    <!-- LEFT: Panel de letras + control -->
+                    <div class="ruleta-left">
+                        <!-- Sub-state A: before panel visible -->
+                        <div id="rlStateA" class="rl-pre">
+                            <div class="rl-pre-phrase" id="rlPrePhrase">-</div>
+                            <div class="rl-pre-hint" id="rlPreHint">-</div>
+                            <button class="rl-pre-btn" onclick="emit('director:show_roulette_panel')">&#127919; Mostrar panel</button>
                         </div>
-                        <div style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--text2); margin-top:4px;">Revelar letras</div>
-                        <div id="ruletaLetterButtons" style="display:flex; flex-wrap:wrap; gap:4px;"></div>
-                        <div class="pulsador-controls" style="margin-top:8px;">
-                            <button class="btn-pulsador open" onclick="emit('director:open_buzzer')">&#128994; ABRIR PULSADOR</button>
-                            <button class="btn-pulsador close" onclick="emit('director:close_buzzer')">&#128308; CERRAR</button>
+                        <!-- Sub-state B: panel active -->
+                        <div id="rlStateB" style="display:none; flex:1; display:none; flex-direction:column; gap:10px;">
+                            <div class="rl-panel-wrap" id="ruletaPanelPreview"></div>
+                            <div class="rl-keyboard" id="ruletaKeyboard"></div>
+                            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                                <button class="rl-solve-btn" id="btnSolveRoulette" onclick="emit('director:solve_roulette')">&#9989; RESOLVER</button>
+                                <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- RIGHT: Pulsador rápido -->
+                    <div class="ruleta-right">
+                        <h4>&#128308; Pulsador</h4>
+                        <div class="pulsador-controls" style="margin-bottom:8px;">
+                            <button class="btn-pulsador open" id="rlBtnOpen" onclick="emit('director:open_buzzer')">&#128994; ABRIR</button>
+                            <button class="btn-pulsador close" id="rlBtnClose" onclick="emit('director:close_buzzer')">&#128308; CERRAR</button>
                             <button class="btn-pulsador reset" onclick="emit('director:reset_buzzer')">&#128260; RESET</button>
                         </div>
-                        <div class="pulsador-queue-list" id="ruletaQueueList"><div class="pq-empty">Nadie ha pulsado a&uacute;n</div></div>
-                    </div>
-                    <div class="pulsador-right">
-                        <h4>&#127942; Equipos &amp; puntos</h4>
+                        <div class="pulsador-status-bar st-closed" id="rlPulsadorStatus">PULSADOR CERRADO</div>
+                        <div class="pulsador-queue-list" id="ruletaQueueList">
+                            <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
+                        </div>
+                        <h4 style="margin-top:12px;">&#127942; Equipos &amp; puntos</h4>
                         <div id="ruletaTeamsList"></div>
                     </div>
                 </div>
@@ -1232,35 +1280,93 @@ function renderQuestionRuleta() {
     document.getElementById('questionCard').style.display = 'none';
     document.getElementById('questionDefaultActions').style.display = 'none';
 
-    // Render preview panel
-    var gt = S.game && S.game.theme || {};
-    var rc = ds.currentRound ? parseJson(ds.currentRound.config) : {};
-    var typeTheme = (gt.types && gt.types['ruleta']) || {};
-    var logo = rc.logo || typeTheme.logo || gt.logo || null;
+    var panelVisible = ds.roulettePanelVisible || false;
     var revealed = ds.rouletteRevealed || [];
     var solved = ds.rouletteSolved || false;
 
-    RoulettePanel.render(document.getElementById('ruletaPanelPreview'), {
-        phrase: c.phrase || '', hint: c.hint || '', revealedLetters: revealed,
-        logo: logo, size: 'medium', panelVisible: ds.roulettePanelVisible, solved: solved
-    });
+    // ── Sub-state A or B ──
+    var stateA = document.getElementById('rlStateA');
+    var stateB = document.getElementById('rlStateB');
+    if (!panelVisible) {
+        // State A: show phrase + hint + big button
+        stateA.style.display = 'flex';
+        stateB.style.display = 'none';
+        document.getElementById('rlPrePhrase').textContent = c.phrase || '-';
+        document.getElementById('rlPreHint').textContent = 'Pista: ' + (c.hint || '-');
+    } else {
+        // State B: panel active
+        stateA.style.display = 'none';
+        stateB.style.display = 'flex';
 
-    // Show/hide panel button
-    document.getElementById('btnShowRoulettePanel').disabled = ds.roulettePanelVisible;
-    document.getElementById('btnSolveRoulette').disabled = solved;
+        // Render mini RoulettePanel (director preview — all cells visible at low opacity, revealed at full)
+        var gt = S.game && S.game.theme || {};
+        var rc = ds.currentRound ? parseJson(ds.currentRound.config) : {};
+        var typeTheme = (gt.types && gt.types['ruleta']) || {};
+        var logo = rc.logo || typeTheme.logo || gt.logo || null;
 
-    // Letter buttons
-    var allLetters = RoulettePanel.uniqueLetters(c.phrase || '');
-    var revSet = {};
-    for (var i = 0; i < revealed.length; i++) revSet[revealed[i]] = true;
-    var btnsHtml = allLetters.sort().map(function(l) {
-        var done = revSet[l] || solved;
-        return '<button class="btn-ghost btn-sm" style="min-width:36px;font-weight:800;font-size:14px;'
-            + (done ? 'opacity:.3;pointer-events:none;' : '') + '" onclick="emit(\'director:reveal_letter\',{letter:\'' + l + '\'})">' + l + '</button>';
-    }).join('');
-    document.getElementById('ruletaLetterButtons').innerHTML = btnsHtml;
+        RoulettePanel.render(document.getElementById('ruletaPanelPreview'), {
+            phrase: c.phrase || '', hint: c.hint || '', revealedLetters: revealed,
+            logo: logo, size: 'medium', panelVisible: true, solved: solved
+        });
 
-    // Queue
+        // Make unrevealed cells show the letter at low opacity (director can see all)
+        var previewEl = document.getElementById('ruletaPanelPreview');
+        var hiddenCells = previewEl.querySelectorAll('.rp-cell.hidden');
+        for (var hi = 0; hi < hiddenCells.length; hi++) {
+            var letter = hiddenCells[hi].getAttribute('data-letter');
+            if (letter) {
+                hiddenCells[hi].innerHTML = '<span class="rp-char" style="opacity:.35">' + esc(letter) + '</span>';
+            }
+        }
+
+        // ── Keyboard: consonants row + vowels row ──
+        var VOWELS = 'AEIOUÁÉÍÓÚÜ';
+        var allLetters = RoulettePanel.uniqueLetters(c.phrase || '');
+        var revSet = {};
+        for (var ri = 0; ri < revealed.length; ri++) revSet[revealed[ri]] = true;
+        var consonants = [], vowels = [];
+        for (var li = 0; li < allLetters.length; li++) {
+            var ch = allLetters[li];
+            if (VOWELS.indexOf(ch) >= 0) vowels.push(ch);
+            else consonants.push(ch);
+        }
+        consonants.sort(); vowels.sort();
+
+        var kbHtml = '';
+        if (consonants.length) {
+            kbHtml += '<div class="rl-kb-label">Consonantes</div><div class="rl-kb-row">';
+            kbHtml += consonants.map(function(l) {
+                var done = revSet[l] || solved;
+                return '<button class="rl-kb-btn' + (done ? ' done' : '') + '" onclick="emit(\'director:reveal_letter\',{letter:\'' + l + '\'})">' + l + '</button>';
+            }).join('');
+            kbHtml += '</div>';
+        }
+        if (vowels.length) {
+            kbHtml += '<div class="rl-kb-label">Vocales</div><div class="rl-kb-row">';
+            kbHtml += vowels.map(function(l) {
+                var done = revSet[l] || solved;
+                return '<button class="rl-kb-btn vowel' + (done ? ' done' : '') + '" onclick="emit(\'director:reveal_letter\',{letter:\'' + l + '\'})">' + l + '</button>';
+            }).join('');
+            kbHtml += '</div>';
+        }
+        document.getElementById('ruletaKeyboard').innerHTML = kbHtml;
+        document.getElementById('btnSolveRoulette').disabled = solved;
+    }
+
+    // ── RIGHT: Pulsador status + queue + teams ──
+    var statusEl = document.getElementById('rlPulsadorStatus');
+    var btnOpen = document.getElementById('rlBtnOpen');
+    var btnClose = document.getElementById('rlBtnClose');
+    if (S.pulsadorActivo) {
+        statusEl.textContent = 'PULSADOR ABIERTO';
+        statusEl.className = 'pulsador-status-bar st-open';
+        btnOpen.disabled = true; btnClose.disabled = false;
+    } else {
+        statusEl.textContent = 'PULSADOR CERRADO';
+        statusEl.className = 'pulsador-status-bar st-closed';
+        btnOpen.disabled = false; btnClose.disabled = true;
+    }
+
     var queueEl = document.getElementById('ruletaQueueList');
     if (!S.colaPulsador.length) {
         queueEl.innerHTML = '<div class="pq-empty">Nadie ha pulsado aún</div>';
@@ -1271,7 +1377,6 @@ function renderQuestionRuleta() {
         }).join('');
     }
 
-    // Team scores
     var cfg = getQuestionConfig(ds);
     var scores = ds.scores || {};
     document.getElementById('ruletaTeamsList').innerHTML = S.equipos.map(function(e) {

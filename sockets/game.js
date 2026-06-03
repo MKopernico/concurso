@@ -985,6 +985,10 @@ function attachSocketHandlers(io) {
         socket.on('director:solve_roulette', () => {
             const ds = state.director;
             ds.rouletteSolved = true;
+            // Close buzzer when solving
+            state.pulsadorActivo = false;
+            state.colaPulsador = [];
+            io.to(roomOf(gameId)).emit('estado_pulsador_cambio', { activo: false, cola: [] });
             const q = ds.questions[ds.currentQuestionIdx];
             const phrase = q ? (q.content && q.content.phrase || '') : '';
             io.to(roomOf(gameId)).emit('game:roulette_solved', { phrase: phrase });
@@ -994,6 +998,11 @@ function attachSocketHandlers(io) {
         socket.on('director:show_roulette_panel', () => {
             state.director.roulettePanelVisible = true;
             io.to(roomOf(gameId)).emit('game:panel_visible');
+            // Also open buzzer
+            state.pulsadorActivo = true;
+            state.colaPulsador = [];
+            state.buzzerOpenedAt = Date.now();
+            io.to(roomOf(gameId)).emit('estado_pulsador_cambio', { activo: true, cola: [] });
             broadcastDirector(io, gameId, state);
         });
 
