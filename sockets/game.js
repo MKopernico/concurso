@@ -32,7 +32,11 @@ function createGameState() {
             questions: [], currentQuestionIdx: -1,
             timer: { total: 0, remaining: 0, running: false },
             scores: {}, answers: {},
-            revealedCells: [], revealedLetters: [],
+            revealedCells: [],
+            revealedLetters: [],       // legacy index-based (imagen type)
+            rouletteRevealed: [],       // letter-based for ruleta (uppercase chars)
+            rouletteSolved: false,
+            roulettePanelVisible: false,
             completedRounds: [],
             optionsRevealed: false,
             lastQuestionScores: {},
@@ -296,6 +300,9 @@ function playerView(state) {
         bloqueoGlobal: state.bloqueoGlobal,
         revealedCells: ds.revealedCells,
         revealedLetters: ds.revealedLetters,
+        rouletteRevealed: ds.rouletteRevealed,
+        rouletteSolved: ds.rouletteSolved,
+        roulettePanelVisible: ds.roulettePanelVisible,
         optionsRevealed: ds.optionsRevealed,
         completedRounds: ds.completedRounds,
         lastQuestionScores: ds.lastQuestionScores,
@@ -759,6 +766,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
                 ds.optionsRevealed = false;
                 ds.lastQuestionScores = {};
                 ds.showTeamResults = false;
@@ -787,6 +795,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
@@ -811,6 +820,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
                 ds.optionsRevealed = false;
                 if (ds.currentRound && ds.currentRound.type === 'pulsador') {
                     ds.timer = { total: 0, remaining: 0, running: false };
@@ -833,6 +843,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
                 ds.optionsRevealed = false;
                 if (ds.currentRound && ds.currentRound.type === 'pulsador') {
                     ds.timer = { total: 0, remaining: 0, running: false };
@@ -941,8 +952,20 @@ function attachSocketHandlers(io) {
             broadcastDirector(io, gameId, state);
         });
 
+        // Legacy index-based letter reveal (kept for imagen type compat)
         socket.on('director:reveal_letter', (data) => {
             const ds = state.director;
+            // New: if data.letter is a string, use letter-based reveal for ruleta
+            if (data && typeof data.letter === 'string') {
+                const letter = data.letter.toUpperCase();
+                if (letter && ds.rouletteRevealed.indexOf(letter) === -1) {
+                    ds.rouletteRevealed.push(letter);
+                    io.to(roomOf(gameId)).emit('game:letter_revealed', { letter: letter, revealedLetters: ds.rouletteRevealed });
+                    broadcastDirector(io, gameId, state);
+                }
+                return;
+            }
+            // Legacy: index-based
             const idx = Number(data && data.idx);
             if (!isFinite(idx) || idx < 0) return;
             if (ds.revealedLetters.indexOf(idx) === -1) { ds.revealedLetters.push(idx); broadcastDirector(io, gameId, state); }
@@ -953,8 +976,24 @@ function attachSocketHandlers(io) {
             const q = ds.questions[ds.currentQuestionIdx];
             if (!q) return;
             const phrase = (q.content && q.content.phrase) || '';
+            // Legacy index-based (for imagen type)
             ds.revealedLetters = [];
             for (let i = 0; i < phrase.length; i++) ds.revealedLetters.push(i);
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:solve_roulette', () => {
+            const ds = state.director;
+            ds.rouletteSolved = true;
+            const q = ds.questions[ds.currentQuestionIdx];
+            const phrase = q ? (q.content && q.content.phrase || '') : '';
+            io.to(roomOf(gameId)).emit('game:roulette_solved', { phrase: phrase });
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:show_roulette_panel', () => {
+            state.director.roulettePanelVisible = true;
+            io.to(roomOf(gameId)).emit('game:panel_visible');
             broadcastDirector(io, gameId, state);
         });
 
@@ -1120,6 +1159,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
             ds.phase = 'lobby';
             ds.menuLevel = 'home';
             ds.selectedCategory = null;
@@ -1141,6 +1181,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
@@ -1172,6 +1213,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;

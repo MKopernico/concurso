@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GameShow — Pantalla</title>
 <link rel="stylesheet" href="/shared/gameshow-transitions.css">
+<link rel="stylesheet" href="/shared/roulette-panel.css">
 <style>
 /* ═══════════════ RESET & BASE ═══════════════ */
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -413,6 +414,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
         <div id="pulsadorScreen" style="display:none; width:100%; display:none; flex-direction:column; align-items:center;"></div>
         <div class="price-answers" id="priceAnswers" style="display:none"></div>
         <div class="boom-items" id="boomItems" style="display:none"></div>
+        <div id="ruletaScreenPanel" style="display:none; position:absolute; inset:0;"></div>
         <div class="img-grid-wrap" id="imgGrid" style="display:none">
             <img id="imgGridImg">
             <div class="img-grid-overlay" id="imgGridOverlay"></div>
@@ -477,6 +479,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
+<script src="/shared/roulette-panel.js"></script>
 <script>
 (function() {
 'use strict';
@@ -518,6 +521,30 @@ function connect() {
     socket.on('estado_pulsador_cambio', function(d) {
         if (ps) { ps.pulsadorActivo = d.activo; ps.colaPulsador = d.cola; }
         renderBuzzerQueue();
+    });
+
+    // Roulette events
+    socket.on('game:letter_revealed', function(d) {
+        if (!ps) return;
+        ps.rouletteRevealed = d.revealedLetters || [];
+        var container = document.getElementById('ruletaScreenPanel');
+        if (container && container.style.display !== 'none') {
+            RoulettePanel.revealLetter(container, d.letter);
+        }
+    });
+    socket.on('game:roulette_solved', function(d) {
+        if (!ps) return;
+        ps.rouletteSolved = true;
+        var container = document.getElementById('ruletaScreenPanel');
+        if (container && container.style.display !== 'none') {
+            RoulettePanel.solveAll(container, d.phrase);
+        }
+    });
+    socket.on('game:panel_visible', function() {
+        if (!ps) return;
+        ps.roulettePanelVisible = true;
+        var container = document.getElementById('ruletaScreenPanel');
+        if (container) { container.style.opacity = '1'; container.style.transition = 'opacity 0.6s ease'; }
     });
 
     fetch('/api/games/' + gameId).then(function(r) { return r.json(); }).then(function(g) {
@@ -715,6 +742,7 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     document.getElementById('imgGrid').style.display = 'none';
     document.getElementById('letterPanel').style.display = 'none';
     document.getElementById('pulsadorScreen').style.display = 'none';
+    document.getElementById('ruletaScreenPanel').style.display = 'none';
 
     if (type === 'multirespuesta') {
         renderMultiOptions(c, optionsJustRevealed, stmtEl);
@@ -723,9 +751,7 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
         renderBuzzerQueue();
         document.getElementById('buzzerQueue').style.display = 'flex';
     } else if (type === 'ruleta') {
-        renderLetterPanel(c);
-        renderBuzzerQueue();
-        document.getElementById('buzzerQueue').style.display = 'flex';
+        renderRuletaScreen(c, q, newQuestion);
     } else if (type === 'pulsador') {
         renderPulsadorScreen();
     } else if (type === 'cancion' || type === 'imagen_fija') {
@@ -912,7 +938,39 @@ function renderImageGrid(c, q) {
     overlay.innerHTML = html;
 }
 
-// ═══════════════ LETTER PANEL (RULETA) ═══════════════
+// ═══════════════ RULETA SCREEN (new visual panel) ═══════════════
+function renderRuletaScreen(c, q, newQuestion) {
+    // Hide standard question elements
+    document.getElementById('qStatement').textContent = '';
+    document.getElementById('qMedia').style.display = 'none';
+
+    var container = document.getElementById('ruletaScreenPanel');
+    container.style.display = 'block';
+
+    var gt = ps.gameTheme || {};
+    var rt = ps.roundTheme || {};
+    var tt = ps.typeTheme || {};
+    var logo = rt.logo || tt.logo || gt.logo || null;
+
+    RoulettePanel.render(container, {
+        phrase: c.phrase || '',
+        hint: c.hint || '',
+        revealedLetters: ps.rouletteRevealed || [],
+        logo: logo,
+        size: 'large',
+        panelVisible: ps.roulettePanelVisible,
+        solved: ps.rouletteSolved
+    });
+
+    // Hide round logo (roulette panel has its own)
+    document.getElementById('roundLogo').style.display = 'none';
+}
+
+var _lastRouletteRevealed = [];
+// Listen for incremental letter reveals (animate only the new letter)
+// This is handled in onSync by comparing previous state
+
+// ═══════════════ LETTER PANEL (RULETA) — legacy ═══════════════
 function renderLetterPanel(c) {
     var phrase = c.phrase || '';
     var revealed = ps.revealedLetters || [];

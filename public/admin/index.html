@@ -1044,9 +1044,9 @@ function fieldsBoom(c) {
 
 function fieldsRuleta(c) {
     return `
+        <div class="field"><label>Pista (categoría / tema)</label><input name="c_hint" value="${esc(c.hint || '')}" required placeholder="Ej: Refrán popular, Película, Ciudad..."></div>
         <div class="field"><label>Frase oculta</label><input name="c_phrase" value="${esc(c.phrase || '')}" required placeholder="EL QUE LA SIGUE LA CONSIGUE"></div>
-        <div class="field"><label>Grupos de revelación (JSON array de arrays)</label><textarea name="c_reveal_groups" rows="4">${c.reveal_groups ? JSON.stringify(c.reveal_groups) : '[[0,5,10],[3,7,15]]'}</textarea></div>
-        <p style="font-size:12px; color:var(--text2); margin-top:-10px; margin-bottom:14px">Cada sub-array son los índices de las posiciones de la frase que se revelan juntas en cada click.</p>
+        <p style="font-size:12px; color:var(--text2); margin-top:-10px; margin-bottom:14px">La frase se convierte a mayúsculas automáticamente. Puede incluir espacios y puntuación (,.!?). El coordinador revela letras una a una desde el panel.</p>
     `;
 }
 
@@ -1149,9 +1149,9 @@ function extractContent(type, form) {
             return { statement: val(form, 'c_statement'), items, correct_order };
         }
         case 'ruleta': {
-            let reveal_groups;
-            try { reveal_groups = JSON.parse(val(form, 'c_reveal_groups')); } catch { throw new Error('Formato de grupos de revelación inválido (debe ser JSON)'); }
-            return { phrase: val(form, 'c_phrase'), reveal_groups };
+            var phrase = val(form, 'c_phrase').toUpperCase();
+            if (!phrase) throw new Error('La frase es obligatoria');
+            return { hint: val(form, 'c_hint'), phrase: phrase };
         }
         case 'imagen_fija':
             return { image: val(form, 'c_image'), statement: val(form, 'c_statement') || undefined, answer: val(form, 'c_answer') || undefined, buzzer_enabled: val(form, 'c_buzzer_enabled') === 'true' };

@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="/shared/gameshow-transitions.css">
+<link rel="stylesheet" href="/shared/roulette-panel.css">
 <style>
 :root { --bg: #0a0a10; --surface: #14141e; --surface2: #1e1e2e; --border: #2a2a3a; --text: #e4e4e7; --text2: #8888a0; --accent: #00d4ff; --accent-dim: #0097b8; --danger: #ef4444; --success: #22c55e; --gold: #facc15; --radius: 12px; }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -94,7 +95,7 @@ input:focus { border-color: var(--accent); }
 .q-submitted { text-align: center; color: #fff; font-weight: 700; font-size: 18px; padding: 14px 20px;
     background: rgba(0,212,255,.2); border: 2px solid #00d4ff; border-radius: 16px; backdrop-filter: blur(6px); flex-shrink: 0; }
 
-.gp-buzzer { align-items: center; justify-content: center; padding: 24px; gap: 20px; }
+.gp-buzzer { align-items: center; justify-content: center; padding: 24px; gap: 20px; position: relative; }
 .gp-buzzer .q-statement { font-size: 28px; font-weight: 600; line-height: 1.4; text-align: center; max-width: 500px; }
 .buzz-btn { width: min(80vw, 80vh, 500px); height: min(80vw, 80vh, 500px); border-radius: 50%; font-size: clamp(4rem, 20vw, 12rem); font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: 6px solid var(--danger); background: radial-gradient(circle, #dc2626 0%, #991b1b 100%); color: #fff; box-shadow: 0 8px 30px rgba(220,38,38,.4); flex-shrink: 0; }
 .buzz-btn:active:not(:disabled) { transform: scale(.92); box-shadow: 0 4px 15px rgba(220,38,38,.6); }
@@ -355,6 +356,7 @@ input:focus { border-color: var(--accent); }
             <div class="q-statement" id="buzzerStatement">-</div>
             <div id="playerImgGrid" style="display:none"></div>
             <div id="playerLetterPanel" style="display:none"></div>
+            <div id="playerRoulettePanel" style="display:none; width:100%; flex:1; min-height:0; border-radius:12px; overflow:hidden;"></div>
             <button class="buzz-btn" id="buzzBtn" onclick="doBuzz()">PULSAR</button>
             <div class="buzz-status" id="buzzStatus">Esperando apertura...</div>
         </div>
@@ -414,6 +416,7 @@ input:focus { border-color: var(--accent); }
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
+<script src="/shared/roulette-panel.js"></script>
 <script>
 // ═══════════════ State ═══════════════
 var S = {
@@ -672,6 +675,26 @@ function connectSocket(onReady) {
     });
 
     socket.on('notificacion_bono', function(d) { if (d.msg) toast(d.msg); });
+
+    // Roulette events
+    socket.on('game:letter_revealed', function(d) {
+        if (!S.ps) return;
+        S.ps.rouletteRevealed = d.revealedLetters || [];
+        var el = document.getElementById('playerRoulettePanel');
+        if (el && el.style.display !== 'none') RoulettePanel.revealLetter(el, d.letter);
+    });
+    socket.on('game:roulette_solved', function(d) {
+        if (!S.ps) return;
+        S.ps.rouletteSolved = true;
+        var el = document.getElementById('playerRoulettePanel');
+        if (el && el.style.display !== 'none') RoulettePanel.solveAll(el, d.phrase);
+    });
+    socket.on('game:panel_visible', function() {
+        if (!S.ps) return;
+        S.ps.roulettePanelVisible = true;
+        var el = document.getElementById('playerRoulettePanel');
+        if (el) { el.style.opacity = '1'; el.style.transition = 'opacity 0.6s ease'; }
+    });
 }
 
 function emit(ev, data) { if (socket) socket.emit(ev, data || {}); }
@@ -956,9 +979,10 @@ function renderBuzzer() {
     var ps = S.ps, q = ps.question; if (!q) return;
     var c = q.content || {};
     var isPulsadorType = ps.roundType === 'pulsador';
-    // For pulsador type: hide statement (coordinator manages content verbally)
+    var isRuletaType = ps.roundType === 'ruleta';
+    // For pulsador/ruleta: hide statement (coordinator manages content / roulette panel has its own)
     var stmtEl = document.getElementById('buzzerStatement');
-    if (isPulsadorType) {
+    if (isPulsadorType || isRuletaType) {
         stmtEl.style.display = 'none';
     } else {
         stmtEl.style.display = '';
@@ -983,16 +1007,24 @@ function renderPlayerImgGrid(ps, q) {
         + '</div></div>';
 }
 function renderPlayerLetterPanel(ps, c) {
-    var el = document.getElementById('playerLetterPanel');
+    var oldEl = document.getElementById('playerLetterPanel');
+    oldEl.style.display = 'none'; // legacy hidden
+    var el = document.getElementById('playerRoulettePanel');
     if (ps.roundType !== 'ruleta') { el.style.display = 'none'; return; }
-    var phrase = c.phrase || '';
-    var revealed = ps.revealedLetters || [];
+
+    var gt = ps.gameTheme || {};
+    var rt = ps.roundTheme || {};
+    var tt = ps.typeTheme || {};
+    var logo = rt.logo || tt.logo || gt.logo || null;
+
     el.style.display = 'block';
-    el.innerHTML = '<div class="p-letters">'
-        + Array.from(phrase).map(function(ch, i) {
-            if (ch === ' ') return '<div class="p-letter space"></div>';
-            return '<div class="p-letter ' + (revealed.indexOf(i) >= 0 ? 'shown' : 'hidden') + '">' + (revealed.indexOf(i) >= 0 ? esc(ch) : '') + '</div>';
-        }).join('') + '</div>';
+    RoulettePanel.render(el, {
+        phrase: c.phrase || '', hint: c.hint || '',
+        revealedLetters: ps.rouletteRevealed || [],
+        logo: logo, size: 'small',
+        panelVisible: ps.roulettePanelVisible,
+        solved: ps.rouletteSolved
+    });
 }
 function renderBuzzerStatus() {
     var ps = S.ps; if (!ps) return;

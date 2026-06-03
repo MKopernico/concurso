@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>GameShow · Coordinador</title>
 <link rel="stylesheet" href="/shared/gameshow-transitions.css">
+<link rel="stylesheet" href="/shared/roulette-panel.css">
 <style>
 :root { --bg: #0a0a10; --surface: #14141e; --surface2: #1c1c2a; --border: #2a2a3a; --text: #e4e4e7; --text2: #8888a0; --accent: #00d4ff; --accent-dim: #0097b8; --danger: #ef4444; --success: #22c55e; --gold: #facc15; --orange: #f97316; --radius: 10px; }
 
@@ -417,6 +418,32 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 </div>
             </div>
 
+            <!-- Ruleta director panel -->
+            <div id="ruletaDirectorPanel" style="display:none; flex:1; overflow-y:auto;">
+                <div class="pulsador-layout">
+                    <div class="pulsador-left">
+                        <div id="ruletaPanelPreview" style="border-radius:12px;overflow:hidden;min-height:300px;background:#0d2a5a;"></div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button class="btn-accent" id="btnShowRoulettePanel" onclick="emit('director:show_roulette_panel')">Mostrar panel</button>
+                            <button class="btn-accent" id="btnSolveRoulette" onclick="emit('director:solve_roulette')">Resolver todo</button>
+                            <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
+                        </div>
+                        <div style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--text2); margin-top:4px;">Revelar letras</div>
+                        <div id="ruletaLetterButtons" style="display:flex; flex-wrap:wrap; gap:4px;"></div>
+                        <div class="pulsador-controls" style="margin-top:8px;">
+                            <button class="btn-pulsador open" onclick="emit('director:open_buzzer')">&#128994; ABRIR PULSADOR</button>
+                            <button class="btn-pulsador close" onclick="emit('director:close_buzzer')">&#128308; CERRAR</button>
+                            <button class="btn-pulsador reset" onclick="emit('director:reset_buzzer')">&#128260; RESET</button>
+                        </div>
+                        <div class="pulsador-queue-list" id="ruletaQueueList"><div class="pq-empty">Nadie ha pulsado a&uacute;n</div></div>
+                    </div>
+                    <div class="pulsador-right">
+                        <h4>&#127942; Equipos &amp; puntos</h4>
+                        <div id="ruletaTeamsList"></div>
+                    </div>
+                </div>
+            </div>
+
             <div class="question-card" id="questionCard">
                 <div id="questionMedia"></div>
                 <div class="question-statement" id="questionStatement">-</div>
@@ -578,6 +605,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
+<script src="/shared/roulette-panel.js"></script>
 <script>
 const S = {
     gameId: null, game: null, rounds: [],
@@ -1177,6 +1205,83 @@ function renderQuestionPrecio() {
     }).join('');
 }
 
+function renderQuestionRuleta() {
+    var ds = S.director;
+    if (!ds || ds.currentQuestionIdx < 0) return;
+    var q = ds.questions[ds.currentQuestionIdx];
+    if (!q) return;
+    var c = q.content || {};
+    var idx = ds.currentQuestionIdx, total = ds.questions.length;
+
+    // Nav bar
+    document.getElementById('questionCounter').textContent = 'Pregunta ' + (idx + 1) + ' de ' + total;
+    document.getElementById('btnPrevQ').disabled = idx <= 0;
+    var btnNext = document.getElementById('btnNextQ');
+    if (idx >= total - 1) {
+        btnNext.textContent = '✓ Terminar ronda';
+        btnNext.onclick = function() { emit('director:finish_round'); };
+    } else {
+        btnNext.innerHTML = 'Siguiente &#9654;';
+        btnNext.onclick = function() { emit('director:next_question'); };
+    }
+
+    // Show ruleta panel, hide others
+    document.getElementById('ruletaDirectorPanel').style.display = 'flex';
+    document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+    document.getElementById('precioDirectorPanel').style.display = 'none';
+    document.getElementById('questionCard').style.display = 'none';
+    document.getElementById('questionDefaultActions').style.display = 'none';
+
+    // Render preview panel
+    var gt = S.game && S.game.theme || {};
+    var rc = ds.currentRound ? parseJson(ds.currentRound.config) : {};
+    var typeTheme = (gt.types && gt.types['ruleta']) || {};
+    var logo = rc.logo || typeTheme.logo || gt.logo || null;
+    var revealed = ds.rouletteRevealed || [];
+    var solved = ds.rouletteSolved || false;
+
+    RoulettePanel.render(document.getElementById('ruletaPanelPreview'), {
+        phrase: c.phrase || '', hint: c.hint || '', revealedLetters: revealed,
+        logo: logo, size: 'medium', panelVisible: ds.roulettePanelVisible, solved: solved
+    });
+
+    // Show/hide panel button
+    document.getElementById('btnShowRoulettePanel').disabled = ds.roulettePanelVisible;
+    document.getElementById('btnSolveRoulette').disabled = solved;
+
+    // Letter buttons
+    var allLetters = RoulettePanel.uniqueLetters(c.phrase || '');
+    var revSet = {};
+    for (var i = 0; i < revealed.length; i++) revSet[revealed[i]] = true;
+    var btnsHtml = allLetters.sort().map(function(l) {
+        var done = revSet[l] || solved;
+        return '<button class="btn-ghost btn-sm" style="min-width:36px;font-weight:800;font-size:14px;'
+            + (done ? 'opacity:.3;pointer-events:none;' : '') + '" onclick="emit(\'director:reveal_letter\',{letter:\'' + l + '\'})">' + l + '</button>';
+    }).join('');
+    document.getElementById('ruletaLetterButtons').innerHTML = btnsHtml;
+
+    // Queue
+    var queueEl = document.getElementById('ruletaQueueList');
+    if (!S.colaPulsador.length) {
+        queueEl.innerHTML = '<div class="pq-empty">Nadie ha pulsado aún</div>';
+    } else {
+        queueEl.innerHTML = S.colaPulsador.map(function(p, i) {
+            var timeStr = p.elapsed !== undefined ? (p.elapsed / 1000).toFixed(3) + 's' : '';
+            return '<div class="pq-item"><span class="pq-pos">' + (i + 1) + 'º</span><span class="pq-name">' + esc(p.nombre) + '</span><span class="pq-time">' + timeStr + '</span></div>';
+        }).join('');
+    }
+
+    // Team scores
+    var cfg = getQuestionConfig(ds);
+    var scores = ds.scores || {};
+    document.getElementById('ruletaTeamsList').innerHTML = S.equipos.map(function(e) {
+        var score = scores[e.id] || 0;
+        return '<div class="pt-row"><span class="pt-name">' + esc(e.nombre) + '</span><span class="pt-score">' + score + '</span>'
+            + '<div class="pt-actions"><button class="btn-success" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:' + cfg.basePoints + '})">+' + cfg.basePoints + '</button>'
+            + '<button class="btn-danger" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:' + (-cfg.basePoints) + '})">-' + cfg.basePoints + '</button></div></div>';
+    }).join('');
+}
+
 function getQuestionConfig(ds) {
     var q = ds.questions[ds.currentQuestionIdx];
     if (!q) return { time: 30, basePoints: 100, bonusMax: 50, penalty: 0 };
@@ -1205,13 +1310,22 @@ function renderQuestion() {
     // Precio type: dedicated layout
     if (roundType === 'precio') {
         document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+        document.getElementById('ruletaDirectorPanel').style.display = 'none';
         renderQuestionPrecio();
+        return;
+    }
+    // Ruleta type: dedicated layout
+    if (roundType === 'ruleta') {
+        document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+        document.getElementById('precioDirectorPanel').style.display = 'none';
+        renderQuestionRuleta();
         return;
     }
 
     // Default: hide dedicated panels, show normal card
     document.getElementById('pulsadorDirectorPanel').style.display = 'none';
     document.getElementById('precioDirectorPanel').style.display = 'none';
+    document.getElementById('ruletaDirectorPanel').style.display = 'none';
     document.getElementById('questionCard').style.display = '';
     document.getElementById('questionDefaultActions').style.display = '';
 
@@ -1383,6 +1497,7 @@ function renderAnswerRevealed() {
     // Hide dedicated panels from question phase
     document.getElementById('pulsadorDirectorPanel').style.display = 'none';
     document.getElementById('precioDirectorPanel').style.display = 'none';
+    document.getElementById('ruletaDirectorPanel').style.display = 'none';
     if (!ds || ds.currentQuestionIdx < 0) return;
     const q = ds.questions[ds.currentQuestionIdx];
     if (!q) return;
