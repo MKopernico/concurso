@@ -164,37 +164,104 @@
         html += '</div>';
 
         // Letter grid
-        html += '<div class="rp-grid">';
-        for (var r = 0; r < rows.length; r++) {
-            html += '<div class="rp-row">';
-            var row = rows[r];
-            for (var t = 0; t < row.length; t++) {
-                var tok = row[t];
-                if (tok.type === 'space') {
-                    html += '<div class="rp-space"></div>';
-                    continue;
-                }
-                html += '<div class="rp-word">';
-                for (var ci = 0; ci < tok.chars.length; ci++) {
-                    var charObj = tok.chars[ci];
-                    if (charObj.isPunct) {
-                        html += '<div class="rp-punct">' + esc(charObj.ch) + '</div>';
-                    } else {
-                        var rev = isRevealed(charObj.ch, revealed);
-                        html += '<div class="' + cellClass + (rev ? ' revealed' : ' hidden') + '" data-letter="' + charObj.ch.toUpperCase() + '">';
-                        html += rev ? '<span class="rp-char">' + esc(charObj.ch) + '</span>' : '';
-                        html += '</div>';
+        if (size === 'large') {
+            // Flex-row layout with dynamic cell sizing for screen view
+            // Count max letter-cells + space-equivalent widths per row
+            var maxCellsPerRow = 0;
+            var spacesPerRow = [];
+            for (var r = 0; r < rows.length; r++) {
+                var cells = 0, spaces = 0;
+                for (var t = 0; t < rows[r].length; t++) {
+                    if (rows[r][t].type === 'space') spaces++;
+                    else {
+                        for (var ci = 0; ci < rows[r][t].chars.length; ci++) {
+                            if (rows[r][t].chars[ci].isLetter) cells++;
+                        }
                     }
+                }
+                spacesPerRow.push(spaces);
+                var effectiveCols = cells + spaces * 0.4;
+                if (effectiveCols > maxCellsPerRow) maxCellsPerRow = effectiveCols;
+            }
+            // --rp-cell will be computed after mount based on container size
+            html += '<div class="rp-grid rp-grid-fill" data-rp-max-cols="' + maxCellsPerRow + '" data-rp-rows="' + rows.length + '">';
+            for (var r = 0; r < rows.length; r++) {
+                html += '<div class="rp-row">';
+                var row = rows[r];
+                for (var t = 0; t < row.length; t++) {
+                    var tok = row[t];
+                    if (tok.type === 'space') {
+                        html += '<div class="rp-space"></div>';
+                        continue;
+                    }
+                    html += '<div class="rp-word">';
+                    for (var ci = 0; ci < tok.chars.length; ci++) {
+                        var charObj = tok.chars[ci];
+                        if (charObj.isPunct) {
+                            html += '<div class="rp-punct">' + esc(charObj.ch) + '</div>';
+                        } else {
+                            var rev = isRevealed(charObj.ch, revealed);
+                            html += '<div class="' + cellClass + (rev ? ' revealed' : ' hidden') + '" data-letter="' + charObj.ch.toUpperCase() + '">';
+                            html += rev ? '<span class="rp-char">' + esc(charObj.ch) + '</span>' : '';
+                            html += '</div>';
+                        }
+                    }
+                    html += '</div>';
+                }
+                html += '</div>';
+            }
+            html += '</div>';
+        } else {
+            // Flex rows for director/play (original layout)
+            html += '<div class="rp-grid">';
+            for (var r = 0; r < rows.length; r++) {
+                html += '<div class="rp-row">';
+                var row = rows[r];
+                for (var t = 0; t < row.length; t++) {
+                    var tok = row[t];
+                    if (tok.type === 'space') {
+                        html += '<div class="rp-space"></div>';
+                        continue;
+                    }
+                    html += '<div class="rp-word">';
+                    for (var ci = 0; ci < tok.chars.length; ci++) {
+                        var charObj = tok.chars[ci];
+                        if (charObj.isPunct) {
+                            html += '<div class="rp-punct">' + esc(charObj.ch) + '</div>';
+                        } else {
+                            var rev = isRevealed(charObj.ch, revealed);
+                            html += '<div class="' + cellClass + (rev ? ' revealed' : ' hidden') + '" data-letter="' + charObj.ch.toUpperCase() + '">';
+                            html += rev ? '<span class="rp-char">' + esc(charObj.ch) + '</span>' : '';
+                            html += '</div>';
+                        }
+                    }
+                    html += '</div>';
                 }
                 html += '</div>';
             }
             html += '</div>';
         }
-        html += '</div>';
 
         container.innerHTML = html;
         container.className = (container.className.replace(/\brp-container\b/g, '').trim() + ' rp-container').trim();
         container.style.opacity = '1';
+
+        // Dynamic cell sizing for screen (large) view
+        var gridFill = container.querySelector('.rp-grid-fill');
+        if (gridFill) {
+            requestAnimationFrame(function () {
+                var maxC = parseFloat(gridFill.getAttribute('data-rp-max-cols')) || 12;
+                var numR = parseInt(gridFill.getAttribute('data-rp-rows')) || 2;
+                var gapH = 6;
+                var gapV = 10;
+                var availW = gridFill.clientWidth - 48;
+                var availH = gridFill.clientHeight - 32;
+                var cellFromW = (availW - (maxC - 1) * gapH) / maxC;
+                var cellFromH = (availH - (numR - 1) * gapV) / numR;
+                var cellSize = Math.floor(Math.min(cellFromW, cellFromH));
+                gridFill.style.setProperty('--rp-cell', cellSize + 'px');
+            });
+        }
 
         // When panel not visible: show only hint, hide grid + pending letters
         var gridEl = container.querySelector('.rp-grid');
