@@ -1009,23 +1009,9 @@ function renderPlayerImgGrid(ps, q) {
 }
 function renderPlayerLetterPanel(ps, c) {
     var oldEl = document.getElementById('playerLetterPanel');
-    oldEl.style.display = 'none'; // legacy hidden
+    oldEl.style.display = 'none';
     var el = document.getElementById('playerRoulettePanel');
-    if (ps.roundType !== 'ruleta') { el.style.display = 'none'; return; }
-
-    var gt = ps.gameTheme || {};
-    var rt = ps.roundTheme || {};
-    var tt = ps.typeTheme || {};
-    var logo = rt.logo || tt.logo || gt.logo || null;
-
-    el.style.display = 'block';
-    RoulettePanel.render(el, {
-        phrase: c.phrase || '', hint: c.hint || '',
-        revealedLetters: ps.rouletteRevealed || [],
-        logo: logo, size: 'small',
-        panelVisible: ps.roulettePanelVisible,
-        solved: ps.rouletteSolved
-    });
+    el.style.display = 'none';
 }
 function renderBuzzerStatus() {
     var ps = S.ps; if (!ps) return;
