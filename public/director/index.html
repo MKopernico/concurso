@@ -1748,8 +1748,8 @@ function renderTimer() {
     const ds = S.director;
     const el = document.getElementById('timerDisplay');
     if (!ds || !ds.timer) { el.textContent = '--:--'; el.className = 'timer-display stopped'; return; }
-    var isPulsador = ds.currentRound && ds.currentRound.type === 'pulsador';
-    if (isPulsador) {
+    var noTimer = ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'ruleta');
+    if (noTimer) {
         el.textContent = '--:--'; el.className = 'timer-display stopped';
         document.getElementById('btnStartTimer').disabled = true;
         document.getElementById('btnStopTimer').disabled = true;

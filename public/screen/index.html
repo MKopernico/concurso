@@ -544,7 +544,7 @@ function connect() {
         if (!ps) return;
         ps.roulettePanelVisible = true;
         var container = document.getElementById('ruletaScreenPanel');
-        if (container) { container.style.opacity = '1'; container.style.transition = 'opacity 0.6s ease'; }
+        if (container) RoulettePanel.showPanel(container);
     });
 
     fetch('/api/games/' + gameId).then(function(r) { return r.json(); }).then(function(g) {
@@ -670,9 +670,9 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         renderTeamResultsOverlay();
     } else if (phase === 'question') {
         showPhase('question');
-        var isPulsador = type === 'pulsador';
-        timerStrip.style.display = isPulsador ? 'none' : '';
-        timerBig.style.display = isPulsador ? 'none' : '';
+        var hideTimer = type === 'pulsador' || type === 'ruleta';
+        timerStrip.style.display = hideTimer ? 'none' : '';
+        timerBig.style.display = hideTimer ? 'none' : '';
         renderQuestion(type, newQuestion, optionsJustRevealed);
     } else if (phase === 'round_end') {
         showPhase('round-end');

@@ -194,8 +194,17 @@
 
         container.innerHTML = html;
         container.className = (container.className.replace(/\brp-container\b/g, '').trim() + ' rp-container').trim();
-        container.style.opacity = panelVisible ? '1' : '0';
-        container.style.transition = 'opacity 0.6s ease';
+        container.style.opacity = '1';
+
+        // When panel not visible: show only hint, hide grid + pending letters
+        var gridEl = container.querySelector('.rp-grid');
+        var pendingEl = container.querySelector('.rp-pending');
+        if (gridEl) {
+            gridEl.classList.add(panelVisible ? 'rp-panel-visible' : 'rp-panel-hidden');
+        }
+        if (pendingEl) {
+            pendingEl.classList.add(panelVisible ? 'rp-panel-visible' : 'rp-panel-hidden');
+        }
     }
 
     /** Animate reveal of a single letter across all matching cells */
@@ -240,11 +249,26 @@
         }
     }
 
+    /** Animate panel into view (grid + pending letters fade in) */
+    function showPanel(container) {
+        var gridEl = container.querySelector('.rp-grid');
+        var pendingEl = container.querySelector('.rp-pending');
+        if (gridEl) {
+            gridEl.classList.remove('rp-panel-hidden');
+            gridEl.classList.add('rp-panel-visible');
+        }
+        if (pendingEl) {
+            pendingEl.classList.remove('rp-panel-hidden');
+            pendingEl.classList.add('rp-panel-visible');
+        }
+    }
+
     // Export
     root.RoulettePanel = {
         render: render,
         revealLetter: revealLetter,
         solveAll: solveAll,
+        showPanel: showPanel,
         pendingLetters: pendingLetters,
         uniqueLetters: uniqueLetters,
         isLetter: isLetter

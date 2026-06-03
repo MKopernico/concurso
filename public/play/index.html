@@ -356,7 +356,7 @@ input:focus { border-color: var(--accent); }
             <div class="q-statement" id="buzzerStatement">-</div>
             <div id="playerImgGrid" style="display:none"></div>
             <div id="playerLetterPanel" style="display:none"></div>
-            <div id="playerRoulettePanel" style="display:none; width:100%; flex:1; min-height:0; border-radius:12px; overflow:hidden;"></div>
+            <div id="playerRoulettePanel" style="display:none; width:100%; max-height:30vh; border-radius:12px; overflow:hidden;"></div>
             <button class="buzz-btn" id="buzzBtn" onclick="doBuzz()">PULSAR</button>
             <div class="buzz-status" id="buzzStatus">Esperando apertura...</div>
         </div>
@@ -693,7 +693,7 @@ function connectSocket(onReady) {
         if (!S.ps) return;
         S.ps.roulettePanelVisible = true;
         var el = document.getElementById('playerRoulettePanel');
-        if (el) { el.style.opacity = '1'; el.style.transition = 'opacity 0.6s ease'; }
+        if (el) RoulettePanel.showPanel(el);
     });
 }
 
@@ -889,6 +889,7 @@ function renderGamePhase() {
             var _pre = !!(S.ps && S.ps.preCountdown && S.ps.preCountdown > 0);
             _sb.disabled = _pre || S.submitted;
         } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen' || type === 'imagen_fija' || type === 'ruleta') {
+            if (type === 'ruleta') timerBar.style.display = 'none';
             renderBuzzer(); document.getElementById('gp-buzzer').classList.add('active');
         } else if (type === 'precio') {
             timerBar.style.display = 'flex';
