@@ -1,8 +1,7 @@
 /* ═══════════════ RoulettePanel — shared visual component ═══════════════ */
 
 .rp-container { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: clamp(12px, 2vh, 24px); overflow: hidden; z-index: 1;
-    padding-top: clamp(20px, 4vh, 60px); }
+    align-items: center; justify-content: center; gap: clamp(12px, 2vh, 24px); overflow: hidden; z-index: 1; }
 
 /* ── Background decoration ── */
 .rp-bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
@@ -20,8 +19,8 @@
     background: linear-gradient(90deg, transparent, #c8a028, #e8c840, #c8a028, transparent); }
 
 /* ── Logo ── */
-.rp-logo { position: relative; z-index: 2; text-align: center; flex-shrink: 0; }
-.rp-logo img { max-height: clamp(60px, 12vh, 140px); max-width: 400px; object-fit: contain;
+.rp-logo { position: relative; z-index: 2; text-align: center; flex-shrink: 0; margin-top: clamp(10px, 2vh, 30px); }
+.rp-logo img { max-height: clamp(60px, 10vh, 120px); max-width: 400px; object-fit: contain;
     filter: drop-shadow(0 4px 16px rgba(0,0,0,.5)); }
 
 /* ── Info bar ── */

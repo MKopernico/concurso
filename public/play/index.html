@@ -676,24 +676,18 @@ function connectSocket(onReady) {
 
     socket.on('notificacion_bono', function(d) { if (d.msg) toast(d.msg); });
 
-    // Roulette events
+    // Roulette events — only update state, no panel rendering in player view
     socket.on('game:letter_revealed', function(d) {
         if (!S.ps) return;
         S.ps.rouletteRevealed = d.revealedLetters || [];
-        var el = document.getElementById('playerRoulettePanel');
-        if (el && el.style.display !== 'none') RoulettePanel.revealLetter(el, d.letter);
     });
     socket.on('game:roulette_solved', function(d) {
         if (!S.ps) return;
         S.ps.rouletteSolved = true;
-        var el = document.getElementById('playerRoulettePanel');
-        if (el && el.style.display !== 'none') RoulettePanel.solveAll(el, d.phrase);
     });
     socket.on('game:panel_visible', function() {
         if (!S.ps) return;
         S.ps.roulettePanelVisible = true;
-        var el = document.getElementById('playerRoulettePanel');
-        if (el) RoulettePanel.showPanel(el);
     });
 }
 
@@ -1017,7 +1011,7 @@ function renderBuzzerStatus() {
     var ps = S.ps; if (!ps) return;
     var btn = document.getElementById('buzzBtn');
     var status = document.getElementById('buzzStatus');
-    var isPulsadorType = ps.roundType === 'pulsador';
+    var isPulsadorLike = ps.roundType === 'pulsador' || ps.roundType === 'ruleta';
     var myEntry = ps.colaPulsador && ps.colaPulsador.find(function(p) { return p.id === S.myTeamId; });
     var hasBuzzed = !!myEntry;
     var myPos = hasBuzzed ? ps.colaPulsador.indexOf(myEntry) + 1 : 0;
@@ -1030,16 +1024,16 @@ function renderBuzzerStatus() {
     // Strip pulsador-specific classes
     btn.classList.remove('bz-closed', 'bz-open', 'bz-first', 'bz-other', 'bz-blocked');
 
-    if (isPulsadorType) status.style.display = 'none';
+    if (isPulsadorLike) status.style.display = 'none';
     else status.style.display = '';
 
-    if (isPulsadorType && isBlocked) {
+    if (isPulsadorLike && isBlocked) {
         btn.disabled = true;
         btn.classList.add('bz-blocked');
         btn.textContent = '❄';
     } else if (hasBuzzed) {
         btn.disabled = true;
-        if (isPulsadorType) {
+        if (isPulsadorLike) {
             if (myPos === 1) {
                 btn.classList.add('bz-first');
                 btn.textContent = '1º';
@@ -1054,12 +1048,12 @@ function renderBuzzerStatus() {
     } else if (ps.pulsadorActivo) {
         btn.disabled = false;
         btn.textContent = 'PULSAR';
-        if (isPulsadorType) btn.classList.add('bz-open');
+        if (isPulsadorLike) btn.classList.add('bz-open');
         else { status.className = 'buzz-status'; status.textContent = 'Pulsador abierto'; }
     } else {
         btn.disabled = true;
         btn.textContent = 'PULSAR';
-        if (isPulsadorType) btn.classList.add('bz-closed');
+        if (isPulsadorLike) btn.classList.add('bz-closed');
         else { status.className = 'buzz-status'; status.textContent = 'Esperando apertura...'; }
     }
 }
