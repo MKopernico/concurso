@@ -3,7 +3,7 @@
  * Se usa en /screen, /play y /director con la misma lógica de layout.
  *
  * API:
- *   RoulettePanel.render(container, { phrase, hint, revealedLetters, logo, size, panelVisible })
+ *   RoulettePanel.render(container, { phrase, hint, revealedLetters, logo, size, panelVisible, background })
  *   RoulettePanel.revealLetter(container, letter)   — anima flip de una letra
  *   RoulettePanel.solveAll(container, phrase)        — revela todo con stagger
  */
@@ -101,20 +101,22 @@
         attempt = attempt || 0;
         var w = gridFill.clientWidth;
         var h = gridFill.clientHeight;
-        if ((w === 0 || h === 0) && attempt < 20) {
+        if ((w === 0 || h === 0) && attempt < 30) {
             setTimeout(function () { computeCellSize(gridFill, attempt + 1); }, 50);
             return;
         }
         if (w === 0 || h === 0) return;
         var maxC = parseFloat(gridFill.getAttribute('data-rp-max-cols')) || 12;
         var numR = parseInt(gridFill.getAttribute('data-rp-rows')) || 2;
-        var gapH = 6;
-        var gapV = 12;
-        var availW = w - 48;
-        var availH = h - 32;
-        var cellFromW = (availW - (maxC - 1) * gapH) / maxC;
-        var cellFromH = (availH - (numR - 1) * gapV) / numR;
-        var cellSize = Math.max(20, Math.floor(Math.min(cellFromW, cellFromH)));
+        var pad = 40; // 20px padding on each side
+        var availW = w - pad;
+        var availH = h - pad;
+        // Cell size from width: each cell is 1 unit, each space is 0.35 units,
+        // word gaps are ~0.06 units per gap (approximation)
+        var cellFromW = availW / (maxC * 1.08);
+        var rowGap = Math.max(6, Math.round(availH * 0.015));
+        var cellFromH = (availH - (numR - 1) * rowGap) / numR;
+        var cellSize = Math.max(30, Math.floor(Math.min(cellFromW, cellFromH)));
         gridFill.style.setProperty('--rp-cell', cellSize + 'px');
     }
 
@@ -138,6 +140,7 @@
      * @param {'large'|'medium'|'small'} [opts.size] — cell sizing: large=screen, medium=director, small=play
      * @param {boolean} [opts.panelVisible] — if false, panel is hidden (opacity:0)
      * @param {boolean} [opts.solved] — if true, all revealed
+     * @param {string} [opts.background] — custom background (URL, color, or gradient)
      */
     function render(container, opts) {
         var phrase = (opts.phrase || '').toUpperCase();
@@ -147,9 +150,9 @@
         var size = opts.size || 'large';
         var panelVisible = opts.panelVisible !== false;
         var solved = opts.solved || false;
+        var background = opts.background || null;
 
         if (solved) {
-            // All letters are revealed
             revealed = uniqueLetters(phrase);
         }
 
@@ -165,7 +168,12 @@
 
         // Background decoration
         html += '<div class="rp-bg">';
-        html += '<div class="rp-bg-top"></div>';
+        if (background) {
+            // Custom background from theme
+            html += '<div class="rp-bg-top rp-bg-custom" id="rpBgCustom"></div>';
+        } else {
+            html += '<div class="rp-bg-top"></div>';
+        }
         html += '<div class="rp-bg-wave"></div>';
         html += '</div>';
 
@@ -187,9 +195,7 @@
         // Letter grid
         if (size === 'large') {
             // Flex-row layout with dynamic cell sizing for screen view
-            // Count max letter-cells + space-equivalent widths per row
             var maxCellsPerRow = 0;
-            var spacesPerRow = [];
             for (var r = 0; r < rows.length; r++) {
                 var cells = 0, spaces = 0;
                 for (var t = 0; t < rows[r].length; t++) {
@@ -200,11 +206,9 @@
                         }
                     }
                 }
-                spacesPerRow.push(spaces);
-                var effectiveCols = cells + spaces * 0.4;
+                var effectiveCols = cells + spaces * 0.35;
                 if (effectiveCols > maxCellsPerRow) maxCellsPerRow = effectiveCols;
             }
-            // --rp-cell will be computed after mount based on container size
             html += '<div class="rp-grid rp-grid-fill" data-rp-max-cols="' + maxCellsPerRow + '" data-rp-rows="' + rows.length + '">';
             for (var r = 0; r < rows.length; r++) {
                 html += '<div class="rp-row">';
@@ -268,6 +272,22 @@
         if (size === 'large') container.style.display = 'flex';
         container.style.opacity = '1';
 
+        // Apply custom background if provided
+        if (background) {
+            var bgEl = container.querySelector('.rp-bg-custom');
+            if (bgEl) {
+                if (background.startsWith('#')) {
+                    bgEl.style.background = background;
+                } else if (background.startsWith('linear') || background.startsWith('radial')) {
+                    bgEl.style.background = background;
+                } else if (background.startsWith('/') || background.startsWith('http')) {
+                    bgEl.style.backgroundImage = 'url(' + background + ')';
+                    bgEl.style.backgroundSize = 'cover';
+                    bgEl.style.backgroundPosition = 'center';
+                }
+            }
+        }
+
         // Dynamic cell sizing for screen (large) view
         var gridFill = container.querySelector('.rp-grid-fill');
         if (gridFill) {
@@ -289,33 +309,38 @@
     function revealLetter(container, letter) {
         var upper = letter.toUpperCase();
         var cells = container.querySelectorAll('.rp-cell.hidden[data-letter="' + upper + '"]');
+        var lastDelay = 0;
         for (var i = 0; i < cells.length; i++) {
+            lastDelay = i * 120;
             (function (cell, delay) {
                 setTimeout(function () {
                     cell.classList.remove('hidden');
                     cell.classList.add('revealed', 'rp-flip');
                     cell.innerHTML = '<span class="rp-char">' + esc(upper) + '</span>';
+                    setTimeout(function () { cell.classList.remove('rp-flip'); }, 800);
                 }, delay);
-            })(cells[i], i * 80);
+            })(cells[i], lastDelay);
         }
-        // Update pending bar
-        updatePending(container);
+        setTimeout(function () { updatePending(container); }, lastDelay + 50);
     }
 
     /** Reveal all letters with staggered animation */
     function solveAll(container, phrase) {
         var cells = container.querySelectorAll('.rp-cell.hidden');
+        var lastDelay = 0;
         for (var i = 0; i < cells.length; i++) {
+            lastDelay = i * 60;
             (function (cell, delay) {
                 setTimeout(function () {
                     var letter = cell.getAttribute('data-letter');
                     cell.classList.remove('hidden');
                     cell.classList.add('revealed', 'rp-flip');
                     cell.innerHTML = '<span class="rp-char">' + esc(letter) + '</span>';
+                    setTimeout(function () { cell.classList.remove('rp-flip'); }, 800);
                 }, delay);
-            })(cells[i], i * 50);
+            })(cells[i], lastDelay);
         }
-        updatePending(container);
+        setTimeout(function () { updatePending(container); }, lastDelay + 50);
     }
 
     function updatePending(container) {

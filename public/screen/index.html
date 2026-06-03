@@ -951,6 +951,7 @@ function renderRuletaScreen(c, q, newQuestion) {
     var rt = ps.roundTheme || {};
     var tt = ps.typeTheme || {};
     var logo = rt.logo || tt.logo || gt.logo || null;
+    var bg = rt.background || tt.background || null;
 
     RoulettePanel.render(container, {
         phrase: c.phrase || '',
@@ -959,7 +960,8 @@ function renderRuletaScreen(c, q, newQuestion) {
         logo: logo,
         size: 'large',
         panelVisible: ps.roulettePanelVisible,
-        solved: ps.rouletteSolved
+        solved: ps.rouletteSolved,
+        background: bg
     });
 
     // Hide round logo (roulette panel has its own)
