@@ -97,6 +97,27 @@
 
     function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
+    function computeCellSize(gridFill, attempt) {
+        attempt = attempt || 0;
+        var w = gridFill.clientWidth;
+        var h = gridFill.clientHeight;
+        if ((w === 0 || h === 0) && attempt < 20) {
+            setTimeout(function () { computeCellSize(gridFill, attempt + 1); }, 50);
+            return;
+        }
+        if (w === 0 || h === 0) return;
+        var maxC = parseFloat(gridFill.getAttribute('data-rp-max-cols')) || 12;
+        var numR = parseInt(gridFill.getAttribute('data-rp-rows')) || 2;
+        var gapH = 6;
+        var gapV = 12;
+        var availW = w - 48;
+        var availH = h - 32;
+        var cellFromW = (availW - (maxC - 1) * gapH) / maxC;
+        var cellFromH = (availH - (numR - 1) * gapV) / numR;
+        var cellSize = Math.max(20, Math.floor(Math.min(cellFromW, cellFromH)));
+        gridFill.style.setProperty('--rp-cell', cellSize + 'px');
+    }
+
     function isRevealed(ch, revealedLetters) {
         if (!isLetter(ch)) return true; // punctuation always shown
         var upper = ch.toUpperCase();
@@ -244,23 +265,13 @@
 
         container.innerHTML = html;
         container.className = (container.className.replace(/\brp-container\b/g, '').trim() + ' rp-container').trim();
+        if (size === 'large') container.style.display = 'flex';
         container.style.opacity = '1';
 
         // Dynamic cell sizing for screen (large) view
         var gridFill = container.querySelector('.rp-grid-fill');
         if (gridFill) {
-            requestAnimationFrame(function () {
-                var maxC = parseFloat(gridFill.getAttribute('data-rp-max-cols')) || 12;
-                var numR = parseInt(gridFill.getAttribute('data-rp-rows')) || 2;
-                var gapH = 6;
-                var gapV = 10;
-                var availW = gridFill.clientWidth - 48;
-                var availH = gridFill.clientHeight - 32;
-                var cellFromW = (availW - (maxC - 1) * gapH) / maxC;
-                var cellFromH = (availH - (numR - 1) * gapV) / numR;
-                var cellSize = Math.floor(Math.min(cellFromW, cellFromH));
-                gridFill.style.setProperty('--rp-cell', cellSize + 'px');
-            });
+            computeCellSize(gridFill);
         }
 
         // When panel not visible: show only hint, hide grid + pending letters

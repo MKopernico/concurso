@@ -43,11 +43,12 @@
 /* Screen (large) variant: fills all remaining vertical space, cells scale dynamically */
 .rp-grid-fill { flex: 1; min-height: 0; width: calc(100% - 48px); max-width: none;
     padding: 16px 24px; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: clamp(4px, 0.8vh, 10px);
+    align-items: center; justify-content: center; gap: clamp(6px, 1vh, 12px);
     background: none; border: none; backdrop-filter: none; }
-.rp-grid-fill .rp-cell { width: var(--rp-cell); height: var(--rp-cell); aspect-ratio: 1;
-    font-size: calc(var(--rp-cell) * 0.45); flex-shrink: 0; }
-.rp-grid-fill .rp-space { width: calc(var(--rp-cell) * 0.4); }
+.rp-grid-fill .rp-cell { width: var(--rp-cell, clamp(44px, 4.5vw, 56px));
+    height: var(--rp-cell, clamp(54px, 5.5vw, 68px));
+    font-size: calc(var(--rp-cell, 50px) * 0.45); flex-shrink: 0; }
+.rp-grid-fill .rp-space { width: calc(var(--rp-cell, 50px) * 0.4); }
 .rp-grid-fill .rp-word { gap: clamp(3px, 0.4vw, 6px); }
 .rp-grid-fill .rp-row { gap: 0; }
 .rp-row { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: nowrap; }
