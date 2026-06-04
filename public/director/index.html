@@ -63,7 +63,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
 /* Phase panels */
-.phase { display: none; flex: 1; overflow-y: auto; padding: 20px; }
+.phase { display: none; flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 80px; }
 .phase.active { display: flex; flex-direction: column; }
 
 /* Lobby */
@@ -153,19 +153,40 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .timer-display.danger { color: var(--danger); animation: pulse .5s infinite alternate; }
 @keyframes pulse { to { opacity: .5; } }
 
-/* Right collapsible panel */
-.right-panel { width: 320px; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
-.right-panel-scroll { flex: 1; overflow-y: auto; }
+/* ── Bottom teams bar ── */
+.bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 60; background: var(--surface); border-top: 1px solid var(--border); transition: max-height .25s ease; }
+.bottom-bar-header { display: flex; align-items: center; gap: 8px; padding: 6px 16px; cursor: pointer; user-select: none; border-bottom: 1px solid var(--border); }
+.bottom-bar-header:hover { background: var(--surface2); }
+.bb-chevron { font-size: 10px; color: var(--text2); transition: transform .2s; }
+.bottom-bar.open .bb-chevron { transform: rotate(180deg); }
+.bb-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); }
+.bb-count { font-size: 11px; color: var(--text2); margin-left: auto; }
 
-/* Collapsible section */
-.collapse-section { border-bottom: 1px solid var(--border); }
-.collapse-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; user-select: none; transition: background .15s; }
-.collapse-header:hover { background: var(--surface2); }
-.collapse-chevron { font-size: 10px; color: var(--text2); transition: transform .2s; flex-shrink: 0; width: 16px; text-align: center; }
-.collapse-section.open .collapse-chevron { transform: rotate(90deg); }
-.collapse-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); }
-.collapse-body { display: none; padding: 0 14px 14px; }
-.collapse-section.open .collapse-body { display: block; }
+/* Collapsed: compact cards */
+.bb-teams-row { display: flex; gap: 6px; padding: 6px 16px; overflow-x: auto; scrollbar-width: thin; }
+.bb-teams-row::-webkit-scrollbar { height: 4px; }
+.bb-teams-row::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.bb-card { flex-shrink: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 6px; min-width: 110px; max-width: 160px; }
+.bb-card-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.bb-card-dot.on { background: var(--success); }
+.bb-card-dot.off { background: var(--text2); opacity: .4; }
+.bb-card-name { font-size: 11px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bb-card-edit { background: none; border: none; color: var(--text2); cursor: pointer; padding: 2px; font-size: 12px; flex-shrink: 0; min-width: 0; width: auto; }
+.bb-card-edit:hover { color: var(--accent); }
+.bb-card-score { font-size: 13px; font-weight: 800; color: var(--accent); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.bb-card-blocked { color: var(--danger); font-size: 10px; flex-shrink: 0; }
+
+/* Expanded: wider cards with +/- buttons */
+.bb-teams-expanded { display: none; padding: 8px 16px; }
+.bottom-bar.open .bb-teams-row { display: none; }
+.bottom-bar.open .bb-teams-expanded { display: flex; gap: 8px; flex-wrap: wrap; }
+.bb-card-lg { flex-shrink: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; min-width: 180px; }
+.bb-card-lg .bb-card-name { font-size: 12px; }
+.bb-card-lg .bb-card-score { font-size: 15px; }
+.bb-lg-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.bb-lg-actions button { padding: 4px 10px; font-size: 12px; border-radius: 4px; }
+
+.bb-empty { color: var(--text2); font-size: 12px; padding: 4px 0; }
 
 /* Buzzer compact row (collapsed state) */
 .buzzer-compact { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -185,9 +206,29 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .rlc-kb-btn.done { opacity: .2; pointer-events: none; }
 .rlc-kb-btn.vowel { border-color: var(--gold); color: var(--gold); }
 
-/* Teams in right panel */
-.rp-teams { padding: 10px 14px; border-top: 1px solid var(--border); }
-.rp-teams h4 { font-size: 11px; text-transform: uppercase; color: var(--text2); letter-spacing: .5px; margin-bottom: 6px; }
+/* ── Control strips (full-width above phases) ── */
+.control-strips { flex-shrink: 0; }
+.control-strip { border-bottom: 1px solid var(--border); background: var(--surface); }
+.strip-header { display: flex; align-items: center; gap: 8px; padding: 6px 16px; min-height: 40px; }
+.strip-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; flex-shrink: 0; padding: 4px 0; }
+.strip-toggle:hover .strip-title { color: var(--text); }
+.strip-chevron { font-size: 10px; color: var(--text2); transition: transform .2s; width: 14px; text-align: center; }
+.control-strip.open .strip-chevron { transform: rotate(90deg); }
+.strip-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); flex-shrink: 0; }
+.strip-inline { display: flex; align-items: center; gap: 6px; flex: 1; flex-wrap: wrap; }
+.control-strip.open .strip-inline { display: none; }
+.strip-body { display: none; padding: 4px 16px 12px; }
+.control-strip.open .strip-body { display: block; }
+.strip-pulsador-big { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
+.strip-btn-lg { padding: 12px 20px !important; font-size: 14px !important; border-radius: 8px !important; }
+.strip-queue-area { display: flex; gap: 16px; }
+.strip-queue-area .pulsador-queue-list { flex: 1; max-height: 140px; }
+.strip-pulsador-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; flex-wrap: wrap; }
+.strip-keyboard { display: flex; gap: 8px; padding: 4px 16px 8px; align-items: flex-start; flex-wrap: wrap; }
+.strip-keyboard .ruleta-compact { flex: 1; }
+.strip-keyboard .rl-solve-btn { flex-shrink: 0; }
+
+/* (old rp-teams removed — replaced by bottom bar) */
 
 /* Director image grid (legacy cells) */
 .dir-grid { display: inline-grid; gap: 3px; }
@@ -234,7 +275,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
 /* Toast */
-#toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 500; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+#toast { position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 500; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 .toast-msg { background: var(--surface); border: 1px solid var(--accent); padding: 10px 20px; border-radius: 8px; font-size: 13px; opacity: 0; animation: toastIn .3s forwards; white-space: nowrap; }
 .toast-msg.out { animation: toastOut .3s forwards; }
 @keyframes toastIn { to { opacity: 1; } }
@@ -339,11 +380,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .pq-name { flex: 1; font-size: 14px; font-weight: 600; }
 .pq-time { font-size: 13px; color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
 .pq-empty { color: var(--text2); font-size: 13px; padding: 16px; text-align: center; }
-.pt-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
-.pt-name { flex: 1; font-size: 13px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pt-score { font-size: 16px; font-weight: 800; color: var(--accent); min-width: 50px; text-align: right; font-variant-numeric: tabular-nums; }
-.pt-actions { display: flex; gap: 4px; flex-shrink: 0; }
-.pt-actions button { padding: 4px 10px; font-size: 12px; border-radius: 4px; }
+/* (old pt-row/pt-name/pt-score/pt-actions removed — replaced by bb-card) */
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -395,6 +432,59 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 
     <!-- Main content -->
     <div class="main">
+        <!-- Control strips -->
+        <div class="control-strips" id="controlStrips">
+            <!-- PULSADOR strip -->
+            <div class="control-strip" id="secPulsador">
+                <div class="strip-header">
+                    <div class="strip-toggle" onclick="toggleSection('secPulsador')">
+                        <span class="strip-chevron">&#9654;</span>
+                        <span class="strip-title">&#128308; Pulsador</span>
+                    </div>
+                    <div class="strip-inline">
+                        <button class="btn-success btn-sm buzzer-open-btn" onclick="emit('director:open_buzzer')">Abrir</button>
+                        <button class="btn-danger btn-sm buzzer-close-btn" onclick="emit('director:close_buzzer')">Cerrar</button>
+                        <button class="btn-ghost btn-sm" onclick="emit('director:reset_buzzer')">Reset</button>
+                    </div>
+                    <div class="buzzer-indicator off" id="rpBuzzerDot"></div>
+                </div>
+                <div class="strip-body">
+                    <div class="strip-pulsador-big">
+                        <button class="btn-success strip-btn-lg buzzer-open-btn" onclick="emit('director:open_buzzer')">Abrir</button>
+                        <button class="btn-danger strip-btn-lg buzzer-close-btn" onclick="emit('director:close_buzzer')">Cerrar</button>
+                        <button class="btn-ghost strip-btn-lg" onclick="emit('director:reset_buzzer')">Reset</button>
+                    </div>
+                    <div class="strip-queue-area">
+                        <div class="pulsador-queue-list" id="rpQueueList">
+                            <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
+                        </div>
+                        <div class="strip-pulsador-actions">
+                            <span class="buzzer-first-name" id="rpFirstName"></span>
+                            <button class="btn-success" id="rpBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
+                            <button class="btn-danger" id="rpBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
+                            <button class="btn-ghost btn-sm" id="rpBtnBlockAll" onclick="toggleBlockAll()">&#128274; Bloqueo</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- RULETA strip -->
+            <div class="control-strip open" id="secRuleta" style="display:none;">
+                <div class="strip-header">
+                    <div class="strip-toggle" onclick="toggleSection('secRuleta')">
+                        <span class="strip-chevron">&#9654;</span>
+                        <span class="strip-title">&#127921; Ruleta</span>
+                    </div>
+                </div>
+                <div class="strip-keyboard">
+                    <div class="ruleta-compact" id="rpRuletaKeyboard"></div>
+                    <button class="rl-solve-btn" id="rpBtnSolve" onclick="emit('director:solve_roulette')" style="padding:8px 16px; font-size:13px;">&#9989; RESOLVER</button>
+                </div>
+                <div class="strip-body">
+                    <div id="rpRuletaPhrase"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- No game -->
         <div class="no-game" id="noGame" style="display:none">
             <h2>No se encontr&oacute; el juego</h2>
@@ -540,55 +630,17 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         </div>
     </div>
 
-    <!-- Right collapsible panel -->
-    <aside class="right-panel" id="rightPanel">
-        <div class="right-panel-scroll">
-            <!-- PULSADOR section -->
-            <div class="collapse-section" id="secPulsador">
-                <div class="collapse-header" onclick="toggleSection('secPulsador')">
-                    <span class="collapse-chevron">&#9654;</span>
-                    <span class="collapse-title">&#128308; Pulsador</span>
-                    <div class="buzzer-indicator off" id="rpBuzzerDot" style="margin-left:auto;"></div>
-                </div>
-                <div class="collapse-body">
-                    <div class="buzzer-compact" id="rpBuzzerCompact">
-                        <button class="btn-success btn-sm" id="rpBtnOpen" onclick="emit('director:open_buzzer')">Abrir</button>
-                        <button class="btn-danger btn-sm" id="rpBtnClose" onclick="emit('director:close_buzzer')">Cerrar</button>
-                        <button class="btn-ghost btn-sm" onclick="emit('director:reset_buzzer')">Reset</button>
-                        <span class="buzzer-first-name" id="rpFirstName"></span>
-                        <button class="btn-success btn-sm" id="rpBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004;</button>
-                        <button class="btn-danger btn-sm" id="rpBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008;</button>
-                        <button class="btn-ghost btn-sm" id="rpBtnBlockAll" onclick="toggleBlockAll()">&#128274;</button>
-                    </div>
-                    <div id="rpQueueFull" style="margin-top:10px;">
-                        <div class="pulsador-queue-list" id="rpQueueList">
-                            <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+</div>
 
-            <!-- RULETA section -->
-            <div class="collapse-section open" id="secRuleta" style="display:none;">
-                <div class="collapse-header" onclick="toggleSection('secRuleta')">
-                    <span class="collapse-chevron">&#9654;</span>
-                    <span class="collapse-title">&#127921; Ruleta</span>
-                </div>
-                <div class="collapse-body">
-                    <div class="ruleta-compact" id="rpRuletaKeyboard"></div>
-                    <div style="margin-top:8px;">
-                        <button class="rl-solve-btn" id="rpBtnSolve" onclick="emit('director:solve_roulette')" style="padding:8px 16px; font-size:13px;">&#9989; RESOLVER</button>
-                    </div>
-                    <div id="rpRuletaPhrase" style="margin-top:10px;"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="rp-teams">
-            <h4>&#127942; Equipos &amp; puntos</h4>
-            <div id="rpTeamsList"></div>
-        </div>
-    </aside>
+<!-- Bottom teams bar -->
+<div class="bottom-bar" id="bottomBar">
+    <div class="bottom-bar-header" onclick="toggleSection('bottomBar')">
+        <span class="bb-chevron">&#9650;</span>
+        <span class="bb-title">&#127942; Equipos &amp; puntos</span>
+        <span class="bb-count" id="bbTeamCount"></span>
+    </div>
+    <div class="bb-teams-row" id="bbTeamsRow"></div>
+    <div class="bb-teams-expanded" id="bbTeamsExpanded"></div>
 </div>
 
 
@@ -1652,7 +1704,6 @@ function toggleSection(id) {
 }
 
 function renderBuzzer() {
-    // Right panel buzzer indicator
     var dot = document.getElementById('rpBuzzerDot');
     var hasPulsado = S.colaPulsador.length > 0;
     if (S.pulsadorActivo && hasPulsado) {
@@ -1661,11 +1712,9 @@ function renderBuzzer() {
         dot.className = 'buzzer-indicator ' + (S.pulsadorActivo ? 'on' : 'off');
     }
 
-    // Buttons
-    document.getElementById('rpBtnOpen').disabled = S.pulsadorActivo;
-    document.getElementById('rpBtnClose').disabled = !S.pulsadorActivo;
+    document.querySelectorAll('.buzzer-open-btn').forEach(function(b) { b.disabled = S.pulsadorActivo; });
+    document.querySelectorAll('.buzzer-close-btn').forEach(function(b) { b.disabled = !S.pulsadorActivo; });
 
-    // First in queue name
     var firstName = document.getElementById('rpFirstName');
     var btnCorrect = document.getElementById('rpBtnCorrect');
     var btnWrong = document.getElementById('rpBtnWrong');
@@ -1679,7 +1728,6 @@ function renderBuzzer() {
         btnWrong.style.display = 'none';
     }
 
-    // Full queue list
     var queueEl = document.getElementById('rpQueueList');
     if (!hasPulsado) {
         queueEl.innerHTML = '<div class="pq-empty">Nadie ha pulsado aún</div>';
@@ -1754,25 +1802,48 @@ function renderRightPanelRuleta() {
     }
 }
 
-// ── Right panel: Teams ──
+// ── Bottom bar: Teams ──
 function renderTeams() {
-    var el = document.getElementById('rpTeamsList');
+    var rowEl = document.getElementById('bbTeamsRow');
+    var expEl = document.getElementById('bbTeamsExpanded');
+    var countEl = document.getElementById('bbTeamCount');
     var scores = (S.director && S.director.scores) || {};
-    if (!S.equipos.length) { el.innerHTML = '<div style="color:var(--text2);font-size:12px;">Sin equipos</div>'; return; }
-    el.innerHTML = S.equipos.map(function(e) {
+    countEl.textContent = S.equipos.length ? S.equipos.length + ' equipo' + (S.equipos.length > 1 ? 's' : '') : '';
+
+    if (!S.equipos.length) {
+        rowEl.innerHTML = '<span class="bb-empty">Sin equipos</span>';
+        expEl.innerHTML = '';
+        return;
+    }
+
+    // Collapsed row
+    rowEl.innerHTML = S.equipos.map(function(e) {
         var score = scores[e.id] || 0;
+        var connected = e.ocupado;
         var blocked = e.bloqueado;
-        return '<div class="pt-row">'
-            + '<span class="pt-name" title="' + esc(e.nombre) + '" ondblclick="openEditTeamModal(\'' + e.id + '\')">'
-            + (blocked ? '&#128274; ' : '') + esc(e.nombre) + '</span>'
-            + '<span class="pt-score">' + score + '</span>'
-            + '<div class="pt-actions">'
+        return '<div class="bb-card">'
+            + '<span class="bb-card-dot ' + (connected ? 'on' : 'off') + '"></span>'
+            + '<span class="bb-card-name">' + (blocked ? '&#128274; ' : '') + esc(e.nombre) + '</span>'
+            + '<button class="bb-card-edit" onclick="event.stopPropagation();openEditTeamModal(\'' + e.id + '\')" title="Editar">&#9998;</button>'
+            + '<span class="bb-card-score">' + score + '</span>'
+            + '</div>';
+    }).join('');
+
+    // Expanded view
+    expEl.innerHTML = S.equipos.map(function(e) {
+        var score = scores[e.id] || 0;
+        var connected = e.ocupado;
+        var blocked = e.bloqueado;
+        return '<div class="bb-card-lg">'
+            + '<span class="bb-card-dot ' + (connected ? 'on' : 'off') + '"></span>'
+            + '<span class="bb-card-name">' + (blocked ? '&#128274; ' : '') + esc(e.nombre) + '</span>'
+            + '<button class="bb-card-edit" onclick="event.stopPropagation();openEditTeamModal(\'' + e.id + '\')" title="Editar">&#9998;</button>'
+            + '<span class="bb-card-score">' + score + '</span>'
+            + '<div class="bb-lg-actions">'
             + '<button class="btn-success" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:100})" title="+100">+</button>'
-            + '<button class="btn-danger" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:-100})" title="-100">-</button>'
-            + '<button class="btn-ghost" onclick="openPointsModal(\'' + e.id + '\')" title="Ajustar">&#9998;</button>'
-            + '<button class="btn-ghost" onclick="toggleBlock(\'' + e.id + '\',' + blocked + ')" title="' + (blocked ? 'Desbloquear' : 'Bloquear') + '">'
-            + (blocked ? '&#128275;' : '&#128274;') + '</button>'
-            + '</div></div>';
+            + '<button class="btn-danger" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:-100})" title="-100">&minus;</button>'
+            + '</div>'
+            + '</div>';
     }).join('');
 }
 
