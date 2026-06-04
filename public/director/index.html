@@ -188,6 +188,17 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 
 .bb-empty { color: var(--text2); font-size: 12px; padding: 4px 0; }
 
+/* Quick-points popover */
+.qp-popover { display: none; position: fixed; z-index: 250; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.5); min-width: 160px; }
+.qp-popover.active { display: flex; flex-direction: column; gap: 8px; }
+.qp-popover .qp-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); }
+.qp-popover .qp-row { display: flex; gap: 6px; align-items: center; }
+.qp-popover input { width: 80px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; font-size: 15px; font-weight: 700; font-family: inherit; text-align: center; font-variant-numeric: tabular-nums; }
+.qp-popover input:focus { border-color: var(--accent); outline: none; }
+.qp-popover .qp-confirm { flex: 1; padding: 7px 12px; font-size: 13px; font-weight: 700; border-radius: 6px; border: none; cursor: pointer; font-family: inherit; }
+.qp-popover .qp-cancel { background: none; border: none; color: var(--text2); font-size: 11px; cursor: pointer; font-family: inherit; text-align: center; padding: 2px; }
+.qp-popover .qp-cancel:hover { color: var(--text); }
+
 /* Buzzer compact row (collapsed state) */
 .buzzer-compact { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .buzzer-indicator { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
@@ -196,6 +207,21 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .buzzer-indicator.blink { animation: buzzerBlink .5s infinite alternate; }
 @keyframes buzzerBlink { from { opacity: 1; box-shadow: 0 0 8px var(--gold); } to { opacity: .3; box-shadow: none; } }
 .buzzer-first-name { font-size: 12px; font-weight: 700; color: var(--gold); max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Buzzer alert banner */
+.buzzer-alert { display: none; padding: 6px 16px; border-radius: 8px; font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; text-align: center; animation: buzzerAlert .4s infinite alternate; }
+.buzzer-alert.active { display: inline-flex; align-items: center; gap: 8px; }
+.buzzer-alert { background: var(--gold); color: #000; }
+@keyframes buzzerAlert { from { opacity: 1; box-shadow: 0 0 14px var(--gold), 0 0 30px rgba(250,204,21,.4); transform: scale(1); } to { opacity: .75; box-shadow: 0 0 6px var(--gold); transform: scale(.97); } }
+
+/* Ruleta chuleta (strip expanded) */
+.ruleta-chuleta { display: flex; flex-wrap: wrap; gap: 3px; padding: 8px 0; justify-content: center; align-items: center; }
+.ruleta-chuleta-row { display: flex; gap: 3px; align-items: center; }
+.rc-cell { width: 28px; height: 32px; border-radius: 4px; font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center; text-transform: uppercase; }
+.rc-cell.revealed { background: var(--accent); color: #000; opacity: 1; }
+.rc-cell.hidden { background: var(--surface2); border: 1px solid var(--border); color: transparent; opacity: .35; }
+.rc-cell.space { width: 12px; background: transparent; border: none; }
+.rc-cell.punct { background: transparent; border: none; color: var(--text2); opacity: .6; font-size: 12px; width: 14px; }
 
 /* Ruleta compact row (collapsed state) */
 .ruleta-compact { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
@@ -335,9 +361,6 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .rl-pre-btn:hover { background: var(--accent-dim); }
 
 /* Sub-state B: panel active */
-.rl-panel-wrap { border-radius: 10px; overflow: hidden; min-height: 220px; background: #0d2a5a; position: relative; }
-.rl-panel-wrap .rp-cell.hidden { opacity: .25; background: #e8e4dc; }
-.rl-panel-wrap .rp-cell.revealed { opacity: 1; }
 
 .rl-keyboard { display: flex; flex-direction: column; gap: 6px; }
 .rl-kb-row { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
@@ -446,7 +469,8 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                         <button class="btn-danger btn-sm buzzer-close-btn" onclick="emit('director:close_buzzer')">Cerrar</button>
                         <button class="btn-ghost btn-sm" onclick="emit('director:reset_buzzer')">Reset</button>
                     </div>
-                    <div class="buzzer-indicator off" id="rpBuzzerDot"></div>
+                    <div class="buzzer-indicator off" id="rpBuzzerDot" style="display:none"></div>
+                    <div class="buzzer-alert" id="rpBuzzerAlert"></div>
                 </div>
                 <div class="strip-body">
                     <div class="strip-pulsador-big">
@@ -480,7 +504,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                     <button class="rl-solve-btn" id="rpBtnSolve" onclick="emit('director:solve_roulette')" style="padding:8px 16px; font-size:13px;">&#9989; RESOLVER</button>
                 </div>
                 <div class="strip-body">
-                    <div id="rpRuletaPhrase"></div>
+                    <div id="rpRuletaChuleta"></div>
                 </div>
             </div>
         </div>
@@ -553,7 +577,6 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 </div>
                 <!-- Sub-state B: panel active -->
                 <div id="rlStateB" style="display:none; flex-direction:column; gap:10px;">
-                    <div class="rl-panel-wrap" id="ruletaPanelPreview"></div>
                     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                         <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
                     </div>
@@ -694,6 +717,16 @@ button:disabled { opacity: .4; cursor: not-allowed; }
     </div>
 </div>
 
+<!-- Quick-points popover -->
+<div class="qp-popover" id="qpPopover">
+    <span class="qp-label" id="qpLabel">Puntos</span>
+    <div class="qp-row">
+        <input type="number" id="qpInput" value="100">
+        <button class="qp-confirm" id="qpConfirm">Añadir</button>
+    </div>
+    <button class="qp-cancel" onclick="closeQuickPoints()">Cancelar</button>
+</div>
+
 <div id="toast"></div>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -785,6 +818,21 @@ function render() {
     renderTeams();
     renderRightPanelRuleta();
     renderRoundsActive();
+
+    // Arreglo 1: Pulsador strip only for types that use it
+    var secPulsador = document.getElementById('secPulsador');
+    var roundType = ds.currentRound ? ds.currentRound.type : '';
+    var showPulsador = false;
+    if (phase === 'question' || phase === 'answer_revealed') {
+        if (roundType === 'pulsador' || roundType === 'ruleta' || roundType === 'imagen') {
+            showPulsador = true;
+        } else if (roundType === 'imagen_fija') {
+            var q = ds.questions[ds.currentQuestionIdx];
+            var c = q ? (q.content || {}) : {};
+            showPulsador = !!c.buzzer_enabled;
+        }
+    }
+    secPulsador.style.display = showPulsador ? '' : 'none';
 
     // Auto-collapse/expand on new question
     if (ds.currentQuestionIdx !== _prevQIdx || phase !== _prevPhase) {
@@ -1293,25 +1341,6 @@ function renderQuestionRuleta() {
     } else {
         stateA.style.display = 'none';
         stateB.style.display = 'flex';
-
-        var gt = S.game && S.game.theme || {};
-        var rc = ds.currentRound ? parseJson(ds.currentRound.config) : {};
-        var typeTheme = (gt.types && gt.types['ruleta']) || {};
-        var logo = rc.logo || typeTheme.logo || gt.logo || null;
-
-        RoulettePanel.render(document.getElementById('ruletaPanelPreview'), {
-            phrase: c.phrase || '', hint: c.hint || '', revealedLetters: revealed,
-            logo: logo, size: 'medium', panelVisible: true, solved: solved
-        });
-
-        var previewEl = document.getElementById('ruletaPanelPreview');
-        var hiddenCells = previewEl.querySelectorAll('.rp-cell.hidden');
-        for (var hi = 0; hi < hiddenCells.length; hi++) {
-            var letter = hiddenCells[hi].getAttribute('data-letter');
-            if (letter) {
-                hiddenCells[hi].innerHTML = '<span class="rp-char" style="opacity:.35">' + esc(letter) + '</span>';
-            }
-        }
     }
 }
 
@@ -1704,12 +1733,18 @@ function toggleSection(id) {
 }
 
 function renderBuzzer() {
-    var dot = document.getElementById('rpBuzzerDot');
     var hasPulsado = S.colaPulsador.length > 0;
-    if (S.pulsadorActivo && hasPulsado) {
-        dot.className = 'buzzer-indicator on blink';
-    } else {
-        dot.className = 'buzzer-indicator ' + (S.pulsadorActivo ? 'on' : 'off');
+
+    // Buzzer alert banner (Arreglo 3)
+    var alertEl = document.getElementById('rpBuzzerAlert');
+    if (alertEl) {
+        if (hasPulsado) {
+            alertEl.textContent = '🔔 ' + S.colaPulsador[0].nombre;
+            alertEl.classList.add('active');
+        } else {
+            alertEl.textContent = '';
+            alertEl.classList.remove('active');
+        }
     }
 
     document.querySelectorAll('.buzzer-open-btn').forEach(function(b) { b.disabled = S.pulsadorActivo; });
@@ -1785,20 +1820,31 @@ function renderRightPanelRuleta() {
     document.getElementById('rpRuletaKeyboard').innerHTML = kbHtml;
     document.getElementById('rpBtnSolve').disabled = solved;
 
-    // Phrase preview (expanded)
-    var phraseEl = document.getElementById('rpRuletaPhrase');
-    if (panelVisible) {
-        var phrase = c.phrase || '';
-        var html = '<div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Frase:</div><div style="font-size:14px;letter-spacing:2px;line-height:1.8;font-weight:700;">';
+    // Chuleta: phrase rectangles (expanded strip body)
+    var chuletaEl = document.getElementById('rpRuletaChuleta');
+    if (chuletaEl) {
+        var phrase = (c.phrase || '').toUpperCase();
+        var PUNCT = ',.!?¡¿:;—–-\'\"()';
+        var html = '<div class="ruleta-chuleta">';
+        var inRow = true;
+        html += '<div class="ruleta-chuleta-row">';
         for (var pi = 0; pi < phrase.length; pi++) {
-            if (phrase[pi] === ' ') { html += '&nbsp;&nbsp;'; continue; }
-            var isRev = revSet[phrase[pi].toUpperCase()] || solved;
-            html += '<span style="' + (isRev ? 'color:var(--accent)' : 'color:var(--border)') + '">' + esc(phrase[pi]) + '</span>';
+            var ch = phrase[pi];
+            if (ch === ' ') {
+                html += '<div class="rc-cell space"></div>';
+            } else if (PUNCT.indexOf(ch) >= 0) {
+                html += '<div class="rc-cell punct">' + esc(ch) + '</div>';
+            } else {
+                var isRev = revSet[ch] || solved;
+                if (isRev) {
+                    html += '<div class="rc-cell revealed">' + esc(ch) + '</div>';
+                } else {
+                    html += '<div class="rc-cell hidden"></div>';
+                }
+            }
         }
-        html += '</div>';
-        phraseEl.innerHTML = html;
-    } else {
-        phraseEl.innerHTML = '<div style="font-size:11px;color:var(--text2);">Panel no visible aún</div>';
+        html += '</div></div>';
+        chuletaEl.innerHTML = html;
     }
 }
 
@@ -1840,12 +1886,86 @@ function renderTeams() {
             + '<button class="bb-card-edit" onclick="event.stopPropagation();openEditTeamModal(\'' + e.id + '\')" title="Editar">&#9998;</button>'
             + '<span class="bb-card-score">' + score + '</span>'
             + '<div class="bb-lg-actions">'
-            + '<button class="btn-success" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:100})" title="+100">+</button>'
-            + '<button class="btn-danger" onclick="emit(\'director:add_points\',{teamId:\'' + e.id + '\',points:-100})" title="-100">&minus;</button>'
+            + '<button class="btn-success" onclick="event.stopPropagation();openQuickPoints(\'' + e.id + '\',\'add\',this)">+</button>'
+            + '<button class="btn-danger" onclick="event.stopPropagation();openQuickPoints(\'' + e.id + '\',\'sub\',this)">&minus;</button>'
             + '</div>'
             + '</div>';
     }).join('');
 }
+
+// ── Quick-points popover ──
+var _qpTeamId = null;
+var _qpMode = 'add'; // 'add' or 'sub'
+
+function getDefaultPoints() {
+    var ds = S.director;
+    if (!ds || ds.currentQuestionIdx < 0 || !ds.questions || !ds.questions.length) return 100;
+    var cfg = getQuestionConfig(ds);
+    return cfg.basePoints || 100;
+}
+
+function openQuickPoints(teamId, mode, btnEl) {
+    _qpTeamId = teamId;
+    _qpMode = mode;
+    var pop = document.getElementById('qpPopover');
+    var input = document.getElementById('qpInput');
+    var confirm = document.getElementById('qpConfirm');
+    var label = document.getElementById('qpLabel');
+    var team = S.equipos.find(function(e) { return e.id === teamId; });
+    var pts = getDefaultPoints();
+
+    input.value = pts;
+    if (mode === 'add') {
+        label.textContent = (team ? team.nombre : '') + ' — Sumar';
+        confirm.textContent = '+ Añadir';
+        confirm.className = 'qp-confirm btn-success';
+    } else {
+        label.textContent = (team ? team.nombre : '') + ' — Restar';
+        confirm.textContent = '− Restar';
+        confirm.className = 'qp-confirm btn-danger';
+    }
+    confirm.onclick = submitQuickPoints;
+
+    // Position near button
+    var rect = btnEl.getBoundingClientRect();
+    pop.classList.add('active');
+    var popW = pop.offsetWidth;
+    var popH = pop.offsetHeight;
+    var left = rect.left + rect.width / 2 - popW / 2;
+    var top = rect.top - popH - 8;
+    if (top < 4) top = rect.bottom + 8;
+    if (left < 4) left = 4;
+    if (left + popW > window.innerWidth - 4) left = window.innerWidth - popW - 4;
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+
+    setTimeout(function() { input.focus(); input.select(); }, 50);
+}
+
+function closeQuickPoints() {
+    document.getElementById('qpPopover').classList.remove('active');
+    _qpTeamId = null;
+}
+
+function submitQuickPoints() {
+    var pts = parseInt(document.getElementById('qpInput').value);
+    if (!isFinite(pts) || !_qpTeamId) { closeQuickPoints(); return; }
+    var actual = _qpMode === 'sub' ? -Math.abs(pts) : Math.abs(pts);
+    emit('director:add_points', { teamId: _qpTeamId, points: actual });
+    closeQuickPoints();
+}
+
+// Close popover on click outside
+document.addEventListener('mousedown', function(e) {
+    var pop = document.getElementById('qpPopover');
+    if (pop.classList.contains('active') && !pop.contains(e.target)) closeQuickPoints();
+});
+
+// Enter to confirm, Escape to cancel in popover
+document.getElementById('qpInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') submitQuickPoints();
+    if (e.key === 'Escape') closeQuickPoints();
+});
 
 function toggleBlock(teamId, isBlocked) { emit(isBlocked ? 'director:unblock_team' : 'director:block_team', { teamId: teamId }); }
 function toggleBlockAll() { emit(S.bloqueoGlobal ? 'director:unblock_all' : 'director:block_all'); }
