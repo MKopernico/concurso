@@ -742,7 +742,7 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     var stmtEl = document.getElementById('qStatement');
 
     stmtEl.textContent = c.statement || '';
-    stmtEl.style.border = ''; stmtEl.style.background = ''; stmtEl.style.borderColor = '';
+    stmtEl.style.border = ''; stmtEl.style.background = ''; stmtEl.style.borderColor = ''; stmtEl.style.backdropFilter = ''; stmtEl.style.animation = '';
 
     // Animate statement entrance on new question
     if (newQuestion) {
@@ -1130,16 +1130,16 @@ function renderRevealedInPlace() {
     } else if (type === 'precio') {
         renderPrecioRevealScreen();
     } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen_fija') {
-        // Show answer in-place with same style as boom/multi reveal
+        // Show answer in-place with same style as .revealed-answer (dark bg, green text, high contrast)
         var stmtEl = document.getElementById('qStatement');
         var answer = c.answer || '';
-        // Replace statement with answer card (green border, same as revealed-answer)
-        stmtEl.innerHTML = '<div style="font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:#22c55e;margin-bottom:8px;text-shadow:0 0 20px rgba(34,197,94,.4);">RESPUESTA CORRECTA</div>'
+        stmtEl.innerHTML = '<div style="font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:4px;color:#22c55e;margin-bottom:8px;text-shadow:0 0 20px rgba(34,197,94,.4);">RESPUESTA CORRECTA</div>'
             + '<div style="font-size:clamp(1.4rem,2.8vw,2.4rem);font-weight:800;color:#22c55e;">' + esc(answer) + '</div>';
         stmtEl.style.display = '';
-        stmtEl.style.borderColor = '#22c55e';
         stmtEl.style.border = '2px solid #22c55e';
-        stmtEl.style.background = 'rgba(34,197,94,.15)';
+        stmtEl.style.background = 'rgba(0,0,0,.60)';
+        stmtEl.style.backdropFilter = 'blur(6px)';
+        stmtEl.style.animation = 'reveal-pop .6s cubic-bezier(.34,1.56,.64,1)';
         // Hide pulsador queue
         document.getElementById('pulsadorScreen').style.display = 'none';
         document.getElementById('buzzerQueue').style.display = 'none';
