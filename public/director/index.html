@@ -67,9 +67,9 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .phase.active { display: flex; flex-direction: column; }
 
 /* Lobby */
-#phase-lobby { align-items: center; justify-content: center; text-align: center; gap: 20px; }
-#phase-lobby h2 { font-size: 22px; color: var(--accent); }
-#phase-lobby p { color: var(--text2); max-width: 400px; }
+#phase-lobby { align-items: center; text-align: center; gap: 16px; }
+#phase-lobby h2 { font-size: 22px; color: var(--accent); flex-shrink: 0; }
+#phase-lobby p { color: var(--text2); width: 100%; max-width: 100%; }
 
 /* Round control panel */
 .round-control { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; max-width: 600px; width: 100%; }
@@ -177,14 +177,16 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .bb-card-blocked { color: var(--danger); font-size: 10px; flex-shrink: 0; }
 
 /* Expanded: wider cards with +/- buttons */
-.bb-teams-expanded { display: none; padding: 8px 16px; }
+.bb-teams-expanded { display: none; padding: 10px 16px; max-height: 40vh; overflow-y: auto; }
 .bottom-bar.open .bb-teams-row { display: none; }
-.bottom-bar.open .bb-teams-expanded { display: flex; gap: 8px; flex-wrap: wrap; }
-.bb-card-lg { flex-shrink: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; min-width: 180px; }
-.bb-card-lg .bb-card-name { font-size: 12px; }
-.bb-card-lg .bb-card-score { font-size: 15px; }
+.bottom-bar.open .bb-teams-expanded { display: flex; gap: 10px; flex-wrap: wrap; }
+.bb-card-lg { flex-shrink: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; min-width: 200px; }
+.bb-card-lg .bb-card-name { font-size: 14px; }
+.bb-card-lg .bb-card-score { font-size: 17px; }
 .bb-lg-actions { display: flex; gap: 4px; flex-shrink: 0; }
-.bb-lg-actions button { padding: 4px 10px; font-size: 12px; border-radius: 4px; }
+.bb-lg-actions button { padding: 5px 11px; font-size: 13px; border-radius: 4px; }
+.bb-card-kick { background: none; border: none; color: var(--text2); cursor: pointer; padding: 2px 4px; font-size: 14px; flex-shrink: 0; min-width: 0; width: auto; line-height: 1; }
+.bb-card-kick:hover { color: var(--danger); }
 
 .bb-empty { color: var(--text2); font-size: 12px; padding: 4px 0; }
 
@@ -307,23 +309,14 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 @keyframes toastOut { to { opacity: 0; } }
 
 /* Menu navigation */
-.menu-grid { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 20px; max-width: 700px; margin: 0 auto; padding: 20px 0; }
-.menu-item { cursor: pointer; border-radius: 14px; border: 2px solid var(--border); background: var(--surface); padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; transition: .2s; text-align: center; }
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 16px; width: 100%; max-width: 100%; padding: 16px; box-sizing: border-box; overflow-y: auto; }
+.menu-item { cursor: pointer; border-radius: 14px; border: 2px solid var(--border); background: var(--surface); padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; transition: .2s; text-align: center; aspect-ratio: 1; min-height: 0; }
 .menu-item:hover { border-color: var(--accent); background: rgba(0,212,255,.06); transform: scale(1.03); }
-.menu-item img { max-width: 100%; max-height: 120px; object-fit: contain; border-radius: 8px; }
+.menu-item img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; flex: 1; min-height: 0; }
 .menu-item .menu-label { font-size: 14px; font-weight: 700; color: var(--text); }
 .menu-item .menu-sublabel { font-size: 11px; color: var(--text2); }
 .menu-item.completed { opacity: .5; border-color: var(--danger); }
 .menu-item.completed .menu-label { text-decoration: line-through; color: var(--danger); }
-/* Dynamic sizing */
-.menu-grid[data-count="1"] .menu-item { width: 200px; height: 200px; }
-.menu-grid[data-count="2"] .menu-item { width: 200px; height: 200px; }
-.menu-grid[data-count="3"] .menu-item { width: 180px; height: 180px; }
-.menu-grid[data-count="4"] .menu-item { width: 180px; height: 180px; }
-.menu-grid[data-count="5"] .menu-item,
-.menu-grid[data-count="6"] .menu-item { width: 160px; height: 160px; }
-.menu-logo { margin-bottom: 10px; }
-.menu-logo img { max-height: 80px; max-width: 200px; object-fit: contain; }
 
 /* ── Precio director panel ── */
 .precio-layout { display: flex; gap: 20px; flex: 1; min-height: 0; }
@@ -430,7 +423,6 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         <button class="btn-ghost btn-sm" onclick="emit('director:extend_timer', {seconds:10})">+10s</button>
     </div>
     <div class="header-actions">
-        <button class="btn-ghost btn-sm" onclick="toggleSidebar()" title="Rondas">&#9776;</button>
         <button class="btn-ghost btn-sm" onclick="emit('director:show_home')" title="Menu Home">&#127968;</button>
         <button class="btn-ghost btn-sm" onclick="toggleScoreboard()" title="Marcador">&#127942;</button>
         <button class="btn-ghost btn-sm" onclick="emit('director:show_waiting')" title="Espera">&#9208;</button>
@@ -991,15 +983,10 @@ function renderHomeMenu() {
     document.getElementById('lobbyTitle').textContent = S.game ? S.game.name : 'Menu';
     document.getElementById('lobbyActions').style.display = 'none';
     document.getElementById('lobbyRoundControl').innerHTML = '';
+    document.getElementById('lobbyTeamsList').innerHTML = '';
 
-    // Game logo on top
-    var logoHtml = '';
-    if (gt.logo) {
-        logoHtml = '<div class="menu-logo"><img src="' + esc(gt.logo) + '"></div>';
-    }
-
-    // Build category grid
-    var gridHtml = '<div class="menu-grid" data-count="' + Math.min(catKeys.length, 6) + '">';
+    // Build category grid (no game logo — name already in header)
+    var gridHtml = '<div class="menu-grid">';
     catKeys.forEach(function(type) {
         var typeLogo = (gt.types && gt.types[type] && gt.types[type].logo) || null;
         var label = TYPE_LABELS[type] || type;
@@ -1016,8 +1003,7 @@ function renderHomeMenu() {
     });
     gridHtml += '</div>';
 
-    document.getElementById('lobbySubtitle').innerHTML = logoHtml + gridHtml;
-    renderLobbyTeams();
+    document.getElementById('lobbySubtitle').innerHTML = gridHtml;
 }
 
 function renderCategoryMenu() {
@@ -1031,6 +1017,7 @@ function renderCategoryMenu() {
     document.getElementById('lobbyTitle').textContent = label;
     document.getElementById('lobbyActions').style.display = 'none';
     document.getElementById('lobbyRoundControl').innerHTML = '';
+    document.getElementById('lobbyTeamsList').innerHTML = '';
 
     // Type logo on top
     var typeLogo = (gt.types && gt.types[category] && gt.types[category].logo) || null;
@@ -1040,7 +1027,7 @@ function renderCategoryMenu() {
     }
 
     // Build rounds grid
-    var gridHtml = '<div class="menu-grid" data-count="' + Math.min(catRounds.length, 6) + '">';
+    var gridHtml = '<div class="menu-grid">';
     catRounds.forEach(function(r) {
         var cfg = r.config || {};
         if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch(e) { cfg = {}; } }
@@ -1062,7 +1049,6 @@ function renderCategoryMenu() {
     var backBtn = '<button class="btn-ghost" onclick="emit(\'director:show_home\')" style="margin-bottom:10px">&#8592; Volver</button>';
 
     document.getElementById('lobbySubtitle').innerHTML = backBtn + logoHtml + gridHtml;
-    renderLobbyTeams();
 }
 
 function renderLobbyTeams() {
@@ -1891,6 +1877,7 @@ function renderTeams() {
             + '<button class="btn-success" onclick="event.stopPropagation();openQuickPoints(\'' + e.id + '\',\'add\',this)">+</button>'
             + '<button class="btn-danger" onclick="event.stopPropagation();openQuickPoints(\'' + e.id + '\',\'sub\',this)">&minus;</button>'
             + '</div>'
+            + '<button class="bb-card-kick" onclick="event.stopPropagation();removeTeam(\'' + e.id + '\')" title="Expulsar">&#10005;</button>'
             + '</div>';
     }).join('');
 }
