@@ -742,6 +742,7 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     var stmtEl = document.getElementById('qStatement');
 
     stmtEl.textContent = c.statement || '';
+    stmtEl.style.border = ''; stmtEl.style.background = ''; stmtEl.style.borderColor = '';
 
     // Animate statement entrance on new question
     if (newQuestion) {
@@ -827,20 +828,30 @@ function renderBuzzerQueue() {
 function renderPulsadorScreen() {
     if (!ps) return;
     var container = document.getElementById('pulsadorScreen');
+    var q = ps.question;
+    var c = q ? (q.content || {}) : {};
     var stmtEl = document.getElementById('qStatement');
-    stmtEl.textContent = '';
-    stmtEl.style.display = 'none';
-    document.getElementById('qMedia').style.display = 'none';
-    document.getElementById('roundLogo').style.display = 'none';
+    var media = document.getElementById('qMedia');
 
+    // Show statement (same style as 50x15/boom)
+    if (c.statement) {
+        stmtEl.textContent = c.statement;
+        stmtEl.style.display = '';
+    } else {
+        stmtEl.textContent = '';
+        stmtEl.style.display = 'none';
+    }
+
+    // Show media if present
+    if (q && q.media_url) { media.src = q.media_url; media.style.display = ''; }
+    else { media.style.display = 'none'; }
+
+    // Show buzzer queue below statement
     container.style.display = 'flex';
     var cola = ps.colaPulsador || [];
     var equipos = ps.equipos || [];
-    var statusClass = ps.pulsadorActivo ? 'ps-open' : 'ps-closed';
-    var statusText = ps.pulsadorActivo ? 'PULSADOR ABIERTO' : 'PULSADOR CERRADO';
 
-    var html = '<div class="pulsador-screen-status ' + statusClass + '">' + statusText + '</div>';
-
+    var html = '';
     if (cola.length > 0) {
         html += '<div class="pulsador-screen-queue">';
         cola.forEach(function(p, i) {
@@ -857,10 +868,6 @@ function renderPulsadorScreen() {
                 + '</div>';
         });
         html += '</div>';
-    } else if (!ps.pulsadorActivo) {
-        html += '<div class="pulsador-screen-empty">Esperando inicio...</div>';
-    } else {
-        html += '<div class="pulsador-screen-empty">Esperando pulsaciones...</div>';
     }
 
     container.innerHTML = html;
@@ -1122,6 +1129,20 @@ function renderRevealedInPlace() {
         container.innerHTML = html;
     } else if (type === 'precio') {
         renderPrecioRevealScreen();
+    } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen_fija') {
+        // Show answer in-place with same style as boom/multi reveal
+        var stmtEl = document.getElementById('qStatement');
+        var answer = c.answer || '';
+        // Replace statement with answer card (green border, same as revealed-answer)
+        stmtEl.innerHTML = '<div style="font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:#22c55e;margin-bottom:8px;text-shadow:0 0 20px rgba(34,197,94,.4);">RESPUESTA CORRECTA</div>'
+            + '<div style="font-size:clamp(1.4rem,2.8vw,2.4rem);font-weight:800;color:#22c55e;">' + esc(answer) + '</div>';
+        stmtEl.style.display = '';
+        stmtEl.style.borderColor = '#22c55e';
+        stmtEl.style.border = '2px solid #22c55e';
+        stmtEl.style.background = 'rgba(34,197,94,.15)';
+        // Hide pulsador queue
+        document.getElementById('pulsadorScreen').style.display = 'none';
+        document.getElementById('buzzerQueue').style.display = 'none';
     } else {
         // For other types, fall back to legacy revealed phase
         renderRevealed();

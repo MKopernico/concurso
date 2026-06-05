@@ -60,7 +60,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .type-imagen_fija { background: #365314; color: #bef264; }
 
 /* Main area */
-.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
 
 /* Phase panels */
 .phase { display: none; flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 80px; }
@@ -347,8 +347,8 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .ruleta-right h4 { font-size: 12px; text-transform: uppercase; color: var(--text2); letter-spacing: .5px; margin-bottom: 4px; flex-shrink: 0; }
 
 /* Sub-state A: before panel visible */
-.rl-pre { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; flex: 1;
-    text-align: center; padding: 30px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.rl-pre { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    text-align: center; padding: 30px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); min-height: 0; }
 .rl-pre-phrase { font-size: 22px; font-weight: 800; color: var(--accent); line-height: 1.4; letter-spacing: 2px; text-transform: uppercase; }
 .rl-pre-hint { font-size: 14px; color: var(--text2); }
 .rl-pre-btn { padding: 16px 40px; font-size: 18px; font-weight: 800; border-radius: 12px; background: var(--accent); color: #000; border: none; cursor: pointer; }
@@ -481,6 +481,35 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                             <button class="btn-danger" id="rpBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
                             <button class="btn-ghost btn-sm" id="rpBtnBlockAll" onclick="toggleBlockAll()">&#128274; Bloqueo</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+            <!-- PREGUNTA strip (pulsador rápido) -->
+            <div class="control-strip open" id="secPregunta" style="display:none;">
+                <div class="strip-header">
+                    <div class="strip-toggle" onclick="toggleSection('secPregunta')">
+                        <span class="strip-chevron">&#9654;</span>
+                        <span class="strip-title">&#10067; Pregunta</span>
+                    </div>
+                    <div class="strip-inline">
+                        <span id="spQuestionCounter" style="font-size:11px;color:var(--text2);"></span>
+                        <span id="spRevealedBadge" style="display:none;font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(34,197,94,.15);color:var(--success);font-weight:700;">REVELADA</span>
+                    </div>
+                </div>
+                <div class="strip-body">
+                    <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                        <button class="btn-ghost btn-sm" id="spBtnPrev" onclick="emit('director:prev_question')">&#9664; Anterior</button>
+                        <span id="spCounter" style="font-size:12px;color:var(--text2);flex:1;text-align:center;"></span>
+                        <button class="btn-ghost btn-sm" id="spBtnNext" onclick="emit('director:next_question')">Siguiente &#9654;</button>
+                    </div>
+                    <div class="pulsador-stmt" id="spStatement" style="margin-bottom:8px;"></div>
+                    <div class="pulsador-answer-box" id="spAnswerBox" style="margin-bottom:8px;">
+                        <span style="color:var(--success);font-weight:700;">Respuesta: </span>
+                        <span id="spAnswerText"></span>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                        <button class="btn-accent btn-sm" id="spBtnReveal" onclick="emit('director:reveal_answer')">&#128064; Mostrar respuesta</button>
+                        <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
                     </div>
                 </div>
             </div>
@@ -811,6 +840,7 @@ function render() {
     renderBuzzer();
     renderTeams();
     renderRightPanelRuleta();
+    renderPreguntaStrip();
     renderRoundsActive();
 
     // Arreglo 1: Pulsador strip only for types that use it
@@ -835,6 +865,9 @@ function render() {
             document.getElementById('secPulsador').classList.remove('open');
             if (roundType === 'ruleta') {
                 document.getElementById('secRuleta').classList.add('open');
+            }
+            if (roundType === 'pulsador') {
+                document.getElementById('secPregunta').classList.add('open');
             }
         }
     }
@@ -1166,40 +1199,12 @@ function togglePulsadorAnswer() {
 function renderQuestionPulsador() {
     var ds = S.director;
     if (!ds || ds.currentQuestionIdx < 0) return;
-    var q = ds.questions[ds.currentQuestionIdx];
-    if (!q) return;
-    var c = q.content || {};
-    var idx = ds.currentQuestionIdx, total = ds.questions.length;
 
-    // Nav bar (shared)
-    document.getElementById('questionCounter').textContent = 'Pregunta ' + (idx + 1) + ' de ' + total;
-    document.getElementById('btnPrevQ').disabled = idx <= 0;
-    var btnNext = document.getElementById('btnNextQ');
-    if (idx >= total - 1) {
-        btnNext.textContent = '✓ Terminar ronda';
-        btnNext.onclick = function() { emit('director:finish_round'); };
-    } else {
-        btnNext.innerHTML = 'Siguiente &#9654;';
-        btnNext.onclick = function() { emit('director:next_question'); };
-    }
-
-    // Show pulsador panel, hide default
-    document.getElementById('pulsadorDirectorPanel').style.display = 'flex';
+    // Hide old panels and nav — pregunta strip handles everything
+    document.getElementById('pulsadorDirectorPanel').style.display = 'none';
     document.getElementById('questionCard').style.display = 'none';
     document.getElementById('questionDefaultActions').style.display = 'none';
-
-    // Logo
-    var gt = S.game && S.game.theme || {};
-    var rc = ds.currentRound ? parseJson(ds.currentRound.config) : {};
-    var typeTheme = (gt.types && gt.types['pulsador']) || {};
-    var logo = rc.logo || typeTheme.logo || gt.logo || null;
-    var logoEl = document.getElementById('pulsadorLogo');
-    if (logo) { logoEl.innerHTML = '<img src="' + esc(logo) + '" style="max-height:80px;max-width:200px;object-fit:contain;border-radius:8px;" onerror="this.style.display=\'none\'">'; }
-    else { logoEl.innerHTML = ''; }
-
-    // Statement & answer
-    document.getElementById('pulsadorStatement').textContent = c.statement || 'Sin enunciado';
-    document.getElementById('pulsadorAnswerText').textContent = c.answer || '-';
+    document.querySelector('.question-nav').style.display = 'none';
 }
 
 function renderQuestionPrecio() {
@@ -1354,6 +1359,7 @@ function renderQuestion() {
     var roundType = ds.currentRound ? ds.currentRound.type : '';
     if (roundType === 'pulsador') {
         document.getElementById('precioDirectorPanel').style.display = 'none';
+        document.getElementById('ruletaDirectorPanel').style.display = 'none';
         renderQuestionPulsador();
         return;
     }
@@ -1378,6 +1384,7 @@ function renderQuestion() {
     document.getElementById('ruletaDirectorPanel').style.display = 'none';
     document.getElementById('questionCard').style.display = '';
     document.getElementById('questionDefaultActions').style.display = '';
+    document.querySelector('.question-nav').style.display = '';
 
     const q = ds.questions[ds.currentQuestionIdx];
     if (!q) return;
@@ -1837,6 +1844,55 @@ function renderRightPanelRuleta() {
         }
         html += '</div>';
         chuletaEl.innerHTML = html;
+    }
+}
+
+// ── Pregunta strip (pulsador rápido) ──
+function renderPreguntaStrip() {
+    var ds = S.director; if (!ds) return;
+    var roundType = ds.currentRound ? ds.currentRound.type : '';
+    var sec = document.getElementById('secPregunta');
+
+    if (roundType !== 'pulsador' || ds.phase === 'lobby' || ds.phase === 'round_end' || ds.phase === 'round_intro') {
+        sec.style.display = 'none';
+        return;
+    }
+    sec.style.display = '';
+
+    var q = ds.questions[ds.currentQuestionIdx];
+    if (!q) return;
+    var c = q.content || {};
+    var idx = ds.currentQuestionIdx, total = ds.questions.length;
+    var isRevealed = ds.phase === 'answer_revealed';
+
+    // Collapsed inline indicator
+    document.getElementById('spQuestionCounter').textContent = 'Pregunta ' + (idx + 1) + '/' + total;
+    var badge = document.getElementById('spRevealedBadge');
+    badge.style.display = isRevealed ? '' : 'none';
+
+    // Expanded body
+    document.getElementById('spCounter').textContent = 'Pregunta ' + (idx + 1) + ' de ' + total;
+    document.getElementById('spBtnPrev').disabled = idx <= 0;
+    var btnNext = document.getElementById('spBtnNext');
+    if (idx >= total - 1) {
+        btnNext.textContent = '✓ Terminar ronda';
+        btnNext.onclick = function() { emit('director:finish_round'); };
+    } else {
+        btnNext.innerHTML = 'Siguiente &#9654;';
+        btnNext.onclick = function() { emit('director:next_question'); };
+    }
+
+    document.getElementById('spStatement').textContent = c.statement || 'Sin enunciado';
+    document.getElementById('spAnswerText').textContent = c.answer || '-';
+
+    // Reveal button state
+    var revBtn = document.getElementById('spBtnReveal');
+    if (isRevealed) {
+        revBtn.disabled = true;
+        revBtn.textContent = '✅ Respuesta revelada';
+    } else {
+        revBtn.disabled = false;
+        revBtn.innerHTML = '&#128064; Mostrar respuesta';
     }
 }
 
