@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="/shared/gameshow-transitions.css">
 <link rel="stylesheet" href="/shared/roulette-panel.css">
 <style>
-:root { --bg: #0a0a10; --surface: #14141e; --surface2: #1c1c2a; --border: #2a2a3a; --text: #e4e4e7; --text2: #8888a0; --accent: #00d4ff; --accent-dim: #0097b8; --danger: #ef4444; --success: #22c55e; --gold: #facc15; --orange: #f97316; --radius: 10px; }
+:root { --bg: #0a0a10; --surface: #14141e; --surface2: #1c1c2a; --border: #2a2a3a; --text: #e4e4e7; --text2: #8888a0; --accent: #00d4ff; --accent-dim: #0097b8; --danger: #ef4444; --success: #22c55e; --gold: #facc15; --orange: #f97316; --radius: 10px; --bb-h: 70px; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; overflow: hidden; }
@@ -36,7 +36,7 @@ button { cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 60
 button:disabled { opacity: .4; cursor: not-allowed; }
 
 /* Layout */
-.layout { display: flex; flex: 1; overflow: hidden; }
+.layout { display: flex; flex: 1; overflow: hidden; padding-bottom: var(--bb-h); }
 
 /* Sidebar */
 .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; z-index: 70; position: relative; }
@@ -2026,6 +2026,14 @@ document.addEventListener('keydown', function(e) {
 });
 
 document.getElementById('pointsInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitPoints(); });
+
+// Keep sidebar height in sync with bottom bar
+(function() {
+    var bb = document.getElementById('bottomBar');
+    function syncBB() { document.documentElement.style.setProperty('--bb-h', bb.offsetHeight + 'px'); }
+    syncBB();
+    new ResizeObserver(syncBB).observe(bb);
+})();
 </script>
 </body>
 </html>
