@@ -681,6 +681,11 @@ function connectSocket(onReady) {
         if (!S.ps) return;
         S.ps.rouletteSolved = true;
     });
+    socket.on('game:roulette_reset', function() {
+        if (!S.ps) return;
+        S.ps.rouletteRevealed = [];
+        S.ps.rouletteSolved = false;
+    });
     socket.on('game:panel_visible', function() {
         if (!S.ps) return;
         S.ps.roulettePanelVisible = true;

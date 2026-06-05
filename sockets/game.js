@@ -995,6 +995,18 @@ function attachSocketHandlers(io) {
             broadcastDirector(io, gameId, state);
         });
 
+        socket.on('director:reset_roulette', () => {
+            const ds = state.director;
+            ds.rouletteRevealed = [];
+            ds.rouletteSolved = false;
+            // Keep panel visible — just reset letters
+            // Reset buzzer queue too
+            state.colaPulsador = [];
+            io.to(roomOf(gameId)).emit('estado_pulsador_cambio', { activo: state.pulsadorActivo, cola: [] });
+            io.to(roomOf(gameId)).emit('game:roulette_reset');
+            broadcastDirector(io, gameId, state);
+        });
+
         socket.on('director:show_roulette_panel', () => {
             state.director.roulettePanelVisible = true;
             io.to(roomOf(gameId)).emit('game:panel_visible');

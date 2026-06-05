@@ -39,9 +39,9 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .layout { display: flex; flex: 1; overflow: hidden; }
 
 /* Sidebar */
-.sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+.sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; z-index: 70; position: relative; }
 .sidebar-header { padding: 12px 14px 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); display: flex; align-items: center; justify-content: space-between; }
-.rounds-list { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
+.rounds-list { flex: 1; overflow-y: auto; padding: 0 8px 60px; }
 .round-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; transition: .15s; border: 1px solid transparent; }
 .round-item:hover { background: var(--surface2); }
 .round-item.active { background: rgba(0,212,255,.1); border-color: var(--accent); }
@@ -309,10 +309,10 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 @keyframes toastOut { to { opacity: 0; } }
 
 /* Menu navigation */
-.menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 180px)); gap: 16px; width: 100%; max-width: 100%; padding: 16px; box-sizing: border-box; overflow-y: auto; justify-content: center; }
-.menu-item { cursor: pointer; border-radius: 14px; border: 2px solid var(--border); background: var(--surface); padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; transition: .2s; text-align: center; aspect-ratio: 1; min-height: 0; }
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 150px)); gap: 14px; width: 100%; max-width: 100%; padding: 16px; box-sizing: border-box; overflow-y: auto; justify-content: center; }
+.menu-item { cursor: pointer; border-radius: 14px; border: 2px solid var(--border); background: var(--surface); padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; transition: .2s; text-align: center; max-width: 150px; max-height: 150px; aspect-ratio: 1; min-height: 0; }
 .menu-item:hover { border-color: var(--accent); background: rgba(0,212,255,.06); transform: scale(1.03); }
-.menu-item img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; flex: 1; min-height: 0; }
+.menu-item img { max-width: 100%; max-height: 120px; object-fit: contain; border-radius: 8px; flex: 1; min-height: 0; }
 .menu-item .menu-label { font-size: 14px; font-weight: 700; color: var(--text); }
 .menu-item .menu-sublabel { font-size: 11px; color: var(--text2); }
 .menu-item.completed { opacity: .5; border-color: var(--danger); }
@@ -492,6 +492,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 </div>
                 <div class="strip-keyboard">
                     <div class="ruleta-compact" id="rpRuletaKeyboard"></div>
+                    <button class="btn-ghost btn-sm" id="rpBtnResetRuleta" onclick="resetRuleta()" style="flex-shrink:0;">&#128260; Reset</button>
                     <button class="rl-solve-btn" id="rpBtnSolve" onclick="emit('director:solve_roulette')" style="padding:8px 16px; font-size:13px;">&#9989; RESOLVER</button>
                 </div>
                 <div class="strip-body">
@@ -1986,6 +1987,13 @@ function resetFull() {
     if (!confirm('RESET TOTAL: Esto borrara todos los equipos, puntos y progreso. Los jugadores tendran que volver a registrarse. Continuar?')) return;
     emit('director:reset_full');
     toast('Reset total completado');
+}
+
+// ── Ruleta reset ──
+function resetRuleta() {
+    if (!confirm('¿Resetear todas las letras reveladas?')) return;
+    emit('director:reset_roulette');
+    toast('Panel de ruleta reseteado');
 }
 
 // ── Navigation ──

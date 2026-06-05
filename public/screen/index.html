@@ -540,6 +540,26 @@ function connect() {
             RoulettePanel.solveAll(container, d.phrase);
         }
     });
+    socket.on('game:roulette_reset', function() {
+        if (!ps) return;
+        ps.rouletteRevealed = [];
+        ps.rouletteSolved = false;
+        // Re-render the panel from scratch with no revealed letters
+        var container = document.getElementById('ruletaScreenPanel');
+        if (container && container.style.display !== 'none' && ps.question) {
+            var c = ps.question.content || {};
+            var rt = ps.roundTheme || {};
+            var tt = ps.typeTheme || {};
+            var gt = ps.gameTheme || {};
+            RoulettePanel.render(container, {
+                phrase: c.phrase || '', hint: c.hint || '',
+                revealedLetters: [], solved: false,
+                logo: rt.logo || tt.logo || gt.logo || null,
+                size: 'large', panelVisible: true,
+                background: rt.background || tt.background || null
+            });
+        }
+    });
     socket.on('game:panel_visible', function() {
         if (!ps) return;
         ps.roulettePanelVisible = true;
