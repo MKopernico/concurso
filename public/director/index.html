@@ -215,13 +215,12 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 @keyframes buzzerAlert { from { opacity: 1; box-shadow: 0 0 14px var(--gold), 0 0 30px rgba(250,204,21,.4); transform: scale(1); } to { opacity: .75; box-shadow: 0 0 6px var(--gold); transform: scale(.97); } }
 
 /* Ruleta chuleta (strip expanded) */
-.ruleta-chuleta { display: flex; flex-wrap: wrap; gap: 3px; padding: 8px 0; justify-content: center; align-items: center; }
-.ruleta-chuleta-row { display: flex; gap: 3px; align-items: center; }
-.rc-cell { width: 28px; height: 32px; border-radius: 4px; font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center; text-transform: uppercase; }
-.rc-cell.revealed { background: var(--accent); color: #000; opacity: 1; }
-.rc-cell.hidden { background: var(--surface2); border: 1px solid var(--border); color: transparent; opacity: .35; }
-.rc-cell.space { width: 12px; background: transparent; border: none; }
-.rc-cell.punct { background: transparent; border: none; color: var(--text2); opacity: .6; font-size: 12px; width: 14px; }
+.ruleta-chuleta { display: flex; flex-wrap: wrap; gap: 5px 12px; padding: 10px 14px; justify-content: center; align-items: center; background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 8px; max-width: 100%; box-sizing: border-box; overflow: hidden; }
+.rc-word { display: flex; gap: 3px; flex-shrink: 0; }
+.rc-cell { width: clamp(22px, 3.2vw, 36px); height: clamp(26px, 3.8vw, 42px); border-radius: 4px; font-size: clamp(11px, 1.6vw, 16px); font-weight: 800; display: flex; align-items: center; justify-content: center; text-transform: uppercase; transition: opacity .2s, background .2s; }
+.rc-cell.revealed { background: #f5f0e6; color: #1a1a1a; opacity: 1; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.rc-cell.hidden { background: #f5f0e6; color: transparent; opacity: .3; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.rc-cell.punct { background: transparent; border: none; color: var(--text2); opacity: .6; width: clamp(10px, 1.4vw, 16px); box-shadow: none; }
 
 /* Ruleta compact row (collapsed state) */
 .ruleta-compact { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
@@ -1820,30 +1819,34 @@ function renderRightPanelRuleta() {
     document.getElementById('rpRuletaKeyboard').innerHTML = kbHtml;
     document.getElementById('rpBtnSolve').disabled = solved;
 
-    // Chuleta: phrase rectangles (expanded strip body)
+    // Chuleta: phrase rectangles grouped by word (expanded strip body)
     var chuletaEl = document.getElementById('rpRuletaChuleta');
     if (chuletaEl) {
         var phrase = (c.phrase || '').toUpperCase();
         var PUNCT = ',.!?¡¿:;—–-\'\"()';
+        // Split into words by spaces
+        var words = phrase.split(' ');
         var html = '<div class="ruleta-chuleta">';
-        var inRow = true;
-        html += '<div class="ruleta-chuleta-row">';
-        for (var pi = 0; pi < phrase.length; pi++) {
-            var ch = phrase[pi];
-            if (ch === ' ') {
-                html += '<div class="rc-cell space"></div>';
-            } else if (PUNCT.indexOf(ch) >= 0) {
-                html += '<div class="rc-cell punct">' + esc(ch) + '</div>';
-            } else {
-                var isRev = revSet[ch] || solved;
-                if (isRev) {
-                    html += '<div class="rc-cell revealed">' + esc(ch) + '</div>';
+        for (var wi = 0; wi < words.length; wi++) {
+            var word = words[wi];
+            if (!word) continue;
+            html += '<div class="rc-word">';
+            for (var ci = 0; ci < word.length; ci++) {
+                var ch = word[ci];
+                if (PUNCT.indexOf(ch) >= 0) {
+                    html += '<div class="rc-cell punct">' + esc(ch) + '</div>';
                 } else {
-                    html += '<div class="rc-cell hidden"></div>';
+                    var isRev = revSet[ch] || solved;
+                    if (isRev) {
+                        html += '<div class="rc-cell revealed">' + esc(ch) + '</div>';
+                    } else {
+                        html += '<div class="rc-cell hidden"></div>';
+                    }
                 }
             }
+            html += '</div>';
         }
-        html += '</div></div>';
+        html += '</div>';
         chuletaEl.innerHTML = html;
     }
 }
@@ -1870,7 +1873,6 @@ function renderTeams() {
         return '<div class="bb-card">'
             + '<span class="bb-card-dot ' + (connected ? 'on' : 'off') + '"></span>'
             + '<span class="bb-card-name">' + (blocked ? '&#128274; ' : '') + esc(e.nombre) + '</span>'
-            + '<button class="bb-card-edit" onclick="event.stopPropagation();openEditTeamModal(\'' + e.id + '\')" title="Editar">&#9998;</button>'
             + '<span class="bb-card-score">' + score + '</span>'
             + '</div>';
     }).join('');
