@@ -95,9 +95,10 @@ input:focus { border-color: var(--accent); }
 .q-submitted { text-align: center; color: #fff; font-weight: 700; font-size: 18px; padding: 14px 20px;
     background: rgba(0,212,255,.2); border: 2px solid #00d4ff; border-radius: 16px; backdrop-filter: blur(6px); flex-shrink: 0; }
 
-.gp-buzzer { align-items: center; justify-content: center; padding: 24px; gap: 20px; position: relative; }
-.gp-buzzer .q-statement { font-size: 28px; font-weight: 600; line-height: 1.4; text-align: center; max-width: 500px; }
-.buzz-btn { width: min(80vw, 80vh, 500px); height: min(80vw, 80vh, 500px); border-radius: 50%; font-size: clamp(4rem, 20vw, 12rem); font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: 6px solid var(--danger); background: radial-gradient(circle, #dc2626 0%, #991b1b 100%); color: #fff; box-shadow: 0 8px 30px rgba(220,38,38,.4); flex-shrink: 0; }
+.gp-buzzer { align-items: center; justify-content: flex-start; padding: 0; gap: 0; position: relative; }
+.gp-buzzer .q-statement { font-size: 28px; font-weight: 600; line-height: 1.4; text-align: center; max-width: 500px; padding: 16px 24px 0; flex-shrink: 0; }
+.buzz-btn-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; width: 100%; gap: 12px; }
+.buzz-btn { width: min(60vmin, 60vw, 60vh, 400px); height: min(60vmin, 60vw, 60vh, 400px); border-radius: 50%; font-size: clamp(3rem, 15vmin, 10rem); font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: 6px solid var(--danger); background: radial-gradient(circle, #dc2626 0%, #991b1b 100%); color: #fff; box-shadow: 0 8px 30px rgba(220,38,38,.4); flex-shrink: 0; }
 .buzz-btn:active:not(:disabled) { transform: scale(.92); box-shadow: 0 4px 15px rgba(220,38,38,.6); }
 .buzz-btn:disabled { background: var(--surface); border-color: var(--border); color: var(--text2); box-shadow: none; }
 /* Pulsador-specific button states */
@@ -115,11 +116,6 @@ input:focus { border-color: var(--accent); }
 .p-img-grid-overlay { position: absolute; inset: 0; display: grid; }
 .p-img-grid-cell { background: var(--surface); border: 1px solid var(--border); transition: opacity .4s ease; }
 .p-img-grid-cell.revealed { opacity: 0; }
-.p-letters { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 12px auto; max-width: 340px; }
-.p-letter { width: 30px; height: 34px; border-radius: 4px; font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; text-transform: uppercase; }
-.p-letter.hidden { background: var(--surface); border: 1px solid var(--accent); color: transparent; }
-.p-letter.shown { background: rgba(0,212,255,.1); border: 1px solid var(--accent); color: var(--accent); }
-.p-letter.space { background: transparent; border: none; width: 16px; }
 
 .gp-precio { padding: 16px 16px 10px; gap: clamp(8px, 1.5vh, 14px); justify-content: flex-start; align-items: center; }
 .gp-precio .q-statement { font-size: clamp(16px, 4vw, 22px); font-weight: 600; line-height: 1.4; text-align: center;
@@ -353,12 +349,12 @@ input:focus { border-color: var(--accent); }
             <button id="submitMultiBtn" onclick="submitMulti()" style="display:none; width:80%; max-width:400px; margin:20px auto; padding:18px; font-size:22px; font-weight:bold; text-align:center; background:#00d4ff; color:#000; border:none; border-radius:12px; cursor:pointer;">Enviar</button>
         </div>
         <div class="gphase gp-buzzer" id="gp-buzzer">
-            <div class="q-statement" id="buzzerStatement">-</div>
+            <div class="q-statement" id="buzzerStatement" style="display:none">-</div>
             <div id="playerImgGrid" style="display:none"></div>
-            <div id="playerLetterPanel" style="display:none"></div>
-            <div id="playerRoulettePanel" style="display:none; width:100%; max-height:30vh; border-radius:12px; overflow:hidden;"></div>
-            <button class="buzz-btn" id="buzzBtn" onclick="doBuzz()">PULSAR</button>
-            <div class="buzz-status" id="buzzStatus">Esperando apertura...</div>
+            <div class="buzz-btn-wrapper">
+                <button class="buzz-btn" id="buzzBtn" onclick="doBuzz()">PULSAR</button>
+                <div class="buzz-status" id="buzzStatus">Esperando apertura...</div>
+            </div>
         </div>
         <div class="gphase gp-precio" id="gp-precio">
             <div class="q-statement" id="precioStatement">-</div>
@@ -984,7 +980,6 @@ function renderBuzzer() {
         stmtEl.textContent = c.statement || c.phrase || '-';
     }
     renderPlayerImgGrid(ps, q);
-    renderPlayerLetterPanel(ps, c);
     renderBuzzerStatus();
 }
 function renderPlayerImgGrid(ps, q) {
@@ -1000,12 +995,6 @@ function renderPlayerImgGrid(ps, q) {
         + '<div class="p-img-grid-overlay" style="grid-template-columns:repeat(' + grid + ',1fr)">'
         + Array.from({length: total}, function(_, i) { return '<div class="p-img-grid-cell' + (revealed.indexOf(i) >= 0 ? ' revealed' : '') + '"></div>'; }).join('')
         + '</div></div>';
-}
-function renderPlayerLetterPanel(ps, c) {
-    var oldEl = document.getElementById('playerLetterPanel');
-    oldEl.style.display = 'none';
-    var el = document.getElementById('playerRoulettePanel');
-    el.style.display = 'none';
 }
 function renderBuzzerStatus() {
     var ps = S.ps; if (!ps) return;
