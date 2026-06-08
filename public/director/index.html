@@ -331,9 +331,10 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .precio-correct-box { background: rgba(34,197,94,.1); border: 1px solid var(--success); border-radius: 8px; padding: 12px; font-size: 15px; }
 .precio-answers-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; overflow-y: auto; }
 .pa-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; animation: pq-in .3s ease; }
-.pa-item.winner { border-color: var(--gold); background: rgba(250,204,21,.08); }
+.pa-item.winner { border-color: var(--success); background: rgba(34,197,94,.1); }
+.pa-winner-badge { font-size: 11px; color: var(--success); font-weight: 700; flex-shrink: 0; }
 .pa-item.passed { opacity: .6; }
-.pa-item.passed .pa-value { color: var(--danger); }
+.pa-item.passed .pa-value { color: var(--danger); text-decoration: line-through; }
 .pa-name { flex: 1; font-size: 14px; font-weight: 600; }
 .pa-value { font-size: 16px; font-weight: 800; color: var(--accent); min-width: 80px; text-align: right; font-variant-numeric: tabular-nums; }
 .pa-delta { font-size: 12px; color: var(--text2); min-width: 60px; text-align: right; }
@@ -571,22 +572,28 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             </div>
 
             <!-- Precio director panel (shown only for precio round type) -->
-            <div id="precioDirectorPanel" style="display:none; flex:1; overflow-y:auto;">
-                <div id="precioLogo" style="text-align:center;"></div>
-                <div class="precio-img-wrap" id="precioImage"></div>
-                <div class="precio-stmt" id="precioDirStatement"></div>
-                <div class="precio-correct-box" id="precioDirCorrectBox">
-                    <span style="color:var(--success);font-weight:700;">Valor correcto: </span>
-                    <span id="precioDirCorrectValue"></span>
-                </div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-                    <button class="btn-accent" id="btnPrecioRevealOpts" onclick="emit('director:reveal_options')">&#9654; Iniciar tiempo</button>
-                    <button class="btn-accent" id="btnPrecioRevealAnswer" onclick="emit('director:reveal_answer')">&#128064; Revelar respuesta</button>
-                    <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
-                </div>
-                <div style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--text2); margin-top:8px;">Respuestas recibidas</div>
-                <div class="precio-answers-list" id="precioAnswersList">
-                    <div class="pa-empty">Esperando respuestas...</div>
+            <div id="precioDirectorPanel" style="display:none; flex:1; overflow:hidden;">
+                <div class="precio-layout">
+                    <div class="precio-left">
+                        <div id="precioLogo" style="text-align:center;"></div>
+                        <div class="precio-img-wrap" id="precioImage"></div>
+                        <div class="precio-stmt" id="precioDirStatement"></div>
+                        <div class="precio-correct-box" id="precioDirCorrectBox">
+                            <span style="color:var(--success);font-weight:700;">Valor correcto: </span>
+                            <span id="precioDirCorrectValue"></span>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button class="btn-accent" id="btnPrecioRevealOpts" onclick="emit('director:reveal_options')">&#9654; Iniciar tiempo</button>
+                            <button class="btn-accent" id="btnPrecioRevealAnswer" onclick="emit('director:reveal_answer')">&#128064; Revelar respuesta</button>
+                            <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
+                        </div>
+                    </div>
+                    <div class="precio-right">
+                        <h4>Respuestas recibidas</h4>
+                        <div class="precio-answers-list" id="precioAnswersList">
+                            <div class="pa-empty">Esperando respuestas...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1232,6 +1239,7 @@ function renderQuestionPrecio() {
     document.getElementById('pulsadorDirectorPanel').style.display = 'none';
     document.getElementById('questionCard').style.display = 'none';
     document.getElementById('questionDefaultActions').style.display = 'none';
+    document.querySelector('.question-nav').style.display = '';
 
     // Logo
     var gt = S.game && S.game.theme || {};
@@ -1251,17 +1259,25 @@ function renderQuestionPrecio() {
     document.getElementById('precioDirCorrectValue').textContent = c.correct_value !== undefined ? c.correct_value : '-';
 
     // Buttons state
+    var isRevealed = ds.phase === 'answer_revealed';
     var btnRevealOpts = document.getElementById('btnPrecioRevealOpts');
     var btnRevealAns = document.getElementById('btnPrecioRevealAnswer');
-    if (ds.optionsRevealed) {
+    if (isRevealed) {
+        btnRevealOpts.disabled = true;
+        btnRevealOpts.textContent = '✅ Tiempo finalizado';
+        btnRevealAns.disabled = true;
+        btnRevealAns.textContent = '✅ Respuesta revelada';
+    } else if (ds.optionsRevealed) {
         btnRevealOpts.disabled = true;
         btnRevealOpts.textContent = 'Tiempo en curso...';
+        btnRevealAns.disabled = false;
     } else {
         btnRevealOpts.disabled = false;
         btnRevealOpts.innerHTML = '&#9654; Iniciar tiempo';
+        btnRevealAns.disabled = false;
     }
 
-    // Answers list sorted by proximity
+    // Answers list
     var correctValue = Number(c.correct_value);
     var answers = Object.entries(ds.answers || {}).map(function(pair) {
         var teamId = pair[0], ans = pair[1];
@@ -1269,23 +1285,43 @@ function renderQuestionPrecio() {
         var val = Number(ans.answer);
         return { teamId: teamId, name: eq ? eq.nombre : teamId, value: val, passed: val > correctValue, delta: correctValue - val, timestamp: ans.timestamp };
     });
-    // Sort: not-passed first by delta asc, then passed by delta asc
-    answers.sort(function(a, b) {
-        if (a.passed !== b.passed) return a.passed ? 1 : -1;
-        if (!a.passed && !b.passed) return a.delta !== b.delta ? a.delta - b.delta : a.timestamp - b.timestamp;
-        return Math.abs(a.delta) - Math.abs(b.delta);
-    });
+
+    if (isRevealed) {
+        // After reveal: not-passed first by delta asc (closest wins), then passed
+        answers.sort(function(a, b) {
+            if (a.passed !== b.passed) return a.passed ? 1 : -1;
+            if (!a.passed && !b.passed) return a.delta !== b.delta ? a.delta - b.delta : a.timestamp - b.timestamp;
+            return Math.abs(a.delta) - Math.abs(b.delta);
+        });
+    } else {
+        // Before reveal: sort by value descending (highest first)
+        answers.sort(function(a, b) { return b.value - a.value; });
+    }
+
+    // Find winner: closest without going over (only mark after reveal)
+    var winnerId = null;
+    if (isRevealed) {
+        var validAnswers = answers.filter(function(a) { return !a.passed; });
+        if (validAnswers.length > 0) winnerId = validAnswers[0].teamId;
+    }
 
     var listEl = document.getElementById('precioAnswersList');
     if (!answers.length) {
-        listEl.innerHTML = '<div class="pa-empty">Esperando respuestas...</div>';
+        listEl.innerHTML = '<div class="pa-empty">Esperando respuestas…</div>';
     } else {
-        listEl.innerHTML = answers.map(function(a, i) {
-            var cls = 'pa-item' + (a.passed ? ' passed' : '') + (!a.passed && i === 0 ? ' winner' : '');
+        listEl.innerHTML = answers.map(function(a) {
+            var isWinner = a.teamId === winnerId;
+            var cls = 'pa-item' + (isWinner ? ' winner' : '') + (a.passed && isRevealed ? ' passed' : '');
+            var badges = '';
+            if (isRevealed) {
+                if (isWinner) badges = '<span class="pa-winner-badge">🏆 GANADOR</span>';
+                else if (a.passed) badges = '<span class="pa-passed-badge">SE PASÓ</span>';
+                badges += '<span class="pa-delta">' + (a.passed ? '+' : '-') + Math.abs(a.delta) + '</span>';
+            }
             return '<div class="' + cls + '">'
                 + '<span class="pa-name">' + esc(a.name) + '</span>'
                 + '<span class="pa-value">' + a.value + '</span>'
-                + (a.passed ? '<span class="pa-passed-badge">PASADO</span>' : '<span class="pa-delta">-' + a.delta + '</span>')
+                + badges
                 + '</div>';
         }).join('');
     }
@@ -1551,6 +1587,17 @@ function revealNextLetter() {
 // ── Answer revealed ──
 function renderAnswerRevealed() {
     const ds = S.director;
+    // Precio: keep the 2-column panel visible after reveal
+    var roundType = ds && ds.currentRound ? ds.currentRound.type : '';
+    if (roundType === 'precio') {
+        document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+        document.getElementById('ruletaDirectorPanel').style.display = 'none';
+        // Switch back to phase-question which hosts the precio panel
+        document.querySelectorAll('.phase').forEach(function(el) { el.classList.remove('active'); });
+        document.getElementById('phase-question').classList.add('active');
+        renderQuestionPrecio();
+        return;
+    }
     // Hide dedicated panels from question phase
     document.getElementById('pulsadorDirectorPanel').style.display = 'none';
     document.getElementById('precioDirectorPanel').style.display = 'none';
