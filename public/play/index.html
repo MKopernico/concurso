@@ -810,6 +810,7 @@ function onPlayerSync(ps) {
     // Reset answer state on new question
     if (ps.questionIdx !== lastQIdx) {
         S.selectedOptions = []; S.boomOrder = []; S.submitted = false; S._precioSubmittedValue = undefined; lastQIdx = ps.questionIdx;
+        var _pi = document.getElementById('precioInput'); if (_pi) _pi.value = '';
         if (_boomDragState.dragging) {
             if (_boomIndicator && _boomIndicator.parentNode) _boomIndicator.parentNode.removeChild(_boomIndicator);
             _boomDragState.dragging = false; _boomDragState.dragIdx = -1; _boomDragState.dropIdx = -1;
