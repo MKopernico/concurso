@@ -112,7 +112,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     color: #fff; backdrop-filter: blur(6px); transition: all .4s ease; }
 .boom-items .boom-item .boom-num { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.1); color: var(--cyan);
     display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; flex-shrink: 0; }
-.boom-items .boom-item.correct { border-color: var(--green); background: rgba(34,197,94,.30); }
+.boom-items .boom-item.correct { border-color: var(--green); background: linear-gradient(rgba(34,197,94,.30),rgba(34,197,94,.30)),rgba(0,0,0,.60); box-shadow: 0 0 20px rgba(34,197,94,.3); }
 .boom-items .boom-item.correct .boom-num { background: var(--green); color: #fff; }
 .boom-items .boom-arrow { text-align: center; font-size: 24px; color: var(--green); line-height: 1; }
 
@@ -121,12 +121,14 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     padding: clamp(100px, 14vh, 160px) clamp(1rem, 3vw, 3rem) clamp(3vh, 5vh, 6vh);
     display: flex; flex-direction: column; justify-content: center; gap: clamp(10px, 2vh, 24px); box-sizing: border-box; background: transparent; }
 .revealed-label { font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 4px;
-    color: var(--green); text-shadow: 0 0 20px rgba(34,197,94,.4); flex-shrink: 0; text-align: center; margin-bottom: 8px; }
+    color: #fff; text-shadow: 0 0 10px rgba(255,255,255,.3); flex-shrink: 0; text-align: center; margin-bottom: 8px; }
 .revealed-answer { flex-shrink: 0; max-height: 28vh; overflow: hidden;
     font-size: clamp(1.4rem, 2.8vw, 2.4rem); font-weight: 800; text-align: center; line-height: 1.4;
     width: 88%; margin: 0 auto;
     padding: clamp(16px, 2vh, 28px) clamp(20px, 3vw, 40px);
-    background: rgba(0,0,0,.60); border-radius: 16px; color: var(--green); backdrop-filter: blur(6px);
+    background: linear-gradient(rgba(34,197,94,.30),rgba(34,197,94,.30)),rgba(0,0,0,.60);
+    border: 2px solid var(--green); box-shadow: 0 0 20px rgba(34,197,94,.3);
+    border-radius: 16px; color: #fff; backdrop-filter: blur(6px);
     animation: reveal-pop .6s cubic-bezier(.34,1.56,.64,1); }
 @keyframes reveal-pop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
 
@@ -1137,14 +1139,15 @@ function renderRevealedInPlace() {
     } else if (type === 'precio') {
         renderPrecioRevealScreen();
     } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen_fija') {
-        // Show answer in-place with same style as .revealed-answer (dark bg, green text, high contrast)
+        // Same reveal pattern as precio/50x15: white text, dark base + green tint, green border/glow
         var stmtEl = document.getElementById('qStatement');
         var answer = c.answer || '';
-        stmtEl.innerHTML = '<div style="font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:4px;color:#22c55e;margin-bottom:8px;text-shadow:0 0 20px rgba(34,197,94,.4);">RESPUESTA CORRECTA</div>'
-            + '<div style="font-size:clamp(1.4rem,2.8vw,2.4rem);font-weight:800;color:#22c55e;">' + esc(answer) + '</div>';
+        stmtEl.innerHTML = '<div style="font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:4px;color:#fff;margin-bottom:8px;text-shadow:0 0 10px rgba(255,255,255,.3);">RESPUESTA CORRECTA</div>'
+            + '<div style="font-size:clamp(1.4rem,2.8vw,2.4rem);font-weight:800;color:#fff;">' + esc(answer) + '</div>';
         stmtEl.style.display = '';
-        stmtEl.style.border = '2px solid #22c55e';
-        stmtEl.style.background = 'rgba(0,0,0,.60)';
+        stmtEl.style.border = '2px solid var(--green)';
+        stmtEl.style.background = 'linear-gradient(rgba(34,197,94,.30),rgba(34,197,94,.30)),rgba(0,0,0,.60)';
+        stmtEl.style.boxShadow = '0 0 20px rgba(34,197,94,.3)';
         stmtEl.style.backdropFilter = 'blur(6px)';
         stmtEl.style.animation = 'reveal-pop .6s cubic-bezier(.34,1.56,.64,1)';
         // Hide pulsador queue
