@@ -37,6 +37,7 @@ function createGameState() {
             rouletteRevealed: [],       // letter-based for ruleta (uppercase chars)
             rouletteSolved: false,
             roulettePanelVisible: false,
+            imagePuzzle: { questionId: null, revealedTiles: [], answerVisible: false },
             completedRounds: [],
             optionsRevealed: false,
             lastQuestionScores: {},
@@ -303,6 +304,7 @@ function playerView(state) {
         rouletteRevealed: ds.rouletteRevealed,
         rouletteSolved: ds.rouletteSolved,
         roulettePanelVisible: ds.roulettePanelVisible,
+        imagePuzzle: ds.imagePuzzle,
         optionsRevealed: ds.optionsRevealed,
         completedRounds: ds.completedRounds,
         lastQuestionScores: ds.lastQuestionScores,
@@ -766,14 +768,14 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
                 ds.optionsRevealed = false;
                 ds.lastQuestionScores = {};
                 ds.showTeamResults = false;
                 ds.scoreboardVisible = false;
                 ds.menuLevel = null;
                 ds.selectedCategory = null;
-                if (ds.currentRound.type === 'pulsador') {
+                if (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen') {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
                     const cfg = getQuestionConfig(state);
@@ -795,7 +797,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
@@ -820,9 +822,9 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
                 ds.optionsRevealed = false;
-                if (ds.currentRound && ds.currentRound.type === 'pulsador') {
+                if (ds.currentRound && ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen') {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
                     const cfg = getQuestionConfig(state);
@@ -843,9 +845,9 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
                 ds.optionsRevealed = false;
-                if (ds.currentRound && ds.currentRound.type === 'pulsador') {
+                if (ds.currentRound && ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen') {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
                     const cfg = getQuestionConfig(state);
@@ -1018,6 +1020,55 @@ function attachSocketHandlers(io) {
             broadcastDirector(io, gameId, state);
         });
 
+        // ═══════════════════════ IMAGEN PUZZLE ═══════════════════════
+
+        socket.on('director:image_reveal_tile', (data) => {
+            const ds = state.director;
+            const idx = Number(data && data.tileIndex);
+            if (!isFinite(idx) || idx < 0) return;
+            if (ds.imagePuzzle.revealedTiles.indexOf(idx) === -1) {
+                ds.imagePuzzle.revealedTiles.push(idx);
+                io.to(roomOf(gameId)).emit('game:image_tiles_updated', { revealedTiles: ds.imagePuzzle.revealedTiles });
+                broadcastDirector(io, gameId, state);
+            }
+        });
+
+        socket.on('director:image_reveal_all', () => {
+            const ds = state.director;
+            const q = ds.questions[ds.currentQuestionIdx];
+            if (!q) return;
+            const c = q.content || {};
+            const rows = c.grid_rows || 4;
+            const cols = c.grid_cols || 6;
+            const total = rows * cols;
+            ds.imagePuzzle.revealedTiles = [];
+            for (let i = 0; i < total; i++) ds.imagePuzzle.revealedTiles.push(i);
+            io.to(roomOf(gameId)).emit('game:image_tiles_updated', { revealedTiles: ds.imagePuzzle.revealedTiles });
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:image_reset', () => {
+            const ds = state.director;
+            ds.imagePuzzle.revealedTiles = [];
+            ds.imagePuzzle.answerVisible = false;
+            ds.imagePuzzle.answerText = '';
+            io.to(roomOf(gameId)).emit('game:image_tiles_updated', { revealedTiles: [] });
+            io.to(roomOf(gameId)).emit('game:image_answer_updated', { visible: false });
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:image_toggle_answer', () => {
+            const ds = state.director;
+            const q = ds.questions[ds.currentQuestionIdx];
+            if (!q) return;
+            const answer = (q.content && q.content.answer) || '';
+            if (!answer) return;
+            ds.imagePuzzle.answerVisible = !ds.imagePuzzle.answerVisible;
+            ds.imagePuzzle.answerText = ds.imagePuzzle.answerVisible ? answer : '';
+            io.to(roomOf(gameId)).emit('game:image_answer_updated', { visible: ds.imagePuzzle.answerVisible, answer: answer });
+            broadcastDirector(io, gameId, state);
+        });
+
         socket.on('director:mark_correct', (data) => {
             if (!data || !data.teamId) return;
             const ds = state.director;
@@ -1180,7 +1231,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
             ds.phase = 'lobby';
             ds.menuLevel = 'home';
             ds.selectedCategory = null;
@@ -1202,7 +1253,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
@@ -1234,7 +1285,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;

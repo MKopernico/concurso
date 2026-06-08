@@ -980,30 +980,18 @@ function renderBuzzer() {
     var c = q.content || {};
     var isPulsadorType = ps.roundType === 'pulsador';
     var isRuletaType = ps.roundType === 'ruleta';
-    // For pulsador/ruleta: hide statement (coordinator manages content / roulette panel has its own)
+    var isImagenType = ps.roundType === 'imagen';
+    // For pulsador/ruleta/imagen: hide statement
     var stmtEl = document.getElementById('buzzerStatement');
-    if (isPulsadorType || isRuletaType) {
+    if (isPulsadorType || isRuletaType || isImagenType) {
         stmtEl.style.display = 'none';
     } else {
         stmtEl.style.display = '';
         stmtEl.textContent = c.statement || c.phrase || '-';
     }
-    renderPlayerImgGrid(ps, q);
+    // imagen: player only sees buzzer, no image grid
+    document.getElementById('playerImgGrid').style.display = 'none';
     renderBuzzerStatus();
-}
-function renderPlayerImgGrid(ps, q) {
-    var el = document.getElementById('playerImgGrid');
-    if (ps.roundType !== 'imagen') { el.style.display = 'none'; return; }
-    var c = q.content || {};
-    var grid = c.grid || 4;
-    var total = grid * grid;
-    var revealed = ps.revealedCells || [];
-    el.style.display = 'block';
-    el.innerHTML = '<div class="p-img-grid">'
-        + (q.media_url ? '<img src="' + esc(q.media_url) + '">' : '')
-        + '<div class="p-img-grid-overlay" style="grid-template-columns:repeat(' + grid + ',1fr)">'
-        + Array.from({length: total}, function(_, i) { return '<div class="p-img-grid-cell' + (revealed.indexOf(i) >= 0 ? ' revealed' : '') + '"></div>'; }).join('')
-        + '</div></div>';
 }
 function renderBuzzerStatus() {
     var ps = S.ps; if (!ps) return;

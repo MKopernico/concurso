@@ -7,6 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
+const sizeOf = require('image-size');
 
 const router = express.Router();
 
@@ -52,7 +53,13 @@ const audioUpload = multer({
 
 router.post('/upload/image', imageUpload.single('file'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
-    res.json({ url: `/uploads/images/${req.file.filename}`, originalName: req.file.originalname });
+    const result = { url: `/uploads/images/${req.file.filename}`, originalName: req.file.originalname };
+    try {
+        const dims = sizeOf(req.file.path);
+        result.width = dims.width;
+        result.height = dims.height;
+    } catch (e) { /* dimensiones no disponibles — no bloquea la subida */ }
+    res.json(result);
 });
 
 router.post('/upload/audio', audioUpload.single('file'), (req, res) => {

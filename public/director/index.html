@@ -320,6 +320,23 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .menu-logo { text-align: center; margin-bottom: 10px; }
 .menu-logo img { max-width: 180px; max-height: 110px; object-fit: contain; }
 
+/* ── Imagen director panel ── */
+.imagen-layout { display: flex; gap: 20px; flex: 1; min-height: 0; }
+.imagen-left { flex: 2; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+.imagen-right { flex: 1; display: flex; flex-direction: column; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.imagen-right h4 { font-size: 12px; text-transform: uppercase; color: var(--text2); letter-spacing: .5px; margin-bottom: 8px; flex-shrink: 0; }
+.imagen-container { position: relative; background: #fff; border-radius: 10px; overflow: hidden; width: 100%; }
+.imagen-base { display: block; width: 100%; height: 100%; object-fit: cover; opacity: .5; position: absolute; inset: 0; }
+.imagen-grid { position: absolute; inset: 0; display: grid; }
+.imagen-tile { cursor: pointer; border: 1px solid rgba(0, 212, 255, 0.4); transition: opacity .25s ease; background-size: var(--bg-size); background-position: var(--bg-pos); }
+.imagen-tile.hidden { opacity: 0; }
+.imagen-tile.revealed { opacity: 1; }
+.imagen-btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.imagen-answer-overlay { display: none; background: rgba(0,0,0,.85); border-radius: 10px; padding: 16px; text-align: center; }
+.imagen-answer-overlay.active { display: block; }
+.imagen-answer-overlay .answer-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); margin-bottom: 6px; }
+.imagen-answer-overlay .answer-value { font-size: 22px; font-weight: 800; color: #fff; }
+
 /* ── Precio director panel ── */
 .precio-layout { display: flex; gap: 20px; flex: 1; min-height: 0; }
 .precio-left { flex: 2; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
@@ -613,6 +630,45 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 </div>
             </div>
 
+            <!-- Imagen director panel -->
+            <div id="imagenDirectorPanel" style="display:none; flex:1; overflow:hidden;">
+                <div class="imagen-layout">
+                    <div class="imagen-left">
+                        <div class="imagen-container" id="imagenContainer"></div>
+                        <div class="imagen-answer-overlay" id="imagenAnswerOverlay">
+                            <div class="answer-label">Respuesta</div>
+                            <div class="answer-value" id="imagenAnswerText"></div>
+                        </div>
+                        <div class="imagen-btn-row">
+                            <button class="btn-accent" id="btnImagenRevealAll" onclick="imagenRevealAll()">&#128064; Revelar todo</button>
+                            <button class="btn-ghost" id="btnImagenReset" onclick="imagenReset()">&#128260; Reiniciar</button>
+                            <button class="btn-ghost" id="btnImagenToggleAnswer" onclick="imagenToggleAnswer()">Mostrar respuesta</button>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
+                        </div>
+                    </div>
+                    <div class="imagen-right">
+                        <h4>&#128308; Pulsador</h4>
+                        <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+                            <button class="btn-success btn-sm buzzer-open-btn" onclick="emit('director:open_buzzer')">Abrir</button>
+                            <button class="btn-danger btn-sm buzzer-close-btn" onclick="emit('director:close_buzzer')">Cerrar</button>
+                            <button class="btn-ghost btn-sm" onclick="emit('director:reset_buzzer')">Reset</button>
+                        </div>
+                        <div class="buzzer-alert" id="imgBuzzerAlert"></div>
+                        <div class="pulsador-queue-list" id="imgQueueList">
+                            <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                            <span class="buzzer-first-name" id="imgFirstName"></span>
+                            <button class="btn-success" id="imgBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
+                            <button class="btn-danger" id="imgBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
+                            <button class="btn-ghost btn-sm" id="imgBtnBlockAll" onclick="toggleBlockAll()">&#128274; Bloqueo</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="question-card" id="questionCard">
                 <div id="questionMedia"></div>
                 <div class="question-statement" id="questionStatement">-</div>
@@ -899,6 +955,7 @@ function render() {
         _precioPrevImg = undefined;
         _precioPrevTeamIds = [];
         _precioPrevRevealed = false;
+        _imagenPrevQIdx = -1;
     }
 
     _prevPhase = phase;
@@ -1422,6 +1479,113 @@ function renderQuestionRuleta() {
     }
 }
 
+// ── Imagen director rendering ──
+var _imagenPrevQIdx = -1;
+
+function renderQuestionImagen() {
+    var ds = S.director;
+    if (!ds || ds.currentQuestionIdx < 0) return;
+    var q = ds.questions[ds.currentQuestionIdx];
+    if (!q) return;
+    var c = q.content || {};
+    var idx = ds.currentQuestionIdx, total = ds.questions.length;
+
+    // Nav bar
+    document.getElementById('questionCounter').textContent = 'Pregunta ' + (idx + 1) + ' de ' + total;
+    document.getElementById('btnPrevQ').disabled = idx <= 0;
+    var btnNext = document.getElementById('btnNextQ');
+    if (idx >= total - 1) {
+        btnNext.textContent = '✓ Terminar ronda';
+        btnNext.onclick = function() { emit('director:finish_round'); };
+    } else {
+        btnNext.innerHTML = 'Siguiente &#9654;';
+        btnNext.onclick = function() { emit('director:next_question'); };
+    }
+
+    // Show imagen panel, hide others
+    document.getElementById('imagenDirectorPanel').style.display = 'flex';
+    document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+    document.getElementById('precioDirectorPanel').style.display = 'none';
+    document.getElementById('ruletaDirectorPanel').style.display = 'none';
+    document.getElementById('questionCard').style.display = 'none';
+    document.getElementById('questionDefaultActions').style.display = 'none';
+    document.querySelector('.question-nav').style.display = '';
+
+    var imgSrc = c.image || q.media_url || '';
+    var imgW = c.image_width || 800;
+    var imgH = c.image_height || 600;
+    var rows = c.grid_rows || 4;
+    var cols = c.grid_cols || 6;
+    var totalTiles = rows * cols;
+    var puzzle = ds.imagePuzzle || { revealedTiles: [], answerVisible: false };
+    var revealedSet = {};
+    for (var ri = 0; ri < puzzle.revealedTiles.length; ri++) revealedSet[puzzle.revealedTiles[ri]] = true;
+
+    // Only rebuild the grid on question change to avoid flicker
+    var container = document.getElementById('imagenContainer');
+    if (idx !== _imagenPrevQIdx) {
+        var html = '<div style="position:relative; aspect-ratio:' + imgW + '/' + imgH + '; max-width:100%; max-height:100%; overflow:hidden;">';
+        html += '<img class="imagen-base" src="' + esc(imgSrc) + '" draggable="false">';
+        html += '<div class="imagen-grid" style="grid-template-columns:repeat(' + cols + ',1fr); grid-template-rows:repeat(' + rows + ',1fr);">';
+        for (var i = 0; i < totalTiles; i++) {
+            var row = Math.floor(i / cols);
+            var col = i % cols;
+            var bgPosX = cols > 1 ? (col / (cols - 1)) * 100 : 0;
+            var bgPosY = rows > 1 ? (row / (rows - 1)) * 100 : 0;
+            var isRev = !!revealedSet[i];
+            html += '<div class="imagen-tile ' + (isRev ? 'revealed' : 'hidden') + '" data-tile="' + i + '"'
+                + ' style="--bg-size:' + (cols * 100) + '% ' + (rows * 100) + '%; --bg-pos:' + bgPosX + '% ' + bgPosY + '%; background-image:url(\'' + esc(imgSrc) + '\');"'
+                + '></div>';
+        }
+        html += '</div></div>';
+        container.innerHTML = html;
+        container.querySelector('.imagen-grid').addEventListener('click', function(e) {
+            var tile = e.target.closest('.imagen-tile');
+            if (!tile || tile.classList.contains('revealed')) return;
+            var tileIdx = Number(tile.dataset.tile);
+            emit('director:image_reveal_tile', { tileIndex: tileIdx });
+        });
+        _imagenPrevQIdx = idx;
+    } else {
+        // Just update tile states
+        var tiles = container.querySelectorAll('.imagen-tile');
+        for (var ti = 0; ti < tiles.length; ti++) {
+            var tIdx = Number(tiles[ti].dataset.tile);
+            if (revealedSet[tIdx]) { tiles[ti].classList.remove('hidden'); tiles[ti].classList.add('revealed'); }
+            else { tiles[ti].classList.remove('revealed'); tiles[ti].classList.add('hidden'); }
+        }
+    }
+
+    // Answer overlay
+    var ansOverlay = document.getElementById('imagenAnswerOverlay');
+    var ansText = document.getElementById('imagenAnswerText');
+    var answer = c.answer || '';
+    ansText.textContent = answer;
+    if (puzzle.answerVisible && answer) { ansOverlay.classList.add('active'); }
+    else { ansOverlay.classList.remove('active'); }
+
+    // Toggle answer button state
+    var btnToggle = document.getElementById('btnImagenToggleAnswer');
+    if (!answer) {
+        btnToggle.disabled = true;
+        btnToggle.textContent = 'Mostrar respuesta';
+        btnToggle.style.opacity = '.4';
+    } else {
+        btnToggle.disabled = false;
+        btnToggle.style.opacity = '';
+        btnToggle.textContent = puzzle.answerVisible ? 'Ocultar respuesta' : 'Mostrar respuesta';
+    }
+
+    // Tile counter
+    var revCount = puzzle.revealedTiles.length;
+    var btnRevAll = document.getElementById('btnImagenRevealAll');
+    btnRevAll.disabled = revCount >= totalTiles;
+}
+
+function imagenRevealAll() { emit('director:image_reveal_all'); }
+function imagenReset() { emit('director:image_reset'); }
+function imagenToggleAnswer() { emit('director:image_toggle_answer'); }
+
 function getQuestionConfig(ds) {
     var q = ds.questions[ds.currentQuestionIdx];
     if (!q) return { time: 30, basePoints: 100, bonusMax: 50, penalty: 0 };
@@ -1445,6 +1609,7 @@ function renderQuestion() {
     if (roundType === 'pulsador') {
         document.getElementById('precioDirectorPanel').style.display = 'none';
         document.getElementById('ruletaDirectorPanel').style.display = 'none';
+        document.getElementById('imagenDirectorPanel').style.display = 'none';
         renderQuestionPulsador();
         return;
     }
@@ -1452,6 +1617,7 @@ function renderQuestion() {
     if (roundType === 'precio') {
         document.getElementById('pulsadorDirectorPanel').style.display = 'none';
         document.getElementById('ruletaDirectorPanel').style.display = 'none';
+        document.getElementById('imagenDirectorPanel').style.display = 'none';
         renderQuestionPrecio();
         return;
     }
@@ -1459,7 +1625,16 @@ function renderQuestion() {
     if (roundType === 'ruleta') {
         document.getElementById('pulsadorDirectorPanel').style.display = 'none';
         document.getElementById('precioDirectorPanel').style.display = 'none';
+        document.getElementById('imagenDirectorPanel').style.display = 'none';
         renderQuestionRuleta();
+        return;
+    }
+    // Imagen type: dedicated 2-column layout
+    if (roundType === 'imagen') {
+        document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+        document.getElementById('precioDirectorPanel').style.display = 'none';
+        document.getElementById('ruletaDirectorPanel').style.display = 'none';
+        renderQuestionImagen();
         return;
     }
 
@@ -1467,6 +1642,7 @@ function renderQuestion() {
     document.getElementById('pulsadorDirectorPanel').style.display = 'none';
     document.getElementById('precioDirectorPanel').style.display = 'none';
     document.getElementById('ruletaDirectorPanel').style.display = 'none';
+    document.getElementById('imagenDirectorPanel').style.display = 'none';
     document.getElementById('questionCard').style.display = '';
     document.getElementById('questionDefaultActions').style.display = '';
     document.querySelector('.question-nav').style.display = '';
@@ -1651,6 +1827,7 @@ function renderAnswerRevealed() {
     document.getElementById('pulsadorDirectorPanel').style.display = 'none';
     document.getElementById('precioDirectorPanel').style.display = 'none';
     document.getElementById('ruletaDirectorPanel').style.display = 'none';
+    document.getElementById('imagenDirectorPanel').style.display = 'none';
     if (!ds || ds.currentQuestionIdx < 0) return;
     const q = ds.questions[ds.currentQuestionIdx];
     if (!q) return;
@@ -1796,7 +1973,7 @@ function renderTimer() {
     const ds = S.director;
     const el = document.getElementById('timerDisplay');
     if (!ds || !ds.timer) { el.textContent = '--:--'; el.className = 'timer-display stopped'; return; }
-    var noTimer = ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'ruleta');
+    var noTimer = ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'ruleta' || ds.currentRound.type === 'imagen');
     if (noTimer) {
         el.textContent = '--:--'; el.className = 'timer-display stopped';
         document.getElementById('btnStartTimer').disabled = true;
@@ -1823,50 +2000,42 @@ function toggleSection(id) {
     document.getElementById(id).classList.toggle('open');
 }
 
-function renderBuzzer() {
+function _renderBuzzerInto(alertId, queueId, firstNameId, btnCorrectId, btnWrongId) {
     var hasPulsado = S.colaPulsador.length > 0;
-
-    // Buzzer alert banner (Arreglo 3)
-    var alertEl = document.getElementById('rpBuzzerAlert');
+    var alertEl = document.getElementById(alertId);
     if (alertEl) {
-        if (hasPulsado) {
-            alertEl.textContent = '🔔 ' + S.colaPulsador[0].nombre;
-            alertEl.classList.add('active');
+        if (hasPulsado) { alertEl.textContent = '🔔 ' + S.colaPulsador[0].nombre; alertEl.classList.add('active'); }
+        else { alertEl.textContent = ''; alertEl.classList.remove('active'); }
+    }
+    var firstName = document.getElementById(firstNameId);
+    var btnCorrect = document.getElementById(btnCorrectId);
+    var btnWrong = document.getElementById(btnWrongId);
+    if (firstName) {
+        if (hasPulsado) { firstName.textContent = S.colaPulsador[0].nombre; btnCorrect.style.display = ''; btnWrong.style.display = ''; }
+        else { firstName.textContent = ''; btnCorrect.style.display = 'none'; btnWrong.style.display = 'none'; }
+    }
+    var queueEl = document.getElementById(queueId);
+    if (queueEl) {
+        if (!hasPulsado) {
+            queueEl.innerHTML = '<div class="pq-empty">Nadie ha pulsado aún</div>';
         } else {
-            alertEl.textContent = '';
-            alertEl.classList.remove('active');
+            queueEl.innerHTML = S.colaPulsador.map(function(p, i) {
+                var timeStr = p.elapsed !== undefined ? (p.elapsed / 1000).toFixed(3) + 's' : '';
+                return '<div class="pq-item">'
+                    + '<span class="pq-pos">' + (i + 1) + 'º</span>'
+                    + '<span class="pq-name">' + esc(p.nombre) + '</span>'
+                    + '<span class="pq-time">' + timeStr + '</span>'
+                    + '</div>';
+            }).join('');
         }
     }
+}
 
+function renderBuzzer() {
     document.querySelectorAll('.buzzer-open-btn').forEach(function(b) { b.disabled = S.pulsadorActivo; });
     document.querySelectorAll('.buzzer-close-btn').forEach(function(b) { b.disabled = !S.pulsadorActivo; });
-
-    var firstName = document.getElementById('rpFirstName');
-    var btnCorrect = document.getElementById('rpBtnCorrect');
-    var btnWrong = document.getElementById('rpBtnWrong');
-    if (hasPulsado) {
-        firstName.textContent = S.colaPulsador[0].nombre;
-        btnCorrect.style.display = '';
-        btnWrong.style.display = '';
-    } else {
-        firstName.textContent = '';
-        btnCorrect.style.display = 'none';
-        btnWrong.style.display = 'none';
-    }
-
-    var queueEl = document.getElementById('rpQueueList');
-    if (!hasPulsado) {
-        queueEl.innerHTML = '<div class="pq-empty">Nadie ha pulsado aún</div>';
-    } else {
-        queueEl.innerHTML = S.colaPulsador.map(function(p, i) {
-            var timeStr = p.elapsed !== undefined ? (p.elapsed / 1000).toFixed(3) + 's' : '';
-            return '<div class="pq-item">'
-                + '<span class="pq-pos">' + (i + 1) + 'º</span>'
-                + '<span class="pq-name">' + esc(p.nombre) + '</span>'
-                + '<span class="pq-time">' + timeStr + '</span>'
-                + '</div>';
-        }).join('');
-    }
+    _renderBuzzerInto('rpBuzzerAlert', 'rpQueueList', 'rpFirstName', 'rpBtnCorrect', 'rpBtnWrong');
+    _renderBuzzerInto('imgBuzzerAlert', 'imgQueueList', 'imgFirstName', 'imgBtnCorrect', 'imgBtnWrong');
 }
 
 function markFirst(correct) {

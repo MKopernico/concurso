@@ -217,13 +217,21 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .mini-chip .mc-score { color: var(--cyan); font-weight: 800; }
 .mini-chip.first .mc-score { color: var(--gold); }
 
-/* ═══════════════ IMAGE GRID ═══════════════ */
-.img-grid-wrap { position: relative; width: min(500px, 60vh); height: min(500px, 60vh); margin-top: 30px; border-radius: 16px; overflow: hidden; box-shadow: var(--glow-cyan); }
-.img-grid-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.img-grid-overlay { position: absolute; inset: 0; display: grid; }
-.img-grid-cell { background: var(--surface); border: 1px solid var(--border); transition: opacity .5s ease; display: flex; align-items: center; justify-content: center;
-    font-size: 24px; font-weight: 800; color: var(--text2); }
-.img-grid-cell.revealed { opacity: 0; pointer-events: none; }
+/* ═══════════════ IMAGE PUZZLE (Adivina la Imagen) ═══════════════ */
+#imagenScreenWrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 5%; overflow: hidden; }
+#imagenScreenGrid { position: relative; display: grid; gap: 0; }
+#imagenScreenGrid .img-tile { transition: opacity .4s ease; }
+#imagenScreenGrid .img-tile.hidden { opacity: 0; }
+#imagenAnswerOverlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; pointer-events: none; }
+#imagenAnswerOverlay .img-answer-card { width: 65%; max-width: 800px; text-align: center;
+    padding: clamp(16px, 2vh, 28px) clamp(20px, 3vw, 40px);
+    background: linear-gradient(rgba(34,197,94,.30),rgba(34,197,94,.30)),rgba(0,0,0,.60);
+    border: 2px solid var(--green); box-shadow: 0 0 20px rgba(34,197,94,.3);
+    border-radius: 16px; color: #fff; backdrop-filter: blur(6px);
+    font-size: clamp(1.4rem, 2.8vw, 2.4rem); font-weight: 800; line-height: 1.4;
+    opacity: 0; transition: opacity 1s ease; }
+#imagenAnswerOverlay .img-answer-card.visible { opacity: 1; }
+#phase-question.imagen-mode { padding: 0; }
 
 /* ═══════════════ LETTER PANEL (RULETA) ═══════════════ */
 .letter-panel { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 40px; max-width: 1000px; }
@@ -409,9 +417,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
         <div class="price-answers" id="priceAnswers" style="display:none"></div>
         <div class="boom-items" id="boomItems" style="display:none"></div>
         <div id="ruletaScreenPanel" style="display:none; position:absolute; inset:0;"></div>
-        <div class="img-grid-wrap" id="imgGrid" style="display:none">
-            <img id="imgGridImg">
-            <div class="img-grid-overlay" id="imgGridOverlay"></div>
+        <div id="imagenScreenWrap" style="display:none">
+            <div id="imagenScreenGrid"></div>
+            <div id="imagenAnswerOverlay"><div class="img-answer-card" id="imagenAnswerCard"></div></div>
         </div>
         <div class="letter-panel" id="letterPanel" style="display:none"></div>
         <div class="mini-scores" id="miniScores"></div>
@@ -561,6 +569,21 @@ function connect() {
         if (container) RoulettePanel.showPanel(container);
     });
 
+    // Imagen puzzle events
+    socket.on('game:image_tiles_updated', function(d) {
+        if (!ps) return;
+        if (!ps.imagePuzzle) ps.imagePuzzle = {};
+        ps.imagePuzzle.revealedTiles = d.revealedTiles || [];
+        updateImageTiles(ps.imagePuzzle.revealedTiles);
+    });
+    socket.on('game:image_answer_updated', function(d) {
+        if (!ps) return;
+        if (!ps.imagePuzzle) ps.imagePuzzle = {};
+        ps.imagePuzzle.answerVisible = d.visible;
+        if (d.answer) ps.imagePuzzle.answerText = d.answer;
+        updateImageAnswer(d.visible, d.answer);
+    });
+
     fetch('/api/games/' + gameId).then(function(r) { return r.json(); }).then(function(g) {
         if (g && g.name) document.getElementById('lobbyTitle').textContent = g.name;
         if (g && g.theme) applyTheme(g.theme);
@@ -680,13 +703,15 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         showPhase('question');
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
+        document.getElementById('phase-question').classList.toggle('imagen-mode', type === 'imagen');
         renderRevealedInPlace();
         renderTeamResultsOverlay();
     } else if (phase === 'question') {
         showPhase('question');
-        var hideTimer = type === 'pulsador' || type === 'ruleta';
+        var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen';
         timerStrip.style.display = hideTimer ? 'none' : '';
         timerBig.style.display = hideTimer ? 'none' : '';
+        document.getElementById('roundLogo').style.display = type === 'imagen' ? 'none' : '';
         renderQuestion(type, newQuestion, optionsJustRevealed);
     } else if (phase === 'round_end') {
         showPhase('round-end');
@@ -749,12 +774,16 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     if (q.media_url && type !== 'precio') { media.src = q.media_url; media.style.display = ''; }
     else { media.style.display = 'none'; }
 
+    // Toggle fullscreen mode for imagen
+    document.getElementById('phase-question').classList.toggle('imagen-mode', type === 'imagen');
+    _imagenState.built = type === 'imagen' ? _imagenState.built : false;
+
     // Hide all type-specific
     document.getElementById('qOptions').style.display = 'none';
     document.getElementById('buzzerQueue').style.display = 'none';
     document.getElementById('priceAnswers').style.display = 'none';
     document.getElementById('boomItems').style.display = 'none';
-    document.getElementById('imgGrid').style.display = 'none';
+    document.getElementById('imagenScreenWrap').style.display = 'none';
     document.getElementById('letterPanel').style.display = 'none';
     document.getElementById('pulsadorScreen').style.display = 'none';
     document.getElementById('ruletaScreenPanel').style.display = 'none';
@@ -762,7 +791,9 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     if (type === 'multirespuesta') {
         renderMultiOptions(c, optionsJustRevealed, stmtEl);
     } else if (type === 'imagen') {
-        renderImageGrid(c, q);
+        stmtEl.style.display = 'none';
+        document.getElementById('qMedia').style.display = 'none';
+        renderImageScreen(c, q);
         renderBuzzerQueue();
         document.getElementById('buzzerQueue').style.display = 'flex';
     } else if (type === 'ruleta') {
@@ -954,26 +985,91 @@ function renderBoomItems(c) {
     }).join('');
 }
 
-// ═══════════════ IMAGE GRID ═══════════════
-function renderImageGrid(c, q) {
-    var grid = c.grid || 4;
-    var total = grid * grid;
-    var revealed = ps.revealedCells || [];
-    var wrap = document.getElementById('imgGrid');
-    var img = document.getElementById('imgGridImg');
-    var overlay = document.getElementById('imgGridOverlay');
+// ═══════════════ IMAGEN PUZZLE (Adivina la Imagen) ═══════════════
+var _imagenState = { rows: 0, cols: 0, imgUrl: '', built: false };
 
-    if (q.media_url) { img.src = q.media_url; }
-    wrap.style.display = '';
-    overlay.style.gridTemplateColumns = 'repeat(' + grid + ', 1fr)';
-    overlay.style.gridTemplateRows = 'repeat(' + grid + ', 1fr)';
+function renderImageScreen(c, q) {
+    var rows = c.grid_rows || 4;
+    var cols = c.grid_cols || 6;
+    var imgW = c.image_width || 16;
+    var imgH = c.image_height || 9;
+    var imgUrl = c.image || q.media_url || '';
+    var puzzle = ps.imagePuzzle || {};
+    var revealed = puzzle.revealedTiles || [];
 
-    var html = '';
-    for (var i = 0; i < total; i++) {
-        var isRevealed = revealed.indexOf(i) >= 0;
-        html += '<div class="img-grid-cell' + (isRevealed ? ' revealed' : '') + '">' + (isRevealed ? '' : '?') + '</div>';
+    var wrap = document.getElementById('imagenScreenWrap');
+    var grid = document.getElementById('imagenScreenGrid');
+    wrap.style.display = 'flex';
+
+    // Compute grid size to fit container respecting aspect ratio (content area inside padding)
+    var cs = getComputedStyle(wrap);
+    var containerW = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var containerH = wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    var ratio = imgW / imgH;
+    var gridW, gridH;
+    if (containerW / containerH > ratio) {
+        gridH = containerH; gridW = gridH * ratio;
+    } else {
+        gridW = containerW; gridH = gridW / ratio;
     }
-    overlay.innerHTML = html;
+    grid.style.width = Math.floor(gridW) + 'px';
+    grid.style.height = Math.floor(gridH) + 'px';
+    grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+    grid.style.gridTemplateRows = 'repeat(' + rows + ', 1fr)';
+
+    var needRebuild = !_imagenState.built || _imagenState.rows !== rows || _imagenState.cols !== cols || _imagenState.imgUrl !== imgUrl;
+    if (needRebuild) {
+        var html = '';
+        var total = rows * cols;
+        for (var i = 0; i < total; i++) {
+            var row = Math.floor(i / cols);
+            var col = i % cols;
+            var bpX = cols > 1 ? (col / (cols - 1)) * 100 : 0;
+            var bpY = rows > 1 ? (row / (rows - 1)) * 100 : 0;
+            var isRevealed = revealed.indexOf(i) >= 0;
+            html += '<div class="img-tile' + (isRevealed ? '' : ' hidden') + '" data-idx="' + i + '" style="'
+                + 'background-image:url(' + esc(imgUrl) + ');'
+                + 'background-size:' + (cols * 100) + '% ' + (rows * 100) + '%;'
+                + 'background-position:' + bpX + '% ' + bpY + '%;'
+                + '"></div>';
+        }
+        grid.innerHTML = html;
+        _imagenState = { rows: rows, cols: cols, imgUrl: imgUrl, built: true };
+    } else {
+        updateImageTiles(revealed);
+    }
+
+    var ansCard = document.getElementById('imagenAnswerCard');
+    var ansText = puzzle.answerText || c.answer || '';
+    if (puzzle.answerVisible && ansText) {
+        ansCard.textContent = ansText;
+        ansCard.classList.add('visible');
+    } else {
+        ansCard.classList.remove('visible');
+    }
+}
+
+function updateImageTiles(revealed) {
+    var tiles = document.querySelectorAll('#imagenScreenGrid .img-tile');
+    for (var i = 0; i < tiles.length; i++) {
+        var idx = parseInt(tiles[i].dataset.idx);
+        if (revealed.indexOf(idx) >= 0) {
+            tiles[i].classList.remove('hidden');
+        } else {
+            tiles[i].classList.add('hidden');
+        }
+    }
+}
+
+function updateImageAnswer(visible, answerText) {
+    var ansCard = document.getElementById('imagenAnswerCard');
+    if (!ansCard) return;
+    if (visible) {
+        var text = answerText || (ps && ps.imagePuzzle && ps.imagePuzzle.answerText) || '';
+        if (text) { ansCard.textContent = text; ansCard.classList.add('visible'); }
+    } else {
+        ansCard.classList.remove('visible');
+    }
 }
 
 // ═══════════════ RULETA SCREEN (new visual panel) ═══════════════
@@ -1140,6 +1236,21 @@ function renderRevealedInPlace() {
         container.innerHTML = html;
     } else if (type === 'precio') {
         renderPrecioRevealScreen();
+    } else if (type === 'imagen') {
+        // Keep the image grid visible, hide buzzer queue, show answer via overlay
+        document.getElementById('imagenScreenWrap').style.display = 'flex';
+        document.getElementById('buzzerQueue').style.display = 'none';
+        document.getElementById('qStatement').style.display = 'none';
+        document.getElementById('qMedia').style.display = 'none';
+        document.getElementById('roundLogo').style.display = 'none';
+        // Reveal all tiles
+        var rows = c.grid_rows || 4;
+        var cols = c.grid_cols || 6;
+        var allTiles = [];
+        for (var t = 0; t < rows * cols; t++) allTiles.push(t);
+        updateImageTiles(allTiles);
+        // Show answer overlay if present
+        if (c.answer) updateImageAnswer(true);
     } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen_fija') {
         // Same reveal pattern as precio/50x15: white text, dark base + green tint, green border/glow
         var stmtEl = document.getElementById('qStatement');

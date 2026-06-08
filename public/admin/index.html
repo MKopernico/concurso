@@ -681,11 +681,11 @@ function renderRounds() {
 
 function toggleTimeField(type) {
     var el = document.getElementById('field-cfg-time');
-    if (type === 'pulsador') {
+    if (type === 'pulsador' || type === 'imagen') {
         el.style.opacity = '.4';
         el.querySelector('input').disabled = true;
         el.querySelector('label').textContent = 'Tiempo (N/A)';
-        el.title = 'No aplica en pulsador rápido';
+        el.title = 'No aplica en este tipo de prueba';
     } else {
         el.style.opacity = '';
         el.querySelector('input').disabled = false;
@@ -721,9 +721,9 @@ function openRoundModal(round = null) {
 async function saveRound(e) {
     e.preventDefault();
     const form = document.getElementById('form-round');
-    const isPulsador = form.type.value === 'pulsador';
+    const noTimer = form.type.value === 'pulsador' || form.type.value === 'imagen';
     const config = {
-        time: isPulsador ? 0 : (Number(form.cfg_time.value) || 30),
+        time: noTimer ? 0 : (Number(form.cfg_time.value) || 30),
         basePoints: Number(form.cfg_basePoints.value) || 100,
         bonusMax: Number(form.cfg_bonusMax.value) || 50,
         penalty: Number(form.cfg_penalty.value) || 0,
@@ -859,7 +859,7 @@ function renderQuestions() {
     }
     el.innerHTML = qs.map((q, idx) => {
         const c = q.content || {};
-        const preview = c.statement || c.phrase || c.answer || JSON.stringify(c).slice(0, 80);
+        const preview = c.statement || c.phrase || c.answer || (c.image ? c.image.split('/').pop() : null) || JSON.stringify(c).slice(0, 80);
         return `
         <div class="card" data-id="${q.id}">
             <div class="card-header">
@@ -1009,16 +1009,113 @@ function updatePrecioPreview(url) {
 }
 
 function fieldsImagen(c) {
-    const grid = c.grid || [4, 4];
+    const hasImage = !!(c.image);
+    const w = c.image_width || 0;
+    const h = c.image_height || 0;
+    const savedN = (c.grid_rows && c.grid_cols) ? c.grid_rows * c.grid_cols : 24;
+    setTimeout(() => {
+        // Disable time override (this type has no timer)
+        const timeOverride = document.querySelector('[name="q_time"]');
+        if (timeOverride) { timeOverride.disabled = true; timeOverride.closest('.field').style.opacity = '.4'; timeOverride.closest('.field').title = 'No aplica en Adivina la imagen'; }
+        // Wire up slider
+        const slider = document.getElementById('imagen-grid-slider');
+        const info = document.getElementById('imagen-grid-info');
+        const preview = document.getElementById('imagen-grid-preview');
+        if (slider) {
+            slider.addEventListener('input', () => updateImagenGrid());
+            updateImagenGrid();
+        }
+    }, 0);
     return `
-        <div class="field"><label>Imagen (URL)</label><div class="upload-row"><input name="c_image" value="${esc(c.image || '')}" required><label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_image')"></label>${libBtn('c_image','images')}</div></div>
-        <div class="field-row">
-            <div class="field"><label>Cuadrícula (filas)</label><input type="number" name="c_grid_rows" value="${grid[0]}" min="2" max="10"></div>
-            <div class="field"><label>Cuadrícula (cols)</label><input type="number" name="c_grid_cols" value="${grid[1]}" min="2" max="10"></div>
+        <div class="field"><label>Imagen</label>
+            <div class="upload-row">
+                <input name="c_image" value="${esc(c.image || '')}" required placeholder="Sube una imagen o elige de la biblioteca">
+                <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadImagenFile(this)"></label>
+                ${libBtn('c_image','images')}
+            </div>
+            <img id="imagen-img-preview" src="${esc(c.image || '')}" style="margin-top:8px; max-width:260px; max-height:180px; border-radius:8px; border:1px solid var(--border); object-fit:contain; background:#1a1a2e; ${hasImage ? '' : 'display:none;'}">
+            <input type="hidden" name="c_image_width" value="${w}">
+            <input type="hidden" name="c_image_height" value="${h}">
         </div>
-        <div class="field"><label>Orden de revelación (índices separados por coma)</label><input name="c_reveal_order" value="${(c.reveal_order || []).join(', ')}" placeholder="5, 10, 0, 15, 7, ..."></div>
-        <div class="field"><label>Respuesta</label><input name="c_answer" value="${esc(c.answer || '')}" required></div>
+        <div class="field"><label>Densidad de cuadrícula</label>
+            <input type="range" id="imagen-grid-slider" min="4" max="64" step="1" value="${savedN}" style="width:100%">
+            <div id="imagen-grid-info" style="margin-top:6px; font-size:13px; color:var(--accent); font-weight:600"></div>
+        </div>
+        <div id="imagen-grid-preview" style="margin-top:8px; margin-bottom:14px; position:relative; display:${hasImage ? 'block' : 'none'}; max-width:260px;">
+            <canvas id="imagen-grid-canvas" style="width:100%; border-radius:8px; border:1px solid var(--border);"></canvas>
+        </div>
+        <div class="field"><label>Respuesta a mostrar (opcional)</label><input name="c_answer" value="${esc(c.answer || '')}" placeholder="Texto que se muestra al revelar (ej: Avatar)"></div>
     `;
+}
+
+function uploadImagenFile(fileInput) {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    fetch('/api/upload/image', { method: 'POST', body: form })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { toast('Error: ' + data.error); return; }
+            document.querySelector('[name="c_image"]').value = data.url;
+            const preview = document.getElementById('imagen-img-preview');
+            if (preview) { preview.src = data.url; preview.style.display = ''; }
+            if (data.width) document.querySelector('[name="c_image_width"]').value = data.width;
+            if (data.height) document.querySelector('[name="c_image_height"]').value = data.height;
+            document.getElementById('imagen-grid-preview').style.display = 'block';
+            updateImagenGrid();
+            toast('Imagen subida');
+        })
+        .catch(e => toast('Error subiendo: ' + e.message));
+    fileInput.value = '';
+}
+
+function calcImagenGrid(N, imgW, imgH) {
+    if (!imgW || !imgH) return { cols: Math.round(Math.sqrt(N)), rows: Math.round(Math.sqrt(N)) };
+    const aspect = imgW / imgH;
+    let cols = Math.round(Math.sqrt(N * aspect));
+    let rows = Math.round(Math.sqrt(N / aspect));
+    cols = Math.min(Math.max(cols, 2), 8);
+    rows = Math.min(Math.max(rows, 2), 8);
+    return { cols, rows };
+}
+
+function updateImagenGrid() {
+    const slider = document.getElementById('imagen-grid-slider');
+    const info = document.getElementById('imagen-grid-info');
+    if (!slider || !info) return;
+    const N = Number(slider.value);
+    const imgW = Number(document.querySelector('[name="c_image_width"]').value) || 0;
+    const imgH = Number(document.querySelector('[name="c_image_height"]').value) || 0;
+    const { cols, rows } = calcImagenGrid(N, imgW, imgH);
+    info.textContent = `Resultado: ${cols}×${rows} = ${cols * rows} cuadrados`;
+    drawImagenGridPreview(cols, rows);
+}
+
+function drawImagenGridPreview(cols, rows) {
+    const canvas = document.getElementById('imagen-grid-canvas');
+    const imgEl = document.getElementById('imagen-img-preview');
+    if (!canvas || !imgEl || !imgEl.src || imgEl.style.display === 'none') return;
+    const img = new Image();
+    img.onload = () => {
+        const maxW = 260;
+        const scale = maxW / img.width;
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = 'rgba(0,212,255,0.6)';
+        ctx.lineWidth = 1;
+        for (let c = 1; c < cols; c++) {
+            const x = (c / cols) * canvas.width;
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+        }
+        for (let r = 1; r < rows; r++) {
+            const y = (r / rows) * canvas.height;
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+        }
+    };
+    img.src = imgEl.src;
 }
 
 function fieldsCancion(c) {
@@ -1130,15 +1227,12 @@ function extractContent(type, form) {
             return { statement: val(form, 'c_statement'), correct_value: Number(val(form, 'c_correct_value')), image: img };
         }
         case 'imagen': {
-            const rows = Number(val(form, 'c_grid_rows')) || 4;
-            const cols = Number(val(form, 'c_grid_cols')) || 4;
-            const orderStr = val(form, 'c_reveal_order');
-            let reveal_order = orderStr ? orderStr.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n)) : [];
-            if (reveal_order.length === 0) {
-                reveal_order = Array.from({ length: rows * cols }, (_, i) => i);
-                for (let i = reveal_order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [reveal_order[i], reveal_order[j]] = [reveal_order[j], reveal_order[i]]; }
-            }
-            return { image: val(form, 'c_image'), grid: [rows, cols], reveal_order, answer: val(form, 'c_answer') };
+            const imgW = Number(val(form, 'c_image_width')) || 0;
+            const imgH = Number(val(form, 'c_image_height')) || 0;
+            const slider = document.getElementById('imagen-grid-slider');
+            const N = slider ? Number(slider.value) : 24;
+            const { cols, rows } = calcImagenGrid(N, imgW, imgH);
+            return { image: val(form, 'c_image'), image_width: imgW, image_height: imgH, grid_rows: rows, grid_cols: cols, answer: val(form, 'c_answer') || '' };
         }
         case 'cancion':
             return { audio: val(form, 'c_audio'), answer: val(form, 'c_answer'), initial_chaos: Number(val(form, 'c_initial_chaos')) || 100, preset: val(form, 'c_preset') || 'default' };
