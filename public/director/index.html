@@ -895,6 +895,10 @@ function render() {
         if (pab) pab.style.display = 'none';
         var bta = document.getElementById('btnTogglePulsadorAnswer');
         if (bta) bta.innerHTML = '&#128065; Mostrar respuesta';
+        _precioPrevLogo = undefined;
+        _precioPrevImg = undefined;
+        _precioPrevTeamIds = [];
+        _precioPrevRevealed = false;
     }
 
     _prevPhase = phase;
@@ -1214,6 +1218,11 @@ function renderQuestionPulsador() {
     document.querySelector('.question-nav').style.display = 'none';
 }
 
+var _precioPrevLogo = undefined;
+var _precioPrevImg = undefined;
+var _precioPrevTeamIds = [];
+var _precioPrevRevealed = false;
+
 function renderQuestionPrecio() {
     var ds = S.director;
     if (!ds || ds.currentQuestionIdx < 0) return;
@@ -1241,18 +1250,24 @@ function renderQuestionPrecio() {
     document.getElementById('questionDefaultActions').style.display = 'none';
     document.querySelector('.question-nav').style.display = '';
 
-    // Logo
+    // Logo — only rebuild if changed
     var gt = S.game && S.game.theme || {};
     var rc = ds.currentRound ? parseJson(ds.currentRound.config) : {};
     var typeTheme = (gt.types && gt.types['precio']) || {};
     var logo = rc.logo || typeTheme.logo || gt.logo || null;
-    var logoEl = document.getElementById('precioLogo');
-    if (logo) { logoEl.innerHTML = '<img src="' + esc(logo) + '" style="max-height:80px;max-width:200px;object-fit:contain;border-radius:8px;" onerror="this.style.display=\'none\'">'; }
-    else { logoEl.innerHTML = ''; }
+    if (logo !== _precioPrevLogo) {
+        _precioPrevLogo = logo;
+        var logoEl = document.getElementById('precioLogo');
+        if (logo) { logoEl.innerHTML = '<img src="' + esc(logo) + '" style="max-height:80px;max-width:200px;object-fit:contain;border-radius:8px;" onerror="this.style.display=\'none\'">'; }
+        else { logoEl.innerHTML = ''; }
+    }
 
-    // Image
+    // Image — only rebuild if changed
     var imgSrc = q.media_url || c.image || '/shared/placeholder-precio.svg';
-    document.getElementById('precioImage').innerHTML = '<img src="' + esc(imgSrc) + '">';
+    if (imgSrc !== _precioPrevImg) {
+        _precioPrevImg = imgSrc;
+        document.getElementById('precioImage').innerHTML = '<img src="' + esc(imgSrc) + '">';
+    }
 
     // Statement & correct value
     document.getElementById('precioDirStatement').textContent = c.statement || 'Sin enunciado';
@@ -1287,18 +1302,15 @@ function renderQuestionPrecio() {
     });
 
     if (isRevealed) {
-        // After reveal: not-passed first by delta asc (closest wins), then passed
         answers.sort(function(a, b) {
             if (a.passed !== b.passed) return a.passed ? 1 : -1;
             if (!a.passed && !b.passed) return a.delta !== b.delta ? a.delta - b.delta : a.timestamp - b.timestamp;
             return Math.abs(a.delta) - Math.abs(b.delta);
         });
     } else {
-        // Before reveal: sort by value descending (highest first)
         answers.sort(function(a, b) { return b.value - a.value; });
     }
 
-    // Find winner: closest without going over (only mark after reveal)
     var winnerId = null;
     if (isRevealed) {
         var validAnswers = answers.filter(function(a) { return !a.passed; });
@@ -1306,26 +1318,63 @@ function renderQuestionPrecio() {
     }
 
     var listEl = document.getElementById('precioAnswersList');
+    var curTeamIds = answers.map(function(a) { return a.teamId; });
+    var revealJustChanged = isRevealed !== _precioPrevRevealed;
+    var needsFullRebuild = revealJustChanged || answers.length === 0;
+
     if (!answers.length) {
-        listEl.innerHTML = '<div class="pa-empty">Esperando respuestas…</div>';
+        if (listEl.childElementCount !== 1 || !listEl.querySelector('.pa-empty')) {
+            listEl.innerHTML = '<div class="pa-empty">Esperando respuestas…</div>';
+        }
+    } else if (needsFullRebuild) {
+        listEl.innerHTML = _precioBuildAnswerItems(answers, winnerId, isRevealed);
     } else {
-        listEl.innerHTML = answers.map(function(a) {
-            var isWinner = a.teamId === winnerId;
-            var cls = 'pa-item' + (isWinner ? ' winner' : '') + (a.passed && isRevealed ? ' passed' : '');
-            var badges = '';
-            if (isRevealed) {
-                if (isWinner) badges = '<span class="pa-winner-badge">🏆 GANADOR</span>';
-                else if (a.passed) badges = '<span class="pa-passed-badge">SE PASÓ</span>';
-                badges += '<span class="pa-delta">' + (a.passed ? '+' : '-') + Math.abs(a.delta) + '</span>';
-            }
-            return '<div class="' + cls + '">'
-                + '<span class="pa-name">' + esc(a.name) + '</span>'
-                + '<span class="pa-value">' + a.value + '</span>'
-                + badges
-                + '</div>';
-        }).join('');
+        var newTeams = curTeamIds.filter(function(tid) { return _precioPrevTeamIds.indexOf(tid) === -1; });
+        if (newTeams.length > 0) {
+            listEl.querySelector('.pa-empty') && (listEl.innerHTML = '');
+            newTeams.forEach(function(tid) {
+                var a = answers.find(function(x) { return x.teamId === tid; });
+                if (!a) return;
+                var div = document.createElement('div');
+                div.className = 'pa-item';
+                div.setAttribute('data-tid', a.teamId);
+                div.innerHTML = '<span class="pa-name">' + esc(a.name) + '</span>'
+                    + '<span class="pa-value">' + a.value + '</span>';
+                var inserted = false;
+                var existing = listEl.querySelectorAll('.pa-item');
+                for (var i = 0; i < existing.length; i++) {
+                    var existVal = Number(existing[i].querySelector('.pa-value').textContent);
+                    if (a.value > existVal) {
+                        listEl.insertBefore(div, existing[i]);
+                        inserted = true;
+                        break;
+                    }
+                }
+                if (!inserted) listEl.appendChild(div);
+            });
+        }
     }
 
+    _precioPrevTeamIds = curTeamIds;
+    _precioPrevRevealed = isRevealed;
+}
+
+function _precioBuildAnswerItems(answers, winnerId, isRevealed) {
+    return answers.map(function(a) {
+        var isWinner = a.teamId === winnerId;
+        var cls = 'pa-item' + (isWinner ? ' winner' : '') + (a.passed && isRevealed ? ' passed' : '');
+        var badges = '';
+        if (isRevealed) {
+            if (isWinner) badges = '<span class="pa-winner-badge">🏆 GANADOR</span>';
+            else if (a.passed) badges = '<span class="pa-passed-badge">SE PASÓ</span>';
+            badges += '<span class="pa-delta">' + (a.passed ? '+' : '-') + Math.abs(a.delta) + '</span>';
+        }
+        return '<div class="' + cls + '" data-tid="' + a.teamId + '">'
+            + '<span class="pa-name">' + esc(a.name) + '</span>'
+            + '<span class="pa-value">' + a.value + '</span>'
+            + badges
+            + '</div>';
+    }).join('');
 }
 
 function renderQuestionRuleta() {

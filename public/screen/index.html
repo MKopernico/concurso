@@ -875,12 +875,14 @@ function renderPrecioScreen(c, q, newQuestion) {
 
     var container = document.getElementById('priceAnswers');
     container.style.display = 'flex';
-    var imgSrc = q.media_url || c.image || '/shared/placeholder-precio.svg';
 
-    container.innerHTML = '<div class="precio-screen">'
-        + '<img class="precio-screen-img" src="' + esc(imgSrc) + '">'
-        + '<div class="precio-screen-value">??</div>'
-        + '</div>';
+    if (newQuestion || !container.querySelector('.precio-screen')) {
+        var imgSrc = q.media_url || c.image || '/shared/placeholder-precio.svg';
+        container.innerHTML = '<div class="precio-screen">'
+            + '<img class="precio-screen-img" src="' + esc(imgSrc) + '">'
+            + '<div class="precio-screen-value">??</div>'
+            + '</div>';
+    }
 }
 
 function renderPrecioRevealScreen() {
