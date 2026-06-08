@@ -890,10 +890,12 @@ function renderPrecioRevealScreen() {
     // Reuse q-statement as the reveal card (same pattern as pulsador reveal)
     var stmtEl = document.getElementById('qStatement');
     var valueText = c.correct_value !== undefined ? String(c.correct_value) : '??';
-    stmtEl.innerHTML = '<div style="font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:4px;color:var(--green);margin-bottom:8px;text-shadow:0 0 20px rgba(34,197,94,.4);">RESPUESTA CORRECTA</div>'
-        + '<div style="font-size:clamp(2rem,5vw,4rem);font-weight:800;color:var(--green);">' + esc(valueText) + '</div>';
+    // Colors: white text on dark-green bg — same values as .q-opt.correct in 50x15
+    stmtEl.innerHTML = '<div style="font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:4px;color:#fff;margin-bottom:8px;text-shadow:0 0 10px rgba(255,255,255,.3);">RESPUESTA CORRECTA</div>'
+        + '<div style="font-size:clamp(2rem,5vw,4rem);font-weight:800;color:#fff;">' + esc(valueText) + '</div>';
     stmtEl.style.border = '2px solid var(--green)';
-    stmtEl.style.background = 'rgba(34,197,94,.15)';
+    stmtEl.style.background = 'rgba(34,197,94,.30)';
+    stmtEl.style.boxShadow = '0 0 20px rgba(34,197,94,.3)';
     stmtEl.style.backdropFilter = 'blur(6px)';
     stmtEl.style.animation = 'reveal-pop .6s cubic-bezier(.34,1.56,.64,1)';
 
@@ -905,13 +907,15 @@ function renderPrecioRevealScreen() {
 
     var winnerHtml = '';
     if (ps.precioWinner) {
-        winnerHtml = '<div style="text-align:center;padding:clamp(12px,2vh,24px) clamp(20px,3vw,40px);background:rgba(34,197,94,.15);border:2px solid var(--green);border-radius:16px;box-shadow:0 0 20px rgba(34,197,94,.3);animation:reveal-pop .6s cubic-bezier(.34,1.56,.64,1) .3s backwards;">'
-            + '<div style="font-size:clamp(1.4rem,3vw,2.2rem);font-weight:800;color:var(--green);">\u{1F3C6} ' + esc(ps.precioWinner.name) + '</div>'
-            + '<div style="font-size:clamp(1rem,2vw,1.4rem);color:var(--text2);margin-top:4px;">Respuesta: ' + ps.precioWinner.value + '</div>'
+        // Same visual language as main card: white text, green bg/border/glow (q-opt.correct pattern)
+        winnerHtml = '<div style="text-align:center;padding:clamp(12px,2vh,24px) clamp(20px,3vw,40px);background:rgba(34,197,94,.30);border:2px solid var(--green);border-radius:16px;box-shadow:0 0 20px rgba(34,197,94,.3);backdrop-filter:blur(6px);animation:reveal-pop .6s cubic-bezier(.34,1.56,.64,1) .3s backwards;">'
+            + '<div style="font-size:clamp(1.4rem,3vw,2.2rem);font-weight:800;color:#fff;">\u{1F3C6} ' + esc(ps.precioWinner.name) + '</div>'
+            + '<div style="font-size:clamp(1rem,2vw,1.4rem);color:rgba(255,255,255,.6);margin-top:4px;">Respuesta: ' + ps.precioWinner.value + '</div>'
             + '</div>';
     } else {
-        winnerHtml = '<div style="text-align:center;padding:clamp(12px,2vh,24px) clamp(20px,3vw,40px);background:rgba(239,68,68,.10);border:2px solid var(--danger);border-radius:16px;opacity:.8;animation:reveal-pop .6s cubic-bezier(.34,1.56,.64,1) .3s backwards;">'
-            + '<div style="font-size:clamp(1.2rem,2.5vw,1.8rem);font-weight:700;color:var(--danger);">Nadie gana</div>'
+        // Danger variant: white text, red bg/border/glow — parallel to green pattern
+        winnerHtml = '<div style="text-align:center;padding:clamp(12px,2vh,24px) clamp(20px,3vw,40px);background:rgba(239,68,68,.25);border:2px solid var(--danger);border-radius:16px;box-shadow:0 0 20px rgba(239,68,68,.3);backdrop-filter:blur(6px);animation:reveal-pop .6s cubic-bezier(.34,1.56,.64,1) .3s backwards;">'
+            + '<div style="font-size:clamp(1.2rem,2.5vw,1.8rem);font-weight:700;color:#fff;">Nadie gana</div>'
             + '</div>';
     }
 
