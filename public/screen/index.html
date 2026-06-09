@@ -987,19 +987,48 @@ function renderBoomItems(c) {
 
 // ═══════════════ IMAGEN PUZZLE (Adivina la Imagen) ═══════════════
 var _imagenState = { rows: 0, cols: 0, imgUrl: '', built: false };
+var _imagenNatural = { qId: '', w: 0, h: 0 };
 
 function renderImageScreen(c, q) {
+    var imgUrl = c.image || q.media_url || '';
+    var wrap = document.getElementById('imagenScreenWrap');
+    var grid = document.getElementById('imagenScreenGrid');
+    wrap.style.display = 'flex';
+
+    var qId = q.id || '';
+    if (_imagenNatural.qId === qId && _imagenNatural.w > 0) {
+        _doRenderImageScreen(c, q, _imagenNatural.w, _imagenNatural.h);
+        return;
+    }
+    // New question: clear grid to avoid showing stale dimensions
+    grid.innerHTML = '';
+    grid.style.width = '0';
+    grid.style.height = '0';
+    _imagenState.built = false;
+
+    var fallbackW = c.image_width || 16;
+    var fallbackH = c.image_height || 9;
+    var img = new Image();
+    img.onload = function() {
+        _imagenNatural = { qId: qId, w: img.naturalWidth, h: img.naturalHeight };
+        _doRenderImageScreen(c, q, img.naturalWidth, img.naturalHeight);
+    };
+    img.onerror = function() {
+        _imagenNatural = { qId: qId, w: fallbackW, h: fallbackH };
+        _doRenderImageScreen(c, q, fallbackW, fallbackH);
+    };
+    img.src = imgUrl;
+}
+
+function _doRenderImageScreen(c, q, imgW, imgH) {
     var rows = c.grid_rows || 4;
     var cols = c.grid_cols || 6;
-    var imgW = c.image_width || 16;
-    var imgH = c.image_height || 9;
     var imgUrl = c.image || q.media_url || '';
     var puzzle = ps.imagePuzzle || {};
     var revealed = puzzle.revealedTiles || [];
 
     var wrap = document.getElementById('imagenScreenWrap');
     var grid = document.getElementById('imagenScreenGrid');
-    wrap.style.display = 'flex';
 
     // Compute grid size to fit container respecting aspect ratio (content area inside padding)
     var cs = getComputedStyle(wrap);
