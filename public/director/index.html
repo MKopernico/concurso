@@ -329,7 +329,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .imagen-base { display: block; width: 100%; height: 100%; opacity: .5; position: absolute; inset: 0; }
 .imagen-grid { position: absolute; inset: 0; display: grid; }
 .imagen-tile { cursor: pointer; border: 1px solid rgba(0, 212, 255, 0.4); position: relative; }
-.imagen-tile::after { content: ''; position: absolute; inset: 0; background-image: inherit; background-size: var(--bg-size); background-position: var(--bg-pos); transition: opacity .25s ease; opacity: 0; }
+.imagen-tile::after { content: ''; position: absolute; inset: 0; background-image: var(--bg-img); background-size: var(--bg-size); background-position: var(--bg-pos); transition: opacity .25s ease; opacity: 0; }
 .imagen-tile.revealed::after { opacity: 1; }
 .imagen-btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .imagen-answer-overlay { display: none; background: rgba(0,0,0,.85); border-radius: 10px; padding: 16px; text-align: center; }
@@ -1537,7 +1537,7 @@ function renderQuestionImagen() {
                 var bgPosY = rows > 1 ? (row / (rows - 1)) * 100 : 0;
                 var isRev = !!revealedSet[i];
                 html += '<div class="imagen-tile ' + (isRev ? 'revealed' : 'hidden') + '" data-tile="' + i + '"'
-                    + ' style="--bg-size:' + (cols * 100) + '% ' + (rows * 100) + '%; --bg-pos:' + bgPosX + '% ' + bgPosY + '%; background-image:url(\'' + esc(imgSrc) + '\');"'
+                    + ' style="--bg-size:' + (cols * 100) + '% ' + (rows * 100) + '%; --bg-pos:' + bgPosX + '% ' + bgPosY + '%; --bg-img:url(\'' + esc(imgSrc) + '\');"'
                     + '></div>';
             }
             html += '</div></div>';
