@@ -1027,7 +1027,15 @@ function attachSocketHandlers(io) {
             const idx = Number(data && data.tileIndex);
             if (!isFinite(idx) || idx < 0) return;
             if (ds.imagePuzzle.revealedTiles.indexOf(idx) === -1) {
+                const wasEmpty = ds.imagePuzzle.revealedTiles.length === 0;
                 ds.imagePuzzle.revealedTiles.push(idx);
+                // Auto-open buzzer on first tile reveal
+                if (wasEmpty && !state.pulsadorActivo) {
+                    state.pulsadorActivo = true;
+                    state.colaPulsador = [];
+                    state.buzzerOpenedAt = Date.now();
+                    io.to(roomOf(gameId)).emit('estado_pulsador_cambio', { activo: true, cola: [] });
+                }
                 io.to(roomOf(gameId)).emit('game:image_tiles_updated', { revealedTiles: ds.imagePuzzle.revealedTiles });
                 broadcastDirector(io, gameId, state);
             }

@@ -998,7 +998,7 @@ function renderBuzzerStatus() {
     var ps = S.ps; if (!ps) return;
     var btn = document.getElementById('buzzBtn');
     var status = document.getElementById('buzzStatus');
-    var isPulsadorLike = ps.roundType === 'pulsador' || ps.roundType === 'ruleta';
+    var isPulsadorLike = ps.roundType === 'pulsador' || ps.roundType === 'ruleta' || ps.roundType === 'imagen';
     var myEntry = ps.colaPulsador && ps.colaPulsador.find(function(p) { return p.id === S.myTeamId; });
     var hasBuzzed = !!myEntry;
     var myPos = hasBuzzed ? ps.colaPulsador.indexOf(myEntry) + 1 : 0;
