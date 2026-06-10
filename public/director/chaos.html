@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chaos Studio v5.0 - Ultimate Edition</title>
+    <style>
+        :root {
+            --primary: #00d2ff;
+            --secondary: #bd00ff; 
+            --danger: #ff4b4b;
+            --bg: #121212;
+            --panel: #1e1e1e;
+            --text: #e0e0e0;
+            --highlight: #2a2a2a;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            user-select: none; /* Evita seleccionar texto al arrastrar */
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 850px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        h1 { text-align: center; color: var(--primary); margin: 0; text-transform: uppercase; letter-spacing: 2px;}
+        .subtitle { text-align: center; color: #666; font-size: 0.8rem; margin-bottom: 15px; }
+
+        details {
+            background: var(--panel);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: 1px solid #333;
+        }
+
+        details[open] { border-color: var(--primary); }
+
+        summary {
+            padding: 12px 15px;
+            cursor: pointer;
+            font-weight: bold;
+            background: #252525;
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        summary::after { content: '+'; font-size: 1.2rem; }
+        details[open] summary::after { content: '-'; }
+        details[open] summary { background: #2a2a2a; color: var(--primary); border-bottom: 1px solid #333;}
+
+        .panel-content { padding: 15px; }
+
+        select, input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            background: #111;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 8px;
+            background: var(--primary);
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            transition: 0.2s;
+        }
+        button:hover { filter: brightness(1.1); }
+        button:disabled { background: #333; color: #666; cursor: not-allowed; opacity: 0.6;}
+        
+        .btn-full { width: 100%; margin-top: 5px; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-secondary { background: var(--secondary); color: white; }
+        
+        /* PLAYLIST DRAG & DROP */
+        .playlist-box {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            height: 180px;
+            overflow-y: auto;
+            margin-top: 10px;
+            border-radius: 4px;
+        }
+        .playlist-item {
+            padding: 10px;
+            border-bottom: 1px solid #222;
+            font-size: 0.9rem;
+            cursor: grab; /* Manita abierta */
+            display: flex;
+            justify-content: space-between;
+            background: #111;
+            transition: background 0.2s;
+        }
+        .playlist-item:active { cursor: grabbing; } /* Manita cerrada */
+        .playlist-item:hover { background: #1f1f1f; }
+        .playlist-item.active { background: #1a1a1a; color: var(--primary); border-left: 4px solid var(--primary); }
+        .playlist-item.dragging { opacity: 0.5; background: #333; border: 1px dashed #666; }
+
+        /* GRID EFECTOS */
+        .effects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .effect-card {
+            background: #222;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #444;
+        }
+        .effect-card.active-card { border: 1px solid var(--primary); box-shadow: 0 0 5px rgba(0, 210, 255, 0.2); }
+
+        .effect-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 5px;
+        }
+        .effect-header label { font-size: 0.85rem; font-weight: bold; color: #ddd; cursor: pointer; }
+        input[type="checkbox"] { transform: scale(1.2); cursor: pointer; accent-color: var(--primary); margin:0;}
+
+        input[type=range] {
+            width: 100%; height: 6px; border-radius: 3px; background: #444; outline: none; -webkit-appearance: none; cursor: pointer; margin: 5px 0;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--primary); cursor: pointer; border: 2px solid #fff;
+        }
+
+        /* GAME CONTROLS & SEEK BAR */
+        .game-controls {
+            display: flex; flex-direction: column; gap: 10px;
+            background: #111; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #333;
+        }
+        
+        .transport-row { display: flex; align-items: center; justify-content: center; gap: 15px; width: 100%; }
+        
+        .seek-container { width: 100%; display: flex; align-items: center; gap: 10px; font-family: monospace; font-size: 0.8rem; color: #888; }
+        #seekBar { flex-grow: 1; height: 4px; }
+        #seekBar::-webkit-slider-thumb { width: 10px; height: 10px; background: #fff; border: none; }
+
+        .ctrl-btn {
+            background: transparent; border: 2px solid #444; color: #fff; width: 45px; height: 45px; border-radius: 50%; font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
+        }
+        .ctrl-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); background: #222; }
+        .ctrl-btn.big { width: 60px; height: 60px; font-size: 1.8rem; border-color: var(--primary); background: rgba(0, 210, 255, 0.1); }
+        .ctrl-btn.big:hover { background: var(--primary); color: #000; }
+
+        .master-fader-container {
+            background: linear-gradient(180deg, #252525 0%, #151515 100%);
+            padding: 20px; border-radius: 10px; border: 2px solid #555; text-align: center;
+        }
+        #masterSlider {
+            height: 40px; background: linear-gradient(90deg, var(--danger) 0%, #ffff00 50%, var(--primary) 100%);
+        }
+        #masterSlider::-webkit-slider-thumb {
+            width: 30px; height: 40px; background: white; border: 3px solid #000; border-radius: 4px; box-shadow: 0 0 15px rgba(0,0,0,0.8);
+        }
+
+        .status-display { font-size: 1.5rem; font-weight: bold; margin-top: 15px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .track-info { text-align: center; font-size: 0.9rem; color: var(--primary); margin-bottom: 5px; min-height: 1.2em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <h1>🎛️ Chaos Studio v5.0</h1>
+    <div class="subtitle">Ultimate Edition • Timeline • JSON Presets • Drag & Drop</div>
+
+    <details>
+        <summary>💾 Presets (Importar / Exportar)</summary>
+        <div class="panel-content">
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button id="btnExport" class="btn-secondary" style="flex:1;">⬇️ Exportar a Archivo</button>
+                <button id="btnImportTrigger" class="btn-secondary" style="flex:1;">⬆️ Importar Archivo</button>
+                <input type="file" id="fileImportPreset" accept=".json" style="display: none;">
+            </div>
+            <hr style="border-color:#333; margin: 10px 0;">
+            <div style="display:flex; gap:10px; align-items: flex-end;">
+                <div style="flex-grow:1;">
+                    <label style="font-size:0.8rem; color:#aaa;">Guardar nuevo (Navegador)</label>
+                    <input type="text" id="presetName" placeholder="Nombre...">
+                </div>
+                <button id="btnSavePreset" class="btn-save">Guardar</button>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <select id="presetList" style="flex-grow:1;"><option value="" disabled selected>-- Tus Presets --</option></select>
+                <button id="btnLoadPreset" style="background:#444;">Cargar</button>
+                <button id="btnDeletePreset" class="btn-danger">🗑️</button>
+            </div>
+        </div>
+    </details>
+
+    <details open>
+        <summary>1. Fuente & Playlist (Drag & Drop)</summary>
+        <div class="panel-content">
+            <select id="modeSelector">
+                <option value="file">📂 Archivos MP3 (Local)</option>
+                <option value="live">🎙️ Entrada en Vivo (Spotify/Cable)</option>
+            </select>
+
+            <div id="filePanel" style="margin-top: 10px;">
+                <label class="btn-full" style="display:block; text-align:center; background:#333; padding:10px; cursor:pointer;">
+                    📂 Añadir canciones
+                    <input type="file" id="audioInput" accept="audio/*" multiple style="display: none;">
+                </label>
+                
+                <div class="playlist-box" id="playlistContainer">
+                    <div style="padding:20px; color:#666; text-align:center; font-size:0.8rem;">
+                        Arrastra archivos aquí o usa el botón.<br>Arrastra las canciones para reordenar.
+                    </div>
+                </div>
+            </div>
+
+            <div id="livePanel" class="hidden" style="margin-top: 10px;">
+                <select id="deviceSelector"><option disabled selected>Cargando dispositivos...</option></select>
+                <button id="refreshDevices" class="btn-full" style="background: #444;">🔄 Refrescar Dispositivos</button>
+            </div>
+        </div>
+    </details>
+
+    <details>
+        <summary>2. Rack de Efectos</summary>
+        <div class="panel-content">
+            <div class="effects-grid">
+                <div class="effect-card" id="card_tremolo">
+                    <div class="effect-header"><label>🚁 Tremolo</label><input type="checkbox" id="chk_tremolo"></div>
+                    <input type="range" id="val_tremolo" min="0" max="100" value="80">
+                </div>
+                <div class="effect-card" id="card_eq" style="grid-column: span 2;">
+                    <div class="effect-header"><label>🎚️ EQ 3-Bandas</label><input type="checkbox" id="chk_eq"></div>
+                    <div style="display:flex; gap:5px;">
+                        <input type="range" id="eq_low" min="0" max="100" value="100" title="Low">
+                        <input type="range" id="eq_mid" min="0" max="100" value="20" title="Mid">
+                        <input type="range" id="eq_high" min="0" max="100" value="0" title="High">
+                    </div>
+                </div>
+                <div class="effect-card" id="card_dist">
+                    <div class="effect-header"><label>🎸 Dist.</label><input type="checkbox" id="chk_dist"></div>
+                    <input type="range" id="val_dist" min="0" max="100" value="60">
+                </div>
+                <div class="effect-card" id="card_chorus">
+                    <div class="effect-header"><label>🥴 Chorus</label><input type="checkbox" id="chk_chorus"></div>
+                    <input type="range" id="val_chorus" min="0" max="100" value="50">
+                </div>
+                <div class="effect-card" id="card_flanger">
+                    <div class="effect-header"><label>🤖 Flanger</label><input type="checkbox" id="chk_flanger"></div>
+                    <input type="range" id="val_flanger" min="0" max="100" value="50">
+                </div>
+                <div class="effect-card" id="card_delay">
+                    <div class="effect-header"><label>🗣️ Delay</label><input type="checkbox" id="chk_delay"></div>
+                    <input type="range" id="val_delay" min="0" max="100" value="40">
+                </div>
+                 <div class="effect-card" id="card_reverb">
+                    <div class="effect-header"><label>⛪ Reverb</label><input type="checkbox" id="chk_reverb"></div>
+                    <input type="range" id="val_reverb" min="0" max="100" value="50">
+                </div>
+            </div>
+        </div>
+    </details>
+
+    <details open>
+        <summary>3. Zona de Juego</summary>
+        <div class="panel-content">
+            
+            <div class="track-info" id="currentTrackDisplay">Sin Audio</div>
+
+            <div class="game-controls">
+                <div class="seek-container">
+                    <span id="currentTime">00:00</span>
+                    <input type="range" id="seekBar" value="0" min="0" max="100" step="0.1" disabled>
+                    <span id="totalTime">00:00</span>
+                </div>
+
+                <div class="transport-row">
+                    <button class="ctrl-btn" id="btnPrev" title="Anterior">⏮</button>
+                    <button class="ctrl-btn big" id="btnPlayPause" title="Play/Pause">▶</button>
+                    <button class="ctrl-btn" id="btnNext" title="Siguiente">⏭</button>
+                    
+                    <div style="width: 1px; height: 30px; background: #333;"></div>
+
+                    <div style="display:flex; flex-direction:column; align-items:center;">
+                        <label style="font-size:0.6rem; color:#888;">VOL</label>
+                        <input type="range" id="mainVolume" min="0" max="100" value="80" style="width:60px;">
+                    </div>
+                    
+                    <div style="width: 1px; height: 30px; background: #333;"></div>
+                    
+                    <button class="ctrl-btn" id="btnStop" title="Pánico" style="border-color: var(--danger); color: var(--danger);">⏹</button>
+                </div>
+            </div>
+
+            <div class="master-fader-container">
+                <label for="masterSlider" style="font-weight: bold; font-size: 1.1rem; display: block; margin-bottom: 10px;">BARRA DE CAOS</label>
+                <input type="range" id="masterSlider" min="0" max="100" value="0">
+                <div id="statusText" class="status-display" style="color: var(--danger);">DISTORSIÓN TOTAL</div>
+            </div>
+        </div>
+    </details>
+</div>
+
+<script>
+    // --- 1. CONFIGURACIÓN ---
+    const ctx = { 
+        audio: null, source: null, stream: null, nodes: {},
+        playlist: [], currentTrackIndex: 0, isPlaying: false,
+        dragSrcIndex: null // Para el drag & drop
+    };
+
+    const ui = {
+        // ... selectores habituales ...
+        mode: document.getElementById('modeSelector'),
+        fileInput: document.getElementById('audioInput'),
+        playlistBox: document.getElementById('playlistContainer'),
+        currentTrackDisplay: document.getElementById('currentTrackDisplay'),
+        deviceSelect: document.getElementById('deviceSelector'),
+        filePanel: document.getElementById('filePanel'),
+        livePanel: document.getElementById('livePanel'),
+        // Player & Seek
+        btnPrev: document.getElementById('btnPrev'),
+        btnNext: document.getElementById('btnNext'),
+        btnPlayPause: document.getElementById('btnPlayPause'),
+        btnStop: document.getElementById('btnStop'),
+        mainVolume: document.getElementById('mainVolume'),
+        seekBar: document.getElementById('seekBar'),
+        currentTime: document.getElementById('currentTime'),
+        totalTime: document.getElementById('totalTime'),
+        // Game
+        masterSlider: document.getElementById('masterSlider'),
+        status: document.getElementById('statusText'),
+        // Presets JSON
+        btnExport: document.getElementById('btnExport'),
+        btnImportTrigger: document.getElementById('btnImportTrigger'),
+        fileImportPreset: document.getElementById('fileImportPreset'),
+        // Presets Local
+        presetName: document.getElementById('presetName'),
+        btnSave: document.getElementById('btnSavePreset'),
+        btnLoad: document.getElementById('btnLoadPreset'),
+        btnDelete: document.getElementById('btnDeletePreset'),
+        presetList: document.getElementById('presetList'),
+        // Effects map
+        effects: {
+            dist: { chk: document.getElementById('chk_dist'), val: document.getElementById('val_dist'), card: document.getElementById('card_dist') },
+            tremolo: { chk: document.getElementById('chk_tremolo'), val: document.getElementById('val_tremolo'), card: document.getElementById('card_tremolo') },
+            eq: { chk: document.getElementById('chk_eq'), low: document.getElementById('eq_low'), mid: document.getElementById('eq_mid'), high: document.getElementById('eq_high'), card: document.getElementById('card_eq') },
+            chorus: { chk: document.getElementById('chk_chorus'), val: document.getElementById('val_chorus'), card: document.getElementById('card_chorus') },
+            flanger: { chk: document.getElementById('chk_flanger'), val: document.getElementById('val_flanger'), card: document.getElementById('card_flanger') },
+            delay: { chk: document.getElementById('chk_delay'), val: document.getElementById('val_delay'), card: document.getElementById('card_delay') },
+            reverb: { chk: document.getElementById('chk_reverb'), val: document.getElementById('val_reverb'), card: document.getElementById('card_reverb') }
+        }
+    };
+
+    // --- 2. PLAYLIST & DRAG AND DROP ---
+    ui.fileInput.addEventListener('change', (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length > 0) {
+            ctx.playlist.push(...files); // Añadir al final
+            renderPlaylist();
+            if(!ctx.isPlaying && ctx.playlist.length === files.length) {
+                // Si es la primera carga, preparar
+                ctx.currentTrackIndex = 0;
+            }
+        }
+    });
+
+    function renderPlaylist() {
+        ui.playlistBox.innerHTML = '';
+        if(ctx.playlist.length === 0) {
+            ui.playlistBox.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">Lista vacía</div>';
+            return;
+        }
+
+        ctx.playlist.forEach((file, index) => {
+            const div = document.createElement('div');
+            div.className = `playlist-item ${index === ctx.currentTrackIndex ? 'active' : ''}`;
+            div.draggable = true;
+            div.dataset.index = index;
+            div.innerHTML = `<span>${index + 1}. ${file.name}</span> <span style="color:#666;">≡</span>`;
+            
+            // Eventos Drag & Drop
+            div.addEventListener('dragstart', handleDragStart);
+            div.addEventListener('dragover', handleDragOver);
+            div.addEventListener('drop', handleDrop);
+            div.addEventListener('dragenter', handleDragEnter);
+            div.addEventListener('dragleave', handleDragLeave);
+            
+            // Evento Click (Reproducir)
+            div.addEventListener('click', (e) => {
+                // Evitar que el click se dispare al terminar un drag
+                if(e.target.tagName !== 'SPAN' && e.target !== div) return; 
+                ctx.currentTrackIndex = index;
+                renderPlaylist();
+                startPlay();
+            });
+
+            ui.playlistBox.appendChild(div);
+        });
+    }
+
+    // Funciones de Arrastre
+    function handleDragStart(e) {
+        this.style.opacity = '0.4';
+        ctx.dragSrcIndex = parseInt(this.dataset.index);
+        e.dataTransfer.effectAllowed = 'move';
+    }
+    function handleDragOver(e) {
+        if (e.preventDefault) e.preventDefault();
+        return false;
+    }
+    function handleDragEnter(e) { this.classList.add('dragging'); }
+    function handleDragLeave(e) { this.classList.remove('dragging'); }
+    function handleDrop(e) {
+        if (e.stopPropagation) e.stopPropagation();
+        this.classList.remove('dragging');
+        
+        const dropIndex = parseInt(this.dataset.index);
+        if (ctx.dragSrcIndex !== dropIndex) {
+            // Reordenar array
+            const item = ctx.playlist.splice(ctx.dragSrcIndex, 1)[0];
+            ctx.playlist.splice(dropIndex, 0, item);
+            
+            // Ajustar índice actual si se ha movido la canción que suena
+            if(ctx.currentTrackIndex === ctx.dragSrcIndex) ctx.currentTrackIndex = dropIndex;
+            else if(ctx.currentTrackIndex > ctx.dragSrcIndex && ctx.currentTrackIndex <= dropIndex) ctx.currentTrackIndex--;
+            else if(ctx.currentTrackIndex < ctx.dragSrcIndex && ctx.currentTrackIndex >= dropIndex) ctx.currentTrackIndex++;
+            
+            renderPlaylist();
+        }
+        return false;
+    }
+
+    // --- 3. SEEK BAR (BARRA DE TIEMPO) ---
+    function formatTime(seconds) {
+        if(isNaN(seconds)) return "00:00";
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
+    }
+
+    function updateSeekBar() {
+        if(!ctx.audioElement || ui.mode.value === 'live') return;
+        const cur = ctx.audioElement.currentTime;
+        const dur = ctx.audioElement.duration;
+        
+        if(!isNaN(dur)) {
+            ui.seekBar.value = (cur / dur) * 100;
+            ui.currentTime.innerText = formatTime(cur);
+            ui.totalTime.innerText = formatTime(dur);
+        }
+        if(ctx.isPlaying) requestAnimationFrame(updateSeekBar);
+    }
+
+    ui.seekBar.addEventListener('input', (e) => {
+        if(ctx.audioElement && !isNaN(ctx.audioElement.duration)) {
+            const seekTo = (e.target.value / 100) * ctx.audioElement.duration;
+            ctx.audioElement.currentTime = seekTo;
+        }
+    });
+
+    // --- 4. PRESETS PORTABLES (JSON) ---
+    ui.btnExport.addEventListener('click', () => {
+        const presets = localStorage.getItem('chaosPresets');
+        if(!presets) return alert("No hay presets guardados.");
+        const blob = new Blob([presets], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "chaos_presets.json";
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    ui.btnImportTrigger.addEventListener('click', () => ui.fileImportPreset.click());
+
+    ui.fileImportPreset.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const imported = JSON.parse(e.target.result);
+                const current = JSON.parse(localStorage.getItem('chaosPresets') || "{}");
+                const merged = { ...current, ...imported };
+                localStorage.setItem('chaosPresets', JSON.stringify(merged));
+                loadPresetsFromStorage();
+                alert("Presets importados con éxito.");
+            } catch(err) {
+                alert("Archivo inválido.");
+            }
+        };
+        reader.readAsText(file);
+    });
+
+    // --- 5. LÓGICA CORE (Similar a v4, con seekbar) ---
+    function loadPresetsFromStorage() {
+        const stored = localStorage.getItem('chaosPresets');
+        const presets = stored ? JSON.parse(stored) : {};
+        ui.presetList.innerHTML = '<option value="" disabled selected>-- Tus Presets --</option>';
+        Object.keys(presets).forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name; opt.text = name; ui.presetList.appendChild(opt);
+        });
+        return presets;
+    }
+    // Listeners Presets
+    ui.btnSave.addEventListener('click', () => {
+        const name = ui.presetName.value.trim(); if(!name)return;
+        const conf={}; Object.keys(ui.effects).forEach(k=>{ const e=ui.effects[k]; conf[k]={checked:e.chk.checked}; if(e.val)conf[k].val=e.val.value; if(e.low){conf[k].low=e.low.value;conf[k].mid=e.mid.value;conf[k].high=e.high.value;}});
+        const p=loadPresetsFromStorage(); p[name]=conf; localStorage.setItem('chaosPresets',JSON.stringify(p)); loadPresetsFromStorage();
+    });
+    ui.btnLoad.addEventListener('click', () => {
+        const n=ui.presetList.value; if(!n)return;
+        const p=loadPresetsFromStorage()[n]; if(p){
+            Object.keys(p).forEach(k=>{ const e=ui.effects[k]; const s=p[k]; e.chk.checked=s.checked; if(e.val)e.val.value=s.val; if(e.low){e.low.value=s.low;e.mid.value=s.mid;e.high.value=s.high;}});
+            updateCardVisuals(); updateAudioEngine();
+        }
+    });
+    ui.btnDelete.addEventListener('click', () => { const n=ui.presetList.value; if(n&&confirm('Borrar?')){ const p=loadPresetsFromStorage(); delete p[n]; localStorage.setItem('chaosPresets',JSON.stringify(p)); loadPresetsFromStorage();}});
+
+    // Listeners Player
+    ui.btnPlayPause.addEventListener('click', () => {
+        if(!ctx.audio) return startPlay();
+        if(ctx.audio.state === 'suspended') { ctx.audio.resume(); if(ctx.audioElement) ctx.audioElement.play(); setPlayState(true); }
+        else if(ctx.audio.state === 'running') {
+            if(ui.mode.value === 'file' && ctx.audioElement) {
+                if(ctx.audioElement.paused) { ctx.audioElement.play(); setPlayState(true); } else { ctx.audioElement.pause(); setPlayState(false); }
+            } else { ctx.audio.suspend(); setPlayState(false); }
+        }
+    });
+    ui.btnStop.addEventListener('click', stopPlay);
+    ui.btnNext.addEventListener('click', () => { if(ctx.playlist.length) { ctx.currentTrackIndex=(ctx.currentTrackIndex+1)%ctx.playlist.length; renderPlaylist(); startPlay(); }});
+    ui.btnPrev.addEventListener('click', () => { if(ctx.playlist.length) { ctx.currentTrackIndex=(ctx.currentTrackIndex-1+ctx.playlist.length)%ctx.playlist.length; renderPlaylist(); startPlay(); }});
+    ui.mainVolume.addEventListener('input', (e) => { if(ctx.nodes.userVolume) ctx.nodes.userVolume.gain.value = e.target.value/100; });
+
+    function setPlayState(p) { ctx.isPlaying=p; ui.btnPlayPause.innerText = p ? "⏸" : "▶"; if(p) updateSeekBar(); }
+
+    // --- AUDIO ENGINE ---
+    function makeDistortionCurve(k) { const n=44100,c=new Float32Array(n),d=Math.PI/180; for(let i=0;i<n;++i){let x=i*2/n-1;c[i]=(3+k)*x*20*d/(Math.PI+k*Math.abs(x));}return c;}
+    function createReverbImpulse(d,dc) { const l=ctx.audio.sampleRate*d,imp=ctx.audio.createBuffer(2,l,ctx.audio.sampleRate); for(let c=0;c<2;c++){const da=imp.getChannelData(c);for(let i=0;i<l;i++)da[i]=(Math.random()*2-1)*Math.pow(1-i/l,dc);}return imp;}
+
+    async function initAudio() {
+        if (!ctx.audio) ctx.audio = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.audio.state === 'suspended') await ctx.audio.resume();
+
+        ctx.nodes.userVolume = ctx.audio.createGain(); ctx.nodes.userVolume.gain.value = ui.mainVolume.value/100;
+        ctx.nodes.compressor = ctx.audio.createDynamicsCompressor(); ctx.nodes.compressor.threshold.value = -10; ctx.nodes.compressor.ratio.value = 4;
+
+        ctx.nodes.dist = ctx.audio.createWaveShaper(); ctx.nodes.dist.oversample = '4x';
+        ctx.nodes.tremoloGain = ctx.audio.createGain(); ctx.nodes.tremoloOsc = ctx.audio.createOscillator(); ctx.nodes.tremoloDepth = ctx.audio.createGain();
+        ctx.nodes.tremoloOsc.connect(ctx.nodes.tremoloDepth); ctx.nodes.tremoloDepth.connect(ctx.nodes.tremoloGain.gain); ctx.nodes.tremoloOsc.start();
+
+        ctx.nodes.eqLow = ctx.audio.createBiquadFilter(); ctx.nodes.eqLow.type = 'lowshelf'; ctx.nodes.eqLow.frequency.value = 320;
+        ctx.nodes.eqMid = ctx.audio.createBiquadFilter(); ctx.nodes.eqMid.type = 'peaking'; ctx.nodes.eqMid.frequency.value = 1000;
+        ctx.nodes.eqHigh = ctx.audio.createBiquadFilter(); ctx.nodes.eqHigh.type = 'highshelf'; ctx.nodes.eqHigh.frequency.value = 3200;
+
+        ctx.nodes.chorusDelay = ctx.audio.createDelay(); ctx.nodes.chorusLFO = ctx.audio.createOscillator(); ctx.nodes.chorusGain = ctx.audio.createGain();
+        ctx.nodes.chorusLFO.connect(ctx.nodes.chorusGain); ctx.nodes.chorusGain.connect(ctx.nodes.chorusDelay.delayTime); ctx.nodes.chorusLFO.start();
+
+        ctx.nodes.flangerDelay = ctx.audio.createDelay(); ctx.nodes.flangerFeedback = ctx.audio.createGain(); 
+        ctx.nodes.flangerLFO = ctx.audio.createOscillator(); ctx.nodes.flangerLFOGain = ctx.audio.createGain();
+        ctx.nodes.flangerDelay.connect(ctx.nodes.flangerFeedback); ctx.nodes.flangerFeedback.connect(ctx.nodes.flangerDelay);
+        ctx.nodes.flangerLFO.connect(ctx.nodes.flangerLFOGain); ctx.nodes.flangerLFOGain.connect(ctx.nodes.flangerDelay.delayTime); ctx.nodes.flangerLFO.start();
+
+        ctx.nodes.delay = ctx.audio.createDelay(); ctx.nodes.delay.delayTime.value = 0.4;
+        ctx.nodes.delayFeedback = ctx.audio.createGain(); ctx.nodes.delayFeedback.gain.value = 0.4;
+        ctx.nodes.delay.connect(ctx.nodes.delayFeedback); ctx.nodes.delayFeedback.connect(ctx.nodes.delay);
+        ctx.nodes.delayWet = ctx.audio.createGain();
+
+        ctx.nodes.reverb = ctx.audio.createConvolver(); ctx.nodes.reverb.buffer = createReverbImpulse(2.0, 2.0); ctx.nodes.reverbWet = ctx.audio.createGain();
+        ctx.nodes.masterGain = ctx.audio.createGain(); ctx.nodes.input = ctx.audio.createGain();
+        
+        ctx.nodes.input.connect(ctx.nodes.tremoloGain).connect(ctx.nodes.dist)
+            .connect(ctx.nodes.eqLow).connect(ctx.nodes.eqMid).connect(ctx.nodes.eqHigh)
+            .connect(ctx.nodes.chorusDelay).connect(ctx.nodes.flangerDelay).connect(ctx.nodes.masterGain);
+
+        ctx.nodes.flangerDelay.connect(ctx.nodes.delay).connect(ctx.nodes.delayWet).connect(ctx.nodes.masterGain);
+        ctx.nodes.flangerDelay.connect(ctx.nodes.reverb).connect(ctx.nodes.reverbWet).connect(ctx.nodes.masterGain);
+
+        ctx.nodes.masterGain.connect(ctx.nodes.userVolume).connect(ctx.nodes.compressor).connect(ctx.audio.destination);
+    }
+
+    async function startPlay() {
+        if (ctx.audio && ctx.audio.state === 'closed') ctx.audio = null;
+        await initAudio();
+        if (ctx.source) ctx.source.disconnect();
+        if (ctx.audioElement) { ctx.audioElement.pause(); ctx.audioElement = null; }
+
+        if (ui.mode.value === 'live') {
+            try {
+                ui.seekBar.disabled = true; ui.currentTrackDisplay.innerText = "Entrada en Vivo";
+                const dId = ui.deviceSelect.value;
+                const s = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: dId ? { exact: dId } : undefined, echoCancellation:false, autoGainControl:false } });
+                ctx.stream = s; ctx.source = ctx.audio.createMediaStreamSource(s); ctx.source.connect(ctx.nodes.input);
+                setPlayState(true);
+            } catch(e) { alert("Mic error: "+e); }
+        } else {
+            if (!ctx.playlist.length) return alert("Lista vacía");
+            const file = ctx.playlist[ctx.currentTrackIndex];
+            ui.currentTrackDisplay.innerText = `${ctx.currentTrackIndex+1}. ${file.name}`;
+            ui.seekBar.disabled = false;
+            
+            const el = new Audio(URL.createObjectURL(file));
+            el.addEventListener('ended', () => { if(ctx.currentTrackIndex<ctx.playlist.length-1){ ctx.currentTrackIndex++; renderPlaylist(); startPlay(); } else setPlayState(false); });
+            await el.play();
+            ctx.source = ctx.audio.createMediaElementSource(el); ctx.source.connect(ctx.nodes.input);
+            ctx.audioElement = el; setPlayState(true);
+        }
+        ui.masterSlider.value = 0; updateCardVisuals(); updateAudioEngine();
+    }
+
+    function stopPlay() {
+        if(ctx.audioElement) { ctx.audioElement.pause(); ctx.audioElement = null; }
+        if(ctx.stream) ctx.stream.getTracks().forEach(t=>t.stop());
+        if(ctx.audio) ctx.audio.close().then(()=>ctx.audio=null);
+        setPlayState(false); ui.status.innerText="DETENIDO"; ui.seekBar.value=0; ui.currentTime.innerText="00:00";
+    }
+
+    function updateAudioEngine() {
+        if (!ctx.audio || ctx.audio.state === 'closed') return;
+        const mv = parseInt(ui.masterSlider.value), clean = mv/100, chaos = 1-clean, t = ctx.audio.currentTime;
+
+        // Apply Effects
+        if(ui.effects.tremolo.chk.checked) { const v=parseInt(ui.effects.tremolo.val.value); ctx.nodes.tremoloDepth.gain.setTargetAtTime((v/100)*chaos,t,0.1); ctx.nodes.tremoloOsc.frequency.setTargetAtTime(4+(v*0.2),t,0.1); } else ctx.nodes.tremoloDepth.gain.setTargetAtTime(0,t,0.1);
+        
+        if(ui.effects.eq.chk.checked) { const m=(v)=>(parseInt(v)-50)*0.4*chaos; ctx.nodes.eqLow.gain.setTargetAtTime(m(ui.effects.eq.low.value),t,0.1); ctx.nodes.eqMid.gain.setTargetAtTime(m(ui.effects.eq.mid.value),t,0.1); ctx.nodes.eqHigh.gain.setTargetAtTime(m(ui.effects.eq.high.value),t,0.1); } 
+        else { ctx.nodes.eqLow.gain.setTargetAtTime(0,t,0.1); ctx.nodes.eqMid.gain.setTargetAtTime(0,t,0.1); ctx.nodes.eqHigh.gain.setTargetAtTime(0,t,0.1); }
+
+        if(ui.effects.dist.chk.checked) { const a=parseInt(ui.effects.dist.val.value)*chaos*10; ctx.nodes.dist.curve = a<1?null:makeDistortionCurve(a); } else ctx.nodes.dist.curve=null;
+        
+        if(ui.effects.chorus.chk.checked) { const v=(parseInt(ui.effects.chorus.val.value)/100)*chaos; ctx.nodes.chorusGain.gain.setTargetAtTime(v*0.005,t,0.1); ctx.nodes.chorusLFO.frequency.value=0.5+(v*5); } else ctx.nodes.chorusGain.gain.setTargetAtTime(0,t,0.1);
+        
+        if(ui.effects.flanger.chk.checked) { const v=(parseInt(ui.effects.flanger.val.value)/100)*chaos; ctx.nodes.flangerLFOGain.gain.setTargetAtTime(v*0.005,t,0.1); ctx.nodes.flangerFeedback.gain.setTargetAtTime(Math.min(v*0.85,0.85),t,0.1); } else { ctx.nodes.flangerLFOGain.gain.setTargetAtTime(0,t,0.1); ctx.nodes.flangerFeedback.gain.setTargetAtTime(0,t,0.1); }
+
+        const dV = ui.effects.delay.chk.checked ? (parseInt(ui.effects.delay.val.value)/100)*chaos : 0; ctx.nodes.delayWet.gain.setTargetAtTime(dV,t,0.1);
+        const rV = ui.effects.reverb.chk.checked ? (parseInt(ui.effects.reverb.val.value)/100)*chaos : 0; ctx.nodes.reverbWet.gain.setTargetAtTime(rV*2.0,t,0.1);
+
+        let tx="👹 CAOS TOTAL",cl="#ff4b4b"; if(mv==100){tx="✨ ORIGINAL";cl="#00d2ff";} else if(mv>80){tx="🙂 CASI LIMPIO";cl="#55ff00";} else if(mv>40){tx="🤔 RECONOCIBLE";cl="#ffff00";}
+        ui.status.innerText=tx; ui.status.style.color=cl;
+    }
+
+    function updateCardVisuals() { Object.values(ui.effects).forEach(e => { if(e.chk.checked) e.card.classList.add('active-card'); else e.card.classList.remove('active-card'); }); }
+
+    // Initial Listeners
+    loadPresetsFromStorage();
+    ui.masterSlider.addEventListener('input', updateAudioEngine);
+    Object.values(ui.effects).forEach(e => {
+        e.chk.addEventListener('change', ()=>{ updateCardVisuals(); updateAudioEngine(); });
+        if(e.val) e.val.addEventListener('input', updateAudioEngine);
+        if(e.low) [e.low,e.mid,e.high].forEach(i=>i.addEventListener('input', updateAudioEngine));
+    });
+    document.getElementById('refreshDevices').addEventListener('click', () => { navigator.mediaDevices.enumerateDevices().then(ds => { ui.deviceSelect.innerHTML=''; ds.filter(d=>d.kind==='audioinput').forEach(d=>{ const o=document.createElement('option'); o.value=d.deviceId; o.text=d.label||'Mic'; if(d.label.includes('Cable'))o.selected=true; ui.deviceSelect.appendChild(o);});});});
+    ui.mode.addEventListener('change', (e) => { const l=e.target.value==='live'; ui.filePanel.classList.toggle('hidden',l); ui.livePanel.classList.toggle('hidden',!l); });
+
+</script>
+</body>
+</html>
