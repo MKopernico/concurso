@@ -226,6 +226,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 #imagenFijaWrap .if-logo { max-height: 100px; max-width: 300px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 0 10px rgba(0,0,0,.5)); margin-bottom: 10px; }
 #imagenFijaWrap .if-img-zone { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; width: 100%; }
 #imagenFijaWrap .if-img-zone img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; box-shadow: 0 0 30px rgba(0,0,0,.5); }
+#cancionScreenWrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding: 16px 2% 2% 2%; overflow: hidden; }
+#cancionScreenWrap .cn-logo { max-height: 100px; max-width: 300px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 0 10px rgba(0,0,0,.5)); margin-bottom: 10px; }
+#cancionScreenWrap .cn-img-zone { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; width: 100%; }
+#cancionScreenWrap .cn-img-zone img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; box-shadow: 0 0 30px rgba(0,0,0,.5); }
 #imagenAnswerOverlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; pointer-events: none; }
 #imagenAnswerOverlay .img-answer-card { width: 65%; max-width: 800px; text-align: center;
     padding: clamp(16px, 2vh, 28px) clamp(20px, 3vw, 40px);
@@ -426,6 +430,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
             <div id="imagenAnswerOverlay"><div class="img-answer-card" id="imagenAnswerCard"></div></div>
         </div>
         <div id="imagenFijaWrap" style="display:none"></div>
+        <div id="cancionScreenWrap" style="display:none"></div>
         <div class="letter-panel" id="letterPanel" style="display:none"></div>
         <div class="mini-scores" id="miniScores"></div>
     </div>
@@ -713,10 +718,10 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         renderTeamResultsOverlay();
     } else if (phase === 'question') {
         showPhase('question');
-        var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija';
+        var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija' || type === 'cancion';
         timerStrip.style.display = hideTimer ? 'none' : '';
         timerBig.style.display = hideTimer ? 'none' : '';
-        document.getElementById('roundLogo').style.display = (type === 'imagen' || type === 'imagen_fija') ? 'none' : '';
+        document.getElementById('roundLogo').style.display = (type === 'imagen' || type === 'imagen_fija' || type === 'cancion') ? 'none' : '';
         renderQuestion(type, newQuestion, optionsJustRevealed);
     } else if (phase === 'round_end') {
         showPhase('round-end');
@@ -790,6 +795,7 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     document.getElementById('boomItems').style.display = 'none';
     document.getElementById('imagenScreenWrap').style.display = 'none';
     document.getElementById('imagenFijaWrap').style.display = 'none';
+    document.getElementById('cancionScreenWrap').style.display = 'none';
     document.getElementById('letterPanel').style.display = 'none';
     document.getElementById('pulsadorScreen').style.display = 'none';
     document.getElementById('ruletaScreenPanel').style.display = 'none';
@@ -807,8 +813,11 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     } else if (type === 'pulsador') {
         renderPulsadorScreen();
     } else if (type === 'cancion') {
-        renderBuzzerQueue();
-        document.getElementById('buzzerQueue').style.display = 'flex';
+        renderCancionScreen(c, q);
+        if (ps.pulsadorActivo || (ps.colaPulsador && ps.colaPulsador.length)) {
+            renderBuzzerQueue();
+            document.getElementById('buzzerQueue').style.display = 'flex';
+        }
     } else if (type === 'imagen_fija') {
         renderImagenFijaScreen(c, q);
         if (ps.pulsadorActivo || (ps.colaPulsador && ps.colaPulsador.length)) {
@@ -1141,6 +1150,34 @@ function renderImagenFijaScreen(c, q) {
     wrap.innerHTML = html;
 }
 
+// ═══════════════ CANCION SCREEN (same pattern as imagen_fija) ═══════════════
+var _cancionPrevQId = '';
+
+function renderCancionScreen(c, q) {
+    var imgUrl = c.image || q.media_url || '';
+    var wrap = document.getElementById('cancionScreenWrap');
+    wrap.style.display = 'flex';
+    document.getElementById('qStatement').style.display = 'none';
+    document.getElementById('qMedia').style.display = 'none';
+
+    var qId = q.id || '';
+    if (_cancionPrevQId === qId) return;
+    _cancionPrevQId = qId;
+
+    var logoSrc = '';
+    var roundTheme = ps.roundTheme || {};
+    var typeTheme = ps.typeTheme || {};
+    var gameTheme = ps.gameTheme || {};
+    logoSrc = roundTheme.logo || typeTheme.logo || gameTheme.logo || '';
+
+    var html = '';
+    if (logoSrc) html += '<img class="cn-logo" src="' + esc(logoSrc) + '" onerror="this.style.display=\'none\'">';
+    html += '<div class="cn-img-zone">';
+    if (imgUrl) html += '<img src="' + esc(imgUrl) + '" draggable="false">';
+    html += '</div>';
+    wrap.innerHTML = html;
+}
+
 // ═══════════════ RULETA SCREEN (new visual panel) ═══════════════
 function renderRuletaScreen(c, q, newQuestion) {
     // Hide standard question elements
@@ -1336,6 +1373,7 @@ function renderRevealedInPlace() {
         document.getElementById('pulsadorScreen').style.display = 'none';
         document.getElementById('buzzerQueue').style.display = 'none';
         document.getElementById('imagenFijaWrap').style.display = 'none';
+        document.getElementById('cancionScreenWrap').style.display = 'none';
     } else {
         // For other types, fall back to legacy revealed phase
         renderRevealed();

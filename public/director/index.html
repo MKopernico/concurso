@@ -705,6 +705,33 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 </div>
             </div>
 
+            <!-- Cancion director panel (iframe Chaos + buzzer) -->
+            <div id="cancionDirectorPanel" style="display:none; flex:1; overflow:hidden;">
+                <div class="imagen-layout">
+                    <div class="imagen-left" style="padding:0; overflow:hidden;">
+                        <iframe id="cnChaosIframe" src="/director/chaos.html" allow="microphone" style="width:100%; height:100%; border:none; border-radius:var(--radius);"></iframe>
+                    </div>
+                    <div class="imagen-right">
+                        <h4>&#128308; Pulsador</h4>
+                        <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+                            <button class="btn-success btn-sm buzzer-open-btn" onclick="emit('director:open_buzzer')">Abrir</button>
+                            <button class="btn-danger btn-sm buzzer-close-btn" onclick="emit('director:close_buzzer')">Cerrar</button>
+                            <button class="btn-ghost btn-sm" onclick="emit('director:reset_buzzer')">Reset</button>
+                        </div>
+                        <div class="buzzer-alert" id="cnBuzzerAlert"></div>
+                        <div class="pulsador-queue-list" id="cnQueueList">
+                            <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                            <span class="buzzer-first-name" id="cnFirstName"></span>
+                            <button class="btn-success" id="cnBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
+                            <button class="btn-danger" id="cnBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
+                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#128274; Bloqueo</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="question-card" id="questionCard">
                 <div id="questionMedia"></div>
                 <div class="question-statement" id="questionStatement">-</div>
@@ -949,7 +976,7 @@ function render() {
     if (phase === 'question' || phase === 'answer_revealed') {
         if (roundType === 'pulsador' || roundType === 'ruleta' || roundType === 'imagen') {
             showPulsador = true;
-        } else if (roundType === 'imagen_fija') {
+        } else if (roundType === 'imagen_fija' || roundType === 'cancion') {
             var q = ds.questions[ds.currentQuestionIdx];
             var c = q ? (q.content || {}) : {};
             showPulsador = !!c.buzzer_enabled;
@@ -1727,6 +1754,29 @@ function renderQuestionImagenFija() {
     }
 }
 
+function renderQuestionCancion() {
+    var ds = S.director;
+    if (!ds || ds.currentQuestionIdx < 0) return;
+    var q = ds.questions[ds.currentQuestionIdx];
+    if (!q) return;
+    var c = q.content || {};
+    var idx = ds.currentQuestionIdx, total = ds.questions.length;
+
+    document.getElementById('questionCounter').textContent = 'Pregunta ' + (idx + 1) + ' de ' + total;
+    document.getElementById('btnPrevQ').disabled = idx <= 0;
+    var btnNext = document.getElementById('btnNextQ');
+    if (idx >= total - 1) {
+        btnNext.textContent = '✓ Terminar ronda';
+        btnNext.onclick = function() { emit('director:finish_round'); };
+    } else {
+        btnNext.innerHTML = 'Siguiente &#9654;';
+        btnNext.onclick = function() { emit('director:next_question'); };
+    }
+
+    document.getElementById('cancionDirectorPanel').style.display = 'flex';
+    document.querySelector('.question-nav').style.display = '';
+}
+
 // ── Question ──
 function renderQuestion() {
     const ds = S.director;
@@ -1739,6 +1789,7 @@ function renderQuestion() {
         document.getElementById('ruletaDirectorPanel').style.display = 'none';
         document.getElementById('imagenDirectorPanel').style.display = 'none';
         document.getElementById('imagenFijaDirectorPanel').style.display = 'none';
+        document.getElementById('cancionDirectorPanel').style.display = 'none';
         renderQuestionPulsador();
         return;
     }
@@ -1748,6 +1799,7 @@ function renderQuestion() {
         document.getElementById('ruletaDirectorPanel').style.display = 'none';
         document.getElementById('imagenDirectorPanel').style.display = 'none';
         document.getElementById('imagenFijaDirectorPanel').style.display = 'none';
+        document.getElementById('cancionDirectorPanel').style.display = 'none';
         renderQuestionPrecio();
         return;
     }
@@ -1757,6 +1809,7 @@ function renderQuestion() {
         document.getElementById('precioDirectorPanel').style.display = 'none';
         document.getElementById('imagenDirectorPanel').style.display = 'none';
         document.getElementById('imagenFijaDirectorPanel').style.display = 'none';
+        document.getElementById('cancionDirectorPanel').style.display = 'none';
         renderQuestionRuleta();
         return;
     }
@@ -1766,6 +1819,7 @@ function renderQuestion() {
         document.getElementById('precioDirectorPanel').style.display = 'none';
         document.getElementById('ruletaDirectorPanel').style.display = 'none';
         document.getElementById('imagenFijaDirectorPanel').style.display = 'none';
+        document.getElementById('cancionDirectorPanel').style.display = 'none';
         renderQuestionImagen();
         return;
     }
@@ -1775,9 +1829,22 @@ function renderQuestion() {
         document.getElementById('precioDirectorPanel').style.display = 'none';
         document.getElementById('ruletaDirectorPanel').style.display = 'none';
         document.getElementById('imagenDirectorPanel').style.display = 'none';
+        document.getElementById('cancionDirectorPanel').style.display = 'none';
         document.getElementById('questionCard').style.display = 'none';
         document.getElementById('questionDefaultActions').style.display = 'none';
         renderQuestionImagenFija();
+        return;
+    }
+    // Cancion type: 2-column layout (Chaos iframe + buzzer)
+    if (roundType === 'cancion') {
+        document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+        document.getElementById('precioDirectorPanel').style.display = 'none';
+        document.getElementById('ruletaDirectorPanel').style.display = 'none';
+        document.getElementById('imagenDirectorPanel').style.display = 'none';
+        document.getElementById('imagenFijaDirectorPanel').style.display = 'none';
+        document.getElementById('questionCard').style.display = 'none';
+        document.getElementById('questionDefaultActions').style.display = 'none';
+        renderQuestionCancion();
         return;
     }
 
@@ -1787,6 +1854,7 @@ function renderQuestion() {
     document.getElementById('ruletaDirectorPanel').style.display = 'none';
     document.getElementById('imagenDirectorPanel').style.display = 'none';
     document.getElementById('imagenFijaDirectorPanel').style.display = 'none';
+    document.getElementById('cancionDirectorPanel').style.display = 'none';
     document.getElementById('questionCard').style.display = '';
     document.getElementById('questionDefaultActions').style.display = '';
     document.querySelector('.question-nav').style.display = '';
@@ -1973,6 +2041,7 @@ function renderAnswerRevealed() {
     document.getElementById('ruletaDirectorPanel').style.display = 'none';
     document.getElementById('imagenDirectorPanel').style.display = 'none';
     document.getElementById('imagenFijaDirectorPanel').style.display = 'none';
+    document.getElementById('cancionDirectorPanel').style.display = 'none';
     if (!ds || ds.currentQuestionIdx < 0) return;
     const q = ds.questions[ds.currentQuestionIdx];
     if (!q) return;
@@ -2182,6 +2251,7 @@ function renderBuzzer() {
     _renderBuzzerInto('rpBuzzerAlert', 'rpQueueList', 'rpFirstName', 'rpBtnCorrect', 'rpBtnWrong');
     _renderBuzzerInto('imgBuzzerAlert', 'imgQueueList', 'imgFirstName', 'imgBtnCorrect', 'imgBtnWrong');
     _renderBuzzerInto('ifBuzzerAlert', 'ifQueueList', 'ifFirstName', 'ifBtnCorrect', 'ifBtnWrong');
+    _renderBuzzerInto('cnBuzzerAlert', 'cnQueueList', 'cnFirstName', 'cnBtnCorrect', 'cnBtnWrong');
 }
 
 function markFirst(correct) {

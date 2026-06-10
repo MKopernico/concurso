@@ -1147,8 +1147,16 @@ function drawImagenGridPreview(cols, rows) {
 
 function fieldsCancion(c) {
     return `
-        <div class="field"><label>Audio (URL o ruta)</label><div class="upload-row"><input name="c_audio" value="${esc(c.audio || '')}" required><label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="audio/*" style="display:none" onchange="uploadFile(this,'c_audio')"></label>${libBtn('c_audio','audio')}</div></div>
+        <div class="field"><label>Imagen para sala (URL)</label><div class="upload-row"><input name="c_image" value="${esc(c.image || '')}"><label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_image')"></label>${libBtn('c_image','images')}</div></div>
+        <div class="field"><label>Enunciado (opcional)</label><input name="c_statement" value="${esc(c.statement || '')}"></div>
         <div class="field"><label>Respuesta</label><input name="c_answer" value="${esc(c.answer || '')}" required></div>
+        <div class="field"><label>¿Tiene pulsador?</label>
+            <select name="c_buzzer_enabled">
+                <option value="true" ${c.buzzer_enabled !== false ? 'selected' : ''}>Sí</option>
+                <option value="false" ${c.buzzer_enabled === false ? 'selected' : ''}>No</option>
+            </select>
+        </div>
+        <div class="field"><label>Audio (URL o ruta)</label><div class="upload-row"><input name="c_audio" value="${esc(c.audio || '')}"><label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="audio/*" style="display:none" onchange="uploadFile(this,'c_audio')"></label>${libBtn('c_audio','audio')}</div></div>
         <div class="field-row">
             <div class="field"><label>Caos inicial (0-100)</label><input type="number" name="c_initial_chaos" value="${c.initial_chaos || 100}" min="0" max="100"></div>
             <div class="field"><label>Preset</label><input name="c_preset" value="${esc(c.preset || 'default')}"></div>
@@ -1262,7 +1270,7 @@ function extractContent(type, form) {
             return { image: val(form, 'c_image'), image_width: imgW, image_height: imgH, grid_rows: rows, grid_cols: cols, answer: val(form, 'c_answer') || '' };
         }
         case 'cancion':
-            return { audio: val(form, 'c_audio'), answer: val(form, 'c_answer'), initial_chaos: Number(val(form, 'c_initial_chaos')) || 100, preset: val(form, 'c_preset') || 'default' };
+            return { image: val(form, 'c_image') || undefined, statement: val(form, 'c_statement') || undefined, answer: val(form, 'c_answer'), buzzer_enabled: val(form, 'c_buzzer_enabled') === 'true', audio: val(form, 'c_audio') || undefined, initial_chaos: Number(val(form, 'c_initial_chaos')) || 100, preset: val(form, 'c_preset') || 'default' };
         case 'boom': {
             const items = val(form, 'c_items').split('\n').map(s => s.trim()).filter(Boolean);
             if (items.length < 2) throw new Error('Mínimo 2 elementos');
