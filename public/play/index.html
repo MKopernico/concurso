@@ -74,6 +74,7 @@ input:focus { border-color: var(--accent); }
 /* .gphase rules moved to "Phase fade transitions" block below */
 
 .gp-waiting { align-items: center; justify-content: center; gap: 16px; text-align: center; padding: 24px; }
+.gp-idle { align-items: center; justify-content: center; }
 .gp-waiting h2 { font-size: 24px; color: var(--text2); }
 
 .gp-multi { padding: 16px 16px 10px; gap: clamp(8px, 1.5vh, 16px); justify-content: flex-start; }
@@ -341,6 +342,9 @@ input:focus { border-color: var(--accent); }
     <div class="game-area">
         <div class="gphase gp-waiting" id="gp-waiting">
             <img id="playerWaitingLogo" class="gs-waiting-logo" style="display:none; max-height:100px; max-width:200px; object-fit:contain;">
+        </div>
+        <div class="gphase gp-idle" id="gp-idle">
+            <img id="idleRoundLogo" style="display:none; max-height:140px; max-width:300px; object-fit:contain; filter:drop-shadow(0 0 10px rgba(0,0,0,.5));">
         </div>
         <div class="gphase gp-round-intro" id="gp-round-intro">
             <div id="playerIntroLogo" style="display:none;"><img class="intro-logo" id="playerIntroLogoImg"></div>
@@ -892,7 +896,10 @@ function renderGamePhase() {
             if (type === 'ruleta') timerBar.style.display = 'none';
             var ifNoBuzzer = type === 'imagen_fija' && S.ps && S.ps.question && !S.ps.question.content.buzzer_enabled;
             if (ifNoBuzzer) {
-                document.getElementById('gp-waiting').classList.add('active');
+                var _irl = document.getElementById('idleRoundLogo');
+                var _rlSrc = (S.ps.roundTheme && S.ps.roundTheme.logo) || (S.ps.typeTheme && S.ps.typeTheme.logo) || (S.ps.gameTheme && S.ps.gameTheme.logo) || null;
+                if (_rlSrc) { _irl.src = _rlSrc; _irl.style.display = ''; } else { _irl.style.display = 'none'; }
+                document.getElementById('gp-idle').classList.add('active');
             } else {
                 renderBuzzer(); document.getElementById('gp-buzzer').classList.add('active');
             }
