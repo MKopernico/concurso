@@ -14,7 +14,7 @@ const router = express.Router();
 const UPLOADS_DIR = fs.existsSync('/data') ? '/data/uploads' : path.join(__dirname, '..', 'uploads');
 
 // Crear subdirectorios al cargar el módulo
-[path.join(UPLOADS_DIR, 'images'), path.join(UPLOADS_DIR, 'audio')].forEach(dir => {
+[path.join(UPLOADS_DIR, 'images'), path.join(UPLOADS_DIR, 'audio'), path.join(UPLOADS_DIR, 'videos')].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -87,11 +87,25 @@ router.post('/upload/audio', audioUpload.single('file'), (req, res) => {
     res.json({ url: `/uploads/audio/${req.file.filename}`, originalName: req.file.originalname });
 });
 
+const videoUpload = multer({
+    storage: makeStorage('videos'),
+    limits: { fileSize: 50 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (/^video\/(mp4|webm)$/.test(file.mimetype)) cb(null, true);
+        else cb(new Error('Solo se admiten vídeos (mp4, webm)'));
+    }
+});
+
+router.post('/upload/video', videoUpload.single('file'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
+    res.json({ url: `/uploads/videos/${req.file.filename}`, originalName: req.file.originalname });
+});
+
 // ───────────── Media Library: list files ─────────────
 
 router.get('/media/:type', (req, res) => {
     const type = req.params.type;
-    if (type !== 'images' && type !== 'audio') return res.status(400).json({ error: 'tipo inválido (images|audio)' });
+    if (type !== 'images' && type !== 'audio' && type !== 'videos') return res.status(400).json({ error: 'tipo inválido (images|audio|videos)' });
     const dir = path.join(UPLOADS_DIR, type);
     if (!fs.existsSync(dir)) return res.json([]);
     const files = fs.readdirSync(dir)
@@ -108,7 +122,7 @@ router.get('/media/:type', (req, res) => {
 
 router.delete('/media/:type/:filename', (req, res) => {
     const { type, filename } = req.params;
-    if (type !== 'images' && type !== 'audio') return res.status(400).json({ error: 'tipo inválido' });
+    if (type !== 'images' && type !== 'audio' && type !== 'videos') return res.status(400).json({ error: 'tipo inválido' });
     // Sanitize filename to prevent path traversal
     const safe = path.basename(filename);
     const filePath = path.join(UPLOADS_DIR, type, safe);

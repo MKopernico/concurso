@@ -1183,8 +1183,35 @@ function fieldsRuleta(c) {
 }
 
 function fieldsImagenFija(c) {
+    const hasVideo = !!c.video;
+    const mediaMode = hasVideo ? 'video' : 'image';
     return `
-        <div class="field"><label>Imagen (URL)</label><div class="upload-row"><input name="c_image" value="${esc(c.image || '')}" required><label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_image')"></label>${libBtn('c_image','images')}</div></div>
+        <div class="field"><label>Tipo de medio</label>
+            <select name="c_if_media_mode" onchange="toggleIfMediaMode(this.value)">
+                <option value="image" ${mediaMode === 'image' ? 'selected' : ''}>Imagen</option>
+                <option value="video" ${mediaMode === 'video' ? 'selected' : ''}>Vídeo MP4</option>
+            </select>
+        </div>
+        <div id="ifImageFields" style="display:${mediaMode === 'image' ? '' : 'none'}">
+            <div class="field"><label>Imagen (URL)</label><div class="upload-row"><input name="c_image" value="${esc(c.image || '')}"><label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_image')"></label>${libBtn('c_image','images')}</div></div>
+        </div>
+        <div id="ifVideoFields" style="display:${mediaMode === 'video' ? '' : 'none'}">
+            <div class="field"><label>Vídeo (URL)</label><div class="upload-row"><input name="c_video" value="${esc(c.video || '')}"><label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="video/mp4,video/webm" style="display:none" onchange="uploadVideoFile(this,'c_video')"></label></div></div>
+            <div class="field-row">
+                <div class="field"><label>Autoplay</label>
+                    <select name="c_autoplay">
+                        <option value="true" ${c.autoplay !== false ? 'selected' : ''}>Sí</option>
+                        <option value="false" ${c.autoplay === false ? 'selected' : ''}>No</option>
+                    </select>
+                </div>
+                <div class="field"><label>Loop</label>
+                    <select name="c_loop">
+                        <option value="false" ${c.loop ? '' : 'selected'}>No</option>
+                        <option value="true" ${c.loop ? 'selected' : ''}>Sí</option>
+                    </select>
+                </div>
+            </div>
+        </div>
         <div class="field"><label>Enunciado (opcional)</label><input name="c_statement" value="${esc(c.statement || '')}"></div>
         <div class="field"><label>Respuesta (opcional)</label><input name="c_answer" value="${esc(c.answer || '')}"></div>
         <div class="field"><label>¿Tiene pulsador?</label>
@@ -1194,6 +1221,34 @@ function fieldsImagenFija(c) {
             </select>
         </div>
     `;
+}
+
+function toggleIfMediaMode(mode) {
+    document.getElementById('ifImageFields').style.display = mode === 'image' ? '' : 'none';
+    document.getElementById('ifVideoFields').style.display = mode === 'video' ? '' : 'none';
+    if (mode === 'image') {
+        const vf = document.querySelector('[name="c_video"]');
+        if (vf) vf.value = '';
+    } else {
+        const imf = document.querySelector('[name="c_image"]');
+        if (imf) imf.value = '';
+    }
+}
+
+async function uploadVideoFile(fileInput, targetFieldName) {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    try {
+        const res = await fetch('/api/upload/video', { method: 'POST', body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const field = document.querySelector(`[name="${targetFieldName}"]`);
+        if (field) field.value = data.url;
+        toast('Vídeo subido');
+    } catch (e) { toast('Error subiendo: ' + e.message); }
+    fileInput.value = '';
 }
 
 // ─── Save question: reads form → builds content JSON → POST/PUT ───
@@ -1282,8 +1337,22 @@ function extractContent(type, form) {
             if (!phrase) throw new Error('La frase es obligatoria');
             return { hint: val(form, 'c_hint'), phrase: phrase };
         }
-        case 'imagen_fija':
-            return { image: val(form, 'c_image'), statement: val(form, 'c_statement') || undefined, answer: val(form, 'c_answer') || undefined, buzzer_enabled: val(form, 'c_buzzer_enabled') === 'true' };
+        case 'imagen_fija': {
+            const ifMode = val(form, 'c_if_media_mode');
+            const r = { buzzer_enabled: val(form, 'c_buzzer_enabled') === 'true' };
+            if (ifMode === 'video') {
+                r.video = val(form, 'c_video');
+                if (!r.video) throw new Error('Falta el vídeo');
+                r.autoplay = val(form, 'c_autoplay') === 'true';
+                r.loop = val(form, 'c_loop') === 'true';
+            } else {
+                r.image = val(form, 'c_image');
+                if (!r.image) throw new Error('Falta la imagen');
+            }
+            if (val(form, 'c_statement')) r.statement = val(form, 'c_statement');
+            if (val(form, 'c_answer')) r.answer = val(form, 'c_answer');
+            return r;
+        }
         default: {
             const raw = form.querySelector('[name="raw_json"]');
             return raw ? JSON.parse(raw.value) : {};

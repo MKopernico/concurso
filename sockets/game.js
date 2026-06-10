@@ -316,6 +316,7 @@ function playerView(state) {
         roundTheme: { logo: roundCfg.logo || null, background: roundCfg.background || null },
         rounds: roundsSummary,
         precioWinner,
+        videoState: ds.videoState || null,
     };
 }
 
@@ -1074,6 +1075,17 @@ function attachSocketHandlers(io) {
             ds.imagePuzzle.answerVisible = !ds.imagePuzzle.answerVisible;
             ds.imagePuzzle.answerText = ds.imagePuzzle.answerVisible ? answer : '';
             io.to(roomOf(gameId)).emit('game:image_answer_updated', { visible: ds.imagePuzzle.answerVisible, answer: answer });
+            broadcastDirector(io, gameId, state);
+        });
+
+        // ═══════════════════════ VIDEO CONTROL (imagen_fija) ═══════════════════════
+
+        socket.on('director:video_command', (data) => {
+            const action = data && data.action;
+            if (action !== 'play' && action !== 'pause' && action !== 'restart') return;
+            const ds = state.director;
+            ds.videoState = { action, ts: Date.now() };
+            io.to(roomOf(gameId)).emit('game:video_command', { action });
             broadcastDirector(io, gameId, state);
         });
 

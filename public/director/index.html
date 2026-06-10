@@ -1728,13 +1728,22 @@ function renderQuestionImagenFija() {
     document.getElementById('questionDefaultActions').style.display = 'none';
     document.querySelector('.question-nav').style.display = '';
 
-    // Image preview
-    var imgSrc = c.image || q.media_url || '';
+    // Media preview (image or video)
     var container = document.getElementById('ifImageContainer');
-    if (imgSrc) {
-        container.innerHTML = '<img src="' + esc(imgSrc) + '" style="max-width:100%;max-height:240px;object-fit:contain;border-radius:10px;border:2px solid var(--border);background:#1a1a2e;">';
+    if (c.video) {
+        container.innerHTML = '<video src="' + esc(c.video) + '" muted playsinline style="max-width:100%;max-height:240px;object-fit:contain;border-radius:10px;border:2px solid var(--border);background:#1a1a2e;"></video>' +
+            '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">' +
+            '<button class="btn-success btn-sm" onclick="emit(\'director:video_command\',{action:\'play\'})">&#9654; Play</button>' +
+            '<button class="btn-ghost btn-sm" onclick="emit(\'director:video_command\',{action:\'pause\'})">&#10074;&#10074; Pausa</button>' +
+            '<button class="btn-ghost btn-sm" onclick="emit(\'director:video_command\',{action:\'restart\'})">&#8634; Reiniciar</button>' +
+            '</div>';
     } else {
-        container.innerHTML = '<div style="padding:40px;color:var(--text2);">Sin imagen</div>';
+        var imgSrc = c.image || q.media_url || '';
+        if (imgSrc) {
+            container.innerHTML = '<img src="' + esc(imgSrc) + '" style="max-width:100%;max-height:240px;object-fit:contain;border-radius:10px;border:2px solid var(--border);background:#1a1a2e;">';
+        } else {
+            container.innerHTML = '<div style="padding:40px;color:var(--text2);">Sin imagen</div>';
+        }
     }
 
     // Statement & answer

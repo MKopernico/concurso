@@ -226,6 +226,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 #imagenFijaWrap .if-logo { max-height: 100px; max-width: 300px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 0 10px rgba(0,0,0,.5)); margin-bottom: 10px; }
 #imagenFijaWrap .if-img-zone { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; width: 100%; }
 #imagenFijaWrap .if-img-zone img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; box-shadow: 0 0 30px rgba(0,0,0,.5); }
+#imagenFijaWrap .if-img-zone video { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; box-shadow: 0 0 30px rgba(0,0,0,.5); }
+#imagenFijaWrap .if-video-tap { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.7); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 8px; padding: 10px 24px; font-size: 16px; cursor: pointer; z-index: 5; backdrop-filter: blur(4px); }
 #cancionScreenWrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding: 16px 2% 2% 2%; overflow: hidden; }
 #cancionScreenWrap .cn-logo { max-height: 100px; max-width: 300px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 0 10px rgba(0,0,0,.5)); margin-bottom: 10px; }
 #cancionScreenWrap .cn-img-zone { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; width: 100%; }
@@ -579,6 +581,37 @@ function connect() {
         if (container) RoulettePanel.showPanel(container);
     });
 
+    // Video control (imagen_fija)
+    socket.on('game:video_command', function(d) {
+        var vid = document.getElementById('ifVideo');
+        if (!vid) return;
+        if (d.action === 'play') {
+            if (_ifUserGesture) {
+                vid.play().catch(function() {});
+            } else {
+                var wrap = document.getElementById('imagenFijaWrap');
+                if (wrap && !wrap.querySelector('.if-video-tap')) {
+                    var tapBtn = document.createElement('button');
+                    tapBtn.className = 'if-video-tap';
+                    tapBtn.textContent = '▶ Pulsa para activar sonido';
+                    tapBtn.onclick = function() {
+                        _ifUserGesture = true;
+                        vid.play().catch(function() {});
+                        tapBtn.remove();
+                    };
+                    wrap.appendChild(tapBtn);
+                }
+            }
+        } else if (d.action === 'pause') {
+            vid.pause();
+        } else if (d.action === 'restart') {
+            vid.currentTime = 0;
+            if (_ifUserGesture) {
+                vid.play().catch(function() {});
+            }
+        }
+    });
+
     // Imagen puzzle events
     socket.on('game:image_tiles_updated', function(d) {
         if (!ps) return;
@@ -624,6 +657,19 @@ function onSync(data) {
     renderPreCountdown();
     renderMiniScores();
     renderScoreboardOverlay();
+
+    // Recover video state on reconnect
+    if (data.videoState) {
+        setTimeout(function() {
+            var vid = document.getElementById('ifVideo');
+            if (!vid) return;
+            if (data.videoState.action === 'play') {
+                if (_ifUserGesture) vid.play().catch(function() {});
+            } else if (data.videoState.action === 'pause') {
+                vid.pause();
+            }
+        }, 100);
+    }
 }
 
 // ═══════════════ PHASE RENDERING ═══════════════
@@ -1124,9 +1170,11 @@ function updateImageAnswer(visible, answerText) {
 
 // ═══════════════ IMAGEN FIJA SCREEN ═══════════════
 var _imagenFijaPrevQId = '';
+var _ifUserGesture = false;
+
+document.addEventListener('click', function() { _ifUserGesture = true; }, { once: true });
 
 function renderImagenFijaScreen(c, q) {
-    var imgUrl = c.image || q.media_url || '';
     var wrap = document.getElementById('imagenFijaWrap');
     wrap.style.display = 'flex';
     document.getElementById('qStatement').style.display = 'none';
@@ -1145,9 +1193,37 @@ function renderImagenFijaScreen(c, q) {
     var html = '';
     if (logoSrc) html += '<img class="if-logo" src="' + esc(logoSrc) + '" onerror="this.style.display=\'none\'">';
     html += '<div class="if-img-zone">';
-    if (imgUrl) html += '<img src="' + esc(imgUrl) + '" draggable="false">';
+
+    if (c.video) {
+        var attrs = 'playsinline';
+        if (c.loop) attrs += ' loop';
+        html += '<video id="ifVideo" ' + attrs + ' src="' + esc(c.video) + '"></video>';
+    } else {
+        var imgUrl = c.image || q.media_url || '';
+        if (imgUrl) html += '<img src="' + esc(imgUrl) + '" draggable="false">';
+    }
+
     html += '</div>';
     wrap.innerHTML = html;
+
+    if (c.video) {
+        var vid = document.getElementById('ifVideo');
+        if (vid && c.autoplay) {
+            if (_ifUserGesture) {
+                vid.play().catch(function() {});
+            } else {
+                var tapBtn = document.createElement('button');
+                tapBtn.className = 'if-video-tap';
+                tapBtn.textContent = '▶ Pulsa para activar sonido';
+                tapBtn.onclick = function() {
+                    _ifUserGesture = true;
+                    vid.play().catch(function() {});
+                    tapBtn.remove();
+                };
+                wrap.appendChild(tapBtn);
+            }
+        }
+    }
 }
 
 // ═══════════════ CANCION SCREEN (same pattern as imagen_fija) ═══════════════
