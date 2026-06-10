@@ -222,8 +222,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 #imagenScreenGrid { position: relative; display: grid; gap: 0; }
 #imagenScreenGrid .img-tile { transition: opacity .4s ease; }
 #imagenScreenGrid .img-tile.hidden { opacity: 0; }
-#imagenFijaWrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 80px 2% 2% 2%; overflow: hidden; }
-#imagenFijaWrap img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; box-shadow: 0 0 30px rgba(0,0,0,.5); }
+#imagenFijaWrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding: 16px 2% 2% 2%; overflow: hidden; }
+#imagenFijaWrap .if-logo { max-height: 100px; max-width: 300px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 0 10px rgba(0,0,0,.5)); margin-bottom: 10px; }
+#imagenFijaWrap .if-img-zone { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; width: 100%; }
+#imagenFijaWrap .if-img-zone img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; box-shadow: 0 0 30px rgba(0,0,0,.5); }
 #imagenAnswerOverlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; pointer-events: none; }
 #imagenAnswerOverlay .img-answer-card { width: 65%; max-width: 800px; text-align: center;
     padding: clamp(16px, 2vh, 28px) clamp(20px, 3vw, 40px);
@@ -714,7 +716,7 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija';
         timerStrip.style.display = hideTimer ? 'none' : '';
         timerBig.style.display = hideTimer ? 'none' : '';
-        document.getElementById('roundLogo').style.display = type === 'imagen' ? 'none' : '';
+        document.getElementById('roundLogo').style.display = (type === 'imagen' || type === 'imagen_fija') ? 'none' : '';
         renderQuestion(type, newQuestion, optionsJustRevealed);
     } else if (phase === 'round_end') {
         showPhase('round-end');
@@ -1112,7 +1114,7 @@ function updateImageAnswer(visible, answerText) {
 }
 
 // ═══════════════ IMAGEN FIJA SCREEN ═══════════════
-var _imagenFijaNatural = { qId: '', w: 0, h: 0 };
+var _imagenFijaPrevQId = '';
 
 function renderImagenFijaScreen(c, q) {
     var imgUrl = c.image || q.media_url || '';
@@ -1122,36 +1124,21 @@ function renderImagenFijaScreen(c, q) {
     document.getElementById('qMedia').style.display = 'none';
 
     var qId = q.id || '';
-    if (_imagenFijaNatural.qId === qId && _imagenFijaNatural.w > 0) {
-        _doRenderImagenFija(imgUrl, _imagenFijaNatural.w, _imagenFijaNatural.h);
-        return;
-    }
-    wrap.innerHTML = '';
-    var img = new Image();
-    img.onload = function() {
-        _imagenFijaNatural = { qId: qId, w: img.naturalWidth, h: img.naturalHeight };
-        _doRenderImagenFija(imgUrl, img.naturalWidth, img.naturalHeight);
-    };
-    img.onerror = function() {
-        _imagenFijaNatural = { qId: qId, w: 16, h: 9 };
-        _doRenderImagenFija(imgUrl, 16, 9);
-    };
-    img.src = imgUrl;
-}
+    if (_imagenFijaPrevQId === qId) return;
+    _imagenFijaPrevQId = qId;
 
-function _doRenderImagenFija(imgUrl, imgW, imgH) {
-    var wrap = document.getElementById('imagenFijaWrap');
-    var cs = getComputedStyle(wrap);
-    var containerW = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-    var containerH = wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-    var ratio = imgW / imgH;
-    var fitW, fitH;
-    if (containerW / containerH > ratio) {
-        fitH = containerH; fitW = fitH * ratio;
-    } else {
-        fitW = containerW; fitH = fitW / ratio;
-    }
-    wrap.innerHTML = '<img src="' + esc(imgUrl) + '" style="width:' + Math.floor(fitW) + 'px;height:' + Math.floor(fitH) + 'px;" draggable="false">';
+    var logoSrc = '';
+    var roundTheme = ps.roundTheme || {};
+    var typeTheme = ps.typeTheme || {};
+    var gameTheme = ps.gameTheme || {};
+    logoSrc = roundTheme.logo || typeTheme.logo || gameTheme.logo || '';
+
+    var html = '';
+    if (logoSrc) html += '<img class="if-logo" src="' + esc(logoSrc) + '" onerror="this.style.display=\'none\'">';
+    html += '<div class="if-img-zone">';
+    if (imgUrl) html += '<img src="' + esc(imgUrl) + '" draggable="false">';
+    html += '</div>';
+    wrap.innerHTML = html;
 }
 
 // ═══════════════ RULETA SCREEN (new visual panel) ═══════════════
