@@ -800,19 +800,12 @@ function renderRoundIntro() {
     if (logoSrc) { logo.src = logoSrc; logo.style.display = ''; }
     else { logo.style.display = 'none'; }
 
-    // Background
-    var bg = (ps.roundTheme && ps.roundTheme.background) || (ps.typeTheme && ps.typeTheme.background) || null;
-    if (bg) {
-        var bgLayer = document.getElementById('bgLayer');
-        bgLayer.className = 'bg-layer';
-        bgLayer.style.cssText = '';
-        if (bg.startsWith('#')) { bgLayer.style.background = bg; }
-        else if (bg.startsWith('linear') || bg.startsWith('radial')) {
-            bgLayer.style.background = bg; bgLayer.style.backgroundSize = '300% 300%'; bgLayer.classList.add('bg-gradient-anim');
-        } else if (bg.startsWith('/') || bg.startsWith('http')) {
-            bgLayer.style.backgroundImage = 'url(' + bg + ')'; bgLayer.classList.add('bg-image-cover');
-        }
-    }
+    // Background — resolved centrally
+    var gt = ps.gameTheme || {};
+    var rc = ps.roundTheme || {};
+    var roundType = ps.currentRound ? ps.currentRound.type : null;
+    var resolved = GameShowShared.Theme.resolveBackground(gt, rc, roundType);
+    paintBgLayer(resolved);
 }
 
 // ═══════════════ QUESTION ═══════════════
@@ -1603,6 +1596,24 @@ var GRADIENT_PRESETS = {
 };
 var currentTheme = {};
 
+function paintBgLayer(resolved) {
+    var bgLayer = document.getElementById('bgLayer');
+    bgLayer.className = 'bg-layer';
+    bgLayer.style.cssText = '';
+    if (!resolved || resolved.type === 'none') return;
+    if (resolved.type === 'color') {
+        document.documentElement.style.setProperty('--bg', resolved.value);
+        bgLayer.style.background = resolved.value;
+    } else if (resolved.type === 'gradient') {
+        bgLayer.style.background = resolved.value;
+        bgLayer.style.backgroundSize = '300% 300%';
+        bgLayer.classList.add('bg-gradient-anim');
+    } else if (resolved.type === 'image') {
+        bgLayer.style.backgroundImage = 'url(' + resolved.value + ')';
+        bgLayer.classList.add('bg-image-cover');
+    }
+}
+
 function applyTheme(theme) {
     if (!theme || JSON.stringify(theme) === JSON.stringify(currentTheme)) return;
     currentTheme = theme;
@@ -1619,24 +1630,8 @@ function applyTheme(theme) {
         root.style.setProperty('--glow-gold', '0 0 20px rgba('+r2+','+g2+','+b2+',.4), 0 0 60px rgba('+r2+','+g2+','+b2+',.15)');
     }
 
-    var bgLayer = document.getElementById('bgLayer');
-    bgLayer.className = 'bg-layer';
-    bgLayer.style.cssText = '';
-
-    if (theme.backgroundType === 'color' && theme.backgroundColor) {
-        root.style.setProperty('--bg', theme.backgroundColor);
-        bgLayer.style.background = theme.backgroundColor;
-    } else if (theme.backgroundType === 'gradient') {
-        var grad = GRADIENT_PRESETS[theme.backgroundGradient] || theme.backgroundGradient || '';
-        if (grad) {
-            bgLayer.style.background = grad;
-            bgLayer.style.backgroundSize = '300% 300%';
-            bgLayer.classList.add('bg-gradient-anim');
-        }
-    } else if (theme.backgroundType === 'image' && theme.backgroundImage) {
-        bgLayer.style.backgroundImage = 'url(' + theme.backgroundImage + ')';
-        bgLayer.classList.add('bg-image-cover');
-    }
+    var resolved = GameShowShared.Theme.resolveBackground(theme, {}, null);
+    paintBgLayer(resolved);
 
     var logo = document.getElementById('gameLogo');
     if (theme.logo) { logo.src = theme.logo; logo.style.display = ''; }
@@ -1650,18 +1645,11 @@ function applyRoundTheme(roundTheme) {
     if (roundTheme && roundTheme.logo) { logo.src = roundTheme.logo; logo.style.display = ''; }
     else { logo.style.display = 'none'; }
 
-    if (roundTheme && roundTheme.background) {
-        var bg = roundTheme.background;
-        var bgLayer = document.getElementById('bgLayer');
-        bgLayer.className = 'bg-layer';
-        bgLayer.style.cssText = '';
-        if (bg.startsWith('#')) { bgLayer.style.background = bg; }
-        else if (bg.startsWith('linear') || bg.startsWith('radial')) {
-            bgLayer.style.background = bg; bgLayer.style.backgroundSize = '300% 300%'; bgLayer.classList.add('bg-gradient-anim');
-        } else if (bg.startsWith('/') || bg.startsWith('http')) {
-            bgLayer.style.backgroundImage = 'url(' + bg + ')'; bgLayer.classList.add('bg-image-cover');
-        }
-    }
+    var gt = ps.gameTheme || {};
+    var rc = roundTheme || {};
+    var roundType = ps.currentRound ? ps.currentRound.type : null;
+    var resolved = GameShowShared.Theme.resolveBackground(gt, rc, roundType);
+    paintBgLayer(resolved);
 }
 
 // ═══════════════ PARTICLES ═══════════════
@@ -1757,17 +1745,10 @@ function getScreenCategories() {
     return cats;
 }
 
-// Apply a menu-level background image on top of the base game background
-function applyMenuBackground(imgUrl) {
-    var bgLayer = document.getElementById('bgLayer');
-    if (!bgLayer) return;
-    console.log('[DEBUG screen] applyMenuBackground:', imgUrl);
-    if (imgUrl) {
-        bgLayer.className = 'bg-layer bg-image-cover';
-        bgLayer.style.cssText = '';
-        bgLayer.style.backgroundImage = 'url("' + imgUrl + '")';
-    }
-    // If no imgUrl, the base game theme background (already applied) stays
+function applyMenuResolvedBackground(menuBg) {
+    var gt = ps.gameTheme || {};
+    var resolved = GameShowShared.Theme.resolveMenuBackground(gt, menuBg);
+    paintBgLayer(resolved);
 }
 
 var _screenMenuLevel = null; // track for transitions
@@ -1783,9 +1764,8 @@ function renderScreenHomeMenu() {
     document.querySelector('.lobby-sub').style.display = 'none';
     document.getElementById('gameLogo').style.display = 'none';
 
-    // Apply home background: homeBackground → fall through to game background (already applied)
-    console.log('[DEBUG screen] renderScreenHomeMenu — gt.homeBackground:', gt.homeBackground, 'gt.types:', JSON.stringify(gt.types));
-    if (gt.homeBackground) applyMenuBackground(gt.homeBackground);
+    // Apply home background via centralized resolver
+    applyMenuResolvedBackground(gt.homeBackground);
 
     var container = document.getElementById('screenMenuContainer');
     if (!container) {
@@ -1830,10 +1810,8 @@ function renderScreenCategoryMenu() {
     document.querySelector('.lobby-sub').style.display = 'none';
     document.getElementById('gameLogo').style.display = 'none';
 
-    // Apply category background: type bg → homeBackground → game background (already applied)
-    console.log('[DEBUG screen] renderScreenCategoryMenu — category:', category, 'typeBg:', typeBg, 'homeBackground:', gt.homeBackground);
-    if (typeBg) applyMenuBackground(typeBg);
-    else if (gt.homeBackground) applyMenuBackground(gt.homeBackground);
+    // Apply category background via centralized resolver
+    applyMenuResolvedBackground(typeBg || gt.homeBackground);
 
     var container = document.getElementById('screenMenuContainer');
     if (!container) {

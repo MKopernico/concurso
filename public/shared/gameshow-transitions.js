@@ -140,25 +140,94 @@ function clearAnimations(container, selector) {
 
 // ═══════════════ THEME RESOLVER ═══════════════
 
+var _GRADIENT_PRESETS_SHARED = {
+    nightSky:  'linear-gradient(135deg, #1a1a3e, #12123a, #0a0a2a, #1a1a3e)',
+    deepOcean: 'linear-gradient(135deg, #0c2340, #0a1628, #0d2137, #0c2340)',
+    sunset:    'linear-gradient(135deg, #1a0a2e, #2d1b3d, #4a1942, #2d1b3d, #1a0a2e)',
+    aurora:    'linear-gradient(135deg, #0a1628, #0d2137, #1a3a2a, #0d2137, #0a1628)',
+    neon:      'linear-gradient(135deg, #0a0020, #1a0040, #300060, #1a0040, #0a0020)',
+    forest:    'linear-gradient(135deg, #0a1a0a, #0d2a0d, #051505, #0a1a0a)',
+    fire:      'linear-gradient(135deg, #2a0a00, #3a1500, #1a0500, #2a0a00)',
+};
+
+function _isValidGlobalBg(gb) {
+    if (!gb || !gb.type || gb.type === 'none') return false;
+    if (gb.type === 'color' && gb.color) return true;
+    if (gb.type === 'gradient' && gb.gradient) return true;
+    if (gb.type === 'image' && gb.image) return true;
+    return false;
+}
+
+function _structuredToResult(gb, source) {
+    if (gb.type === 'gradient') {
+        var grad = _GRADIENT_PRESETS_SHARED[gb.gradient] || gb.gradient;
+        return { type: 'gradient', value: grad, source: source };
+    }
+    return { type: gb.type, value: gb[gb.type], source: source };
+}
+
+function _simpleBgToResult(bg, source) {
+    if (!bg) return null;
+    if (bg.startsWith('/') || bg.startsWith('http')) return { type: 'image', value: bg, source: source };
+    if (bg.includes('gradient')) return { type: 'gradient', value: bg, source: source };
+    return { type: 'color', value: bg, source: source };
+}
+
 /**
- * Resolve theme inheritance: round → type → game → defaults.
- * @param {Object} gameTheme  - game-level theme
- * @param {Object} roundConfig - round config (parsed JSON)
- * @param {string} roundType  - round type name
- * @returns {Object} resolved theme { background, logo, ipadBackground, waitingImage }
+ * Resolve effective background with global-override semantics.
+ * When globalBackgroundEnabled is true AND globalBackground has valid content,
+ * the global wins over everything (round, type, game base).
+ * Otherwise: roundConfig.background → typeTheme.background → game base → default.
  */
-function resolveTheme(gameTheme, roundConfig, roundType) {
+function resolveEffectiveBackground(gameTheme, roundConfig, roundType) {
     var gt = gameTheme || {};
     var rc = roundConfig || {};
     var typeTheme = (gt.types && gt.types[roundType]) || {};
 
-    return {
-        background: rc.background || typeTheme.background || null,
-        logo: rc.logo || typeTheme.logo || gt.logo || null,
-        waitingImage: gt.waitingImage || null,
-        ipadBackground: gt.ipadBackground || 'black', // 'black' | 'color' | 'round'
-        ipadBackgroundColor: gt.ipadBackgroundColor || null,
-    };
+    // Global override: if enabled AND valid, it wins over everything
+    if (gt.globalBackgroundEnabled && _isValidGlobalBg(gt.globalBackground)) {
+        return _structuredToResult(gt.globalBackground, 'global');
+    }
+
+    // Normal cascade: round → type → game base → default
+    var fromRound = _simpleBgToResult(rc.background, 'round');
+    if (fromRound) return fromRound;
+
+    var fromType = _simpleBgToResult(typeTheme.background, 'type');
+    if (fromType) return fromType;
+
+    // Game base structured background
+    if (gt.backgroundType && gt.backgroundType !== 'none') {
+        var gameBg = { type: gt.backgroundType, color: gt.backgroundColor, gradient: gt.backgroundGradient, image: gt.backgroundImage };
+        if (_isValidGlobalBg(gameBg)) return _structuredToResult(gameBg, 'game');
+    }
+
+    return { type: 'none', value: null, source: 'default' };
+}
+
+/**
+ * Resolve effective background for menu screens (home/category).
+ * Global override still wins. Otherwise: specific bg → homeBackground → game base → default.
+ */
+function resolveMenuBackground(gameTheme, menuBg) {
+    var gt = gameTheme || {};
+
+    if (gt.globalBackgroundEnabled && _isValidGlobalBg(gt.globalBackground)) {
+        return _structuredToResult(gt.globalBackground, 'global');
+    }
+
+    var fromMenu = _simpleBgToResult(menuBg, 'menu');
+    if (fromMenu) return fromMenu;
+
+    var fromHome = _simpleBgToResult(gt.homeBackground, 'home');
+    if (fromHome) return fromHome;
+
+    if (gt.backgroundType && gt.backgroundType !== 'none') {
+        var gameBg = { type: gt.backgroundType, color: gt.backgroundColor, gradient: gt.backgroundGradient, image: gt.backgroundImage };
+        if (_isValidGlobalBg(gameBg)) return _structuredToResult(gameBg, 'game');
+    }
+
+    return { type: 'none', value: null, source: 'default' };
 }
 
 
@@ -228,7 +297,9 @@ window.GameShowShared = {
         clearAnimations: clearAnimations,
     },
     Theme: {
-        resolve: resolveTheme,
+        resolveBackground: resolveEffectiveBackground,
+        resolveMenuBackground: resolveMenuBackground,
+        GRADIENT_PRESETS: _GRADIENT_PRESETS_SHARED,
     },
     Scoreboard: {
         renderHTML: renderScoreboardHTML,

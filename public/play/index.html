@@ -718,75 +718,39 @@ function applyPlayerTheme(theme) {
     if (theme.secondaryColor) root.style.setProperty('--gold', theme.secondaryColor);
 }
 
-var PLAY_GRADIENT_PRESETS = {
-    nightSky:  'linear-gradient(135deg, #1a1a3e, #12123a, #0a0a2a, #1a1a3e)',
-    deepOcean: 'linear-gradient(135deg, #0c2340, #0a1628, #0d2137, #0c2340)',
-    sunset:    'linear-gradient(135deg, #1a0a2e, #2d1b3d, #4a1942, #2d1b3d, #1a0a2e)',
-    aurora:    'linear-gradient(135deg, #0a1628, #0d2137, #1a3a2a, #0d2137, #0a1628)',
-    neon:      'linear-gradient(135deg, #0a0020, #1a0040, #300060, #1a0040, #0a0020)',
-    forest:    'linear-gradient(135deg, #0a1a0a, #0d2a0d, #051505, #0a1a0a)',
-    fire:      'linear-gradient(135deg, #2a0a00, #3a1500, #1a0500, #2a0a00)',
-};
-
-function applyPlayerRoundTheme(ps) {
+function paintPlayBgLayer(resolved) {
     var el = document.getElementById('playBgLayer');
     if (!el) return;
-    // Reset
     el.className = 'play-bg-layer';
     el.style.background = '';
     el.style.backgroundImage = '';
-
-    var bgApplied = false;
-
-    // 1) Try roundTheme.background (simple string: color, gradient, or image path)
-    var rt = ps.roundTheme || {};
-    if (rt.background) {
-        bgApplied = applySimpleBg(el, rt.background);
+    if (!resolved || resolved.type === 'none') return;
+    if (resolved.type === 'color') {
+        el.style.background = resolved.value;
+    } else if (resolved.type === 'gradient') {
+        el.style.background = resolved.value;
+        el.style.backgroundSize = '300% 300%';
+        el.classList.add('bg-gradient-anim');
+    } else if (resolved.type === 'image') {
+        el.style.backgroundImage = 'url("' + resolved.value + '")';
+        el.classList.add('bg-image-cover');
     }
+}
 
-    // 2) Try gameTheme structured background (backgroundType + backgroundImage/Color/Gradient)
-    if (!bgApplied) {
-        var gt = ps.gameTheme || {};
-        if (gt.backgroundType === 'image' && gt.backgroundImage) {
-            el.style.backgroundImage = 'url("' + gt.backgroundImage + '")';
-            el.classList.add('bg-image-cover');
-            bgApplied = true;
-        } else if (gt.backgroundType === 'gradient' && gt.backgroundGradient) {
-            var grad = PLAY_GRADIENT_PRESETS[gt.backgroundGradient] || gt.backgroundGradient;
-            if (grad) {
-                el.style.background = grad;
-                el.style.backgroundSize = '300% 300%';
-                el.classList.add('bg-gradient-anim');
-                bgApplied = true;
-            }
-        } else if (gt.backgroundType === 'color' && gt.backgroundColor) {
-            el.style.background = gt.backgroundColor;
-            bgApplied = true;
-        }
-    }
+function applyPlayerRoundTheme(ps) {
+    var gt = ps.gameTheme || {};
+    var rc = ps.roundTheme || {};
+    var roundType = ps.currentRound ? ps.currentRound.type : null;
+    var resolved = GameShowShared.Theme.resolveBackground(gt, rc, roundType);
+    paintPlayBgLayer(resolved);
 
     // Round logo in top bar: roundTheme.logo → typeTheme.logo → gameTheme.logo
-    var logo = (rt.logo) || (ps.typeTheme && ps.typeTheme.logo) || (ps.gameTheme && ps.gameTheme.logo) || null;
+    var logo = (rc.logo) || (ps.typeTheme && ps.typeTheme.logo) || (gt.logo) || null;
     var logoEl = document.getElementById('playerRoundLogo');
     if (logoEl) {
         if (logo) { logoEl.src = logo; logoEl.style.display = ''; }
         else { logoEl.style.display = 'none'; }
     }
-}
-
-function applySimpleBg(el, bg) {
-    if (!bg) return false;
-    if (bg.startsWith('/') || bg.startsWith('http')) {
-        el.style.backgroundImage = 'url("' + bg + '")';
-        el.classList.add('bg-image-cover');
-    } else if (bg.includes('gradient')) {
-        el.style.background = bg;
-        el.style.backgroundSize = '300% 300%';
-        el.classList.add('bg-gradient-anim');
-    } else {
-        el.style.background = bg;
-    }
-    return true;
 }
 
 var _lastPreCount = 0;
@@ -1293,13 +1257,10 @@ var PLAY_TYPE_LABELS = {
 
 var _playMenuLevel = null;
 
-function applyPlayMenuBackground(imgUrl) {
-    var el = document.getElementById('playBgLayer');
-    if (!el || !imgUrl) return;
-    console.log('[DEBUG play] applyPlayMenuBackground:', imgUrl);
-    el.className = 'play-bg-layer bg-image-cover';
-    el.style.cssText = '';
-    el.style.backgroundImage = 'url("' + imgUrl + '")';
+function applyPlayMenuResolvedBackground(menuBg) {
+    var gt = (S.ps && S.ps.gameTheme) || {};
+    var resolved = GameShowShared.Theme.resolveMenuBackground(gt, menuBg);
+    paintPlayBgLayer(resolved);
 }
 
 function renderPlayMenu() {
@@ -1323,9 +1284,8 @@ function renderPlayMenu() {
     var doFade = _playMenuLevel !== null && _playMenuLevel !== ps.menuLevel;
 
     if (ps.menuLevel === 'home') {
-        // Apply home background
-        console.log('[DEBUG play] renderPlayMenu home — gt.homeBackground:', gt.homeBackground, 'gt.types:', JSON.stringify(gt.types));
-        if (gt.homeBackground) applyPlayMenuBackground(gt.homeBackground);
+        // Apply home background via centralized resolver
+        applyPlayMenuResolvedBackground(gt.homeBackground);
         _playMenuLevel = 'home';
 
         html = '<div class="play-menu' + (doFade ? ' fade-out' : '') + '">';
@@ -1348,10 +1308,8 @@ function renderPlayMenu() {
         var category = ps.selectedCategory;
         var typeLogo = (gt.types && gt.types[category] && gt.types[category].logo) || null;
         var typeBg = (gt.types && gt.types[category] && gt.types[category].background) || null;
-        // Apply category background: type bg → homeBackground → game bg (already applied)
-        console.log('[DEBUG play] renderPlayMenu category —', category, 'typeBg:', typeBg, 'homeBackground:', gt.homeBackground);
-        if (typeBg) applyPlayMenuBackground(typeBg);
-        else if (gt.homeBackground) applyPlayMenuBackground(gt.homeBackground);
+        // Apply category background via centralized resolver
+        applyPlayMenuResolvedBackground(typeBg || gt.homeBackground);
         _playMenuLevel = 'category';
 
         html = '<div class="play-menu' + (doFade ? ' fade-out' : '') + '">';
