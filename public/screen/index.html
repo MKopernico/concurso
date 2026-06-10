@@ -222,6 +222,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 #imagenScreenGrid { position: relative; display: grid; gap: 0; }
 #imagenScreenGrid .img-tile { transition: opacity .4s ease; }
 #imagenScreenGrid .img-tile.hidden { opacity: 0; }
+#imagenFijaWrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 80px 2% 2% 2%; overflow: hidden; }
+#imagenFijaWrap img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; box-shadow: 0 0 30px rgba(0,0,0,.5); }
 #imagenAnswerOverlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; pointer-events: none; }
 #imagenAnswerOverlay .img-answer-card { width: 65%; max-width: 800px; text-align: center;
     padding: clamp(16px, 2vh, 28px) clamp(20px, 3vw, 40px);
@@ -421,6 +423,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
             <div id="imagenScreenGrid"></div>
             <div id="imagenAnswerOverlay"><div class="img-answer-card" id="imagenAnswerCard"></div></div>
         </div>
+        <div id="imagenFijaWrap" style="display:none"></div>
         <div class="letter-panel" id="letterPanel" style="display:none"></div>
         <div class="mini-scores" id="miniScores"></div>
     </div>
@@ -708,7 +711,7 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         renderTeamResultsOverlay();
     } else if (phase === 'question') {
         showPhase('question');
-        var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen';
+        var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija';
         timerStrip.style.display = hideTimer ? 'none' : '';
         timerBig.style.display = hideTimer ? 'none' : '';
         document.getElementById('roundLogo').style.display = type === 'imagen' ? 'none' : '';
@@ -784,6 +787,7 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     document.getElementById('priceAnswers').style.display = 'none';
     document.getElementById('boomItems').style.display = 'none';
     document.getElementById('imagenScreenWrap').style.display = 'none';
+    document.getElementById('imagenFijaWrap').style.display = 'none';
     document.getElementById('letterPanel').style.display = 'none';
     document.getElementById('pulsadorScreen').style.display = 'none';
     document.getElementById('ruletaScreenPanel').style.display = 'none';
@@ -800,9 +804,15 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
         renderRuletaScreen(c, q, newQuestion);
     } else if (type === 'pulsador') {
         renderPulsadorScreen();
-    } else if (type === 'cancion' || type === 'imagen_fija') {
+    } else if (type === 'cancion') {
         renderBuzzerQueue();
         document.getElementById('buzzerQueue').style.display = 'flex';
+    } else if (type === 'imagen_fija') {
+        renderImagenFijaScreen(c, q);
+        if (ps.pulsadorActivo || (ps.colaPulsador && ps.colaPulsador.length)) {
+            renderBuzzerQueue();
+            document.getElementById('buzzerQueue').style.display = 'flex';
+        }
     } else if (type === 'precio') {
         renderPrecioScreen(c, q, newQuestion);
     } else if (type === 'boom') {
@@ -1101,6 +1111,49 @@ function updateImageAnswer(visible, answerText) {
     }
 }
 
+// ═══════════════ IMAGEN FIJA SCREEN ═══════════════
+var _imagenFijaNatural = { qId: '', w: 0, h: 0 };
+
+function renderImagenFijaScreen(c, q) {
+    var imgUrl = c.image || q.media_url || '';
+    var wrap = document.getElementById('imagenFijaWrap');
+    wrap.style.display = 'flex';
+    document.getElementById('qStatement').style.display = 'none';
+    document.getElementById('qMedia').style.display = 'none';
+
+    var qId = q.id || '';
+    if (_imagenFijaNatural.qId === qId && _imagenFijaNatural.w > 0) {
+        _doRenderImagenFija(imgUrl, _imagenFijaNatural.w, _imagenFijaNatural.h);
+        return;
+    }
+    wrap.innerHTML = '';
+    var img = new Image();
+    img.onload = function() {
+        _imagenFijaNatural = { qId: qId, w: img.naturalWidth, h: img.naturalHeight };
+        _doRenderImagenFija(imgUrl, img.naturalWidth, img.naturalHeight);
+    };
+    img.onerror = function() {
+        _imagenFijaNatural = { qId: qId, w: 16, h: 9 };
+        _doRenderImagenFija(imgUrl, 16, 9);
+    };
+    img.src = imgUrl;
+}
+
+function _doRenderImagenFija(imgUrl, imgW, imgH) {
+    var wrap = document.getElementById('imagenFijaWrap');
+    var cs = getComputedStyle(wrap);
+    var containerW = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var containerH = wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    var ratio = imgW / imgH;
+    var fitW, fitH;
+    if (containerW / containerH > ratio) {
+        fitH = containerH; fitW = fitH * ratio;
+    } else {
+        fitW = containerW; fitH = fitW / ratio;
+    }
+    wrap.innerHTML = '<img src="' + esc(imgUrl) + '" style="width:' + Math.floor(fitW) + 'px;height:' + Math.floor(fitH) + 'px;" draggable="false">';
+}
+
 // ═══════════════ RULETA SCREEN (new visual panel) ═══════════════
 function renderRuletaScreen(c, q, newQuestion) {
     // Hide standard question elements
@@ -1292,9 +1345,10 @@ function renderRevealedInPlace() {
         stmtEl.style.boxShadow = '0 0 20px rgba(34,197,94,.3)';
         stmtEl.style.backdropFilter = 'blur(6px)';
         stmtEl.style.animation = 'reveal-pop .6s cubic-bezier(.34,1.56,.64,1)';
-        // Hide pulsador queue
+        // Hide pulsador queue and imagen fija
         document.getElementById('pulsadorScreen').style.display = 'none';
         document.getElementById('buzzerQueue').style.display = 'none';
+        document.getElementById('imagenFijaWrap').style.display = 'none';
     } else {
         // For other types, fall back to legacy revealed phase
         renderRevealed();
