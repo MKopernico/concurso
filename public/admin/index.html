@@ -140,6 +140,21 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .audio-item .audio-size { font-size: 11px; color: var(--text2); }
 .audio-item .media-delete { background: transparent; border: 1px solid var(--border); color: var(--danger); font-size: 12px; padding: 4px 8px; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
 
+/* Playlist editor */
+.playlist-section { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px; }
+.playlist-section h3 { font-size: 14px; margin-bottom: 12px; color: var(--text); }
+.playlist-list { display: flex; flex-direction: column; gap: 6px; min-height: 40px; }
+.playlist-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 10px; cursor: grab; transition: border .15s, background .15s; }
+.playlist-item:active { cursor: grabbing; }
+.playlist-item.drag-over { border-color: var(--accent); background: rgba(0,212,255,.05); }
+.playlist-item .pl-handle { color: var(--text2); font-size: 16px; flex-shrink: 0; user-select: none; }
+.playlist-item .pl-info { flex: 1; min-width: 0; }
+.playlist-item .pl-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.playlist-item audio { height: 28px; flex-shrink: 0; max-width: 200px; }
+.playlist-item .pl-remove { background: transparent; border: 1px solid var(--border); color: var(--danger); font-size: 11px; padding: 3px 8px; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
+.playlist-empty { color: var(--text2); font-size: 13px; text-align: center; padding: 16px; }
+.playlist-actions { display: flex; gap: 8px; margin-top: 10px; }
+
 /* Media picker modal */
 .picker-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 300; justify-content: center; align-items: flex-start; padding: 40px 16px; overflow-y: auto; }
 .picker-overlay.active { display: flex; }
@@ -215,6 +230,18 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
             </div>
         </div>
         <div id="media-grid"></div>
+        <div id="playlist-editor" style="display:none">
+            <div class="playlist-section">
+                <h3>&#127925; Playlist por defecto (global)</h3>
+                <div class="playlist-list" id="playlist-list">
+                    <div class="playlist-empty">Sin pistas. Añade audio desde la biblioteca de arriba.</div>
+                </div>
+                <div class="playlist-actions">
+                    <button class="btn-primary btn-sm" id="btnSavePlaylist" onclick="savePlaylist()">Guardar playlist</button>
+                    <span id="playlistStatus" style="font-size:12px;color:var(--text2);align-self:center;"></span>
+                </div>
+            </div>
+        </div>
     </div>
 </main>
 
@@ -1418,7 +1445,9 @@ function showMediaLibrary() {
     currentRound = null;
     showScreen('screen-media');
     updateBreadcrumb();
+    document.getElementById('playlist-editor').style.display = mediaType === 'audio' ? '' : 'none';
     loadMediaFiles();
+    if (mediaType === 'audio') loadPlaylist();
 }
 
 function switchMediaType(type) {
@@ -1426,7 +1455,9 @@ function switchMediaType(type) {
     document.querySelectorAll('#media-type-tabs .filter-tab').forEach(b => b.classList.toggle('active', b.dataset.val === type));
     const input = document.getElementById('mediaUploadInput');
     input.accept = type === 'images' ? 'image/*' : 'audio/*';
+    document.getElementById('playlist-editor').style.display = type === 'audio' ? '' : 'none';
     loadMediaFiles();
+    if (type === 'audio') loadPlaylist();
 }
 
 async function loadMediaFiles() {
@@ -1462,6 +1493,7 @@ function renderMediaFiles(el) {
                     <div class="audio-name">${esc(f.name)}</div>
                     <div class="audio-size">${formatSize(f.size)}</div>
                 </div>
+                <button class="btn-ghost btn-sm" onclick="event.stopPropagation();addToPlaylist('${esc(f.url)}')" title="Añadir a playlist" style="flex-shrink:0;font-size:11px;">+ Playlist</button>
                 <button class="media-delete" onclick="event.stopPropagation();deleteMedia('${mediaType}','${esc(f.name)}')" title="Eliminar">&#128465;</button>
             </div>`
         ).join('') + '</div>';
@@ -1483,6 +1515,15 @@ async function deleteMedia(type, filename) {
     try {
         await api(`/media/${type}/${filename}`, { method: 'DELETE' });
         toast('Archivo eliminado');
+        if (type === 'audio') {
+            const url = `/uploads/audio/${filename}`;
+            const before = _playlistUrls.length;
+            _playlistUrls = _playlistUrls.filter(u => u !== url);
+            if (_playlistUrls.length !== before) {
+                await api('/audio/default-playlist', { method: 'PUT', body: { playlist: _playlistUrls } });
+                renderPlaylist();
+            }
+        }
         loadMediaFiles();
     } catch (e) { toast('Error: ' + e.message); }
 }
@@ -1625,6 +1666,84 @@ async function doImportExcel() {
         closeModal('modal-import-overlay');
         await loadGame(currentGame.id);
     } catch (e) { toast('Error: ' + e.message); }
+}
+
+// ─────────────────── PLAYLIST EDITOR ───────────────────
+
+let _playlistUrls = [];
+let _plDragIdx = -1;
+
+async function loadPlaylist() {
+    try {
+        const data = await api('/audio/default-playlist');
+        _playlistUrls = data.playlist || [];
+        // Auto-sanitize: remove URLs not in current library
+        const libUrls = new Set(mediaFiles.map(f => f.url));
+        const cleaned = _playlistUrls.filter(u => libUrls.has(u));
+        if (cleaned.length !== _playlistUrls.length) {
+            _playlistUrls = cleaned;
+            await api('/audio/default-playlist', { method: 'PUT', body: { playlist: _playlistUrls } });
+        }
+        renderPlaylist();
+    } catch (e) { console.error('loadPlaylist error:', e); }
+}
+
+function renderPlaylist() {
+    const el = document.getElementById('playlist-list');
+    if (!_playlistUrls.length) {
+        el.innerHTML = '<div class="playlist-empty">Sin pistas. Añade audio desde la biblioteca de arriba.</div>';
+        return;
+    }
+    el.innerHTML = _playlistUrls.map((url, i) => {
+        const name = decodeURIComponent(url.split('/').pop());
+        return `<div class="playlist-item" draggable="true" data-idx="${i}"
+                     ondragstart="plDragStart(event,${i})" ondragover="plDragOver(event)" ondragenter="plDragEnter(event)" ondragleave="plDragLeave(event)" ondrop="plDrop(event,${i})" ondragend="plDragEnd()">
+                    <span class="pl-handle">&#9776;</span>
+                    <div class="pl-info"><div class="pl-name">${esc(name)}</div></div>
+                    <audio controls preload="none" src="${esc(url)}"></audio>
+                    <button class="pl-remove" onclick="removeFromPlaylist(${i})">Quitar</button>
+                </div>`;
+    }).join('');
+    document.getElementById('playlistStatus').textContent = '';
+}
+
+function addToPlaylist(url) {
+    if (_playlistUrls.indexOf(url) >= 0) { toast('Ya está en la playlist'); return; }
+    _playlistUrls.push(url);
+    renderPlaylist();
+    document.getElementById('playlistStatus').textContent = 'Sin guardar';
+    toast('Añadida a playlist (pulsa Guardar)');
+}
+
+function removeFromPlaylist(idx) {
+    _playlistUrls.splice(idx, 1);
+    renderPlaylist();
+    document.getElementById('playlistStatus').textContent = 'Sin guardar';
+}
+
+async function savePlaylist() {
+    try {
+        await api('/audio/default-playlist', { method: 'PUT', body: { playlist: _playlistUrls } });
+        document.getElementById('playlistStatus').textContent = 'Guardada';
+        toast('Playlist guardada');
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+// Drag & drop reorder
+function plDragStart(e, idx) { _plDragIdx = idx; e.dataTransfer.effectAllowed = 'move'; }
+function plDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+function plDragEnter(e) { var item = e.target.closest('.playlist-item'); if (item) item.classList.add('drag-over'); }
+function plDragLeave(e) { var item = e.target.closest('.playlist-item'); if (item) item.classList.remove('drag-over'); }
+function plDragEnd() { document.querySelectorAll('.playlist-item.drag-over').forEach(el => el.classList.remove('drag-over')); }
+function plDrop(e, dropIdx) {
+    e.preventDefault();
+    plDragEnd();
+    if (_plDragIdx < 0 || _plDragIdx === dropIdx) return;
+    const moved = _playlistUrls.splice(_plDragIdx, 1)[0];
+    _playlistUrls.splice(dropIdx, 0, moved);
+    _plDragIdx = -1;
+    renderPlaylist();
+    document.getElementById('playlistStatus').textContent = 'Sin guardar';
 }
 
 // ─── Init ───

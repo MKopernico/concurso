@@ -97,6 +97,35 @@ router.delete('/media/:type/:filename', (req, res) => {
     res.json({ ok: true });
 });
 
+// ───────────── Global default playlist (JSON on persistent disk) ─────────────
+
+const CONFIG_DIR = path.join(UPLOADS_DIR, '..', 'config');
+if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
+const PLAYLIST_PATH = path.join(CONFIG_DIR, 'default-playlist.json');
+
+function readPlaylist() {
+    if (!fs.existsSync(PLAYLIST_PATH)) return [];
+    try { return JSON.parse(fs.readFileSync(PLAYLIST_PATH, 'utf8')).playlist || []; }
+    catch { return []; }
+}
+
+function writePlaylist(list) {
+    fs.writeFileSync(PLAYLIST_PATH, JSON.stringify({ playlist: list }), 'utf8');
+}
+
+router.get('/audio/default-playlist', (req, res) => {
+    res.json({ playlist: readPlaylist() });
+});
+
+router.put('/audio/default-playlist', express.json(), (req, res) => {
+    const { playlist } = req.body || {};
+    if (!Array.isArray(playlist) || !playlist.every(u => typeof u === 'string')) {
+        return res.status(400).json({ error: 'playlist debe ser un array de strings' });
+    }
+    writePlaylist(playlist);
+    res.json({ playlist });
+});
+
 // ───────────── Template download ─────────────
 
 router.get('/templates/importacion', (req, res) => {
