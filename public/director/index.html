@@ -234,26 +234,6 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .rlc-kb-btn.vowel { border-color: var(--gold); color: var(--gold); }
 
 /* ── Control strips (full-width above phases) ── */
-.control-strips { flex-shrink: 0; }
-.control-strip { border-bottom: 1px solid var(--border); background: var(--surface); }
-.strip-header { display: flex; align-items: center; gap: 8px; padding: 6px 16px; min-height: 40px; }
-.strip-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; flex-shrink: 0; padding: 4px 0; }
-.strip-toggle:hover .strip-title { color: var(--text); }
-.strip-chevron { font-size: 10px; color: var(--text2); transition: transform .2s; width: 14px; text-align: center; }
-.control-strip.open .strip-chevron { transform: rotate(90deg); }
-.strip-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); flex-shrink: 0; }
-.strip-inline { display: flex; align-items: center; gap: 6px; flex: 1; flex-wrap: wrap; }
-.control-strip.open .strip-inline { display: none; }
-.strip-body { display: none; padding: 4px 16px 12px; }
-.control-strip.open .strip-body { display: block; }
-.strip-pulsador-big { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
-.strip-btn-lg { padding: 12px 20px !important; font-size: 14px !important; border-radius: 8px !important; }
-.strip-queue-area { display: flex; gap: 16px; }
-.strip-queue-area .pulsador-queue-list { flex: 1; min-height: 50px; max-height: 180px; }
-.strip-pulsador-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; flex-wrap: wrap; }
-.strip-keyboard { display: flex; gap: 8px; padding: 4px 16px 8px; align-items: flex-start; flex-wrap: wrap; max-width: 100%; overflow: visible; box-sizing: border-box; }
-.strip-keyboard .ruleta-compact { flex: 1; }
-.strip-keyboard .rl-solve-btn { flex-shrink: 0; }
 
 /* (old rp-teams removed — replaced by bottom bar) */
 
@@ -467,88 +447,6 @@ button:disabled { opacity: .4; cursor: not-allowed; }
     <!-- Main content -->
     <div class="main">
         <!-- Control strips -->
-        <div class="control-strips" id="controlStrips">
-            <!-- PULSADOR strip -->
-            <div class="control-strip" id="secPulsador">
-                <div class="strip-header">
-                    <div class="strip-toggle" onclick="toggleSection('secPulsador')">
-                        <span class="strip-chevron">&#9654;</span>
-                        <span class="strip-title">&#128308; Pulsador</span>
-                    </div>
-                    <div class="strip-inline">
-                        <button class="btn-success btn-sm buzzer-open-btn" onclick="emit('director:open_buzzer')">Abrir</button>
-                        <button class="btn-danger btn-sm buzzer-close-btn" onclick="emit('director:close_buzzer')">Cerrar</button>
-                        <button class="btn-ghost btn-sm" onclick="emit('director:reset_buzzer')">Reset</button>
-                    </div>
-                    <div class="buzzer-indicator off" id="rpBuzzerDot" style="display:none"></div>
-                    <div class="buzzer-alert" id="rpBuzzerAlert"></div>
-                </div>
-                <div class="strip-body">
-                    <div class="strip-pulsador-big">
-                        <button class="btn-success strip-btn-lg buzzer-open-btn" onclick="emit('director:open_buzzer')">Abrir</button>
-                        <button class="btn-danger strip-btn-lg buzzer-close-btn" onclick="emit('director:close_buzzer')">Cerrar</button>
-                        <button class="btn-ghost strip-btn-lg" onclick="emit('director:reset_buzzer')">Reset</button>
-                    </div>
-                    <div class="strip-queue-area">
-                        <div class="pulsador-queue-list" id="rpQueueList">
-                            <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
-                        </div>
-                        <div class="strip-pulsador-actions">
-                            <span class="buzzer-first-name" id="rpFirstName"></span>
-                            <button class="btn-success" id="rpBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
-                            <button class="btn-danger" id="rpBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
-                            <button class="btn-ghost btn-sm" id="rpBtnBlockAll" onclick="toggleBlockAll()">&#128274; Bloqueo</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- PREGUNTA strip (pulsador rápido) -->
-            <div class="control-strip open" id="secPregunta" style="display:none;">
-                <div class="strip-header">
-                    <div class="strip-toggle" onclick="toggleSection('secPregunta')">
-                        <span class="strip-chevron">&#9654;</span>
-                        <span class="strip-title">&#10067; Pregunta</span>
-                    </div>
-                    <div class="strip-inline">
-                        <span id="spQuestionCounter" style="font-size:11px;color:var(--text2);"></span>
-                        <span id="spRevealedBadge" style="display:none;font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(34,197,94,.15);color:var(--success);font-weight:700;">REVELADA</span>
-                    </div>
-                </div>
-                <div class="strip-body">
-                    <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-                        <button class="btn-ghost btn-sm" id="spBtnPrev" onclick="emit('director:prev_question')">&#9664; Anterior</button>
-                        <span id="spCounter" style="font-size:12px;color:var(--text2);flex:1;text-align:center;"></span>
-                        <button class="btn-ghost btn-sm" id="spBtnNext" onclick="emit('director:next_question')">Siguiente &#9654;</button>
-                    </div>
-                    <div class="pulsador-stmt" id="spStatement" style="margin-bottom:8px;"></div>
-                    <div class="pulsador-answer-box" id="spAnswerBox" style="margin-bottom:8px;">
-                        <span style="color:var(--success);font-weight:700;">Respuesta: </span>
-                        <span id="spAnswerText"></span>
-                    </div>
-                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                        <button class="btn-accent btn-sm" id="spBtnReveal" onclick="emit('director:reveal_answer')">&#128064; Mostrar respuesta</button>
-                        <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
-                    </div>
-                </div>
-            </div>
-            <!-- RULETA strip -->
-            <div class="control-strip open" id="secRuleta" style="display:none;">
-                <div class="strip-header">
-                    <div class="strip-toggle" onclick="toggleSection('secRuleta')">
-                        <span class="strip-chevron">&#9654;</span>
-                        <span class="strip-title">&#127921; Ruleta</span>
-                    </div>
-                </div>
-                <div class="strip-keyboard">
-                    <div class="ruleta-compact" id="rpRuletaKeyboard"></div>
-                    <button class="btn-ghost btn-sm" id="rpBtnResetRuleta" onclick="resetRuleta()" style="flex-shrink:0;">&#128260; Reset</button>
-                    <button class="rl-solve-btn" id="rpBtnSolve" onclick="emit('director:solve_roulette')" style="padding:8px 16px; font-size:13px;">&#9989; RESOLVER</button>
-                </div>
-                <div class="strip-body">
-                    <div id="rpRuletaChuleta"></div>
-                </div>
-            </div>
-        </div>
 
         <!-- No game -->
         <div class="no-game" id="noGame" style="display:none">
@@ -574,17 +472,42 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 <span class="question-counter" id="questionCounter">-</span>
                 <button class="btn-ghost btn-sm" id="btnNextQ" onclick="emit('director:next_question')">Siguiente &#9654;</button>
             </div>
-            <!-- Pulsador director panel (shown only for pulsador round type) -->
-            <div id="pulsadorDirectorPanel" style="display:none; flex:1; overflow-y:auto;">
-                <div id="pulsadorLogo" style="text-align:center;"></div>
-                <div class="pulsador-stmt" id="pulsadorStatement"></div>
-                <div class="pulsador-answer-box" id="pulsadorAnswerBox" style="display:none">
-                    <span style="color:var(--success);font-weight:700;">Respuesta: </span>
-                    <span id="pulsadorAnswerText"></span>
-                </div>
-                <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
-                    <button class="btn-ghost btn-sm" id="btnTogglePulsadorAnswer" onclick="togglePulsadorAnswer()">&#128065; Mostrar respuesta</button>
-                    <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
+            <!-- Pulsador director panel (2-column layout, same pattern as imagen_fija) -->
+            <div id="pulsadorDirectorPanel" style="display:none; flex:1; overflow:hidden;">
+                <div class="imagen-layout">
+                    <div class="imagen-left">
+                        <div class="precio-stmt" id="puStatement">Sin enunciado</div>
+                        <div id="puHints" style="display:none; margin-top:8px;">
+                            <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:4px;">Pistas</div>
+                            <div id="puHintsList" style="font-size:14px;color:var(--text2);line-height:1.6;"></div>
+                        </div>
+                        <div class="imagen-answer-overlay" id="puAnswerOverlay">
+                            <div class="answer-label">Respuesta</div>
+                            <div class="answer-value" id="puAnswerText"></div>
+                        </div>
+                        <div class="imagen-btn-row">
+                            <button class="btn-ghost btn-sm" id="btnPuToggleAnswer" onclick="togglePuAnswer()">&#128065; Mostrar respuesta</button>
+                            <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
+                        </div>
+                    </div>
+                    <div class="imagen-right">
+                        <h4>&#128308; Pulsador</h4>
+                        <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+                            <button class="btn-success btn-sm buzzer-open-btn" onclick="emit('director:open_buzzer')">Abrir</button>
+                            <button class="btn-danger btn-sm buzzer-close-btn" onclick="emit('director:close_buzzer')">Cerrar</button>
+                            <button class="btn-ghost btn-sm" onclick="emit('director:reset_buzzer')">Reset</button>
+                        </div>
+                        <div class="buzzer-alert" id="puBuzzerAlert"></div>
+                        <div class="pulsador-queue-list" id="puQueueList">
+                            <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                            <span class="buzzer-first-name" id="puFirstName"></span>
+                            <button class="btn-success" id="puBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
+                            <button class="btn-danger" id="puBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
+                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#128274; Bloqueo</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -614,18 +537,44 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 </div>
             </div>
 
-            <!-- Ruleta director panel -->
-            <div id="ruletaDirectorPanel" style="display:none; flex:1; overflow-y:auto;">
-                <!-- Sub-state A: before panel visible -->
+            <!-- Ruleta director panel (2-column layout) -->
+            <div id="ruletaDirectorPanel" style="display:none; flex:1; overflow:hidden;">
+                <!-- Sub-state A: before panel visible (centered, full width) -->
                 <div id="rlStateA" class="rl-pre">
                     <div class="rl-pre-phrase" id="rlPrePhrase">-</div>
                     <div class="rl-pre-hint" id="rlPreHint">-</div>
                     <button class="rl-pre-btn" onclick="emit('director:show_roulette_panel')">&#127919; Mostrar panel</button>
                 </div>
-                <!-- Sub-state B: panel active -->
-                <div id="rlStateB" style="display:none; flex-direction:column; gap:10px;">
-                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                        <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
+                <!-- Sub-state B: 2-column layout -->
+                <div id="rlStateB" class="imagen-layout" style="display:none;">
+                    <div class="imagen-left">
+                        <div id="ruRuletaChuleta"></div>
+                        <div style="margin-top:10px;">
+                            <div class="ruleta-compact" id="ruRuletaKeyboard"></div>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+                            <button class="rl-solve-btn" id="ruBtnSolve" onclick="emit('director:solve_roulette')" style="padding:8px 16px; font-size:13px;">&#9989; RESOLVER</button>
+                            <button class="btn-ghost btn-sm" id="ruBtnResetRuleta" onclick="resetRuleta()" style="flex-shrink:0;">&#128260; Reset</button>
+                            <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
+                        </div>
+                    </div>
+                    <div class="imagen-right">
+                        <h4>&#128308; Pulsador</h4>
+                        <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+                            <button class="btn-success btn-sm buzzer-open-btn" onclick="emit('director:open_buzzer')">Abrir</button>
+                            <button class="btn-danger btn-sm buzzer-close-btn" onclick="emit('director:close_buzzer')">Cerrar</button>
+                            <button class="btn-ghost btn-sm" onclick="emit('director:reset_buzzer')">Reset</button>
+                        </div>
+                        <div class="buzzer-alert" id="ruBuzzerAlert"></div>
+                        <div class="pulsador-queue-list" id="ruQueueList">
+                            <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                            <span class="buzzer-first-name" id="ruFirstName"></span>
+                            <button class="btn-success" id="ruBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
+                            <button class="btn-danger" id="ruBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
+                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#128274; Bloqueo</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -966,37 +915,8 @@ function render() {
     renderBuzzer();
     renderTeams();
     renderRightPanelRuleta();
-    renderPreguntaStrip();
     renderRoundsActive();
 
-    // Arreglo 1: Pulsador strip only for types that use it
-    var secPulsador = document.getElementById('secPulsador');
-    var roundType = ds.currentRound ? ds.currentRound.type : '';
-    var showPulsador = false;
-    if (phase === 'question' || phase === 'answer_revealed') {
-        if (roundType === 'pulsador' || roundType === 'ruleta' || roundType === 'imagen') {
-            showPulsador = true;
-        } else if (roundType === 'imagen_fija' || roundType === 'cancion') {
-            var q = ds.questions[ds.currentQuestionIdx];
-            var c = q ? (q.content || {}) : {};
-            showPulsador = !!c.buzzer_enabled;
-        }
-    }
-    secPulsador.style.display = showPulsador ? '' : 'none';
-
-    // Auto-collapse/expand on new question
-    if (ds.currentQuestionIdx !== _prevQIdx || phase !== _prevPhase) {
-        var roundType = ds.currentRound ? ds.currentRound.type : '';
-        if (phase === 'question') {
-            document.getElementById('secPulsador').classList.remove('open');
-            if (roundType === 'ruleta') {
-                document.getElementById('secRuleta').classList.add('open');
-            }
-            if (roundType === 'pulsador') {
-                document.getElementById('secPregunta').classList.add('open');
-            }
-        }
-    }
     if (phase === 'lobby') {
         if (ds.menuLevel === 'home') renderHomeMenu();
         else if (ds.menuLevel === 'category') renderCategoryMenu();
@@ -1009,11 +929,11 @@ function render() {
 
     // Reset pulsador answer toggle on question change
     if (ds.currentQuestionIdx !== _prevQIdx) {
-        _pulsadorAnswerVisible = false;
-        var pab = document.getElementById('pulsadorAnswerBox');
-        if (pab) pab.style.display = 'none';
-        var bta = document.getElementById('btnTogglePulsadorAnswer');
-        if (bta) bta.innerHTML = '&#128065; Mostrar respuesta';
+        _puAnswerVisible = false;
+        var puOv = document.getElementById('puAnswerOverlay');
+        if (puOv) puOv.classList.remove('active');
+        var puBtn = document.getElementById('btnPuToggleAnswer');
+        if (puBtn) puBtn.innerHTML = '&#128065; Mostrar respuesta';
         _precioPrevLogo = undefined;
         _precioPrevImg = undefined;
         _precioPrevTeamIds = [];
@@ -1317,25 +1237,72 @@ document.getElementById('editTeamPhotoFile').addEventListener('change', async fu
 
 document.getElementById('editTeamName').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitEditTeam(); });
 
-// ── Pulsador director rendering ──
-var _pulsadorAnswerVisible = false;
-function togglePulsadorAnswer() {
-    _pulsadorAnswerVisible = !_pulsadorAnswerVisible;
-    var box = document.getElementById('pulsadorAnswerBox');
-    var btn = document.getElementById('btnTogglePulsadorAnswer');
-    box.style.display = _pulsadorAnswerVisible ? 'block' : 'none';
-    btn.innerHTML = _pulsadorAnswerVisible ? '&#128065; Ocultar respuesta' : '&#128065; Mostrar respuesta';
+// ── Pulsador director rendering (2-column layout) ──
+var _puAnswerVisible = false;
+function togglePuAnswer() {
+    _puAnswerVisible = !_puAnswerVisible;
+    var overlay = document.getElementById('puAnswerOverlay');
+    var btn = document.getElementById('btnPuToggleAnswer');
+    if (_puAnswerVisible) { overlay.classList.add('active'); btn.innerHTML = '&#128065; Ocultar respuesta'; }
+    else { overlay.classList.remove('active'); btn.innerHTML = '&#128065; Mostrar respuesta'; }
 }
 
 function renderQuestionPulsador() {
     var ds = S.director;
     if (!ds || ds.currentQuestionIdx < 0) return;
+    var q = ds.questions[ds.currentQuestionIdx];
+    if (!q) return;
+    var c = q.content || {};
+    var idx = ds.currentQuestionIdx, total = ds.questions.length;
 
-    // Hide old panels and nav — pregunta strip handles everything
-    document.getElementById('pulsadorDirectorPanel').style.display = 'none';
+    // Nav bar
+    document.getElementById('questionCounter').textContent = 'Pregunta ' + (idx + 1) + ' de ' + total;
+    document.getElementById('btnPrevQ').disabled = idx <= 0;
+    var btnNext = document.getElementById('btnNextQ');
+    if (idx >= total - 1) {
+        btnNext.textContent = '✓ Terminar ronda';
+        btnNext.onclick = function() { emit('director:finish_round'); };
+    } else {
+        btnNext.innerHTML = 'Siguiente &#9654;';
+        btnNext.onclick = function() { emit('director:next_question'); };
+    }
+
+    // Show pulsador panel, hide others
+    document.getElementById('pulsadorDirectorPanel').style.display = 'flex';
+    document.getElementById('precioDirectorPanel').style.display = 'none';
+    document.getElementById('ruletaDirectorPanel').style.display = 'none';
+    document.getElementById('imagenDirectorPanel').style.display = 'none';
+    document.getElementById('imagenFijaDirectorPanel').style.display = 'none';
+    document.getElementById('cancionDirectorPanel').style.display = 'none';
     document.getElementById('questionCard').style.display = 'none';
     document.getElementById('questionDefaultActions').style.display = 'none';
-    document.querySelector('.question-nav').style.display = 'none';
+    document.querySelector('.question-nav').style.display = '';
+
+    // Statement
+    document.getElementById('puStatement').textContent = c.statement || 'Sin enunciado';
+
+    // Hints
+    var hintsEl = document.getElementById('puHints');
+    var hintsListEl = document.getElementById('puHintsList');
+    if (c.hints && c.hints.length) {
+        hintsListEl.innerHTML = c.hints.map(function(h) { return '<div>• ' + esc(h) + '</div>'; }).join('');
+        hintsEl.style.display = '';
+    } else {
+        hintsEl.style.display = 'none';
+    }
+
+    // Answer
+    document.getElementById('puAnswerText').textContent = c.answer || '-';
+    var overlay = document.getElementById('puAnswerOverlay');
+    var btn = document.getElementById('btnPuToggleAnswer');
+    if (!c.answer) {
+        btn.disabled = true; btn.style.opacity = '.4';
+        overlay.classList.remove('active');
+    } else {
+        btn.disabled = false; btn.style.opacity = '';
+        if (_puAnswerVisible) overlay.classList.add('active');
+        else overlay.classList.remove('active');
+    }
 }
 
 var _precioPrevLogo = undefined;
@@ -1521,12 +1488,14 @@ function renderQuestionRuleta() {
     document.getElementById('ruletaDirectorPanel').style.display = 'flex';
     document.getElementById('pulsadorDirectorPanel').style.display = 'none';
     document.getElementById('precioDirectorPanel').style.display = 'none';
+    document.getElementById('imagenDirectorPanel').style.display = 'none';
+    document.getElementById('imagenFijaDirectorPanel').style.display = 'none';
+    document.getElementById('cancionDirectorPanel').style.display = 'none';
     document.getElementById('questionCard').style.display = 'none';
     document.getElementById('questionDefaultActions').style.display = 'none';
+    document.querySelector('.question-nav').style.display = '';
 
     var panelVisible = ds.roulettePanelVisible || false;
-    var revealed = ds.rouletteRevealed || [];
-    var solved = ds.rouletteSolved || false;
 
     // ── Sub-state A or B ──
     var stateA = document.getElementById('rlStateA');
@@ -1727,6 +1696,17 @@ function renderQuestionImagenFija() {
     document.getElementById('questionCard').style.display = 'none';
     document.getElementById('questionDefaultActions').style.display = 'none';
     document.querySelector('.question-nav').style.display = '';
+
+    // Toggle right column based on buzzer_enabled
+    var rightCol = document.querySelector('#imagenFijaDirectorPanel .imagen-right');
+    var leftCol = document.querySelector('#imagenFijaDirectorPanel .imagen-left');
+    if (c.buzzer_enabled) {
+        rightCol.style.display = '';
+        leftCol.style.flex = '';
+    } else {
+        rightCol.style.display = 'none';
+        leftCol.style.flex = '1';
+    }
 
     // Media preview (image or video)
     var container = document.getElementById('ifImageContainer');
@@ -2257,7 +2237,8 @@ function _renderBuzzerInto(alertId, queueId, firstNameId, btnCorrectId, btnWrong
 function renderBuzzer() {
     document.querySelectorAll('.buzzer-open-btn').forEach(function(b) { b.disabled = S.pulsadorActivo; });
     document.querySelectorAll('.buzzer-close-btn').forEach(function(b) { b.disabled = !S.pulsadorActivo; });
-    _renderBuzzerInto('rpBuzzerAlert', 'rpQueueList', 'rpFirstName', 'rpBtnCorrect', 'rpBtnWrong');
+    _renderBuzzerInto('puBuzzerAlert', 'puQueueList', 'puFirstName', 'puBtnCorrect', 'puBtnWrong');
+    _renderBuzzerInto('ruBuzzerAlert', 'ruQueueList', 'ruFirstName', 'ruBtnCorrect', 'ruBtnWrong');
     _renderBuzzerInto('imgBuzzerAlert', 'imgQueueList', 'imgFirstName', 'imgBtnCorrect', 'imgBtnWrong');
     _renderBuzzerInto('ifBuzzerAlert', 'ifQueueList', 'ifFirstName', 'ifBtnCorrect', 'ifBtnWrong');
     _renderBuzzerInto('cnBuzzerAlert', 'cnQueueList', 'cnFirstName', 'cnBtnCorrect', 'cnBtnWrong');
@@ -2268,27 +2249,23 @@ function markFirst(correct) {
     emit(correct ? 'director:mark_correct' : 'director:mark_wrong', { teamId: S.colaPulsador[0].id });
 }
 
-// ── Right panel: Ruleta section ──
+// ── Right panel: Ruleta section (now renders into column panel, not strip) ──
 function renderRightPanelRuleta() {
     var ds = S.director;
     if (!ds) return;
     var roundType = ds.currentRound ? ds.currentRound.type : '';
-    var secRuleta = document.getElementById('secRuleta');
 
     if (roundType !== 'ruleta' || ds.phase === 'lobby' || ds.phase === 'round_end') {
-        secRuleta.style.display = 'none';
         return;
     }
-    secRuleta.style.display = '';
 
     var q = ds.questions[ds.currentQuestionIdx];
     if (!q) return;
     var c = q.content || {};
     var revealed = ds.rouletteRevealed || [];
     var solved = ds.rouletteSolved || false;
-    var panelVisible = ds.roulettePanelVisible || false;
 
-    // Keyboard in compact view
+    // Keyboard in column panel
     var VOWELS = 'AEIOUÁÉÍÓÚÜ';
     var allLetters = RoulettePanel.uniqueLetters(c.phrase || '');
     var revSet = {};
@@ -2302,15 +2279,16 @@ function renderRightPanelRuleta() {
         var done = revSet[ch] || solved;
         kbHtml += '<button class="rlc-kb-btn' + (done ? ' done' : '') + (isVowel ? ' vowel' : '') + '" onclick="emit(\'director:reveal_letter\',{letter:\'' + ch + '\'})">' + ch + '</button>';
     }
-    document.getElementById('rpRuletaKeyboard').innerHTML = kbHtml;
-    document.getElementById('rpBtnSolve').disabled = solved;
+    var kbEl = document.getElementById('ruRuletaKeyboard');
+    if (kbEl) kbEl.innerHTML = kbHtml;
+    var solveBtn = document.getElementById('ruBtnSolve');
+    if (solveBtn) solveBtn.disabled = solved;
 
-    // Chuleta: phrase rectangles grouped by word (expanded strip body)
-    var chuletaEl = document.getElementById('rpRuletaChuleta');
+    // Chuleta: phrase rectangles grouped by word
+    var chuletaEl = document.getElementById('ruRuletaChuleta');
     if (chuletaEl) {
         var phrase = (c.phrase || '').toUpperCase();
         var PUNCT = ',.!?¡¿:;—–-\'\"()';
-        // Split into words by spaces
         var words = phrase.split(' ');
         var html = '<div class="ruleta-chuleta">';
         for (var wi = 0; wi < words.length; wi++) {
@@ -2334,55 +2312,6 @@ function renderRightPanelRuleta() {
         }
         html += '</div>';
         chuletaEl.innerHTML = html;
-    }
-}
-
-// ── Pregunta strip (pulsador rápido) ──
-function renderPreguntaStrip() {
-    var ds = S.director; if (!ds) return;
-    var roundType = ds.currentRound ? ds.currentRound.type : '';
-    var sec = document.getElementById('secPregunta');
-
-    if (roundType !== 'pulsador' || ds.phase === 'lobby' || ds.phase === 'round_end' || ds.phase === 'round_intro') {
-        sec.style.display = 'none';
-        return;
-    }
-    sec.style.display = '';
-
-    var q = ds.questions[ds.currentQuestionIdx];
-    if (!q) return;
-    var c = q.content || {};
-    var idx = ds.currentQuestionIdx, total = ds.questions.length;
-    var isRevealed = ds.phase === 'answer_revealed';
-
-    // Collapsed inline indicator
-    document.getElementById('spQuestionCounter').textContent = 'Pregunta ' + (idx + 1) + '/' + total;
-    var badge = document.getElementById('spRevealedBadge');
-    badge.style.display = isRevealed ? '' : 'none';
-
-    // Expanded body
-    document.getElementById('spCounter').textContent = 'Pregunta ' + (idx + 1) + ' de ' + total;
-    document.getElementById('spBtnPrev').disabled = idx <= 0;
-    var btnNext = document.getElementById('spBtnNext');
-    if (idx >= total - 1) {
-        btnNext.textContent = '✓ Terminar ronda';
-        btnNext.onclick = function() { emit('director:finish_round'); };
-    } else {
-        btnNext.innerHTML = 'Siguiente &#9654;';
-        btnNext.onclick = function() { emit('director:next_question'); };
-    }
-
-    document.getElementById('spStatement').textContent = c.statement || 'Sin enunciado';
-    document.getElementById('spAnswerText').textContent = c.answer || '-';
-
-    // Reveal button state
-    var revBtn = document.getElementById('spBtnReveal');
-    if (isRevealed) {
-        revBtn.disabled = true;
-        revBtn.textContent = '✅ Respuesta revelada';
-    } else {
-        revBtn.disabled = false;
-        revBtn.innerHTML = '&#128064; Mostrar respuesta';
     }
 }
 
