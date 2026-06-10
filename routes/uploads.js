@@ -1,10 +1,10 @@
 // Rutas para subir imágenes y audio (spec §10.3).
-// Los archivos se guardan en /uploads/{images,audio}/ con nombre único basado en timestamp + random.
+// Los archivos se guardan en /uploads/{images,audio}/ con nombre original saneado + anti-colisión.
 // En producción (Render), usa /data/uploads/ (disco persistente). En local, ./uploads/.
+// Acentos transliterados, espacios→guion, [a-z0-9-] only, sufijo -2/-3… si colisión.
 
 const path = require('path');
 const fs = require('fs');
-const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const sizeOf = require('image-size');
@@ -20,15 +20,35 @@ const UPLOADS_DIR = fs.existsSync('/data') ? '/data/uploads' : path.join(__dirna
 
 console.log('[Uploads] Directorio de uploads:', UPLOADS_DIR);
 
+const ACCENT_MAP = { 'á':'a','à':'a','ä':'a','â':'a','ã':'a','å':'a','é':'e','è':'e','ë':'e','ê':'e','í':'i','ì':'i','ï':'i','î':'i','ó':'o','ò':'o','ö':'o','ô':'o','õ':'o','ú':'u','ù':'u','ü':'u','û':'u','ñ':'n','ç':'c','ý':'y','ÿ':'y' };
+
+function sanitizeName(original) {
+    const { name, ext } = path.parse(original);
+    let safe = name.toLowerCase()
+        .replace(/[^\x00-\x7F]/g, ch => ACCENT_MAP[ch] || '')
+        .replace(/[\s_]+/g, '-')
+        .replace(/[^a-z0-9\-]/g, '')
+        .replace(/-{2,}/g, '-')
+        .replace(/^-|-$/g, '');
+    return { base: safe || 'archivo', ext: ext.toLowerCase() };
+}
+
+function uniqueName(dest, base, ext) {
+    let candidate = base + ext;
+    if (!fs.existsSync(path.join(dest, candidate))) return candidate;
+    let n = 2;
+    while (fs.existsSync(path.join(dest, base + '-' + n + ext))) n++;
+    return base + '-' + n + ext;
+}
+
 function makeStorage(subfolder) {
     const dest = path.join(UPLOADS_DIR, subfolder);
-    if (!require('fs').existsSync(dest)) require('fs').mkdirSync(dest, { recursive: true });
+    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
     return multer.diskStorage({
         destination: dest,
         filename: (req, file, cb) => {
-            const ext = path.extname(file.originalname).toLowerCase();
-            const name = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
-            cb(null, name);
+            const { base, ext } = sanitizeName(file.originalname);
+            cb(null, uniqueName(dest, base, ext));
         }
     });
 }
