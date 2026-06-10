@@ -711,6 +711,12 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
     var phase = ps.phase;
     var type = ps.roundType;
 
+    // Stop any playing video when leaving imagen_fija (phase change or question change)
+    if (phaseChanged || newQuestion) {
+        var vid = document.getElementById('ifVideo');
+        if (vid) { vid.pause(); vid.removeAttribute('src'); vid.load(); }
+    }
+
     document.getElementById('roundLabel').textContent = ps.roundName || '';
 
     var timerStrip = document.getElementById('timerStrip');
