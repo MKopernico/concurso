@@ -141,43 +141,156 @@ router.post('/games/:id/duplicate', (req, res) => {
 
 // ───────────────── EXPORT EXCEL ─────────────────
 
-function contentToRow(typeDef, roundName, question, roundConfig) {
+function contentToRow(typeDef, roundName, question) {
     const c = question.content || {};
     const qCfg = question.config || {};
-    const bg = roundConfig.background || '';
 
     switch (typeDef.type) {
         case 'multirespuesta': {
             const opts = c.options || [];
             const rawCorrect = Array.isArray(c.correct) ? c.correct : (c.correct !== undefined ? [c.correct] : []);
             const correct = rawCorrect.map(i => i + 1).join(',');
-            return [roundName, c.statement || '', opts[0] || '', opts[1] || '', opts[2] || '', opts[3] || '', opts[4] || '', correct, c.explanation || '', qCfg.time || '', qCfg.basePoints || '', qCfg.bonusMax || '', qCfg.penalty || '', bg];
+            return [roundName, c.statement || '', opts[0] || '', opts[1] || '', opts[2] || '', opts[3] || '', opts[4] || '', correct, c.explanation || '', qCfg.time || '', qCfg.basePoints || '', qCfg.bonusMax || '', qCfg.penalty || ''];
         }
         case 'pulsador': {
             const hints = c.hints || [];
-            return [roundName, c.statement || '', c.answer || '', hints[0] || '', hints[1] || '', qCfg.time || '', qCfg.basePoints || '', qCfg.penalty || '', bg];
+            return [roundName, c.statement || '', c.answer || '', hints[0] || '', hints[1] || '', qCfg.time || '', qCfg.basePoints || '', qCfg.penalty || ''];
         }
         case 'precio':
-            return [roundName, c.statement || '', c.correct_value ?? '', c.image || '', qCfg.time || '', qCfg.basePoints || '', bg];
+            return [roundName, c.statement || '', c.correct_value ?? '', c.image || '', qCfg.time || '', qCfg.basePoints || ''];
         case 'boom': {
             const items = c.items || [];
             const rawOrder = Array.isArray(c.correct_order) ? c.correct_order : (c.correct_order !== undefined ? [c.correct_order] : []);
             const order = rawOrder.map(i => i + 1).join(',');
-            return [roundName, c.statement || '', items[0] || '', items[1] || '', items[2] || '', items[3] || '', items[4] || '', order, qCfg.time || '', qCfg.basePoints || '', qCfg.bonusMax || '', bg];
+            return [roundName, c.statement || '', items[0] || '', items[1] || '', items[2] || '', items[3] || '', items[4] || '', order, qCfg.time || '', qCfg.basePoints || '', qCfg.bonusMax || ''];
         }
         case 'ruleta':
-            return [roundName, c.hint || '', c.phrase || '', qCfg.basePoints || '', qCfg.bonusMax || '', bg];
+            return [roundName, c.hint || '', c.phrase || '', qCfg.basePoints || '', qCfg.bonusMax || ''];
         case 'imagen':
-            return [roundName, c.statement || '', c.answer || '', c.image || '', qCfg.basePoints || '', bg];
+            return [roundName, c.statement || '', c.answer || '', c.image || '', qCfg.basePoints || ''];
         case 'imagen_fija': {
             const hasVideo = !!c.video;
-            return [roundName, c.statement || '', hasVideo ? '' : (c.image || ''), hasVideo ? c.video : '', c.answer || '', c.buzzer_enabled === false ? 'no' : 'si', hasVideo ? (c.autoplay === false ? 'no' : 'si') : '', hasVideo ? (c.loop ? 'si' : 'no') : '', qCfg.time || '', qCfg.basePoints || '', bg];
+            return [roundName, c.statement || '', hasVideo ? '' : (c.image || ''), hasVideo ? c.video : '', c.answer || '', c.buzzer_enabled === false ? 'no' : 'si', hasVideo ? (c.autoplay === false ? 'no' : 'si') : '', hasVideo ? (c.loop ? 'si' : 'no') : '', qCfg.time || '', qCfg.basePoints || ''];
         }
         case 'cancion':
-            return [roundName, c.statement || '', c.answer || '', c.image || '', c.audio || '', c.initial_chaos ?? 100, c.preset || 'default', qCfg.basePoints || '', bg];
+            return [roundName, c.statement || '', c.answer || '', c.image || '', c.audio || '', c.initial_chaos ?? 100, c.preset || 'default', qCfg.basePoints || ''];
         default:
             return [roundName];
     }
+}
+
+// ── Shared instruction rows for template & export ──
+const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion'];
+
+function buildInstructionRows() {
+    const rows = [
+        ['INSTRUCCIONES — Plantilla de importación GameShow'],
+        [],
+        ['ESTRUCTURA DEL FICHERO:'],
+        ['  - Hoja "Configuración" (opcional): tema del juego (logo, colores, fondos, logos/fondos por tipo).'],
+        ['    Si se incluye, REEMPLAZA el tema del juego destino al importar.'],
+        ['  - Hoja "Rondas" (opcional pero recomendada): define rondas con tipo, config, logo y fondo.'],
+        ['    Columnas: nombre, tipo, tiempo, puntos_base, bonus_max, penalizacion, logo, fondo.'],
+        ['    Si no se incluye, las rondas se crean automáticamente desde las pestañas de preguntas.'],
+        ['  - Pestañas de prueba: una por tipo. La columna "ronda" referencia la ronda por nombre.'],
+        [],
+        ['REGLAS GENERALES:'],
+        ['1. La columna "ronda" es OBLIGATORIA en cada pestaña: cada nombre único crea una ronda nueva.'],
+        ['2. Reimportar el mismo fichero DUPLICA las rondas (no machaca las existentes).'],
+        ['3. Las columnas de media (imagen, audio, video) esperan la ruta del archivo'],
+        ['   ya subido en el servidor (ej: /uploads/images/foto.jpg).'],
+        ['   Suba los archivos desde el admin ANTES de importar el Excel.'],
+        ['4. Los campos de configuración (tiempo, puntos_base, etc.) son opcionales.'],
+        ['   Si se omiten, se usan los valores por defecto.'],
+        ['5. Las filas sin datos obligatorios (ej: imagen sin respuesta) se omiten silenciosamente.'],
+        [],
+        ['HOJA "CONFIGURACIÓN" — campos (col A) y valores (col B):'],
+        ['  logo — URL del logo del juego (ej: /uploads/images/logo.png)'],
+        ['  color_primario — color hex (ej: #00d4ff)'],
+        ['  color_secundario — color hex (ej: #fbbf24)'],
+        ['  fondo_tipo — none, color, gradient o image'],
+        ['  fondo_color — color hex (si fondo_tipo=color)'],
+        ['  fondo_gradiente — preset (nightSky, ocean, etc.) o CSS custom (si fondo_tipo=gradient)'],
+        ['  fondo_imagen — URL de imagen (si fondo_tipo=image)'],
+        ['  fondo_aplicar_a_todo — si/no: aplica el fondo global a todas las pruebas'],
+        ['  fondo_home — URL de imagen de fondo del Home'],
+        ['  tipo_{tipo}_logo — logo por tipo de prueba (ej: tipo_pulsador_logo)'],
+        ['  tipo_{tipo}_fondo — fondo por tipo de prueba (ej: tipo_pulsador_fondo)'],
+        [],
+        ['TIPOS DE PRUEBA:'],
+    ];
+    EXCEL_TYPE_DEFS.forEach(d => {
+        rows.push(['  - ' + d.sheet + ' (' + d.type + ')']);
+    });
+    rows.push([], ['NOTAS POR TIPO:']);
+    rows.push(['  Multirespuesta: "correctas" = números de opción separados por coma (ej: 1,3). Opciones 4 y 5 son opcionales.']);
+    rows.push(['  Pulsador: pistas son opcionales.']);
+    rows.push(['  Boom: "orden_correcto" = orden de los elementos separado por coma (ej: 3,1,2,4).']);
+    rows.push(['  Ruleta: "pista" es la categoría/pista mostrada al público. "frase" se revela letra a letra.']);
+    rows.push(['  Imagen: solo enunciado + respuesta + ruta imagen. La cuadrícula se ajusta en el admin.']);
+    rows.push(['  Imagen Fija: usar columna "imagen" O "video" (no ambas). "pulsador": "no" para desactivar.']);
+    rows.push(['    "autoplay" y "loop": "si"/"no" (solo aplican con vídeo).']);
+    rows.push(['  Cancion: caos_inicial (0-100, defecto 100), preset (defecto "default").']);
+    return rows;
+}
+
+// ── Theme ↔ Config sheet helpers ──
+
+function themeToConfigRows(theme) {
+    if (!theme) return [];
+    const rows = [];
+    const add = (field, val) => { if (val !== undefined && val !== null && val !== '') rows.push([field, val]); };
+    add('logo', theme.logo);
+    add('color_primario', theme.primaryColor);
+    add('color_secundario', theme.secondaryColor);
+    add('fondo_tipo', theme.backgroundType);
+    add('fondo_color', theme.backgroundColor);
+    add('fondo_gradiente', theme.backgroundGradient);
+    add('fondo_imagen', theme.backgroundImage);
+    add('fondo_aplicar_a_todo', theme.backgroundApplyToAll ? 'si' : 'no');
+    add('fondo_home', theme.homeBackground);
+    if (theme.types) {
+        for (const t of ALL_TYPES) {
+            const td = theme.types[t];
+            if (!td) continue;
+            add('tipo_' + t + '_logo', td.logo);
+            add('tipo_' + t + '_fondo', td.background);
+        }
+    }
+    return rows;
+}
+
+function configRowsToTheme(rows) {
+    const map = {};
+    for (const row of rows) {
+        const field = String(row[0] || '').trim();
+        const val = String(row[1] || '').trim();
+        if (field && val) map[field] = val;
+    }
+    const theme = {};
+    if (map.logo) theme.logo = map.logo;
+    if (map.color_primario) theme.primaryColor = map.color_primario;
+    if (map.color_secundario) theme.secondaryColor = map.color_secundario;
+    if (map.fondo_tipo && map.fondo_tipo !== 'none') {
+        theme.backgroundType = map.fondo_tipo;
+        if (map.fondo_tipo === 'color' && map.fondo_color) theme.backgroundColor = map.fondo_color;
+        if (map.fondo_tipo === 'gradient' && map.fondo_gradiente) theme.backgroundGradient = map.fondo_gradiente;
+        if (map.fondo_tipo === 'image' && map.fondo_imagen) theme.backgroundImage = map.fondo_imagen;
+    }
+    if (map.fondo_aplicar_a_todo === 'si') theme.backgroundApplyToAll = true;
+    if (map.fondo_home) theme.homeBackground = map.fondo_home;
+    const types = {};
+    for (const t of ALL_TYPES) {
+        const logo = map['tipo_' + t + '_logo'];
+        const bg = map['tipo_' + t + '_fondo'];
+        if (logo || bg) {
+            types[t] = {};
+            if (logo) types[t].logo = logo;
+            if (bg) types[t].background = bg;
+        }
+    }
+    if (Object.keys(types).length) theme.types = types;
+    return Object.keys(theme).length ? theme : null;
 }
 
 router.get('/games/:id/export-excel', (req, res) => {
@@ -189,20 +302,50 @@ router.get('/games/:id/export-excel', (req, res) => {
 
     const wb = XLSX.utils.book_new();
 
-    // Group rounds by type
+    // Sheet 1: Instructions
+    const wsInstr = XLSX.utils.aoa_to_sheet(buildInstructionRows());
+    wsInstr['!cols'] = [{ wch: 90 }];
+    XLSX.utils.book_append_sheet(wb, wsInstr, 'Instrucciones');
+
+    // Sheet 2: Configuration (game theme)
+    const configRows = themeToConfigRows(game.theme);
+    const wsConfig = XLSX.utils.aoa_to_sheet([
+        ['Configuración del juego'],
+        [],
+        ['campo', 'valor'],
+        ...configRows,
+    ]);
+    wsConfig['!cols'] = [{ wch: 30 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(wb, wsConfig, 'Configuración');
+
+    // Sheet 3: Rounds
+    const ROUND_COLUMNS = ['nombre', 'tipo', 'tiempo', 'puntos_base', 'bonus_max', 'penalizacion', 'logo', 'fondo'];
+    const roundRows = game.rounds.map(r => {
+        const cfg = r.config || {};
+        return [r.name, r.type, cfg.time ?? '', cfg.basePoints ?? '', cfg.bonusMax ?? '', cfg.penalty ?? '', cfg.logo || '', cfg.background || ''];
+    });
+    const wsRondas = XLSX.utils.aoa_to_sheet([
+        ['Rondas'],
+        [],
+        ROUND_COLUMNS,
+        ...roundRows,
+    ]);
+    wsRondas['!cols'] = ROUND_COLUMNS.map(() => ({ wch: 18 }));
+    XLSX.utils.book_append_sheet(wb, wsRondas, 'Rondas');
+
+    // Sheets 4+: one per type with question data
     const byType = {};
     for (const round of game.rounds) {
         if (!byType[round.type]) byType[round.type] = [];
         byType[round.type].push(round);
     }
 
-    // Build one sheet per type (same structure as template: row 0 title, row 1 empty, row 2 headers, row 3+ data)
     EXCEL_TYPE_DEFS.forEach(d => {
         const dataRows = [];
         const rounds = byType[d.type] || [];
         for (const round of rounds) {
             for (const q of (round.questions || [])) {
-                dataRows.push(contentToRow(d, round.name, q, round.config || {}));
+                dataRows.push(contentToRow(d, round.name, q));
             }
         }
         const wsData = XLSX.utils.aoa_to_sheet([
@@ -379,14 +522,14 @@ const xlsxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize:
 // Canonical type definitions: sheet name, type key, and columns.
 // Single source of truth for importer (SHEET_TYPE_MAP + parseExcelSheet) AND template generator.
 const EXCEL_TYPE_DEFS = [
-    { sheet: 'Multirespuesta', type: 'multirespuesta', columns: ['ronda', 'enunciado', 'opcion_1', 'opcion_2', 'opcion_3', 'opcion_4', 'opcion_5', 'correctas', 'explicacion', 'tiempo', 'puntos_base', 'bonus_max', 'penalizacion', 'fondo_ronda'] },
-    { sheet: 'Pulsador',       type: 'pulsador',       columns: ['ronda', 'enunciado', 'respuesta', 'pista_1', 'pista_2', 'tiempo', 'puntos_base', 'penalizacion', 'fondo_ronda'] },
-    { sheet: 'Precio Justo',   type: 'precio',         columns: ['ronda', 'enunciado', 'valor_correcto', 'imagen', 'tiempo', 'puntos_base', 'fondo_ronda'] },
-    { sheet: 'Boom',           type: 'boom',            columns: ['ronda', 'enunciado', 'elemento_1', 'elemento_2', 'elemento_3', 'elemento_4', 'elemento_5', 'orden_correcto', 'tiempo', 'puntos_base', 'bonus_max', 'fondo_ronda'] },
-    { sheet: 'Ruleta',         type: 'ruleta',          columns: ['ronda', 'pista', 'frase', 'puntos_base', 'bonus_max', 'fondo_ronda'] },
-    { sheet: 'Imagen',         type: 'imagen',          columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'puntos_base', 'fondo_ronda'] },
-    { sheet: 'Imagen Fija',    type: 'imagen_fija',     columns: ['ronda', 'enunciado', 'imagen', 'video', 'respuesta', 'pulsador', 'autoplay', 'loop', 'tiempo', 'puntos_base', 'fondo_ronda'] },
-    { sheet: 'Cancion',        type: 'cancion',         columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'audio', 'caos_inicial', 'preset', 'puntos_base', 'fondo_ronda'] },
+    { sheet: 'Multirespuesta', type: 'multirespuesta', columns: ['ronda', 'enunciado', 'opcion_1', 'opcion_2', 'opcion_3', 'opcion_4', 'opcion_5', 'correctas', 'explicacion', 'tiempo', 'puntos_base', 'bonus_max', 'penalizacion'] },
+    { sheet: 'Pulsador',       type: 'pulsador',       columns: ['ronda', 'enunciado', 'respuesta', 'pista_1', 'pista_2', 'tiempo', 'puntos_base', 'penalizacion'] },
+    { sheet: 'Precio Justo',   type: 'precio',         columns: ['ronda', 'enunciado', 'valor_correcto', 'imagen', 'tiempo', 'puntos_base'] },
+    { sheet: 'Boom',           type: 'boom',            columns: ['ronda', 'enunciado', 'elemento_1', 'elemento_2', 'elemento_3', 'elemento_4', 'elemento_5', 'orden_correcto', 'tiempo', 'puntos_base', 'bonus_max'] },
+    { sheet: 'Ruleta',         type: 'ruleta',          columns: ['ronda', 'pista', 'frase', 'puntos_base', 'bonus_max'] },
+    { sheet: 'Imagen',         type: 'imagen',          columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'puntos_base'] },
+    { sheet: 'Imagen Fija',    type: 'imagen_fija',     columns: ['ronda', 'enunciado', 'imagen', 'video', 'respuesta', 'pulsador', 'autoplay', 'loop', 'tiempo', 'puntos_base'] },
+    { sheet: 'Cancion',        type: 'cancion',         columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'audio', 'caos_inicial', 'preset', 'puntos_base'] },
 ];
 
 const SHEET_TYPE_MAP = {};
@@ -394,8 +537,8 @@ EXCEL_TYPE_DEFS.forEach(d => { SHEET_TYPE_MAP[d.sheet] = d.type; });
 
 function parseExcelSheet(rows, type) {
     // rows: array of arrays, data starts at row index 3 (row 4 in Excel, 0-indexed)
-    const questions = []; // grouped by round name
     const rounds = {}; // roundName → { questions: [], config from first row }
+    let skipped = 0;
 
     for (let i = 3; i < rows.length; i++) {
         const r = rows[i];
@@ -411,12 +554,12 @@ function parseExcelSheet(rows, type) {
         switch (type) {
             case 'multirespuesta': {
                 const statement = String(r[1] || '').trim();
-                if (!statement) continue;
+                if (!statement) break;
                 const options = [r[2], r[3], r[4], r[5], r[6]].map(o => String(o || '').trim()).filter(Boolean);
-                if (options.length < 2) continue;
+                if (options.length < 2) break;
                 const correctStr = String(r[7] || '');
                 const correct = correctStr.split(/[,;]/).map(s => Number(s.trim()) - 1).filter(n => n >= 0 && n < options.length);
-                if (correct.length === 0) continue;
+                if (correct.length === 0) break;
                 content = { statement, options, correct, explanation: String(r[8] || '').trim() || undefined };
                 if (r[9]) qConfig.time = Number(r[9]) || undefined;
                 if (r[10]) qConfig.basePoints = Number(r[10]) || undefined;
@@ -428,7 +571,7 @@ function parseExcelSheet(rows, type) {
             case 'pulsador': {
                 const statement = String(r[1] || '').trim();
                 const answer = String(r[2] || '').trim();
-                if (!statement || !answer) continue;
+                if (!statement || !answer) break;
                 const hints = [r[3], r[4]].map(h => String(h || '').trim()).filter(Boolean);
                 content = { statement, answer, hints: hints.length ? hints : undefined };
                 if (r[5]) qConfig.time = Number(r[5]) || undefined;
@@ -440,7 +583,7 @@ function parseExcelSheet(rows, type) {
             case 'precio': {
                 const statement = String(r[1] || '').trim();
                 const correctVal = Number(r[2]);
-                if (!statement || !isFinite(correctVal)) continue;
+                if (!statement || !isFinite(correctVal)) break;
                 content = { statement, correct_value: correctVal, image: String(r[3] || '').trim() || undefined };
                 if (r[4]) qConfig.time = Number(r[4]) || undefined;
                 if (r[5]) qConfig.basePoints = Number(r[5]) || undefined;
@@ -449,12 +592,12 @@ function parseExcelSheet(rows, type) {
             }
             case 'boom': {
                 const statement = String(r[1] || '').trim();
-                if (!statement) continue;
+                if (!statement) break;
                 const items = [r[2], r[3], r[4], r[5], r[6]].map(v => String(v || '').trim()).filter(Boolean);
-                if (items.length < 2) continue;
+                if (items.length < 2) break;
                 const orderStr = String(r[7] || '');
                 const correct_order = orderStr.split(/[,;]/).map(s => Number(s.trim()) - 1).filter(n => n >= 0);
-                if (correct_order.length === 0) continue;
+                if (correct_order.length === 0) break;
                 content = { statement, items, correct_order };
                 if (r[8]) qConfig.time = Number(r[8]) || undefined;
                 if (r[9]) qConfig.basePoints = Number(r[9]) || undefined;
@@ -465,7 +608,7 @@ function parseExcelSheet(rows, type) {
             case 'ruleta': {
                 const hint = String(r[1] || '').trim();
                 const phrase = String(r[2] || '').trim();
-                if (!phrase) continue;
+                if (!phrase) break;
                 content = { hint: hint || undefined, phrase };
                 if (r[3]) qConfig.basePoints = Number(r[3]) || undefined;
                 if (r[4]) qConfig.bonusMax = Number(r[4]) || undefined;
@@ -475,7 +618,7 @@ function parseExcelSheet(rows, type) {
             case 'imagen_fija': {
                 const image = String(r[2] || '').trim();
                 const video = String(r[3] || '').trim();
-                if (!image && !video) continue;
+                if (!image && !video) break;
                 const buzzerVal = String(r[5] || '').trim().toLowerCase();
                 content = {
                     statement: String(r[1] || '').trim() || undefined,
@@ -498,7 +641,7 @@ function parseExcelSheet(rows, type) {
             }
             case 'imagen': {
                 const answer = String(r[2] || '').trim();
-                if (!answer) continue;
+                if (!answer) break;
                 content = {
                     statement: String(r[1] || '').trim() || undefined,
                     answer,
@@ -510,7 +653,7 @@ function parseExcelSheet(rows, type) {
             }
             case 'cancion': {
                 const answer = String(r[2] || '').trim();
-                if (!answer) continue;
+                if (!answer) break;
                 content = {
                     statement: String(r[1] || '').trim() || undefined,
                     answer,
@@ -523,8 +666,10 @@ function parseExcelSheet(rows, type) {
                 if (String(r[8] || '').trim()) rounds[roundName].config.background = String(r[8]).trim();
                 break;
             }
-            default: continue;
+            default: break;
         }
+
+        if (!content) { skipped++; continue; }
 
         // Clean empty config
         Object.keys(qConfig).forEach(k => { if (qConfig[k] === undefined) delete qConfig[k]; });
@@ -532,7 +677,7 @@ function parseExcelSheet(rows, type) {
         rounds[roundName].questions.push({ content, config: Object.keys(qConfig).length ? qConfig : undefined });
     }
 
-    return rounds;
+    return { rounds, skipped };
 }
 
 // Import from Excel: creates rounds + questions for a game
@@ -548,10 +693,47 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
 
     console.log('[Excel Import] Hojas encontradas:', wb.SheetNames);
-    console.log('[Excel Import] Hojas reconocidas:', wb.SheetNames.filter(s => SHEET_TYPE_MAP[s]).map(s => `${s} → ${SHEET_TYPE_MAP[s]}`));
-    console.log('[Excel Import] Hojas ignoradas:', wb.SheetNames.filter(s => !SHEET_TYPE_MAP[s]));
+    console.log('[Excel Import] Hojas reconocidas:', wb.SheetNames.filter(s => SHEET_TYPE_MAP[s] || s === 'Rondas').map(s => s));
+    console.log('[Excel Import] Hojas ignoradas:', wb.SheetNames.filter(s => !SHEET_TYPE_MAP[s] && s !== 'Rondas' && s !== 'Instrucciones' && s !== 'Configuración'));
 
-    const results = { rounds: 0, questions: 0, errors: [] };
+    const results = { rounds: 0, questions: 0, skipped: 0, errors: [] };
+
+    // ── Read "Configuración" sheet if present → replace game theme ──
+    if (wb.SheetNames.includes('Configuración')) {
+        const wsC = wb.Sheets['Configuración'];
+        const cRows = XLSX.utils.sheet_to_json(wsC, { header: 1, defval: '' });
+        const dataRows = cRows.slice(3); // skip title, empty, headers
+        const theme = configRowsToTheme(dataRows);
+        db.prepare('UPDATE games SET theme = ? WHERE id = ?').run(theme ? JSON.stringify(theme) : null, req.params.id);
+        console.log('[Excel Import] Hoja Configuración: tema actualizado');
+    }
+
+    // ── Read "Rondas" sheet if present (new format) ──
+    const roundDefs = {}; // roundName → { type, config }
+    const hasRoundsSheet = wb.SheetNames.includes('Rondas');
+    if (hasRoundsSheet) {
+        const wsR = wb.Sheets['Rondas'];
+        const rRows = XLSX.utils.sheet_to_json(wsR, { header: 1, defval: '' });
+        for (let i = 3; i < rRows.length; i++) {
+            const row = rRows[i];
+            if (!row || row.every(c => c === '' || c === undefined || c === null)) continue;
+            const name = String(row[0] || '').trim();
+            if (!name) continue;
+            const type = String(row[1] || '').trim();
+            if (!type) continue;
+            const cfg = {};
+            if (row[2] !== '' && row[2] !== undefined) cfg.time = Number(row[2]) || 0;
+            if (row[3] !== '' && row[3] !== undefined) cfg.basePoints = Number(row[3]) || 100;
+            if (row[4] !== '' && row[4] !== undefined) cfg.bonusMax = Number(row[4]) || 50;
+            if (row[5] !== '' && row[5] !== undefined) cfg.penalty = Number(row[5]) || 0;
+            const logo = String(row[6] || '').trim();
+            if (logo) cfg.logo = logo;
+            const bg = String(row[7] || '').trim();
+            if (bg) cfg.background = bg;
+            roundDefs[name] = { type, config: cfg };
+        }
+        console.log('[Excel Import] Hoja Rondas: ' + Object.keys(roundDefs).length + ' rondas definidas');
+    }
 
     // Get max sort_order for existing rounds
     const maxSort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) as m FROM rounds WHERE game_id = ?').get(req.params.id);
@@ -559,6 +741,11 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
 
     const insertRound = db.prepare('INSERT INTO rounds (id, game_id, name, type, config, sort_order) VALUES (?, ?, ?, ?, ?, ?)');
     const insertQuestion = db.prepare('INSERT INTO questions (id, round_id, content, config, sort_order) VALUES (?, ?, ?, ?, ?)');
+
+    // Track which round names from the Rondas sheet got questions (to create empty ones later)
+    const roundsWithQuestions = new Set();
+    // Track created round IDs by name+type to reuse within this import
+    const createdRounds = {}; // `${name}__${type}` → roundId
 
     db.transaction(() => {
         for (const sheetName of wb.SheetNames) {
@@ -568,25 +755,47 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
             const ws = wb.Sheets[sheetName];
             const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
-            const roundsData = parseExcelSheet(rows, type);
+            const parsed = parseExcelSheet(rows, type);
+            results.skipped += parsed.skipped;
 
-            for (const [roundName, roundData] of Object.entries(roundsData)) {
+            for (const [roundName, roundData] of Object.entries(parsed.rounds)) {
                 if (roundData.questions.length === 0) continue;
 
-                // Build round config from first question's shared config
-                const roundConfig = { time: 30, basePoints: 100, bonusMax: 50, penalty: 0 };
-                const firstQ = roundData.questions[0];
-                if (firstQ.config) {
-                    if (firstQ.config.time) roundConfig.time = firstQ.config.time;
-                    if (firstQ.config.basePoints) roundConfig.basePoints = firstQ.config.basePoints;
-                    if (firstQ.config.bonusMax) roundConfig.bonusMax = firstQ.config.bonusMax;
-                    if (firstQ.config.penalty) roundConfig.penalty = firstQ.config.penalty;
+                // Coherence check: if Rondas sheet defines this round as a different type, skip with error
+                if (hasRoundsSheet && roundDefs[roundName] && roundDefs[roundName].type !== type) {
+                    results.errors.push(`Ronda "${roundName}" definida como ${roundDefs[roundName].type} en hoja Rondas, pero tiene preguntas en pestaña ${sheetName} (${type}). Preguntas ignoradas.`);
+                    continue;
                 }
-                if (roundData.config.background) roundConfig.background = roundData.config.background;
 
-                const roundId = newId('r');
-                insertRound.run(roundId, req.params.id, roundName, type, JSON.stringify(roundConfig), roundSortOrder++);
-                results.rounds++;
+                roundsWithQuestions.add(roundName);
+
+                // Reuse round if already created in this import (same name, same type)
+                const roundKey = `${roundName}__${type}`;
+                let roundId = createdRounds[roundKey];
+
+                if (!roundId) {
+                    // Build round config: prefer Rondas sheet, fallback to old behavior
+                    let roundConfig;
+                    if (hasRoundsSheet && roundDefs[roundName]) {
+                        roundConfig = { ...roundDefs[roundName].config };
+                    } else {
+                        // Legacy: build config from first question + fondo_ronda from parser
+                        roundConfig = { time: 30, basePoints: 100, bonusMax: 50, penalty: 0 };
+                        const firstQ = roundData.questions[0];
+                        if (firstQ.config) {
+                            if (firstQ.config.time) roundConfig.time = firstQ.config.time;
+                            if (firstQ.config.basePoints) roundConfig.basePoints = firstQ.config.basePoints;
+                            if (firstQ.config.bonusMax) roundConfig.bonusMax = firstQ.config.bonusMax;
+                            if (firstQ.config.penalty) roundConfig.penalty = firstQ.config.penalty;
+                        }
+                        if (roundData.config.background) roundConfig.background = roundData.config.background;
+                    }
+
+                    roundId = newId('r');
+                    insertRound.run(roundId, req.params.id, roundName, type, JSON.stringify(roundConfig), roundSortOrder++);
+                    createdRounds[roundKey] = roundId;
+                    results.rounds++;
+                }
 
                 roundData.questions.forEach((q, qIdx) => {
                     const qId = newId('q');
@@ -595,9 +804,21 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
                 });
             }
         }
+
+        // Create empty rounds from Rondas sheet that had no questions in any tab
+        if (hasRoundsSheet) {
+            for (const [name, def] of Object.entries(roundDefs)) {
+                if (!roundsWithQuestions.has(name)) {
+                    const roundId = newId('r');
+                    insertRound.run(roundId, req.params.id, name, def.type, JSON.stringify(def.config), roundSortOrder++);
+                    results.rounds++;
+                }
+            }
+        }
     })();
 
     console.log(`[Excel Import] Resultado: ${results.rounds} rondas, ${results.questions} preguntas importadas`);
+    if (results.errors.length) console.log('[Excel Import] Errores:', results.errors);
     res.json(results);
 });
 
@@ -687,3 +908,4 @@ router.get('/games/:id/team-by-device/:deviceId', (req, res) => {
 
 module.exports = router;
 module.exports.EXCEL_TYPE_DEFS = EXCEL_TYPE_DEFS;
+module.exports.buildInstructionRows = buildInstructionRows;
