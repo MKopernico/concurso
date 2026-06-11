@@ -293,18 +293,21 @@ router.put('/rounds/:id/questions/reorder', (req, res) => {
 const multer = require('multer');
 const xlsxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-// Sheet name → round type mapping
-const SHEET_TYPE_MAP = {
-    '50x15': 'multirespuesta',
-    'Boom': 'boom',
-    'Precio Justo': 'precio',
-    'Pulsador': 'pulsador',
-    'Adivina Imagen': 'imagen',
-    'Adivina Cancion': 'cancion',
-    'Ruleta': 'ruleta',
-    'Identity': 'identity',
-    'Imagen Fija': 'imagen_fija',
-};
+// Canonical type definitions: sheet name, type key, and columns.
+// Single source of truth for importer (SHEET_TYPE_MAP + parseExcelSheet) AND template generator.
+const EXCEL_TYPE_DEFS = [
+    { sheet: 'Multirespuesta', type: 'multirespuesta', columns: ['ronda', 'enunciado', 'opcion_1', 'opcion_2', 'opcion_3', 'opcion_4', 'opcion_5', 'correctas', 'explicacion', 'tiempo', 'puntos_base', 'bonus_max', 'penalizacion', 'fondo_ronda'] },
+    { sheet: 'Pulsador',       type: 'pulsador',       columns: ['ronda', 'enunciado', 'respuesta', 'pista_1', 'pista_2', 'tiempo', 'puntos_base', 'penalizacion', 'fondo_ronda'] },
+    { sheet: 'Precio Justo',   type: 'precio',         columns: ['ronda', 'enunciado', 'valor_correcto', 'imagen', 'tiempo', 'puntos_base', 'fondo_ronda'] },
+    { sheet: 'Boom',           type: 'boom',            columns: ['ronda', 'enunciado', 'elemento_1', 'elemento_2', 'elemento_3', 'elemento_4', 'elemento_5', 'orden_correcto', 'tiempo', 'puntos_base', 'bonus_max', 'fondo_ronda'] },
+    { sheet: 'Ruleta',         type: 'ruleta',          columns: ['ronda', 'pista', 'frase', 'puntos_base', 'bonus_max', 'fondo_ronda'] },
+    { sheet: 'Imagen',         type: 'imagen',          columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'puntos_base', 'fondo_ronda'] },
+    { sheet: 'Imagen Fija',    type: 'imagen_fija',     columns: ['ronda', 'enunciado', 'imagen', 'video', 'respuesta', 'pulsador', 'autoplay', 'loop', 'tiempo', 'puntos_base', 'fondo_ronda'] },
+    { sheet: 'Cancion',        type: 'cancion',         columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'audio', 'caos_inicial', 'preset', 'puntos_base', 'fondo_ronda'] },
+];
+
+const SHEET_TYPE_MAP = {};
+EXCEL_TYPE_DEFS.forEach(d => { SHEET_TYPE_MAP[d.sheet] = d.type; });
 
 function parseExcelSheet(rows, type) {
     // rows: array of arrays, data starts at row index 3 (row 4 in Excel, 0-indexed)
@@ -377,48 +380,64 @@ function parseExcelSheet(rows, type) {
                 break;
             }
             case 'ruleta': {
-                const phrase = String(r[1] || '').trim();
+                const hint = String(r[1] || '').trim();
+                const phrase = String(r[2] || '').trim();
                 if (!phrase) continue;
-                const groups = [r[2], r[3], r[4], r[5], r[6]].map(g => {
-                    if (!g || String(g).trim() === '') return null;
-                    // Each group is comma-separated letter indices or letters
-                    const chars = String(g).split(',').map(s => s.trim()).filter(Boolean);
-                    // Convert letters to their positions in the phrase (ignoring spaces)
-                    const positions = [];
-                    for (const ch of chars) {
-                        const upperCh = ch.toUpperCase();
-                        // Find ALL positions of this letter in the phrase
-                        for (let p = 0; p < phrase.length; p++) {
-                            if (phrase[p] === ' ') continue;
-                            if (phrase[p].toUpperCase() === upperCh && !positions.includes(p)) {
-                                // Only add if not already added by a previous group
-                                positions.push(p);
-                                break; // one per letter entry
-                            }
-                        }
-                    }
-                    return positions.length ? positions : null;
-                }).filter(Boolean);
-                if (groups.length === 0) continue;
-                content = { phrase, reveal_groups: groups };
-                if (r[7]) qConfig.basePoints = Number(r[7]) || undefined;
-                if (r[8]) qConfig.bonusMax = Number(r[8]) || undefined;
-                if (String(r[9] || '').trim()) rounds[roundName].config.background = String(r[9]).trim();
+                content = { hint: hint || undefined, phrase };
+                if (r[3]) qConfig.basePoints = Number(r[3]) || undefined;
+                if (r[4]) qConfig.bonusMax = Number(r[4]) || undefined;
+                if (String(r[5] || '').trim()) rounds[roundName].config.background = String(r[5]).trim();
                 break;
             }
             case 'imagen_fija': {
                 const image = String(r[2] || '').trim();
-                if (!image) continue;
-                const buzzerVal = String(r[4] || '').trim().toLowerCase();
+                const video = String(r[3] || '').trim();
+                if (!image && !video) continue;
+                const buzzerVal = String(r[5] || '').trim().toLowerCase();
                 content = {
-                    image,
                     statement: String(r[1] || '').trim() || undefined,
-                    answer: String(r[3] || '').trim() || undefined,
+                    answer: String(r[4] || '').trim() || undefined,
                     buzzer_enabled: buzzerVal !== 'no',
                 };
-                if (r[5]) qConfig.time = Number(r[5]) || undefined;
-                if (r[6]) qConfig.basePoints = Number(r[6]) || undefined;
-                if (String(r[7] || '').trim()) rounds[roundName].config.background = String(r[7]).trim();
+                if (video) {
+                    content.video = video;
+                    const apVal = String(r[6] || '').trim().toLowerCase();
+                    const loopVal = String(r[7] || '').trim().toLowerCase();
+                    content.autoplay = apVal !== 'no';
+                    content.loop = loopVal === 'si' || loopVal === 'sí' || loopVal === 'yes';
+                } else {
+                    content.image = image;
+                }
+                if (r[8]) qConfig.time = Number(r[8]) || undefined;
+                if (r[9]) qConfig.basePoints = Number(r[9]) || undefined;
+                if (String(r[10] || '').trim()) rounds[roundName].config.background = String(r[10]).trim();
+                break;
+            }
+            case 'imagen': {
+                const answer = String(r[2] || '').trim();
+                if (!answer) continue;
+                content = {
+                    statement: String(r[1] || '').trim() || undefined,
+                    answer,
+                    image: String(r[3] || '').trim() || undefined,
+                };
+                if (r[4]) qConfig.basePoints = Number(r[4]) || undefined;
+                if (String(r[5] || '').trim()) rounds[roundName].config.background = String(r[5]).trim();
+                break;
+            }
+            case 'cancion': {
+                const answer = String(r[2] || '').trim();
+                if (!answer) continue;
+                content = {
+                    statement: String(r[1] || '').trim() || undefined,
+                    answer,
+                    image: String(r[3] || '').trim() || undefined,
+                    audio: String(r[4] || '').trim() || undefined,
+                    initial_chaos: Number(r[5]) || 100,
+                    preset: String(r[6] || '').trim() || 'default',
+                };
+                if (r[7]) qConfig.basePoints = Number(r[7]) || undefined;
+                if (String(r[8] || '').trim()) rounds[roundName].config.background = String(r[8]).trim();
                 break;
             }
             default: continue;
@@ -584,3 +603,4 @@ router.get('/games/:id/team-by-device/:deviceId', (req, res) => {
 });
 
 module.exports = router;
+module.exports.EXCEL_TYPE_DEFS = EXCEL_TYPE_DEFS;

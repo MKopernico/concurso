@@ -160,12 +160,62 @@ router.put('/audio/default-playlist', express.json(), (req, res) => {
     res.json({ playlist });
 });
 
-// ───────────── Template download ─────────────
+// ───────────── Template download (dynamic) ─────────────
 
 router.get('/templates/importacion', (req, res) => {
-    const templatePath = path.join(__dirname, '..', 'templates', 'plantilla_importacion_gameshow.xlsx');
-    if (!fs.existsSync(templatePath)) return res.status(404).json({ error: 'plantilla no encontrada' });
-    res.download(templatePath, 'plantilla_importacion_gameshow.xlsx');
+    let XLSX;
+    try { XLSX = require('xlsx'); } catch { return res.status(500).json({ error: 'Módulo xlsx no instalado' }); }
+
+    const { EXCEL_TYPE_DEFS } = require('./games');
+
+    const wb = XLSX.utils.book_new();
+
+    // Instructions sheet first
+    const instrRows = [
+        ['INSTRUCCIONES — Plantilla de importación GameShow'],
+        [],
+        ['1. Cada pestaña corresponde a un tipo de prueba.'],
+        ['2. La columna "ronda" es OBLIGATORIA: cada nombre único crea una ronda nueva.'],
+        ['3. Reimportar el mismo fichero DUPLICA las rondas (no machaca las existentes).'],
+        ['4. Las columnas de media (imagen, audio, video) esperan la ruta del archivo'],
+        ['   ya subido en el servidor (ej: /uploads/images/foto.jpg).'],
+        ['   Suba los archivos desde el admin ANTES de importar el Excel.'],
+        ['5. Los campos de configuración (tiempo, puntos_base, etc.) son opcionales.'],
+        ['   Si se omiten, se usan los valores por defecto de la ronda.'],
+        [],
+        ['TIPOS DE PRUEBA:'],
+    ];
+    EXCEL_TYPE_DEFS.forEach(d => {
+        instrRows.push(['  - ' + d.sheet + ' (' + d.type + ')']);
+    });
+    instrRows.push([], ['NOTAS POR TIPO:']);
+    instrRows.push(['  Multirespuesta: "correctas" = números de opción separados por coma (ej: 1,3). Opciones 4 y 5 son opcionales.']);
+    instrRows.push(['  Pulsador: pistas son opcionales.']);
+    instrRows.push(['  Boom: "orden_correcto" = orden de los elementos separado por coma (ej: 3,1,2,4).']);
+    instrRows.push(['  Ruleta: "pista" es la categoría/pista mostrada al público. "frase" se revela letra a letra.']);
+    instrRows.push(['  Imagen: solo enunciado + respuesta + ruta imagen. La cuadrícula se ajusta en el admin.']);
+    instrRows.push(['  Imagen Fija: usar columna "imagen" O "video" (no ambas). Pulsador: "no" para desactivar.']);
+    instrRows.push(['  Cancion: caos_inicial (0-100, defecto 100), preset (defecto "default").']);
+
+    const wsInstr = XLSX.utils.aoa_to_sheet(instrRows);
+    wsInstr['!cols'] = [{ wch: 90 }];
+    XLSX.utils.book_append_sheet(wb, wsInstr, 'Instrucciones');
+
+    // One sheet per type: row 0 = type label, row 1 = empty, row 2 = headers, row 3+ = data
+    EXCEL_TYPE_DEFS.forEach(d => {
+        const wsData = XLSX.utils.aoa_to_sheet([
+            [d.sheet + ' (' + d.type + ')'],
+            [],
+            d.columns,
+        ]);
+        wsData['!cols'] = d.columns.map(() => ({ wch: 18 }));
+        XLSX.utils.book_append_sheet(wb, wsData, d.sheet);
+    });
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Disposition', 'attachment; filename="plantilla_importacion_gameshow.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buf);
 });
 
 // Error handler de multer
