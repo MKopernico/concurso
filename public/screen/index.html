@@ -803,7 +803,7 @@ function renderRoundIntro() {
     // Background — resolved centrally
     var gt = ps.gameTheme || {};
     var rc = ps.roundTheme || {};
-    var roundType = ps.currentRound ? ps.currentRound.type : null;
+    var roundType = ps.roundType || null;
     var resolved = GameShowShared.Theme.resolveBackground(gt, rc, roundType);
     paintBgLayer(resolved);
 }
@@ -1647,7 +1647,7 @@ function applyRoundTheme(roundTheme) {
 
     var gt = ps.gameTheme || {};
     var rc = roundTheme || {};
-    var roundType = ps.currentRound ? ps.currentRound.type : null;
+    var roundType = ps.roundType || null;
     var resolved = GameShowShared.Theme.resolveBackground(gt, rc, roundType);
     paintBgLayer(resolved);
 }

@@ -271,7 +271,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 </div>
                 <img id="preview-game-logo" class="img-preview" style="display:none; margin-top:8px" onclick="this.style.display='none'; this.closest('.field').querySelector('[name=theme_logo]').value=''">
             </div>
-            <div class="field"><label>Fondo</label>
+            <div class="field"><label>Fondo del juego</label>
                 <div class="bg-type-row" id="game-bg-type">
                     <button type="button" class="bg-type-btn active" data-val="none" onclick="setGameBgType('none')">Sin fondo</button>
                     <button type="button" class="bg-type-btn" data-val="color" onclick="setGameBgType('color')">Color</button>
@@ -302,6 +302,10 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                     </div>
                 </div>
                 <input type="hidden" name="theme_bg_type" value="none">
+                <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-top:10px; padding:8px 10px; border-radius:var(--radius); background:rgba(0,212,255,.05); border:1px solid var(--border)">
+                    <input type="checkbox" name="theme_bg_apply_all" style="width:auto; accent-color:var(--accent)">
+                    <span><strong>Aplicar a todas las pruebas</strong> <span style="font-size:12px; color:var(--text2)">(ignorar fondos por tipo y ronda)</span></span>
+                </label>
             </div>
             <div class="field-row">
                 <div class="field"><label>Color primario</label>
@@ -309,46 +313,6 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 </div>
                 <div class="field"><label>Color secundario</label>
                     <div class="color-row"><input type="color" name="theme_secondary" value="#fbbf24"><input type="text" name="theme_secondary_hex" placeholder="#fbbf24" oninput="syncColor(this,'theme_secondary')"></div>
-                </div>
-            </div>
-
-            <div class="field" style="border:1px solid var(--border); border-radius:var(--radius); padding:14px; background:rgba(0,212,255,.03)">
-                <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-bottom:8px">
-                    <input type="checkbox" name="theme_global_bg_enabled" style="width:auto; accent-color:var(--accent)">
-                    <strong>Fondo global — Aplicar a TODAS las pruebas</strong>
-                </label>
-                <div id="global-bg-fields" style="display:none">
-                    <div style="font-size:12px; color:var(--text2); margin-bottom:10px">Cuando está activo, este fondo se usa en todas las pruebas ignorando los fondos por tipo y por ronda.</div>
-                    <div class="bg-type-row" id="global-bg-type">
-                        <button type="button" class="bg-type-btn active" data-val="none" onclick="setGlobalBgType('none')">Sin fondo</button>
-                        <button type="button" class="bg-type-btn" data-val="color" onclick="setGlobalBgType('color')">Color</button>
-                        <button type="button" class="bg-type-btn" data-val="gradient" onclick="setGlobalBgType('gradient')">Gradiente</button>
-                        <button type="button" class="bg-type-btn" data-val="image" onclick="setGlobalBgType('image')">Imagen</button>
-                    </div>
-                    <div id="global-bg-color" style="display:none">
-                        <div class="color-row"><input type="color" name="theme_global_bg_color" value="#0a0a1a"><input type="text" name="theme_global_bg_color_hex" placeholder="#0a0a1a" oninput="syncColor(this,'theme_global_bg_color')"></div>
-                    </div>
-                    <div id="global-bg-gradient" style="display:none">
-                        <select name="theme_global_bg_gradient">
-                            <option value="nightSky">Cielo nocturno</option>
-                            <option value="deepOcean">Océano profundo</option>
-                            <option value="sunset">Atardecer</option>
-                            <option value="aurora">Aurora boreal</option>
-                            <option value="neon">Neón</option>
-                            <option value="forest">Bosque</option>
-                            <option value="fire">Fuego</option>
-                            <option value="custom">Personalizado...</option>
-                        </select>
-                        <input type="text" name="theme_global_bg_gradient_custom" placeholder="linear-gradient(135deg, #1a1a2e, #16213e)" style="display:none; margin-top:8px">
-                    </div>
-                    <div id="global-bg-image" style="display:none">
-                        <div class="upload-row">
-                            <input type="text" name="theme_global_bg_image" placeholder="URL de imagen de fondo global">
-                            <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'theme_global_bg_image')"></label>
-                            <button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker('images', function(url){ document.querySelector('[name=theme_global_bg_image]').value = url; })">&#128193;</button>
-                        </div>
-                    </div>
-                    <input type="hidden" name="theme_global_bg_type" value="none">
                 </div>
             </div>
 
@@ -1428,23 +1392,6 @@ function syncColor(hexInput, colorFieldName) {
     }
 }
 
-// ── Global background toggle + type selector ──
-document.querySelector('[name="theme_global_bg_enabled"]').addEventListener('change', function() {
-    document.getElementById('global-bg-fields').style.display = this.checked ? '' : 'none';
-});
-
-function setGlobalBgType(type) {
-    document.querySelector('[name="theme_global_bg_type"]').value = type;
-    document.querySelectorAll('#global-bg-type .bg-type-btn').forEach(b => b.classList.toggle('active', b.dataset.val === type));
-    document.getElementById('global-bg-color').style.display = type === 'color' ? '' : 'none';
-    document.getElementById('global-bg-gradient').style.display = type === 'gradient' ? '' : 'none';
-    document.getElementById('global-bg-image').style.display = type === 'image' ? '' : 'none';
-    const gradCustom = document.querySelector('[name="theme_global_bg_gradient"]');
-    if (gradCustom) gradCustom.onchange = function() {
-        document.querySelector('[name="theme_global_bg_gradient_custom"]').style.display = this.value === 'custom' ? '' : 'none';
-    };
-}
-
 function setGameBgType(type) {
     document.querySelector('[name="theme_bg_type"]').value = type;
     document.querySelectorAll('#game-bg-type .bg-type-btn').forEach(b => b.classList.toggle('active', b.dataset.val === type));
@@ -1510,20 +1457,7 @@ function buildThemeFromForm(form) {
         }
         else if (bgType === 'image') theme.backgroundImage = form.theme_bg_image.value.trim();
     }
-    // Global background
-    const globalEnabled = form.theme_global_bg_enabled.checked;
-    if (globalEnabled) theme.globalBackgroundEnabled = true;
-    const globalBgType = form.theme_global_bg_type.value;
-    if (globalBgType !== 'none') {
-        const gb = { type: globalBgType };
-        if (globalBgType === 'color') gb.color = form.theme_global_bg_color.value;
-        else if (globalBgType === 'gradient') {
-            const preset = form.theme_global_bg_gradient.value;
-            gb.gradient = preset === 'custom' ? form.theme_global_bg_gradient_custom.value : preset;
-        }
-        else if (globalBgType === 'image') gb.image = form.theme_global_bg_image.value.trim();
-        theme.globalBackground = gb;
-    }
+    if (form.theme_bg_apply_all.checked) theme.backgroundApplyToAll = true;
     // Home background
     const homeBg = form.theme_home_bg.value.trim();
     if (homeBg) theme.homeBackground = homeBg;
@@ -1562,20 +1496,23 @@ function populateThemeForm(form, theme) {
         else { form.theme_bg_gradient.value = 'custom'; form.theme_bg_gradient_custom.value = val; form.theme_bg_gradient_custom.style.display = ''; }
     }
     if (bgType === 'image') { form.theme_bg_image.value = theme.backgroundImage || ''; }
-    // Global background
-    const globalEnabled = !!theme.globalBackgroundEnabled;
-    form.theme_global_bg_enabled.checked = globalEnabled;
-    document.getElementById('global-bg-fields').style.display = globalEnabled ? '' : 'none';
-    const gb = theme.globalBackground || {};
-    const globalBgType = gb.type || 'none';
-    setGlobalBgType(globalBgType);
-    if (globalBgType === 'color') { form.theme_global_bg_color.value = gb.color || '#0a0a1a'; form.theme_global_bg_color_hex.value = gb.color || ''; }
-    if (globalBgType === 'gradient') {
-        const gVal = gb.gradient || 'nightSky';
-        if (GRADIENT_PRESETS[gVal]) { form.theme_global_bg_gradient.value = gVal; }
-        else { form.theme_global_bg_gradient.value = 'custom'; form.theme_global_bg_gradient_custom.value = gVal; form.theme_global_bg_gradient_custom.style.display = ''; }
+    // Migrate old format: if globalBackgroundEnabled + globalBackground, map to base fields + toggle
+    if (theme.globalBackgroundEnabled && !theme.hasOwnProperty('backgroundApplyToAll')) {
+        const gb = theme.globalBackground || {};
+        if (gb.type && gb.type !== 'none') {
+            setGameBgType(gb.type);
+            if (gb.type === 'color') { form.theme_bg_color.value = gb.color || '#0a0a1a'; form.theme_bg_color_hex.value = gb.color || ''; }
+            if (gb.type === 'gradient') {
+                const gVal = gb.gradient || 'nightSky';
+                if (GRADIENT_PRESETS[gVal]) { form.theme_bg_gradient.value = gVal; }
+                else { form.theme_bg_gradient.value = 'custom'; form.theme_bg_gradient_custom.value = gVal; form.theme_bg_gradient_custom.style.display = ''; }
+            }
+            if (gb.type === 'image') { form.theme_bg_image.value = gb.image || ''; }
+        }
+        form.theme_bg_apply_all.checked = true;
+    } else {
+        form.theme_bg_apply_all.checked = !!theme.backgroundApplyToAll;
     }
-    if (globalBgType === 'image') { form.theme_global_bg_image.value = gb.image || ''; }
     // Home background
     form.theme_home_bg.value = theme.homeBackground || '';
     // Render per-type logo and background fields

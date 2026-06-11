@@ -173,30 +173,40 @@ function _simpleBgToResult(bg, source) {
     return { type: 'color', value: bg, source: source };
 }
 
-/**
- * Resolve effective background with global-override semantics.
- * When globalBackgroundEnabled is true AND globalBackground has valid content,
- * the global wins over everything (round, type, game base).
- * Otherwise: roundConfig.background → typeTheme.background → game base → default.
- */
+function _normalizeTheme(gt) {
+    if (gt._normalized) return gt;
+    if (gt.globalBackgroundEnabled && !gt.hasOwnProperty('backgroundApplyToAll')) {
+        var gb = gt.globalBackground;
+        if (_isValidGlobalBg(gb)) {
+            gt.backgroundType = gb.type;
+            if (gb.color) gt.backgroundColor = gb.color;
+            if (gb.gradient) gt.backgroundGradient = gb.gradient;
+            if (gb.image) gt.backgroundImage = gb.image;
+            gt.backgroundApplyToAll = true;
+        } else {
+            gt.backgroundApplyToAll = false;
+        }
+    }
+    gt._normalized = true;
+    return gt;
+}
+
 function resolveEffectiveBackground(gameTheme, roundConfig, roundType) {
-    var gt = gameTheme || {};
+    var gt = _normalizeTheme(gameTheme || {});
     var rc = roundConfig || {};
     var typeTheme = (gt.types && gt.types[roundType]) || {};
 
-    // Global override: if enabled AND valid, it wins over everything
-    if (gt.globalBackgroundEnabled && _isValidGlobalBg(gt.globalBackground)) {
-        return _structuredToResult(gt.globalBackground, 'global');
+    if (gt.backgroundApplyToAll && gt.backgroundType && gt.backgroundType !== 'none') {
+        var globalBg = { type: gt.backgroundType, color: gt.backgroundColor, gradient: gt.backgroundGradient, image: gt.backgroundImage };
+        if (_isValidGlobalBg(globalBg)) return _structuredToResult(globalBg, 'global');
     }
 
-    // Normal cascade: round → type → game base → default
     var fromRound = _simpleBgToResult(rc.background, 'round');
     if (fromRound) return fromRound;
 
     var fromType = _simpleBgToResult(typeTheme.background, 'type');
     if (fromType) return fromType;
 
-    // Game base structured background
     if (gt.backgroundType && gt.backgroundType !== 'none') {
         var gameBg = { type: gt.backgroundType, color: gt.backgroundColor, gradient: gt.backgroundGradient, image: gt.backgroundImage };
         if (_isValidGlobalBg(gameBg)) return _structuredToResult(gameBg, 'game');
@@ -210,10 +220,11 @@ function resolveEffectiveBackground(gameTheme, roundConfig, roundType) {
  * Global override still wins. Otherwise: specific bg → homeBackground → game base → default.
  */
 function resolveMenuBackground(gameTheme, menuBg) {
-    var gt = gameTheme || {};
+    var gt = _normalizeTheme(gameTheme || {});
 
-    if (gt.globalBackgroundEnabled && _isValidGlobalBg(gt.globalBackground)) {
-        return _structuredToResult(gt.globalBackground, 'global');
+    if (gt.backgroundApplyToAll && gt.backgroundType && gt.backgroundType !== 'none') {
+        var globalBg = { type: gt.backgroundType, color: gt.backgroundColor, gradient: gt.backgroundGradient, image: gt.backgroundImage };
+        if (_isValidGlobalBg(globalBg)) return _structuredToResult(globalBg, 'global');
     }
 
     var fromMenu = _simpleBgToResult(menuBg, 'menu');

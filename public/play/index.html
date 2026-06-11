@@ -740,7 +740,7 @@ function paintPlayBgLayer(resolved) {
 function applyPlayerRoundTheme(ps) {
     var gt = ps.gameTheme || {};
     var rc = ps.roundTheme || {};
-    var roundType = ps.currentRound ? ps.currentRound.type : null;
+    var roundType = ps.roundType || null;
     var resolved = GameShowShared.Theme.resolveBackground(gt, rc, roundType);
     paintPlayBgLayer(resolved);
 

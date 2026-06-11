@@ -391,6 +391,7 @@ function attachSocketHandlers(io) {
                     eq.ocupado = true;
                     eq.socketId = socket.id;
                     socket.equipoId = eq.id;
+                    state._gameTheme = loadGameTheme(gameId);
                     socket.emit('login_success', { miEquipo: eq, estado: publicView(state), equiposRivales: state.equipos });
                     socket.emit('game:player_sync', playerView(state));
                     broadcastDirector(io, gameId, state);
@@ -410,6 +411,7 @@ function attachSocketHandlers(io) {
             state.juegoIniciado = true;
             socket.equipoId = teamId;
 
+            state._gameTheme = loadGameTheme(gameId);
             socket.emit('login_success', { miEquipo: eq, estado: publicView(state), equiposRivales: state.equipos });
             socket.emit('game:player_sync', playerView(state));
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
@@ -442,6 +444,7 @@ function attachSocketHandlers(io) {
             eq.socketId = socket.id;
             socket.equipoId = eq.id;
 
+            state._gameTheme = loadGameTheme(gameId);
             socket.emit('login_success', { miEquipo: eq, estado: publicView(state), equiposRivales: state.equipos });
             socket.emit('game:player_sync', playerView(state));
             broadcastDirector(io, gameId, state);
@@ -462,6 +465,7 @@ function attachSocketHandlers(io) {
             equipo.ocupado = true;
             equipo.socketId = socket.id;
             socket.equipoId = equipo.id;
+            state._gameTheme = loadGameTheme(gameId);
             socket.emit('login_success', { miEquipo: equipo, estado: publicView(state), equiposRivales: state.equipos });
             socket.emit('game:player_sync', playerView(state));
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
@@ -690,6 +694,7 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('screen:join', () => {
+            state._gameTheme = loadGameTheme(gameId);
             socket.emit('game:player_sync', playerView(state));
         });
 
