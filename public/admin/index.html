@@ -196,6 +196,8 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
         <div class="toolbar">
             <button class="btn-primary" onclick="openRoundModal()">+ Nueva ronda</button>
             <button class="btn-ghost btn-sm" onclick="openImportModal()">📥 Importar Excel</button>
+            <button class="btn-ghost btn-sm" id="btnToggleSelectRounds" onclick="toggleRoundSelectMode()" style="display:none">☑ Seleccionar</button>
+            <button class="btn-ghost btn-sm" id="btnDeleteSelectedRounds" onclick="deleteSelectedRounds()" style="display:none; color:var(--danger, #e53935)">🗑️ Eliminar seleccionadas</button>
             <div class="toolbar-right">
                 <button class="btn-success btn-sm" id="btnStartSession" onclick="startSession(currentGame.id)" style="display:none">▶ Iniciar partida</button>
                 <button class="btn-ghost btn-sm" onclick="openGameModal(currentGame)">Editar juego</button>
@@ -680,16 +682,27 @@ function renderGameDetail() {
     renderRounds();
 }
 
+let roundSelectMode = false;
+
 function renderRounds() {
     const el = document.getElementById('rounds-list');
     const rounds = currentGame.rounds;
+    const btnToggle = document.getElementById('btnToggleSelectRounds');
+    const btnDeleteSel = document.getElementById('btnDeleteSelectedRounds');
     if (rounds.length === 0) {
         el.innerHTML = `<div class="empty"><h3>Sin rondas</h3><p>Añade la primera ronda a este juego.</p></div>`;
+        btnToggle.style.display = 'none';
+        btnDeleteSel.style.display = 'none';
+        roundSelectMode = false;
         return;
     }
+    btnToggle.style.display = '';
+    btnToggle.textContent = roundSelectMode ? '✕ Cancelar selección' : '☑ Seleccionar';
+    btnDeleteSel.style.display = roundSelectMode ? '' : 'none';
     el.innerHTML = rounds.map((r, idx) => `
         <div class="card round-draggable" data-id="${r.id}" draggable="true">
             <div class="card-header">
+                ${roundSelectMode ? `<input type="checkbox" class="round-select-cb" data-id="${r.id}" data-name="${esc(r.name)}" style="margin-right:8px; cursor:pointer; width:18px; height:18px">` : ''}
                 <span class="sort-handle" title="Arrastra para reordenar">⠿</span>
                 <span class="card-title" onclick="loadRound('${r.id}')">${esc(r.name)}</span>
                 ${typeBadge(r.type)}
@@ -781,6 +794,28 @@ async function deleteRound(id) {
     try {
         await api(`/rounds/${id}`, { method: 'DELETE' });
         toast('Ronda eliminada');
+        await loadGame(currentGame.id);
+    } catch (e) { toast('Error: ' + e.message); }
+}
+
+function toggleRoundSelectMode() {
+    roundSelectMode = !roundSelectMode;
+    renderRounds();
+}
+
+async function deleteSelectedRounds() {
+    const checked = document.querySelectorAll('.round-select-cb:checked');
+    if (checked.length === 0) { toast('No hay rondas seleccionadas'); return; }
+    const items = Array.from(checked).map(cb => ({ id: cb.dataset.id, name: cb.dataset.name }));
+    const nameList = items.map(r => `  • ${r.name}`).join('\n');
+    const msg = `¿Eliminar ${items.length} ronda(s) y TODAS sus preguntas?\n\nSe borrarán:\n${nameList}\n\nEsta acción no se puede deshacer.`;
+    if (!confirm(msg)) return;
+    try {
+        for (const r of items) {
+            await api(`/rounds/${r.id}`, { method: 'DELETE' });
+        }
+        toast(`${items.length} ronda(s) eliminada(s)`);
+        roundSelectMode = false;
         await loadGame(currentGame.id);
     } catch (e) { toast('Error: ' + e.message); }
 }
