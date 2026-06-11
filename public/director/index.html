@@ -428,6 +428,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         <button class="btn-ghost btn-sm" onclick="emit('director:show_waiting')" title="Espera">&#9208;</button>
         <button class="btn-danger btn-sm" onclick="resetSession()" title="Reiniciar puntos">&#128260;</button>
         <button class="btn-danger btn-sm" onclick="resetFull()" title="Reset total (borra equipos)">&#128465;</button>
+        <button class="btn-ghost btn-sm" id="btnRefreshContent" onclick="refreshContent()" title="Aplicar cambios en caliente">&#128259;</button>
         <button class="btn-ghost btn-sm" onclick="openAdmin()" title="Backoffice">&#9881;</button>
         <button class="btn-accent btn-sm" onclick="openScreen()" title="Abrir pantalla proyector">&#128250; Pantalla</button>
     </div>
@@ -2476,6 +2477,12 @@ function resetRuleta() {
 // ── Navigation ──
 function openScreen() { window.open('/screen/' + S.gameId, '_blank'); }
 function openAdmin() { window.open('/admin', '_blank'); }
+function refreshContent() {
+    emit('director:refresh_content');
+    var btn = document.getElementById('btnRefreshContent');
+    btn.innerHTML = '&#9989;';
+    setTimeout(function() { btn.innerHTML = '&#128259;'; }, 800);
+}
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
 
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }

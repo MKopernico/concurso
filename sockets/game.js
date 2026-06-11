@@ -698,7 +698,20 @@ function attachSocketHandlers(io) {
             socket.emit('game:player_sync', playerView(state));
         });
 
-        socket.on('director:refresh_theme', () => {
+        socket.on('director:refresh_content', () => {
+            const ds = state.director;
+            if (ds.currentRoundId) {
+                ds.questions = loadRoundQuestions(ds.currentRoundId);
+                if (ds.currentQuestionIdx >= ds.questions.length) {
+                    ds.currentQuestionIdx = Math.max(0, ds.questions.length - 1);
+                }
+                const freshRound = db.prepare('SELECT name, config FROM rounds WHERE id = ?').get(ds.currentRoundId);
+                if (freshRound) {
+                    ds.currentRound.name = freshRound.name;
+                    ds.currentRound.config = freshRound.config;
+                }
+            }
+            state._rounds = db.prepare('SELECT id, name, type, config FROM rounds WHERE game_id = ? ORDER BY sort_order, id').all(gameId);
             state._gameTheme = loadGameTheme(gameId);
             broadcastDirector(io, gameId, state);
         });
