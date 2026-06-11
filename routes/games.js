@@ -139,6 +139,89 @@ router.post('/games/:id/duplicate', (req, res) => {
     res.status(201).json(loadGameTree(newGameId));
 });
 
+// ───────────────── EXPORT EXCEL ─────────────────
+
+function contentToRow(typeDef, roundName, question, roundConfig) {
+    const c = question.content || {};
+    const qCfg = question.config || {};
+    const bg = roundConfig.background || '';
+
+    switch (typeDef.type) {
+        case 'multirespuesta': {
+            const opts = c.options || [];
+            const rawCorrect = Array.isArray(c.correct) ? c.correct : (c.correct !== undefined ? [c.correct] : []);
+            const correct = rawCorrect.map(i => i + 1).join(',');
+            return [roundName, c.statement || '', opts[0] || '', opts[1] || '', opts[2] || '', opts[3] || '', opts[4] || '', correct, c.explanation || '', qCfg.time || '', qCfg.basePoints || '', qCfg.bonusMax || '', qCfg.penalty || '', bg];
+        }
+        case 'pulsador': {
+            const hints = c.hints || [];
+            return [roundName, c.statement || '', c.answer || '', hints[0] || '', hints[1] || '', qCfg.time || '', qCfg.basePoints || '', qCfg.penalty || '', bg];
+        }
+        case 'precio':
+            return [roundName, c.statement || '', c.correct_value ?? '', c.image || '', qCfg.time || '', qCfg.basePoints || '', bg];
+        case 'boom': {
+            const items = c.items || [];
+            const rawOrder = Array.isArray(c.correct_order) ? c.correct_order : (c.correct_order !== undefined ? [c.correct_order] : []);
+            const order = rawOrder.map(i => i + 1).join(',');
+            return [roundName, c.statement || '', items[0] || '', items[1] || '', items[2] || '', items[3] || '', items[4] || '', order, qCfg.time || '', qCfg.basePoints || '', qCfg.bonusMax || '', bg];
+        }
+        case 'ruleta':
+            return [roundName, c.hint || '', c.phrase || '', qCfg.basePoints || '', qCfg.bonusMax || '', bg];
+        case 'imagen':
+            return [roundName, c.statement || '', c.answer || '', c.image || '', qCfg.basePoints || '', bg];
+        case 'imagen_fija': {
+            const hasVideo = !!c.video;
+            return [roundName, c.statement || '', hasVideo ? '' : (c.image || ''), hasVideo ? c.video : '', c.answer || '', c.buzzer_enabled === false ? 'no' : 'si', hasVideo ? (c.autoplay === false ? 'no' : 'si') : '', hasVideo ? (c.loop ? 'si' : 'no') : '', qCfg.time || '', qCfg.basePoints || '', bg];
+        }
+        case 'cancion':
+            return [roundName, c.statement || '', c.answer || '', c.image || '', c.audio || '', c.initial_chaos ?? 100, c.preset || 'default', qCfg.basePoints || '', bg];
+        default:
+            return [roundName];
+    }
+}
+
+router.get('/games/:id/export-excel', (req, res) => {
+    let XLSX;
+    try { XLSX = require('xlsx'); } catch { return res.status(500).json({ error: 'Módulo xlsx no instalado' }); }
+
+    const game = loadGameTree(req.params.id);
+    if (!game) return res.status(404).json({ error: 'juego no encontrado' });
+
+    const wb = XLSX.utils.book_new();
+
+    // Group rounds by type
+    const byType = {};
+    for (const round of game.rounds) {
+        if (!byType[round.type]) byType[round.type] = [];
+        byType[round.type].push(round);
+    }
+
+    // Build one sheet per type (same structure as template: row 0 title, row 1 empty, row 2 headers, row 3+ data)
+    EXCEL_TYPE_DEFS.forEach(d => {
+        const dataRows = [];
+        const rounds = byType[d.type] || [];
+        for (const round of rounds) {
+            for (const q of (round.questions || [])) {
+                dataRows.push(contentToRow(d, round.name, q, round.config || {}));
+            }
+        }
+        const wsData = XLSX.utils.aoa_to_sheet([
+            [d.sheet + ' (' + d.type + ')'],
+            [],
+            d.columns,
+            ...dataRows,
+        ]);
+        wsData['!cols'] = d.columns.map(() => ({ wch: 18 }));
+        XLSX.utils.book_append_sheet(wb, wsData, d.sheet);
+    });
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const safeName = (game.name || 'juego').replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ _-]/g, '').trim() || 'juego';
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buf);
+});
+
 // ───────────────── ROUNDS ─────────────────
 
 router.get('/games/:id/rounds', (req, res) => {

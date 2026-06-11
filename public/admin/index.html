@@ -196,6 +196,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
         <div class="toolbar">
             <button class="btn-primary" onclick="openRoundModal()">+ Nueva ronda</button>
             <button class="btn-ghost btn-sm" onclick="openImportModal()">📥 Importar Excel</button>
+            <button class="btn-ghost btn-sm" onclick="window.location='/api/games/'+currentGame.id+'/export-excel'">📤 Exportar Excel</button>
             <button class="btn-ghost btn-sm" id="btnToggleSelectRounds" onclick="toggleRoundSelectMode()" style="display:none">☑ Seleccionar</button>
             <button class="btn-ghost btn-sm" id="btnDeleteSelectedRounds" onclick="deleteSelectedRounds()" style="display:none; color:var(--danger, #e53935)">🗑️ Eliminar seleccionadas</button>
             <div class="toolbar-right">
