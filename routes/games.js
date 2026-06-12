@@ -5,6 +5,8 @@ const express = require('express');
 const crypto = require('crypto');
 const { db, DEFAULT_GAME_ID } = require('../db');
 
+const QuestionValidation = require('../public/shared/question-validation.js');
+
 const router = express.Router();
 
 // Genera un ID corto, legible y sin colisiones para juegos/rondas/preguntas.
@@ -72,6 +74,24 @@ router.put('/games/:id', (req, res) => {
     const existing = db.prepare('SELECT id FROM games WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'no encontrado' });
     const { name, date, status, note, theme, access_code } = req.body || {};
+
+    if (status === 'published') {
+        const game = loadGameTree(req.params.id);
+        const incompleteList = [];
+        for (const round of (game.rounds || [])) {
+            for (const q of (round.questions || [])) {
+                const content = typeof q.content === 'string' ? parseJsonField(q.content, {}) : (q.content || {});
+                const v = QuestionValidation.isComplete(round.type, content);
+                if (!v.complete) {
+                    incompleteList.push({ round: round.name, question: q.sort_order + 1, type: round.type, missing: v.missing });
+                }
+            }
+        }
+        if (incompleteList.length > 0) {
+            return res.status(400).json({ error: 'incomplete_questions', incomplete: incompleteList });
+        }
+    }
+
     db.prepare(`
         UPDATE games SET
             name        = COALESCE(?, name),
@@ -551,7 +571,6 @@ function parseExcelSheet(rows, type) {
         if (!rounds[roundName]) rounds[roundName] = { questions: [], config: {} };
 
         let content, qConfig = {};
-        const missing = [];
 
         switch (type) {
             case 'multirespuesta': {
@@ -560,9 +579,6 @@ function parseExcelSheet(rows, type) {
                 const correctStr = String(r[7] || '');
                 const correct = correctStr ? correctStr.split(/[,;]/).map(s => Number(s.trim()) - 1).filter(n => n >= 0 && n < options.length) : [];
                 if (!statement && options.length === 0) break; // truly empty
-                if (!statement) missing.push('enunciado');
-                if (options.length < 2) missing.push('opciones (mín. 2)');
-                if (correct.length === 0) missing.push('correctas');
                 content = { statement: statement || undefined, options, correct, explanation: String(r[8] || '').trim() || undefined };
                 if (r[9]) qConfig.time = Number(r[9]) || undefined;
                 if (r[10]) qConfig.basePoints = Number(r[10]) || undefined;
@@ -576,8 +592,6 @@ function parseExcelSheet(rows, type) {
                 const answer = String(r[2] || '').trim();
                 const hints = [r[3], r[4]].map(h => String(h || '').trim()).filter(Boolean);
                 if (!statement && !answer && hints.length === 0) break;
-                if (!statement) missing.push('enunciado');
-                if (!answer) missing.push('respuesta');
                 content = { statement: statement || undefined, answer: answer || undefined, hints: hints.length ? hints : undefined };
                 if (r[5]) qConfig.time = Number(r[5]) || undefined;
                 if (r[6]) qConfig.basePoints = Number(r[6]) || undefined;
@@ -589,8 +603,6 @@ function parseExcelSheet(rows, type) {
                 const statement = String(r[1] || '').trim();
                 const correctVal = Number(r[2]);
                 if (!statement && !isFinite(correctVal)) break;
-                if (!statement) missing.push('enunciado');
-                if (!isFinite(correctVal)) missing.push('valor_correcto');
                 content = { statement: statement || undefined, correct_value: isFinite(correctVal) ? correctVal : undefined, image: String(r[3] || '').trim() || undefined };
                 if (r[4]) qConfig.time = Number(r[4]) || undefined;
                 if (r[5]) qConfig.basePoints = Number(r[5]) || undefined;
@@ -603,9 +615,6 @@ function parseExcelSheet(rows, type) {
                 const orderStr = String(r[7] || '');
                 const correct_order = orderStr ? orderStr.split(/[,;]/).map(s => Number(s.trim()) - 1).filter(n => n >= 0) : [];
                 if (!statement && items.length === 0) break;
-                if (!statement) missing.push('enunciado');
-                if (items.length < 2) missing.push('elementos (mín. 2)');
-                if (correct_order.length === 0) missing.push('orden_correcto');
                 content = { statement: statement || undefined, items, correct_order };
                 if (r[8]) qConfig.time = Number(r[8]) || undefined;
                 if (r[9]) qConfig.basePoints = Number(r[9]) || undefined;
@@ -617,7 +626,6 @@ function parseExcelSheet(rows, type) {
                 const hint = String(r[1] || '').trim();
                 const phrase = String(r[2] || '').trim();
                 if (!phrase && !hint) break;
-                if (!phrase) missing.push('frase');
                 content = { hint: hint || undefined, phrase: phrase || undefined };
                 if (r[3]) qConfig.basePoints = Number(r[3]) || undefined;
                 if (r[4]) qConfig.bonusMax = Number(r[4]) || undefined;
@@ -630,7 +638,6 @@ function parseExcelSheet(rows, type) {
                 const statement = String(r[1] || '').trim();
                 const answer = String(r[4] || '').trim();
                 if (!image && !video && !statement && !answer) break;
-                if (!image && !video) missing.push('imagen o video');
                 const buzzerVal = String(r[5] || '').trim().toLowerCase();
                 content = {
                     statement: statement || undefined,
@@ -655,7 +662,6 @@ function parseExcelSheet(rows, type) {
                 const statement = String(r[1] || '').trim();
                 const answer = String(r[2] || '').trim();
                 if (!statement && !answer) break;
-                if (!answer) missing.push('respuesta');
                 content = {
                     statement: statement || undefined,
                     answer: answer || undefined,
@@ -669,7 +675,6 @@ function parseExcelSheet(rows, type) {
                 const statement = String(r[1] || '').trim();
                 const answer = String(r[2] || '').trim();
                 if (!statement && !answer) break;
-                if (!answer) missing.push('respuesta');
                 content = {
                     statement: statement || undefined,
                     answer: answer || undefined,
@@ -687,8 +692,9 @@ function parseExcelSheet(rows, type) {
 
         if (!content) { skipped++; continue; }
 
-        if (missing.length) {
-            incomplete.push({ row: i + 1, round: roundName, missing });
+        const validation = QuestionValidation.isComplete(type, content);
+        if (!validation.complete) {
+            incomplete.push({ row: i + 1, round: roundName, missing: validation.missing });
         }
 
         // Clean empty config
@@ -838,8 +844,18 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
         }
     })();
 
+    results.demoted = false;
+    if (results.incomplete.length > 0) {
+        const gameStatus = db.prepare('SELECT status FROM games WHERE id = ?').get(req.params.id);
+        if (gameStatus && gameStatus.status === 'published') {
+            db.prepare('UPDATE games SET status = ? WHERE id = ?').run('draft', req.params.id);
+            results.demoted = true;
+        }
+    }
+
     console.log(`[Excel Import] Resultado: ${results.rounds} rondas, ${results.questions} preguntas importadas`);
     if (results.incomplete.length) console.log(`[Excel Import] Incompletas: ${results.incomplete.length}`, results.incomplete);
+    if (results.demoted) console.log('[Excel Import] Juego degradado a borrador por preguntas incompletas');
     if (results.errors.length) console.log('[Excel Import] Errores:', results.errors);
     res.json(results);
 });

@@ -41,6 +41,8 @@ button, .btn { cursor: pointer; font-family: inherit; font-size: 13px; font-weig
 
 input, select, textarea { font-family: inherit; font-size: 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; width: 100%; outline: none; transition: border .15s; }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+input.field-error, textarea.field-error, select.field-error { border-color: var(--danger); box-shadow: 0 0 0 2px rgba(239,68,68,.25); }
+.badge-incomplete { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(250,204,21,.15); color: var(--gold); font-weight: 600; white-space: nowrap; cursor: help; }
 textarea { resize: vertical; min-height: 70px; }
 label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; display: block; margin-bottom: 4px; }
 .field { margin-bottom: 14px; }
@@ -164,6 +166,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .picker-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
 .picker-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
 </style>
+<script src="/shared/question-validation.js"></script>
 </head>
 <body>
 <header>
@@ -436,6 +439,17 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
     </div>
 </div>
 
+<!-- ============ MODAL: Import Results ============ -->
+<div id="modal-import-results-overlay" class="modal-overlay">
+    <div class="modal" style="max-width:700px">
+        <h2>Resultado de importación</h2>
+        <div id="import-results-body"></div>
+        <div class="modal-footer">
+            <button type="button" class="btn-primary" onclick="closeModal('modal-import-results-overlay')">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <!-- ============ MODAL: Media Picker ============ -->
 <div id="media-picker-overlay" class="picker-overlay">
     <div class="picker-modal">
@@ -473,7 +487,7 @@ async function api(path, opts = {}) {
     });
     if (res.status === 204) return null;
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error del servidor');
+    if (!res.ok) { const err = new Error(data.error || 'Error del servidor'); err.data = data; throw err; }
     return data;
 }
 
@@ -610,7 +624,10 @@ async function saveGame(e) {
         }
         closeModal('modal-game-overlay');
         loadGames();
-    } catch (e) { toast('Error: ' + e.message); }
+    } catch (e) {
+        if (e.data && e.data.error === 'incomplete_questions') { showPublishBlock(e.data.incomplete); return false; }
+        toast('Error: ' + e.message);
+    }
     return false;
 }
 
@@ -637,7 +654,25 @@ async function publishGame() {
         await api(`/games/${currentGame.id}`, { method: 'PUT', body: { status: 'published' } });
         toast('Juego publicado');
         loadGame(currentGame.id);
-    } catch (e) { toast('Error: ' + e.message); }
+    } catch (e) {
+        if (e.data && e.data.error === 'incomplete_questions') { showPublishBlock(e.data.incomplete); return; }
+        toast('Error: ' + e.message);
+    }
+}
+
+function showPublishBlock(incomplete) {
+    let html = `<p style="margin-bottom:14px; font-size:14px">No se puede publicar: hay <strong>${incomplete.length}</strong> pregunta(s) incompleta(s). Complétalas para publicar.</p>`;
+    html += `<div style="max-height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:8px">`;
+    html += `<table style="width:100%; font-size:12px; border-collapse:collapse">`;
+    html += `<thead><tr style="background:var(--surface2); position:sticky; top:0"><th style="padding:8px; text-align:left">Ronda</th><th style="padding:8px; text-align:center">Pregunta</th><th style="padding:8px; text-align:left">Campos faltantes</th></tr></thead><tbody>`;
+    incomplete.forEach(inc => {
+        const fields = (inc.missing || []).map(k => QuestionValidation.LABELS[k] || k).join(', ');
+        html += `<tr style="border-top:1px solid var(--border)"><td style="padding:6px 8px">${esc(inc.round)}</td><td style="padding:6px 8px; text-align:center">#${inc.question}</td><td style="padding:6px 8px; color:var(--gold)">${esc(fields)}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+    document.getElementById('import-results-body').innerHTML = html;
+    document.querySelector('#modal-import-results-overlay .modal h2').textContent = 'No se puede publicar';
+    openModal('modal-import-results-overlay');
 }
 
 // Status filter tabs
@@ -700,7 +735,10 @@ function renderRounds() {
     btnToggle.style.display = '';
     btnToggle.textContent = roundSelectMode ? '✕ Cancelar selección' : '☑ Seleccionar';
     btnDeleteSel.style.display = roundSelectMode ? '' : 'none';
-    el.innerHTML = rounds.map((r, idx) => `
+    el.innerHTML = rounds.map((r, idx) => {
+        const incCount = (r.questions || []).filter(q => !QuestionValidation.isComplete(r.type, q.content || {}).complete).length;
+        const incBadge = incCount > 0 ? `<span class="badge-incomplete">${incCount} incompleta${incCount > 1 ? 's' : ''}</span>` : '';
+        return `
         <div class="card round-draggable" data-id="${r.id}" draggable="true">
             <div class="card-header">
                 ${roundSelectMode ? `<input type="checkbox" class="round-select-cb" data-id="${r.id}" data-name="${esc(r.name)}" style="margin-right:8px; cursor:pointer; width:18px; height:18px">` : ''}
@@ -708,6 +746,7 @@ function renderRounds() {
                 <span class="card-title" onclick="loadRound('${r.id}')">${esc(r.name)}</span>
                 ${typeBadge(r.type)}
                 <span style="font-size:12px; color:var(--text2)">${(r.questions||[]).length} preg.</span>
+                ${incBadge}
                 <div class="card-actions">
                     <button class="btn-icon btn-sm" onclick="openRoundModal(${JSON.stringify(r).replace(/"/g,'&quot;')})" title="Editar">✏️</button>
                     <button class="btn-icon btn-sm" onclick="deleteRound('${r.id}')" title="Eliminar">🗑️</button>
@@ -720,8 +759,8 @@ function renderRounds() {
                 ${r.config.logo ? `<span>🖼️ Logo</span>` : ''}
                 ${r.config.background ? `<span>🎨 Fondo</span>` : ''}
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 function toggleTimeField(type) {
@@ -927,12 +966,15 @@ function renderQuestions() {
     el.innerHTML = qs.map((q, idx) => {
         const c = q.content || {};
         const preview = c.statement || c.phrase || c.answer || (c.image ? c.image.split('/').pop() : null) || JSON.stringify(c).slice(0, 80);
+        const vResult = QuestionValidation.isComplete(currentRound.type, c);
+        const incompleteBadge = vResult.complete ? '' : `<span class="badge-incomplete" title="Falta: ${vResult.missing.map(k => QuestionValidation.LABELS[k] || k).join(', ')}">⚠ Incompleta</span>`;
         return `
         <div class="card" data-id="${q.id}">
             <div class="card-header">
                 <span class="sort-handle">⠿</span>
                 <span style="color:var(--text2); font-size:13px; min-width:28px">#${idx + 1}</span>
                 <span class="card-title" onclick='openQuestionModal(${JSON.stringify(q).replace(/'/g,"&#39;")})'>${esc(preview)}</span>
+                ${incompleteBadge}
                 <div class="card-actions">
                     ${idx > 0 ? `<button class="btn-icon btn-sm" onclick="moveQuestion('${q.id}',-1)">↑</button>` : ''}
                     ${idx < qs.length - 1 ? `<button class="btn-icon btn-sm" onclick="moveQuestion('${q.id}',1)">↓</button>` : ''}
@@ -1293,10 +1335,30 @@ async function saveQuestion(e) {
     const type = currentRound.type;
     let content;
 
+    // Clear previous validation highlights
+    form.querySelectorAll('.field-error').forEach(el => el.classList.remove('field-error'));
+
     try {
         content = extractContent(type, form);
     } catch (err) {
         toast('Error: ' + err.message);
+        return false;
+    }
+
+    // Validation gate: check completeness before saving
+    const check = QuestionValidation.isComplete(type, content);
+    if (!check.complete) {
+        const labels = check.missing.map(k => QuestionValidation.LABELS[k] || k);
+        toast('No se puede guardar: falta ' + labels.join(', '), 5000);
+        // Highlight fields that have a direct input
+        const fieldMap = { statement: 'c_statement', answer: 'c_answer', correct_value: 'c_correct_value', image: 'c_image', audio: 'c_audio', phrase: 'c_phrase', image_or_video: 'c_image' };
+        check.missing.forEach(k => {
+            const name = fieldMap[k];
+            if (name) {
+                const el = form.querySelector('[name="' + name + '"]');
+                if (el) el.classList.add('field-error');
+            }
+        });
         return false;
     }
 
@@ -1337,8 +1399,6 @@ function extractContent(type, form) {
                     options.push(text);
                 }
             });
-            if (options.length < 2) throw new Error('Mínimo 2 opciones');
-            if (correct.length === 0) throw new Error('Marca al menos una opción correcta');
             return { statement: val(form, 'c_statement'), options, correct, explanation: val(form, 'c_explanation') || undefined };
         }
         case 'pulsador': {
@@ -1362,26 +1422,22 @@ function extractContent(type, form) {
             return { image: val(form, 'c_image') || undefined, statement: val(form, 'c_statement') || undefined, answer: val(form, 'c_answer'), audio: val(form, 'c_audio') || undefined, initial_chaos: Number(val(form, 'c_initial_chaos')) || 100, preset: val(form, 'c_preset') || 'default' };
         case 'boom': {
             const items = val(form, 'c_items').split('\n').map(s => s.trim()).filter(Boolean);
-            if (items.length < 2) throw new Error('Mínimo 2 elementos');
             const correct_order = items.map((_, i) => i);
             return { statement: val(form, 'c_statement'), items, correct_order };
         }
         case 'ruleta': {
             var phrase = val(form, 'c_phrase').toUpperCase();
-            if (!phrase) throw new Error('La frase es obligatoria');
-            return { hint: val(form, 'c_hint'), phrase: phrase };
+            return { hint: val(form, 'c_hint'), phrase: phrase || undefined };
         }
         case 'imagen_fija': {
             const ifMode = val(form, 'c_if_media_mode');
             const r = { buzzer_enabled: val(form, 'c_buzzer_enabled') === 'true' };
             if (ifMode === 'video') {
-                r.video = val(form, 'c_video');
-                if (!r.video) throw new Error('Falta el vídeo');
+                r.video = val(form, 'c_video') || undefined;
                 r.autoplay = val(form, 'c_autoplay') === 'true';
                 r.loop = val(form, 'c_loop') === 'true';
             } else {
-                r.image = val(form, 'c_image');
-                if (!r.image) throw new Error('Falta la imagen');
+                r.image = val(form, 'c_image') || undefined;
             }
             if (val(form, 'c_statement')) r.statement = val(form, 'c_statement');
             if (val(form, 'c_answer')) r.answer = val(form, 'c_answer');
@@ -1791,12 +1847,46 @@ async function doImportExcel() {
         const res = await fetch(API + `/games/${currentGame.id}/import-excel`, { method: 'POST', body: form });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Error de importación');
-        let msg = `Importación completada: ${data.rounds} rondas, ${data.questions} preguntas`;
-        if (data.incomplete && data.incomplete.length) msg += `\n⚠️ ${data.incomplete.length} pregunta(s) incompleta(s) importada(s) — revísalas en el editor`;
-        toast(msg);
         closeModal('modal-import-overlay');
         await loadGame(currentGame.id);
+        showImportResults(data);
     } catch (e) { toast('Error: ' + e.message); }
+}
+
+function showImportResults(data) {
+    document.querySelector('#modal-import-results-overlay .modal h2').textContent = 'Resultado de importación';
+    let html = `<p style="margin-bottom:12px">Importadas <strong>${data.rounds}</strong> rondas y <strong>${data.questions}</strong> preguntas.`;
+    if (data.skipped) html += ` ${data.skipped} fila(s) vacía(s) saltada(s).`;
+    html += '</p>';
+
+    if (data.demoted) {
+        html += `<div style="background:rgba(239,68,68,.12); border:1px solid var(--danger); border-radius:8px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:var(--danger)">⚠ El juego se ha pasado a <strong>BORRADOR</strong> porque se importaron preguntas incompletas. Complétalas para poder publicarlo de nuevo.</div>`;
+    }
+
+    if (data.errors && data.errors.length) {
+        html += `<div style="background:rgba(239,68,68,.08); border:1px solid var(--danger); border-radius:8px; padding:12px 16px; margin-bottom:14px; font-size:13px"><strong>Errores:</strong><ul style="margin:6px 0 0 16px">`;
+        data.errors.forEach(e => { html += `<li>${esc(e)}</li>`; });
+        html += '</ul></div>';
+    }
+
+    if (data.incomplete && data.incomplete.length) {
+        html += `<p style="margin-bottom:8px; font-weight:600; color:var(--gold)">⚠ ${data.incomplete.length} pregunta(s) incompleta(s) importada(s):</p>`;
+        html += `<div style="max-height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:8px">`;
+        html += `<table style="width:100%; font-size:12px; border-collapse:collapse">`;
+        html += `<thead><tr style="background:var(--surface2); position:sticky; top:0"><th style="padding:8px; text-align:left">Hoja</th><th style="padding:8px; text-align:left">Ronda</th><th style="padding:8px; text-align:center">Fila</th><th style="padding:8px; text-align:left">Campos faltantes</th></tr></thead><tbody>`;
+        data.incomplete.forEach(inc => {
+            const fields = (inc.missing || []).map(k => QuestionValidation.LABELS[k] || k).join(', ');
+            html += `<tr style="border-top:1px solid var(--border)"><td style="padding:6px 8px">${esc(inc.sheet || '')}</td><td style="padding:6px 8px">${esc(inc.round || '')}</td><td style="padding:6px 8px; text-align:center">${inc.row}</td><td style="padding:6px 8px; color:var(--gold)">${esc(fields)}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+    }
+
+    if (!data.incomplete || !data.incomplete.length) {
+        html += `<p style="color:var(--success)">Todas las preguntas están completas.</p>`;
+    }
+
+    document.getElementById('import-results-body').innerHTML = html;
+    openModal('modal-import-results-overlay');
 }
 
 // ─────────────────── PLAYLIST EDITOR ───────────────────
