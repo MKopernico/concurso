@@ -55,7 +55,6 @@
       }
       case 'cancion': {
         if (!nonEmpty(c.answer)) missing.push('answer');
-        if (!nonEmpty(c.audio)) missing.push('audio');
         break;
       }
       default:
