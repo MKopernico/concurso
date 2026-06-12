@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual de GameShow — Guía para monitores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0e13; --bg-2:#0e131b; --surface:#141b27; --surface-2:#1a2434;
+    --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.14);
+    --text:#e8eef6; --muted:#93a4b8; --muted-2:#6f8095;
+    --cyan:#00d4ff; --cyan-deep:#073744; --cyan-soft:rgba(0,212,255,.12);
+    --amber:#ffb020; --amber-soft:rgba(255,176,32,.12);
+    --good:#3ddc84; --good-soft:rgba(61,220,132,.12);
+    --display:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;
+    --body:"Inter",ui-sans-serif,system-ui,-apple-system,sans-serif;
+    --maxw:820px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(0,212,255,.06), transparent 60%),
+      var(--bg);
+    color:var(--text); font-family:var(--body); font-size:16px; line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--cyan); text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  .layout{display:grid; grid-template-columns:288px 1fr; gap:0; min-height:100vh}
+
+  /* ── Índice lateral ── */
+  .toc{
+    position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+    background:linear-gradient(180deg,var(--bg-2),var(--bg));
+    border-right:1px solid var(--line); padding:28px 22px 40px;
+  }
+  .brand{display:flex; align-items:center; gap:10px; margin-bottom:6px}
+  .brand-dot{width:11px; height:11px; border-radius:50%; background:var(--cyan);
+    box-shadow:0 0 16px 2px rgba(0,212,255,.7)}
+  .brand-name{font-family:var(--display); font-weight:700; letter-spacing:.5px; font-size:18px}
+  .brand-sub{color:var(--muted-2); font-size:12px; text-transform:uppercase; letter-spacing:2px; margin:2px 0 24px 21px}
+  .toc nav a{display:block; color:var(--muted); padding:7px 12px; border-radius:8px;
+    font-size:14px; line-height:1.4; border-left:2px solid transparent}
+  .toc nav a:hover{color:var(--text); background:rgba(255,255,255,.03); text-decoration:none}
+  .toc nav a.num{font-family:var(--display); font-weight:600; color:var(--text); margin-top:14px}
+  .toc nav a.num .n{color:var(--cyan); margin-right:9px; font-variant-numeric:tabular-nums}
+  .toc nav a.sub{font-size:13px; padding-left:34px; color:var(--muted-2)}
+  .toc nav a.active{color:var(--text); background:var(--cyan-soft); border-left-color:var(--cyan)}
+
+  /* ── Contenido ── */
+  main{padding:0 clamp(20px,5vw,72px)}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:64px 0 120px}
+
+  .lead-eyebrow{font-family:var(--display); color:var(--cyan); letter-spacing:3px;
+    text-transform:uppercase; font-size:12px; font-weight:600}
+  h1{font-family:var(--display); font-weight:700; font-size:clamp(34px,5vw,52px);
+    line-height:1.05; margin:14px 0 18px; letter-spacing:-.5px}
+  .lead{color:var(--muted); font-size:18px; max-width:60ch}
+
+  section{scroll-margin-top:24px; padding-top:56px; margin-top:56px; border-top:1px solid var(--line)}
+  section:first-of-type{border-top:none; margin-top:40px}
+  .sec-head{display:flex; align-items:baseline; gap:16px; margin-bottom:8px}
+  .sec-num{font-family:var(--display); font-weight:700; color:var(--cyan);
+    font-size:15px; font-variant-numeric:tabular-nums; letter-spacing:1px;
+    border:1px solid var(--cyan-deep); background:var(--cyan-soft);
+    padding:3px 9px; border-radius:7px; white-space:nowrap}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(24px,3.4vw,32px);
+    margin:0; letter-spacing:-.3px}
+  h3{font-family:var(--display); font-weight:600; font-size:20px; margin:38px 0 6px}
+  h4{font-family:var(--display); font-weight:600; font-size:16px; margin:26px 0 4px; color:var(--text)}
+  p{margin:12px 0}
+  ul,ol{margin:12px 0; padding-left:22px}
+  li{margin:7px 0}
+  strong{color:#fff; font-weight:600}
+  code{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em;
+    background:var(--surface-2); border:1px solid var(--line); padding:1px 6px; border-radius:5px; color:#bfe9ff}
+
+  /* tablas */
+  table{width:100%; border-collapse:collapse; margin:18px 0; font-size:14.5px}
+  th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{font-family:var(--display); font-weight:600; color:var(--cyan); font-size:13px;
+    text-transform:uppercase; letter-spacing:.6px}
+  tbody tr:hover{background:rgba(255,255,255,.02)}
+
+  /* callouts */
+  .note{border:1px solid var(--line-2); border-left:3px solid var(--cyan);
+    background:var(--surface); border-radius:10px; padding:14px 18px; margin:20px 0}
+  .note.warn{border-left-color:var(--amber)}
+  .note .tag{font-family:var(--display); font-weight:600; font-size:12px; letter-spacing:1px;
+    text-transform:uppercase; color:var(--cyan); display:block; margin-bottom:4px}
+  .note.warn .tag{color:var(--amber)}
+
+  /* tarjetas de tipos de prueba */
+  .types{display:grid; gap:14px; margin:24px 0}
+  .type{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 20px;
+    transition:border-color .2s}
+  .type:hover{border-color:var(--cyan-deep)}
+  .type h4{margin:0 0 4px; font-size:18px}
+  .type p{margin:6px 0; color:var(--muted); font-size:14.5px}
+  .req{display:inline-flex; gap:8px; align-items:center; margin-top:10px;
+    background:var(--cyan-soft); border:1px solid var(--cyan-deep); color:#bfe9ff;
+    font-size:13px; padding:5px 11px; border-radius:999px}
+  .req b{color:var(--cyan); font-family:var(--display); font-weight:600; letter-spacing:.5px;
+    text-transform:uppercase; font-size:11px}
+
+  /* huecos de captura */
+  .shot{margin:24px 0}
+  .shot img{width:100%; display:block; border-radius:12px; border:1px solid var(--line-2)}
+  .shot .ph{display:none}
+  .shot.is-missing img{display:none}
+  .shot.is-missing .ph{display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; gap:8px; min-height:200px; border:2px dashed var(--line-2); border-radius:12px;
+    background:repeating-linear-gradient(135deg,transparent,transparent 14px,rgba(255,255,255,.015) 14px,rgba(255,255,255,.015) 28px);
+    padding:28px}
+  .ph .ph-cam{width:42px; height:42px; border-radius:10px; border:1px solid var(--cyan-deep);
+    background:var(--cyan-soft); display:flex; align-items:center; justify-content:center; color:var(--cyan); font-size:20px}
+  .ph .ph-num{font-family:var(--display); font-weight:700; color:var(--cyan); letter-spacing:2px; font-size:13px}
+  .ph .ph-file{font-family:ui-monospace,Menlo,monospace; font-size:12.5px; color:var(--muted)}
+  .ph .ph-label{color:var(--muted-2); font-size:13px; max-width:42ch}
+  figcaption{color:var(--muted-2); font-size:13px; margin-top:9px; text-align:center}
+  figcaption .cn{font-family:var(--display); color:var(--cyan); font-weight:600; margin-right:7px}
+
+  /* checklist */
+  .check{list-style:none; padding:0; margin:18px 0}
+  .check li{display:flex; gap:12px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--line)}
+  .check .box{flex:0 0 auto; width:20px; height:20px; border-radius:6px; border:1.5px solid var(--line-2); margin-top:2px}
+  .check .grp{font-family:var(--display); font-weight:600; color:var(--cyan); text-transform:uppercase;
+    letter-spacing:1px; font-size:13px; margin:22px 0 6px}
+
+  .toplink{display:inline-block; margin-top:40px; font-family:var(--display); font-size:13px;
+    color:var(--muted); letter-spacing:.5px}
+
+  footer{color:var(--muted-2); font-size:13px; border-top:1px solid var(--line); margin-top:60px; padding-top:24px}
+
+  /* botón menú móvil */
+  .menu-btn{display:none}
+
+  @media(max-width:880px){
+    .layout{grid-template-columns:1fr}
+    .toc{position:fixed; z-index:40; width:300px; left:-320px; transition:left .25s; box-shadow:0 0 60px rgba(0,0,0,.6)}
+    .toc.open{left:0}
+    .menu-btn{display:flex; position:fixed; z-index:50; top:16px; left:16px; align-items:center; gap:8px;
+      background:var(--surface-2); border:1px solid var(--line-2); color:var(--text);
+      font-family:var(--display); font-weight:600; font-size:14px; padding:9px 14px; border-radius:10px; cursor:pointer}
+    .scrim{display:none; position:fixed; inset:0; z-index:35; background:rgba(0,0,0,.5)}
+    .scrim.open{display:block}
+    main{padding:0 20px}
+    .wrap{padding:72px 0 100px}
+  }
+</style>
+</head>
+<body>
+
+<button class="menu-btn" id="menuBtn" aria-label="Índice">☰ Índice</button>
+<div class="scrim" id="scrim"></div>
+
+<div class="layout">
+  <aside class="toc" id="toc">
+    <div class="brand"><span class="brand-dot"></span><span class="brand-name">GameShow</span></div>
+    <div class="brand-sub">Manual</div>
+    <nav id="nav">
+      <a class="num" href="#s1"><span class="n">01</span>Qué es y para qué sirve</a>
+      <a class="num" href="#s2"><span class="n">02</span>Crear un juego</a>
+      <a class="sub" href="#s2-tipos">Tipos de prueba</a>
+      <a class="sub" href="#s2-excel">Importar desde Excel</a>
+      <a class="sub" href="#s2-valid">Validación e incompletas</a>
+      <a class="sub" href="#s2-punt">Puntuación y bonus</a>
+      <a class="num" href="#s3"><span class="n">03</span>Dirigir en directo</a>
+      <a class="num" href="#s4"><span class="n">04</span>Montaje en sala</a>
+      <a class="sub" href="#s4-pantalla">Pantalla extendida</a>
+      <a class="sub" href="#s4-ipads">iPads</a>
+      <a class="sub" href="#s4-sonido">Sonido</a>
+      <a class="num" href="#s5"><span class="n">05</span>Checklist final</a>
+    </nav>
+  </aside>
+
+  <main>
+  <div class="wrap">
+
+    <div class="lead-eyebrow">Guía para monitores</div>
+    <h1>Manual de GameShow</h1>
+    <p class="lead">Cómo preparar, crear y dirigir un concurso de principio a fin: desde entender qué es la app hasta dejar la sala lista el día del evento.</p>
+
+    <!-- ── SECCIÓN 1 ── -->
+    <section id="s1">
+      <div class="sec-head"><span class="sec-num">01</span><h2>Qué es GameShow y para qué sirve</h2></div>
+      <p>GameShow es una <strong>plataforma web para montar concursos tipo programa de televisión</strong> en eventos en directo. Sustituye por completo a lo que antes hacíamos con AhaSlides y PowerPoint: en lugar de pasar diapositivas y llevar la cuenta a mano, todo el concurso —preguntas, marcador, tiempos, pulsadores, bloqueos— se controla desde un único sitio y se sincroniza solo entre todos los dispositivos.</p>
+      <p>La idea es sencilla: <strong>una persona dirige el juego</strong> desde su iPad o tablet, <strong>los equipos juegan</strong> desde sus propios iPads, y <strong>una pantalla grande</strong> muestra al público lo que pasa, con su marcador, sus animaciones y su cuenta atrás. Todo en tiempo real: cuando el coordinador lanza una prueba, aparece al instante en los iPads de los jugadores y en la pantalla de la sala.</p>
+
+      <h3>Las cuatro caras de la app</h3>
+      <p>GameShow tiene cuatro vistas, cada una para una función. Conviene tenerlas claras porque cada persona usa la suya:</p>
+      <table>
+        <thead><tr><th>Vista</th><th>Quién la usa</th><th>Dispositivo</th><th>Para qué</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Backoffice</strong><br><code>/admin</code></td><td>Quien prepara el juego</td><td>Ordenador</td><td>Crear y editar juegos, rondas y pruebas</td></tr>
+          <tr><td><strong>Coordinador</strong><br><code>/director</code></td><td>Quien dirige en directo</td><td>iPad / tablet</td><td>Lanzar pruebas, puntos, tiempos, pulsadores</td></tr>
+          <tr><td><strong>Jugador</strong><br><code>/play</code></td><td>Cada equipo</td><td>iPad</td><td>Ver las pruebas, responder y pulsar</td></tr>
+          <tr><td><strong>Pantalla</strong><br><code>/screen</code></td><td>El público</td><td>Ordenador + proyector</td><td>Vista espectacular de solo lectura</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Cómo encaja todo</h3>
+      <ol>
+        <li><strong>Antes del evento</strong>, en el ordenador, alguien entra al backoffice y crea el juego: nombre, preguntas organizadas en rondas, tipos de prueba, y lo publica.</li>
+        <li><strong>El día del evento</strong> se monta la sala: el ordenador con el proyector mostrando la pantalla, y los iPads repartidos a los equipos.</li>
+        <li>El <strong>coordinador</strong> abre su panel y dirige el concurso lanzando las pruebas en el orden que quiera, como si fueran botones.</li>
+        <li>Al final, una <strong>pantalla de podio</strong> corona al equipo ganador.</li>
+      </ol>
+    </section>
+
+    <!-- ── SECCIÓN 2 ── -->
+    <section id="s2">
+      <div class="sec-head"><span class="sec-num">02</span><h2>Crear un juego de principio a fin</h2></div>
+      <p>El backoffice es donde se construye todo el concurso. Se accede desde un ordenador en <code>/admin</code>. No hace falta instalar nada: funciona en el navegador.</p>
+
+      <figure class="shot" data-file="img/01-backoffice-lista-juegos.png">
+        <img src="img/01-backoffice-lista-juegos.png" alt="Lista de juegos en el backoffice" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 01</div><div class="ph-file">img/01-backoffice-lista-juegos.png</div><div class="ph-label">Pantalla inicial del backoffice con la lista de juegos.</div></div>
+        <figcaption><span class="cn">01</span>El backoffice con la lista de juegos.</figcaption>
+      </figure>
+
+      <h3>Cómo se organiza un juego</h3>
+      <p>Un concurso tiene tres niveles, como muñecas rusas: <strong>un juego contiene rondas, y cada ronda contiene pruebas.</strong></p>
+      <ul>
+        <li><strong>Juego</strong>: el concurso completo de un evento (ej. «Concurso fin de campamento 2026»).</li>
+        <li><strong>Rondas</strong>: bloques dentro del juego, cada uno de un tipo de prueba (ej. «Ronda 1 — Cultura general» de tipo multirespuesta).</li>
+        <li><strong>Pruebas</strong>: los ítems concretos dentro de cada ronda.</li>
+      </ul>
+
+      <h3>Crear el juego</h3>
+      <p>Al crear un juego se indica:</p>
+      <ul>
+        <li><strong>Nombre</strong> y <strong>fecha</strong> del evento.</li>
+        <li><strong>Estado</strong>: empieza siempre como <strong>borrador</strong>. Un borrador se edita libremente pero todavía no se puede jugar. Cuando esté listo, se pasa a <strong>publicado</strong> (ver <a href="#s2-valid">Validación</a>).</li>
+        <li><strong>Código de acceso</strong>: un código de 4 a 6 dígitos que los jugadores introducen en sus iPads para entrar al juego correcto.</li>
+        <li><strong>Nota interna</strong>: opcional, solo para ti. No la ve nadie durante el juego.</li>
+      </ul>
+      <p>Un juego ya creado se puede <strong>duplicar entero</strong> (con todas sus rondas y pruebas), muy cómodo para reutilizar un concurso cambiando solo lo necesario.</p>
+
+      <figure class="shot" data-file="img/02-crear-juego.png">
+        <img src="img/02-crear-juego.png" alt="Formulario de crear juego" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 02</div><div class="ph-file">img/02-crear-juego.png</div><div class="ph-label">Formulario de crear/editar juego: nombre, fecha, estado, código de acceso.</div></div>
+        <figcaption><span class="cn">02</span>Formulario de crear un juego.</figcaption>
+      </figure>
+
+      <h3>Crear las rondas</h3>
+      <p>Dentro del juego se añaden rondas. De cada una se define el <strong>nombre</strong>, el <strong>tipo de prueba</strong> (una ronda es de un solo tipo) y, opcionalmente, su <strong>logo y fondo</strong> propios para la pantalla de sala. Las rondas se reordenan arrastrándolas.</p>
+
+      <figure class="shot" data-file="img/03-juego-rondas.png">
+        <img src="img/03-juego-rondas.png" alt="Vista de un juego con sus rondas" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 03</div><div class="ph-file">img/03-juego-rondas.png</div><div class="ph-label">Detalle de un juego mostrando su lista de rondas.</div></div>
+        <figcaption><span class="cn">03</span>Un juego con sus rondas.</figcaption>
+      </figure>
+
+      <h3>Crear las pruebas: dos caminos</h3>
+      <p>Hay dos formas de meter pruebas dentro de una ronda: <strong>a mano</strong>, una a una con un formulario adaptado al tipo, o <strong>por Excel</strong>, subiendo muchas de golpe. Ambos caminos pasan por el mismo control de calidad (ver <a href="#s2-valid">Validación</a>).</p>
+
+      <figure class="shot" data-file="img/06-formulario-prueba.png">
+        <img src="img/06-formulario-prueba.png" alt="Formulario de crear una prueba" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 06</div><div class="ph-file">img/06-formulario-prueba.png</div><div class="ph-label">Formulario de crear una prueba (p. ej. multirespuesta) con sus campos.</div></div>
+        <figcaption><span class="cn">06</span>Formulario de una prueba.</figcaption>
+      </figure>
+
+      <!-- TIPOS -->
+      <div id="s2-tipos"></div>
+      <h3>Los tipos de prueba (y qué necesita cada uno)</h3>
+      <p>GameShow tiene ocho tipos. Para cada uno, qué es, cómo se juega y —lo más importante— <strong>qué necesita para estar completa</strong>: si le falta el campo clave, la app la marca como incompleta y no te deja publicar hasta arreglarla.</p>
+
+      <div class="types">
+        <div class="type">
+          <h4>Multirespuesta (50×15)</h4>
+          <p>La pregunta de toda la vida con opciones. Cada equipo selecciona en su iPad antes de que acabe el tiempo; cuanto más rápido acierta, más puntos.</p>
+          <span class="req"><b>Requisito</b> Enunciado · ≥2 opciones · ≥1 correcta marcada</span>
+        </div>
+        <div class="type">
+          <h4>Pulsador rápido</h4>
+          <p>Pregunta abierta con buzzer. Los equipos pulsan; el coordinador ve la cola por orden. El primero responde; si falla, rebota al siguiente.</p>
+          <span class="req"><b>Requisito</b> Enunciado · Respuesta</span>
+        </div>
+        <div class="type">
+          <h4>Precio justo</h4>
+          <p>Cada equipo escribe un número; gana quien más se acerque sin pasarse.</p>
+          <span class="req"><b>Requisito</b> Enunciado · Valor correcto (el <code>0</code> vale)</span>
+        </div>
+        <div class="type">
+          <h4>Boom (ordenar)</h4>
+          <p>El jugador arrastra varias tarjetas hasta el orden correcto. <strong>Introduce los elementos ya en el orden bueno</strong>: el orden correcto se toma de ahí.</p>
+          <span class="req"><b>Requisito</b> Enunciado · ≥2 elementos</span>
+        </div>
+        <div class="type">
+          <h4>Ruleta de la suerte</h4>
+          <p>Una frase oculta que se revela letra a letra. Los equipos pulsan para resolver; cuantas menos letras visibles, más puntos.</p>
+          <span class="req"><b>Requisito</b> Frase (la pista es opcional)</span>
+        </div>
+        <div class="type">
+          <h4>Adivina la imagen</h4>
+          <p>Una imagen tapada por una cuadrícula que se destapa casilla a casilla. Cuantos más cuadrados tapados al acertar, más puntos.</p>
+          <span class="req"><b>Requisito</b> Imagen · Respuesta</span>
+        </div>
+        <div class="type">
+          <h4>Imagen fija</h4>
+          <p>Una imagen o vídeo estático que el coordinador gestiona de viva voz, con pulsador o sin él.</p>
+          <span class="req"><b>Requisito</b> Imagen o vídeo</span>
+        </div>
+        <div class="type">
+          <h4>Adivina la canción</h4>
+          <p>Una canción que empieza distorsionada y se va aclarando con el Chaos Studio mientras los equipos pulsan. El audio lo sirve el Chaos Studio aparte (ver <a href="#s4-sonido">Sonido</a>).</p>
+          <span class="req"><b>Requisito</b> Respuesta (no hace falta subir el audio)</span>
+        </div>
+      </div>
+
+      <!-- EXCEL -->
+      <div id="s2-excel"></div>
+      <h3>Importar pruebas desde Excel</h3>
+      <p>Para meter muchas preguntas de golpe, el backoffice ofrece una <strong>plantilla descargable</strong> con las columnas correctas según el tipo. Se rellena y se sube. Lo importante:</p>
+      <ul>
+        <li><strong>No se descarta nada.</strong> Si una fila está a medias, se importa igual: la app prefiere guardar lo que haya y avisarte.</li>
+        <li>Al terminar, <strong>te muestra un listado</strong> de qué preguntas entraron incompletas y qué les falta (hoja, ronda, fila y campo). Ese listado no desaparece solo.</li>
+        <li>Si importas incompletas a un juego <strong>ya publicado</strong>, el juego <strong>se baja automáticamente a borrador</strong> como protección. Complétalas y vuelve a publicar.</li>
+      </ul>
+
+      <figure class="shot" data-file="img/07-importar-excel.png">
+        <img src="img/07-importar-excel.png" alt="Importar Excel" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 07</div><div class="ph-file">img/07-importar-excel.png</div><div class="ph-label">Botón / diálogo de importar Excel y descargar plantilla.</div></div>
+        <figcaption><span class="cn">07</span>Importación por Excel.</figcaption>
+      </figure>
+
+      <figure class="shot" data-file="img/08-resultado-importacion.png">
+        <img src="img/08-resultado-importacion.png" alt="Resultado de importación" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 08</div><div class="ph-file">img/08-resultado-importacion.png</div><div class="ph-label">Modal de resultado con la lista de preguntas incompletas y, si aplica, el aviso de bajada a borrador.</div></div>
+        <figcaption><span class="cn">08</span>Resultado de la importación con incompletas.</figcaption>
+      </figure>
+
+      <!-- VALIDACIÓN -->
+      <div id="s2-valid"></div>
+      <h3>Validación: qué está completo y qué no</h3>
+      <p>GameShow controla la calidad para que ninguna prueba a medias llegue a un juego que se va a jugar. Funciona en tres puntos:</p>
+      <ul>
+        <li><strong>Marca visual:</strong> en la lista de preguntas, las incompletas aparecen con un aviso <strong>⚠ Incompleta</strong>; al pasar el ratón dice qué falta. Las rondas con incompletas muestran un contador.</li>
+        <li><strong>No deja guardar a medias a mano:</strong> si dejas el campo clave en blanco al crear una prueba, no te deja guardarla y te señala qué falta. No pierdes lo escrito: la ventana sigue abierta.</li>
+        <li><strong>No deja publicar con incompletas:</strong> al pasar un juego a publicado, revisa todas sus pruebas; si alguna falla, <strong>bloquea la publicación</strong> y te lista qué pruebas, en qué ronda y qué les falta.</li>
+      </ul>
+      <div class="note"><span class="tag">La filosofía</span>Conservar tu trabajo, avisarte, y darte margen para el error humano — nunca borrar nada.</div>
+
+      <figure class="shot" data-file="img/05-pruebas-incompleta.png">
+        <img src="img/05-pruebas-incompleta.png" alt="Prueba marcada como incompleta" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 05</div><div class="ph-file">img/05-pruebas-incompleta.png</div><div class="ph-label">Lista de pruebas con al menos una marcada «⚠ Incompleta».</div></div>
+        <figcaption><span class="cn">05</span>Una prueba marcada como incompleta.</figcaption>
+      </figure>
+
+      <figure class="shot" data-file="img/09-bloqueo-publicacion.png">
+        <img src="img/09-bloqueo-publicacion.png" alt="Bloqueo de publicación" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 09</div><div class="ph-file">img/09-bloqueo-publicacion.png</div><div class="ph-label">Aviso «No se puede publicar» listando las pruebas incompletas y qué les falta.</div></div>
+        <figcaption><span class="cn">09</span>Publicación bloqueada por pruebas incompletas.</figcaption>
+      </figure>
+
+      <!-- PUNTUACIÓN -->
+      <div id="s2-punt"></div>
+      <h3>Puntuación y bonus</h3>
+      <p>La puntuación se configura por prueba, o de golpe para toda una ronda o juego con un botón de «aplicar a todas»:</p>
+      <ul>
+        <li><strong>Puntos base</strong>: lo que vale acertar.</li>
+        <li><strong>Bonus por tiempo</strong>: puntos extra proporcionales a lo rápido que se responde.</li>
+        <li><strong>Penalización por fallo</strong>: opcional.</li>
+      </ul>
+      <p>Además, cada prueba puede llevar un <strong>bonus especial</strong> para el ganador, que se anuncia en la pantalla de sala: <strong>congelar</strong> a un rival, <strong>congelar a todos</strong>, <strong>puntos extra</strong>, <strong>multiplicador</strong> de la prueba siguiente, o un <strong>premio personalizado</strong> de texto libre. El <strong>marcador general</strong> acumula todo, y el coordinador puede sumar o restar puntos a mano en cualquier momento.</p>
+
+      <figure class="shot" data-file="img/10-puntuacion-bonus.png">
+        <img src="img/10-puntuacion-bonus.png" alt="Configuración de puntuación" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 10</div><div class="ph-file">img/10-puntuacion-bonus.png</div><div class="ph-label">Configuración de puntos base, bonus por tiempo, penalización y bonus especial.</div></div>
+        <figcaption><span class="cn">10</span>Puntuación y bonus de una prueba.</figcaption>
+      </figure>
+
+      <h3>Publicar</h3>
+      <p>Cuando el juego esté completo y revisado, se cambia su estado a <strong>publicado</strong>. A partir de ahí los iPads de jugadores pueden verlo y entrar con el código de acceso. Si quedan incompletas, la app no te deja publicar hasta resolverlas.</p>
+
+      <figure class="shot" data-file="img/11-publicar-juego.png">
+        <img src="img/11-publicar-juego.png" alt="Publicar el juego" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 11</div><div class="ph-file">img/11-publicar-juego.png</div><div class="ph-label">Botón de publicar y/o el juego ya en estado «publicado».</div></div>
+        <figcaption><span class="cn">11</span>El juego publicado.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ── SECCIÓN 3 ── -->
+    <section id="s3">
+      <div class="sec-head"><span class="sec-num">03</span><h2>Dirigir el juego en directo</h2></div>
+      <p>Con el juego publicado y la sala montada, el coordinador toma el control desde su iPad en <code>/director</code>. Desde ahí también está el botón para <strong>abrir la pantalla de sala</strong>.</p>
+
+      <figure class="shot" data-file="img/12-director-panel.png">
+        <img src="img/12-director-panel.png" alt="Panel del coordinador" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 12</div><div class="ph-file">img/12-director-panel.png</div><div class="ph-label">Panel del coordinador: lista de rondas y controles superiores (marcador, QR, abrir pantalla).</div></div>
+        <figcaption><span class="cn">12</span>El panel del coordinador.</figcaption>
+      </figure>
+
+      <h3>Varios coordinadores a la vez</h3>
+      <p>Pueden <strong>dirigir el mismo juego varias personas a la vez</strong>, todas sincronizadas: una mesa técnica controla y el presentador solo mira; o el presentador lleva los pulsadores y la mesa los puntos; o una sola persona hace todo. Si uno lanza una prueba, los demás la ven al instante.</p>
+
+      <h3>Lanzar pruebas</h3>
+      <p>El panel muestra la lista completa de rondas y pruebas. <strong>No hay orden fijo</strong>: lanzas la que quieras cuando quieras, como hipervínculos de un PowerPoint. Al lanzarla, los iPads de jugadores se actualizan solos y la pantalla de sala la muestra a lo grande con su cuenta atrás.</p>
+
+      <h3>Controles durante una prueba</h3>
+      <ul>
+        <li><strong>Pulsador:</strong> ves la <strong>cola</strong> por orden y marcas <strong>acierto</strong> o <strong>fallo</strong>; si el primero falla, rebota al siguiente.</li>
+        <li><strong>Temporizador:</strong> lanzar, extender o cortar la cuenta atrás.</li>
+        <li><strong>Revelar respuesta</strong> cuando decidas.</li>
+        <li><strong>Destapar</strong> (Adivina la imagen y Ruleta): cada clic revela un cuadrado o una letra.</li>
+        <li><strong>Distorsión</strong> (Adivina la canción): el control para ir limpiando el sonido.</li>
+      </ul>
+
+      <figure class="shot" data-file="img/13-director-pulsador.png">
+        <img src="img/13-director-pulsador.png" alt="Control de pulsador" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 13</div><div class="ph-file">img/13-director-pulsador.png</div><div class="ph-label">Control de pulsador: la cola de equipos y los botones de acierto/fallo.</div></div>
+        <figcaption><span class="cn">13</span>El control del pulsador con su cola.</figcaption>
+      </figure>
+
+      <h3>Marcador, bloqueos y final</h3>
+      <p>Desde el panel das y quitas puntos a mano cuando haga falta. Si una prueba repartió bonus de congelación, activas los <strong>bloqueos</strong> sobre los equipos y la pantalla de sala lo anuncia con un aviso vistoso. <strong>Entre pruebas</strong> puedes mostrar la pantalla de espera o el marcador; al acabar, lanzas el <strong>podio final</strong>.</p>
+
+      <figure class="shot" data-file="img/15-director-marcador.png">
+        <img src="img/15-director-marcador.png" alt="Marcador en el panel" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 15</div><div class="ph-file">img/15-director-marcador.png</div><div class="ph-label">Gestión del marcador desde el panel: sumar y restar puntos.</div></div>
+        <figcaption><span class="cn">15</span>El marcador desde el panel del coordinador.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ── SECCIÓN 4 ── -->
+    <section id="s4">
+      <div class="sec-head"><span class="sec-num">04</span><h2>Montaje en sala</h2></div>
+      <p>Para el día del evento: dejar la sala lista para jugar. Algunos detalles dependen de tu equipo concreto (ordenador, proyector, altavoces), así que adapta donde haga falta.</p>
+
+      <h3>Qué necesitas</h3>
+      <ul>
+        <li>Un <strong>ordenador de sala</strong> conectado al proyector o televisor.</li>
+        <li>El <strong>proyector o televisor</strong> para el público.</li>
+        <li><strong>Altavoces</strong> conectados al ordenador (imprescindibles si hay prueba de canción).</li>
+        <li>Un <strong>iPad para el coordinador</strong> y <strong>un iPad por equipo</strong>.</li>
+        <li>Buena <strong>wifi</strong> que cubra a todos los dispositivos.</li>
+      </ul>
+
+      <div id="s4-pantalla"></div>
+      <h3>El ordenador con pantalla extendida</h3>
+      <p>El truco del montaje es que el ordenador trabaje con <strong>dos pantallas</strong>: la suya (donde controlas tú) y el proyector (donde ve el público). Así el público solo ve la pantalla bonita.</p>
+      <ol>
+        <li>Conecta el proyector al ordenador (normalmente HDMI).</li>
+        <li>En la configuración de pantalla, elige <strong>«Extender»</strong> (no «Duplicar»).</li>
+        <li>Abre la <strong>vista de pantalla</strong> del juego. Lo más cómodo es el botón <strong>«Abrir pantalla de sala»</strong> desde el panel del coordinador, que ya te lleva al juego correcto.</li>
+        <li><strong>Arrastra esa ventana al proyector</strong> y ponla a pantalla completa (F11 en la mayoría de navegadores).</li>
+        <li>Comprueba que el público ve la pantalla de espera o el marcador.</li>
+      </ol>
+
+      <figure class="shot" data-file="img/17-pantalla-extendida.png">
+        <img src="img/17-pantalla-extendida.png" alt="Configuración de pantalla extendida" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 17</div><div class="ph-file">img/17-pantalla-extendida.png</div><div class="ph-label">Ajustes del sistema con las pantallas en modo «Extender».</div></div>
+        <figcaption><span class="cn">17</span>Pantallas en modo extender.</figcaption>
+      </figure>
+
+      <figure class="shot" data-file="img/18-screen-sala.png">
+        <img src="img/18-screen-sala.png" alt="Pantalla de sala proyectada" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 18</div><div class="ph-file">img/18-screen-sala.png</div><div class="ph-label">La vista /screen proyectada: pantalla de espera o marcador.</div></div>
+        <figcaption><span class="cn">18</span>La pantalla de sala proyectada.</figcaption>
+      </figure>
+
+      <div id="s4-ipads"></div>
+      <h3>Los iPads de los jugadores</h3>
+      <p>Cada equipo juega desde un iPad:</p>
+      <ol>
+        <li>Abre el navegador y entra en la vista de jugador (<code>/play</code>).</li>
+        <li>El equipo <strong>elige el juego</strong> e introduce el <strong>código de acceso</strong>.</li>
+        <li><strong>Elige o crea su equipo</strong> (nombre y, opcional, foto).</li>
+        <li>Listo. Si se desconecta y vuelve, <strong>recuerda su equipo</strong> automáticamente.</li>
+      </ol>
+      <div class="note"><span class="tag">Atajo en sala</span>¿No tienes el enlace instalado en el iPad? Desde el panel del coordinador puedes lanzar un <strong>código QR a la pantalla de sala</strong>: el público lo escanea y entra a <code>/play</code> al momento. Se activa y desactiva con su botón, igual que el marcador.</div>
+      <div class="note"><span class="tag">Consejo</span>La vista de jugador se puede <strong>anclar al escritorio del iPad</strong> como si fuera una app (PWA). Si los iPads son recurrentes, déjala anclada. Y reparte los iPads ya con el juego elegido y el equipo creado antes de que llegue el público.</div>
+
+      <figure class="shot" data-file="img/19-play-ipad.png">
+        <img src="img/19-play-ipad.png" alt="Vista de jugador en el iPad" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 19</div><div class="ph-file">img/19-play-ipad.png</div><div class="ph-label">La vista /play en un iPad: elegir juego / introducir código / elegir equipo.</div></div>
+        <figcaption><span class="cn">19</span>La vista de jugador en el iPad.</figcaption>
+      </figure>
+
+      <figure class="shot" data-file="img/20-qr-sala.png">
+        <img src="img/20-qr-sala.png" alt="QR de acceso proyectado en sala" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 20</div><div class="ph-file">img/20-qr-sala.png</div><div class="ph-label">El QR de acceso proyectado en sala (tarjeta flotante sobre la pantalla).</div></div>
+        <figcaption><span class="cn">20</span>El QR de acceso proyectado en sala.</figcaption>
+      </figure>
+
+      <div id="s4-sonido"></div>
+      <h3>El sonido (Adivina la canción)</h3>
+      <p>El audio de la prueba de canción <strong>no sale de GameShow</strong>: lo genera el <strong>Chaos Studio</strong>, que se ejecuta aparte. Para que suene en la sala:</p>
+      <ol>
+        <li>El Chaos Studio debe estar funcionando en el <strong>ordenador de sala</strong> (el del proyector y los altavoces).</li>
+        <li>La <strong>salida de audio</strong> de ese ordenador debe ir a los <strong>altavoces de la sala</strong>.</li>
+        <li>Durante la prueba, el coordinador controla la distorsión desde su panel, pero <strong>el sonido viene del Chaos Studio</strong> del ordenador.</li>
+      </ol>
+      <div class="note warn"><span class="tag">Pruébalo antes</span>Es el punto del montaje que más conviene probar con antelación, porque mezcla dos cosas (la app y el Chaos Studio) y depende del enrutado de audio de tu ordenador. Haz una prueba de sonido real antes de que llegue el público.</div>
+    </section>
+
+    <!-- ── SECCIÓN 5 ── -->
+    <section id="s5">
+      <div class="sec-head"><span class="sec-num">05</span><h2>Checklist final antes de empezar</h2></div>
+      <p>Repasa esto con la sala montada y el público a punto de entrar.</p>
+
+      <div class="grp">Preparación del juego</div>
+      <ul class="check">
+        <li><span class="box"></span>El juego está creado, con todas sus rondas y pruebas.</li>
+        <li><span class="box"></span>No queda ninguna prueba marcada como ⚠ Incompleta.</li>
+        <li><span class="box"></span>El juego está en estado publicado.</li>
+        <li><span class="box"></span>Tienes anotado el código de acceso.</li>
+      </ul>
+
+      <div class="grp">Ordenador y pantalla</div>
+      <ul class="check">
+        <li><span class="box"></span>El proyector está conectado y en modo extender.</li>
+        <li><span class="box"></span>La vista de pantalla está abierta en el proyector, a pantalla completa.</li>
+        <li><span class="box"></span>En tu pantalla propia tienes el panel de coordinador a mano.</li>
+      </ul>
+
+      <div class="grp">Sonido (si hay prueba de canción)</div>
+      <ul class="check">
+        <li><span class="box"></span>El Chaos Studio está funcionando en el ordenador de sala.</li>
+        <li><span class="box"></span>Has hecho una prueba de sonido real por los altavoces.</li>
+      </ul>
+
+      <div class="grp">iPads</div>
+      <ul class="check">
+        <li><span class="box"></span>El iPad del coordinador está en el panel y responde.</li>
+        <li><span class="box"></span>Cada equipo tiene su iPad dentro del juego correcto y con su equipo creado.</li>
+        <li><span class="box"></span>Has lanzado una prueba de ejemplo y aparece en iPads y pantalla.</li>
+      </ul>
+
+      <div class="grp">Red</div>
+      <ul class="check">
+        <li><span class="box"></span>Todos los dispositivos están en la wifi y la señal es estable.</li>
+      </ul>
+
+      <p style="margin-top:24px">Si todo está marcado, estás listo para jugar. ¡A disfrutar del concurso!</p>
+
+      <a class="toplink" href="#">↑ Volver arriba</a>
+      <footer>Manual de uso de GameShow para monitores. Adáptalo a cada evento según el equipo disponible.</footer>
+    </section>
+
+  </div>
+  </main>
+</div>
+
+<script>
+  // menú móvil
+  const toc = document.getElementById('toc');
+  const scrim = document.getElementById('scrim');
+  document.getElementById('menuBtn').addEventListener('click', ()=>{ toc.classList.toggle('open'); scrim.classList.toggle('open'); });
+  scrim.addEventListener('click', ()=>{ toc.classList.remove('open'); scrim.classList.remove('open'); });
+  toc.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{ toc.classList.remove('open'); scrim.classList.remove('open'); }));
+
+  // scrollspy: resalta la sección activa en el índice
+  const links = [...document.querySelectorAll('#nav a.num')];
+  const map = links.map(a=>({a, sec:document.querySelector(a.getAttribute('href'))}));
+  const spy = ()=>{
+    const y = window.scrollY + 120;
+    let cur = map[0];
+    for(const m of map){ if(m.sec && m.sec.offsetTop <= y) cur = m; }
+    links.forEach(l=>l.classList.remove('active'));
+    if(cur) cur.a.classList.add('active');
+  };
+  window.addEventListener('scroll', spy, {passive:true});
+  spy();
+</script>
+</body>
+</html>
