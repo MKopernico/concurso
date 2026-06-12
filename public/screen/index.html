@@ -178,9 +178,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 #scoreboardOverlay .sb-overlay-inner { width: 90%; max-width: 900px; max-height: 80vh; overflow-y: auto; }
 
 /* QR overlay */
-.gs-qr-overlay { position: fixed; inset: 0; z-index: 85; background: #fff; opacity: 0; pointer-events: none; transition: opacity .4s ease; display: flex; align-items: center; justify-content: center; }
+.gs-qr-overlay { position: fixed; inset: 0; z-index: 85; background: rgba(0,0,0,.6); opacity: 0; pointer-events: none; transition: opacity .4s ease; display: flex; align-items: center; justify-content: center; }
 .gs-qr-overlay.active { opacity: 1; pointer-events: auto; }
-.gs-qr-overlay #qrCanvas { display: flex; align-items: center; justify-content: center; }
+.gs-qr-card { background: #fff; border-radius: 28px; padding: 40px; box-shadow: 0 8px 60px rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; }
+.gs-qr-card #qrCanvas { display: flex; align-items: center; justify-content: center; }
 
 /* ═══════════════ WAITING ═══════════════ */
 #phase-waiting { background: transparent; }
@@ -468,7 +469,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 
     <!-- QR OVERLAY (global, like scoreboard) -->
     <div class="gs-qr-overlay" id="qrOverlay">
-        <div id="qrCanvas"></div>
+        <div class="gs-qr-card">
+            <div id="qrCanvas"></div>
+        </div>
     </div>
 
     <!-- SCOREBOARD (phase, legacy fallback) -->
@@ -1545,7 +1548,7 @@ function renderQrOverlay() {
             container.innerHTML = '';
             var vw = window.innerWidth;
             var vh = window.innerHeight;
-            var size = Math.floor(Math.min(vw, vh) * 0.75);
+            var size = Math.floor(Math.min(vw, vh) * 0.65);
             new QRCode(container, { text: window.location.origin + '/play/', width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
             _qrActive = true;
         }
