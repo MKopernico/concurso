@@ -177,6 +177,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 #scoreboardOverlay { z-index: 80; }
 #scoreboardOverlay .sb-overlay-inner { width: 90%; max-width: 900px; max-height: 80vh; overflow-y: auto; }
 
+/* QR overlay */
+.gs-qr-overlay { position: fixed; inset: 0; z-index: 85; background: #fff; opacity: 0; pointer-events: none; transition: opacity .4s ease; display: flex; align-items: center; justify-content: center; }
+.gs-qr-overlay.active { opacity: 1; pointer-events: auto; }
+.gs-qr-overlay #qrCanvas { display: flex; align-items: center; justify-content: center; }
+
 /* ═══════════════ WAITING ═══════════════ */
 #phase-waiting { background: transparent; }
 #phase-waiting .gs-waiting-logo { max-height: 180px; max-width: 400px; object-fit: contain; filter: drop-shadow(0 0 30px rgba(0,0,0,.5)); }
@@ -461,6 +466,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
         </div>
     </div>
 
+    <!-- QR OVERLAY (global, like scoreboard) -->
+    <div class="gs-qr-overlay" id="qrOverlay">
+        <div id="qrCanvas"></div>
+    </div>
+
     <!-- SCOREBOARD (phase, legacy fallback) -->
     <div class="phase" id="phase-scoreboard">
         <div class="sb-title">MARCADOR</div>
@@ -491,6 +501,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     <button class="fs-btn" id="fsBtn" onclick="toggleFullscreen()" title="Pantalla completa">&#9974;</button>
 </div>
 
+<script src="/shared/qrcode.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
@@ -657,6 +668,7 @@ function onSync(data) {
     renderPreCountdown();
     renderMiniScores();
     renderScoreboardOverlay();
+    renderQrOverlay();
 
     // Recover video state on reconnect
     if (data.videoState) {
@@ -1519,6 +1531,28 @@ function renderScoreboardOverlay() {
         overlay.classList.add('active');
     } else {
         overlay.classList.remove('active');
+    }
+}
+
+// ═══════════════ QR OVERLAY (global) ═══════════════
+var _qrActive = false;
+function renderQrOverlay() {
+    if (!ps) return;
+    var overlay = document.getElementById('qrOverlay');
+    if (ps.qrVisible) {
+        if (!_qrActive) {
+            var container = document.getElementById('qrCanvas');
+            container.innerHTML = '';
+            var vw = window.innerWidth;
+            var vh = window.innerHeight;
+            var size = Math.floor(Math.min(vw, vh) * 0.75);
+            new QRCode(container, { text: window.location.origin + '/play/', width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+            _qrActive = true;
+        }
+        overlay.classList.add('active');
+    } else {
+        overlay.classList.remove('active');
+        _qrActive = false;
     }
 }
 

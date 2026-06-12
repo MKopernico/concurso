@@ -43,6 +43,7 @@ function createGameState() {
             lastQuestionScores: {},
             showTeamResults: false,
             scoreboardVisible: false,
+            qrVisible: false,
         },
         precioCifraCorrecta: null,
         precioTimeoutHandle: null,
@@ -310,6 +311,7 @@ function playerView(state) {
         lastQuestionScores: ds.lastQuestionScores,
         showTeamResults: ds.showTeamResults,
         scoreboardVisible: ds.scoreboardVisible,
+        qrVisible: ds.qrVisible,
         preCountdown: ds.preCountdown || 0,
         gameTheme: state._gameTheme || {},
         typeTheme: resolveTypeTheme(state, ds.currentRound ? ds.currentRound.type : null),
@@ -774,6 +776,7 @@ function attachSocketHandlers(io) {
             ds.phase = 'round_intro';
             ds.answers = {};
             ds.scoreboardVisible = false;
+            ds.qrVisible = false;
             state.pulsadorActivo = false;
             state.colaPulsador = [];
             broadcastDirector(io, gameId, state);
@@ -792,6 +795,7 @@ function attachSocketHandlers(io) {
                 ds.lastQuestionScores = {};
                 ds.showTeamResults = false;
                 ds.scoreboardVisible = false;
+                ds.qrVisible = false;
                 ds.menuLevel = null;
                 ds.selectedCategory = null;
                 if (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen') {
@@ -821,6 +825,7 @@ function attachSocketHandlers(io) {
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
+            ds.qrVisible = false;
             if (ds.currentRound && ds.currentRound.type === 'pulsador') {
                 ds.timer = { total: 0, remaining: 0, running: false };
             } else {
@@ -1143,17 +1148,24 @@ function attachSocketHandlers(io) {
 
         socket.on('director:toggle_scoreboard', () => {
             state.director.scoreboardVisible = !state.director.scoreboardVisible;
+            if (state.director.scoreboardVisible) state.director.qrVisible = false;
             broadcastDirector(io, gameId, state);
         });
         // Legacy: also support show_scoreboard as toggle
         socket.on('director:show_scoreboard', () => {
             state.director.scoreboardVisible = !state.director.scoreboardVisible;
+            if (state.director.scoreboardVisible) state.director.qrVisible = false;
             broadcastDirector(io, gameId, state);
         });
-        socket.on('director:show_waiting', () => { stopTimer(state, gameId, io); state.director.phase = 'waiting'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; broadcastDirector(io, gameId, state); });
-        socket.on('director:show_lobby', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; broadcastDirector(io, gameId, state); });
-        socket.on('director:show_home', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = 'home'; state.director.selectedCategory = null; state.director.scoreboardVisible = false; broadcastDirector(io, gameId, state); });
-        socket.on('director:select_category', (data) => { if (!data || !data.category) return; state.director.phase = 'lobby'; state.director.menuLevel = 'category'; state.director.selectedCategory = data.category; state.director.scoreboardVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:toggle_qr', () => {
+            state.director.qrVisible = !state.director.qrVisible;
+            if (state.director.qrVisible) state.director.scoreboardVisible = false;
+            broadcastDirector(io, gameId, state);
+        });
+        socket.on('director:show_waiting', () => { stopTimer(state, gameId, io); state.director.phase = 'waiting'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_lobby', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_home', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = 'home'; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:select_category', (data) => { if (!data || !data.category) return; state.director.phase = 'lobby'; state.director.menuLevel = 'category'; state.director.selectedCategory = data.category; state.director.scoreboardVisible = false; state.director.qrVisible = false; broadcastDirector(io, gameId, state); });
 
         socket.on('director:block_team', (data) => {
             if (!data || !data.teamId) return;
@@ -1256,6 +1268,7 @@ function attachSocketHandlers(io) {
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
+            ds.qrVisible = false;
             ds.phase = 'round_end';
             broadcastDirector(io, gameId, state);
         });
@@ -1296,6 +1309,7 @@ function attachSocketHandlers(io) {
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
+            ds.qrVisible = false;
             stopTimer(state, gameId, io);
             state.pulsadorActivo = false;
             state.colaPulsador = [];
@@ -1328,6 +1342,7 @@ function attachSocketHandlers(io) {
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
+            ds.qrVisible = false;
             // Clear teams from memory
             state.equipos = [];
             state.juegoIniciado = false;
