@@ -1791,7 +1791,9 @@ async function doImportExcel() {
         const res = await fetch(API + `/games/${currentGame.id}/import-excel`, { method: 'POST', body: form });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Error de importación');
-        toast(`Importación completada: ${data.rounds} rondas, ${data.questions} preguntas`);
+        let msg = `Importación completada: ${data.rounds} rondas, ${data.questions} preguntas`;
+        if (data.incomplete && data.incomplete.length) msg += `\n⚠️ ${data.incomplete.length} pregunta(s) incompleta(s) importada(s) — revísalas en el editor`;
+        toast(msg);
         closeModal('modal-import-overlay');
         await loadGame(currentGame.id);
     } catch (e) { toast('Error: ' + e.message); }

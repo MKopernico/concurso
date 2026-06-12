@@ -539,6 +539,7 @@ function parseExcelSheet(rows, type) {
     // rows: array of arrays, data starts at row index 3 (row 4 in Excel, 0-indexed)
     const rounds = {}; // roundName → { questions: [], config from first row }
     let skipped = 0;
+    const incomplete = []; // { row, round, missing: [] }
 
     for (let i = 3; i < rows.length; i++) {
         const r = rows[i];
@@ -550,17 +551,19 @@ function parseExcelSheet(rows, type) {
         if (!rounds[roundName]) rounds[roundName] = { questions: [], config: {} };
 
         let content, qConfig = {};
+        const missing = [];
 
         switch (type) {
             case 'multirespuesta': {
                 const statement = String(r[1] || '').trim();
-                if (!statement) break;
                 const options = [r[2], r[3], r[4], r[5], r[6]].map(o => String(o || '').trim()).filter(Boolean);
-                if (options.length < 2) break;
                 const correctStr = String(r[7] || '');
-                const correct = correctStr.split(/[,;]/).map(s => Number(s.trim()) - 1).filter(n => n >= 0 && n < options.length);
-                if (correct.length === 0) break;
-                content = { statement, options, correct, explanation: String(r[8] || '').trim() || undefined };
+                const correct = correctStr ? correctStr.split(/[,;]/).map(s => Number(s.trim()) - 1).filter(n => n >= 0 && n < options.length) : [];
+                if (!statement && options.length === 0) break; // truly empty
+                if (!statement) missing.push('enunciado');
+                if (options.length < 2) missing.push('opciones (mín. 2)');
+                if (correct.length === 0) missing.push('correctas');
+                content = { statement: statement || undefined, options, correct, explanation: String(r[8] || '').trim() || undefined };
                 if (r[9]) qConfig.time = Number(r[9]) || undefined;
                 if (r[10]) qConfig.basePoints = Number(r[10]) || undefined;
                 if (r[11]) qConfig.bonusMax = Number(r[11]) || undefined;
@@ -571,9 +574,11 @@ function parseExcelSheet(rows, type) {
             case 'pulsador': {
                 const statement = String(r[1] || '').trim();
                 const answer = String(r[2] || '').trim();
-                if (!statement || !answer) break;
                 const hints = [r[3], r[4]].map(h => String(h || '').trim()).filter(Boolean);
-                content = { statement, answer, hints: hints.length ? hints : undefined };
+                if (!statement && !answer && hints.length === 0) break;
+                if (!statement) missing.push('enunciado');
+                if (!answer) missing.push('respuesta');
+                content = { statement: statement || undefined, answer: answer || undefined, hints: hints.length ? hints : undefined };
                 if (r[5]) qConfig.time = Number(r[5]) || undefined;
                 if (r[6]) qConfig.basePoints = Number(r[6]) || undefined;
                 if (r[7]) qConfig.penalty = Number(r[7]) || undefined;
@@ -583,8 +588,10 @@ function parseExcelSheet(rows, type) {
             case 'precio': {
                 const statement = String(r[1] || '').trim();
                 const correctVal = Number(r[2]);
-                if (!statement || !isFinite(correctVal)) break;
-                content = { statement, correct_value: correctVal, image: String(r[3] || '').trim() || undefined };
+                if (!statement && !isFinite(correctVal)) break;
+                if (!statement) missing.push('enunciado');
+                if (!isFinite(correctVal)) missing.push('valor_correcto');
+                content = { statement: statement || undefined, correct_value: isFinite(correctVal) ? correctVal : undefined, image: String(r[3] || '').trim() || undefined };
                 if (r[4]) qConfig.time = Number(r[4]) || undefined;
                 if (r[5]) qConfig.basePoints = Number(r[5]) || undefined;
                 if (String(r[6] || '').trim()) rounds[roundName].config.background = String(r[6]).trim();
@@ -592,13 +599,14 @@ function parseExcelSheet(rows, type) {
             }
             case 'boom': {
                 const statement = String(r[1] || '').trim();
-                if (!statement) break;
                 const items = [r[2], r[3], r[4], r[5], r[6]].map(v => String(v || '').trim()).filter(Boolean);
-                if (items.length < 2) break;
                 const orderStr = String(r[7] || '');
-                const correct_order = orderStr.split(/[,;]/).map(s => Number(s.trim()) - 1).filter(n => n >= 0);
-                if (correct_order.length === 0) break;
-                content = { statement, items, correct_order };
+                const correct_order = orderStr ? orderStr.split(/[,;]/).map(s => Number(s.trim()) - 1).filter(n => n >= 0) : [];
+                if (!statement && items.length === 0) break;
+                if (!statement) missing.push('enunciado');
+                if (items.length < 2) missing.push('elementos (mín. 2)');
+                if (correct_order.length === 0) missing.push('orden_correcto');
+                content = { statement: statement || undefined, items, correct_order };
                 if (r[8]) qConfig.time = Number(r[8]) || undefined;
                 if (r[9]) qConfig.basePoints = Number(r[9]) || undefined;
                 if (r[10]) qConfig.bonusMax = Number(r[10]) || undefined;
@@ -608,8 +616,9 @@ function parseExcelSheet(rows, type) {
             case 'ruleta': {
                 const hint = String(r[1] || '').trim();
                 const phrase = String(r[2] || '').trim();
-                if (!phrase) break;
-                content = { hint: hint || undefined, phrase };
+                if (!phrase && !hint) break;
+                if (!phrase) missing.push('frase');
+                content = { hint: hint || undefined, phrase: phrase || undefined };
                 if (r[3]) qConfig.basePoints = Number(r[3]) || undefined;
                 if (r[4]) qConfig.bonusMax = Number(r[4]) || undefined;
                 if (String(r[5] || '').trim()) rounds[roundName].config.background = String(r[5]).trim();
@@ -618,11 +627,14 @@ function parseExcelSheet(rows, type) {
             case 'imagen_fija': {
                 const image = String(r[2] || '').trim();
                 const video = String(r[3] || '').trim();
-                if (!image && !video) break;
+                const statement = String(r[1] || '').trim();
+                const answer = String(r[4] || '').trim();
+                if (!image && !video && !statement && !answer) break;
+                if (!image && !video) missing.push('imagen o video');
                 const buzzerVal = String(r[5] || '').trim().toLowerCase();
                 content = {
-                    statement: String(r[1] || '').trim() || undefined,
-                    answer: String(r[4] || '').trim() || undefined,
+                    statement: statement || undefined,
+                    answer: answer || undefined,
                     buzzer_enabled: buzzerVal !== 'no',
                 };
                 if (video) {
@@ -631,7 +643,7 @@ function parseExcelSheet(rows, type) {
                     const loopVal = String(r[7] || '').trim().toLowerCase();
                     content.autoplay = apVal !== 'no';
                     content.loop = loopVal === 'si' || loopVal === 'sí' || loopVal === 'yes';
-                } else {
+                } else if (image) {
                     content.image = image;
                 }
                 if (r[8]) qConfig.time = Number(r[8]) || undefined;
@@ -640,11 +652,13 @@ function parseExcelSheet(rows, type) {
                 break;
             }
             case 'imagen': {
+                const statement = String(r[1] || '').trim();
                 const answer = String(r[2] || '').trim();
-                if (!answer) break;
+                if (!statement && !answer) break;
+                if (!answer) missing.push('respuesta');
                 content = {
-                    statement: String(r[1] || '').trim() || undefined,
-                    answer,
+                    statement: statement || undefined,
+                    answer: answer || undefined,
                     image: String(r[3] || '').trim() || undefined,
                 };
                 if (r[4]) qConfig.basePoints = Number(r[4]) || undefined;
@@ -652,11 +666,13 @@ function parseExcelSheet(rows, type) {
                 break;
             }
             case 'cancion': {
+                const statement = String(r[1] || '').trim();
                 const answer = String(r[2] || '').trim();
-                if (!answer) break;
+                if (!statement && !answer) break;
+                if (!answer) missing.push('respuesta');
                 content = {
-                    statement: String(r[1] || '').trim() || undefined,
-                    answer,
+                    statement: statement || undefined,
+                    answer: answer || undefined,
                     image: String(r[3] || '').trim() || undefined,
                     audio: String(r[4] || '').trim() || undefined,
                     initial_chaos: Number(r[5]) || 100,
@@ -671,13 +687,17 @@ function parseExcelSheet(rows, type) {
 
         if (!content) { skipped++; continue; }
 
+        if (missing.length) {
+            incomplete.push({ row: i + 1, round: roundName, missing });
+        }
+
         // Clean empty config
         Object.keys(qConfig).forEach(k => { if (qConfig[k] === undefined) delete qConfig[k]; });
 
         rounds[roundName].questions.push({ content, config: Object.keys(qConfig).length ? qConfig : undefined });
     }
 
-    return { rounds, skipped };
+    return { rounds, skipped, incomplete };
 }
 
 // Import from Excel: creates rounds + questions for a game
@@ -696,7 +716,7 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
     console.log('[Excel Import] Hojas reconocidas:', wb.SheetNames.filter(s => SHEET_TYPE_MAP[s] || s === 'Rondas').map(s => s));
     console.log('[Excel Import] Hojas ignoradas:', wb.SheetNames.filter(s => !SHEET_TYPE_MAP[s] && s !== 'Rondas' && s !== 'Instrucciones' && s !== 'Configuración'));
 
-    const results = { rounds: 0, questions: 0, skipped: 0, errors: [] };
+    const results = { rounds: 0, questions: 0, skipped: 0, errors: [], incomplete: [] };
 
     // ── Read "Configuración" sheet if present → replace game theme ──
     if (wb.SheetNames.includes('Configuración')) {
@@ -757,6 +777,7 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
 
             const parsed = parseExcelSheet(rows, type);
             results.skipped += parsed.skipped;
+            parsed.incomplete.forEach(inc => results.incomplete.push({ sheet: sheetName, ...inc }));
 
             for (const [roundName, roundData] of Object.entries(parsed.rounds)) {
                 if (roundData.questions.length === 0) continue;
@@ -818,6 +839,7 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
     })();
 
     console.log(`[Excel Import] Resultado: ${results.rounds} rondas, ${results.questions} preguntas importadas`);
+    if (results.incomplete.length) console.log(`[Excel Import] Incompletas: ${results.incomplete.length}`, results.incomplete);
     if (results.errors.length) console.log('[Excel Import] Errores:', results.errors);
     res.json(results);
 });
