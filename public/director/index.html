@@ -397,6 +397,15 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .pq-empty { color: var(--text2); font-size: 13px; padding: 16px; text-align: center; }
 /* (old pt-row/pt-name/pt-score/pt-actions removed — replaced by bb-card) */
 
+/* QR overlay */
+.qr-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75); backdrop-filter: blur(6px); z-index: 300; justify-content: center; align-items: center; padding: 20px; }
+.qr-overlay.active { display: flex; }
+.qr-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; text-align: center; max-width: 400px; width: 100%; position: relative; }
+.qr-panel h3 { color: var(--accent); font-size: 16px; margin-bottom: 16px; }
+.qr-panel .qr-canvas { display: inline-block; padding: 16px; background: #fff; border-radius: 10px; margin-bottom: 14px; }
+.qr-panel .qr-url { font-size: 13px; color: var(--text2); word-break: break-all; margin-bottom: 4px; }
+.qr-close { position: absolute; top: 12px; right: 12px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); width: 32px; height: 32px; border-radius: 50%; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
 /* Responsive */
 @media (max-width: 768px) {
     .sidebar { width: 180px; }
@@ -430,6 +439,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         <button class="btn-danger btn-sm" onclick="resetFull()" title="Reset total (borra equipos)">&#128465;</button>
         <button class="btn-ghost btn-sm" id="btnRefreshContent" onclick="refreshContent()" title="Aplicar cambios en caliente">&#128259;</button>
         <button class="btn-ghost btn-sm" onclick="openAdmin()" title="Backoffice">&#9881;</button>
+        <button class="btn-ghost btn-sm" onclick="toggleQrOverlay()" title="QR acceso jugadores">QR</button>
         <button class="btn-accent btn-sm" onclick="openScreen()" title="Abrir pantalla proyector">&#128250; Pantalla</button>
     </div>
 </div>
@@ -826,8 +836,19 @@ button:disabled { opacity: .4; cursor: not-allowed; }
     <button class="qp-cancel" onclick="closeQuickPoints()">Cancelar</button>
 </div>
 
+<!-- QR overlay -->
+<div class="qr-overlay" id="qrOverlay" onclick="if(event.target===this)toggleQrOverlay()">
+    <div class="qr-panel">
+        <button class="qr-close" onclick="toggleQrOverlay()">&times;</button>
+        <h3>Escanea para entrar como jugador</h3>
+        <div class="qr-canvas" id="qrCanvas"></div>
+        <div class="qr-url" id="qrUrlText"></div>
+    </div>
+</div>
+
 <div id="toast"></div>
 
+<script src="/shared/qrcode.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
@@ -2508,6 +2529,19 @@ document.addEventListener('keydown', function(e) {
 });
 
 document.getElementById('pointsInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitPoints(); });
+
+// QR overlay
+function toggleQrOverlay() {
+    var ov = document.getElementById('qrOverlay');
+    var isOpen = ov.classList.toggle('active');
+    if (isOpen) {
+        var container = document.getElementById('qrCanvas');
+        container.innerHTML = '';
+        var url = window.location.origin + '/play/';
+        new QRCode(container, { text: url, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+        document.getElementById('qrUrlText').textContent = url;
+    }
+}
 
 // Keep sidebar height in sync with bottom bar
 (function() {
