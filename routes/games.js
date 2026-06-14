@@ -194,6 +194,15 @@ function contentToRow(typeDef, roundName, question) {
         }
         case 'cancion':
             return [roundName, c.statement || '', c.answer || '', c.image || '', c.audio || '', c.initial_chaos ?? 100, c.preset || 'default', qCfg.basePoints || ''];
+        case 'identidad': {
+            const pairs = Array.isArray(c.pairs) ? c.pairs : [];
+            if (pairs.length === 0) return [[roundName, c.statement || '', '', '', '', '', c.explanation || '', qCfg.basePoints || '', qCfg.time || '']];
+            return pairs.map((p, idx) => {
+                const l = p.left || {}, r = p.right || {};
+                if (idx === 0) return [roundName, c.statement || '', l.image || '', l.text || '', r.image || '', r.text || '', c.explanation || '', qCfg.basePoints || '', qCfg.time || ''];
+                return [roundName, '', l.image || '', l.text || '', r.image || '', r.text || '', '', '', ''];
+            });
+        }
         default:
             return [roundName];
     }
@@ -251,6 +260,8 @@ function buildInstructionRows() {
     rows.push(['  Imagen Fija: usar columna "imagen" O "video" (no ambas). "pulsador": "no" para desactivar.']);
     rows.push(['    "autoplay" y "loop": "si"/"no" (solo aplican con vídeo).']);
     rows.push(['  Cancion: caos_inicial (0-100, defecto 100), preset (defecto "default").']);
+    rows.push(['  Identidad: una fila por pareja. La 1ª fila lleva enunciado, explicación y config; las siguientes dejan enunciado vacío.']);
+    rows.push(['    Cada lado (izq/der) necesita imagen O texto (o ambos). Las imágenes son rutas ya subidas.']);
     return rows;
 }
 
@@ -365,7 +376,8 @@ router.get('/games/:id/export-excel', (req, res) => {
         const rounds = byType[d.type] || [];
         for (const round of rounds) {
             for (const q of (round.questions || [])) {
-                dataRows.push(contentToRow(d, round.name, q));
+                const row = contentToRow(d, round.name, q);
+                if (Array.isArray(row[0])) dataRows.push(...row); else dataRows.push(row);
             }
         }
         const wsData = XLSX.utils.aoa_to_sheet([
@@ -550,12 +562,73 @@ const EXCEL_TYPE_DEFS = [
     { sheet: 'Imagen',         type: 'imagen',          columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'puntos_base'] },
     { sheet: 'Imagen Fija',    type: 'imagen_fija',     columns: ['ronda', 'enunciado', 'imagen', 'video', 'respuesta', 'pulsador', 'autoplay', 'loop', 'tiempo', 'puntos_base'] },
     { sheet: 'Cancion',        type: 'cancion',         columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'audio', 'caos_inicial', 'preset', 'puntos_base'] },
+    { sheet: 'Identidad',      type: 'identidad',       columns: ['ronda', 'enunciado', 'izq_imagen', 'izq_texto', 'der_imagen', 'der_texto', 'explicacion', 'puntos_base', 'tiempo'] },
 ];
 
 const SHEET_TYPE_MAP = {};
 EXCEL_TYPE_DEFS.forEach(d => { SHEET_TYPE_MAP[d.sheet] = d.type; });
 
+function parseIdentidadSheet(rows) {
+    const rounds = {};
+    let skipped = 0;
+    const incomplete = [];
+    let currentQuestion = null;
+    let currentRound = null;
+
+    function flushQuestion() {
+        if (!currentQuestion || !currentRound) return;
+        const validation = QuestionValidation.isComplete('identidad', currentQuestion.content);
+        if (!validation.complete) {
+            incomplete.push({ row: currentQuestion.startRow, round: currentRound, missing: validation.missing });
+        }
+        const qConfig = currentQuestion.config;
+        Object.keys(qConfig).forEach(k => { if (qConfig[k] === undefined) delete qConfig[k]; });
+        rounds[currentRound].questions.push({ content: currentQuestion.content, config: Object.keys(qConfig).length ? qConfig : undefined });
+        currentQuestion = null;
+    }
+
+    for (let i = 3; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r || r.every(c => c === '' || c === undefined || c === null)) continue;
+
+        const roundName = String(r[0] || '').trim();
+        if (!roundName) continue;
+
+        if (!rounds[roundName]) rounds[roundName] = { questions: [], config: {} };
+
+        const enunciado = String(r[1] || '').trim();
+        const lImg = String(r[2] || '').trim() || undefined;
+        const lTxt = String(r[3] || '').trim() || undefined;
+        const rImg = String(r[4] || '').trim() || undefined;
+        const rTxt = String(r[5] || '').trim() || undefined;
+
+        if (enunciado) {
+            flushQuestion();
+            currentRound = roundName;
+            const qConfig = {};
+            if (r[7]) qConfig.basePoints = Number(r[7]) || undefined;
+            if (r[8]) qConfig.time = Number(r[8]) || undefined;
+            currentQuestion = {
+                startRow: i + 1,
+                content: { statement: enunciado, pairs: [], explanation: String(r[6] || '').trim() || undefined },
+                config: qConfig,
+            };
+        }
+
+        if (!currentQuestion) { skipped++; continue; }
+
+        if (!lImg && !lTxt && !rImg && !rTxt) { skipped++; continue; }
+
+        currentQuestion.content.pairs.push({ left: { image: lImg, text: lTxt }, right: { image: rImg, text: rTxt } });
+    }
+    flushQuestion();
+
+    return { rounds, skipped, incomplete };
+}
+
 function parseExcelSheet(rows, type) {
+    if (type === 'identidad') return parseIdentidadSheet(rows);
+
     // rows: array of arrays, data starts at row index 3 (row 4 in Excel, 0-indexed)
     const rounds = {}; // roundName → { questions: [], config from first row }
     let skipped = 0;
