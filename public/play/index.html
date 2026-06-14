@@ -156,6 +156,40 @@ input:focus { border-color: var(--accent); }
 #boomBtn { flex-shrink: 0; }
 .boom-item.submitted { opacity: .5; cursor: default; pointer-events: none; }
 
+/* ── Identidad ── */
+.gp-identidad { padding: clamp(4px, 0.8vh, 10px) clamp(6px, 1vw, 14px); gap: clamp(3px, 0.6vh, 8px); justify-content: flex-start; }
+.gp-identidad .id-statement { font-size: clamp(13px, 2.2vw, 20px); font-weight: 600; line-height: 1.25; text-align: center;
+    background: rgba(0,0,0,.6); border-radius: 10px; padding: clamp(4px, 0.8vh, 12px) clamp(8px, 1.5vw, 16px); color: #fff; backdrop-filter: blur(6px); flex-shrink: 0; }
+.id-columns { display: flex; flex: 1; min-height: 0; gap: clamp(3px, 0.6vw, 8px); }
+.id-col { flex: 1; display: flex; flex-direction: column; gap: clamp(2px, 0.3vh, 4px); min-height: 0; overflow: hidden; }
+.id-card { flex: 1; min-height: 0; display: flex; align-items: center;
+    background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12); border-radius: clamp(4px, 0.8vw, 10px);
+    overflow: hidden; backdrop-filter: blur(4px); }
+.id-col-left .id-card { flex-direction: row; }
+.id-col-right .id-card { flex-direction: row-reverse; touch-action: none; cursor: grab; user-select: none; }
+.id-col-right .id-card.dragging { opacity: 0.25; }
+.id-col-right .id-card.submitted { opacity: .55; cursor: default; pointer-events: none; }
+.id-card-photo { height: 100%; aspect-ratio: 1/1; object-fit: contain; flex-shrink: 0; background: rgba(0,0,0,.25); display: block; }
+.id-card-text { flex: 1; min-width: 0; padding: clamp(1px, 0.2vh, 4px) clamp(3px, 0.5vw, 8px);
+    font-size: clamp(0.5rem, min(3.5vh, 4vw), 2.2rem); font-weight: 600; line-height: 1.15; color: #fff;
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; word-break: break-word; }
+.id-col-left .id-card-text { text-align: right; }
+.id-col-right .id-card-text { text-align: left; }
+.id-drop-indicator { height: 3px; background: var(--accent); border-radius: 2px; box-shadow: 0 0 8px rgba(0,212,255,.5); flex-shrink: 0; }
+.id-center-msg { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+.id-center-msg .id-msg-icon { font-size: clamp(36px, 8vw, 64px); }
+.id-center-msg .id-msg-text { font-size: clamp(14px, 3vw, 22px); font-weight: 600; color: var(--text2); }
+.id-col-placeholder { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text2);
+    font-size: clamp(13px, 2.5vw, 18px); text-align: center; font-weight: 600; }
+.id-bottom { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 0; }
+#idBtn { width: clamp(100px, 45%, 260px); padding: clamp(6px, 1vh, 14px);
+    font-size: clamp(13px, 2.2vw, 18px); font-weight: bold; text-align: center;
+    background: var(--accent); color: #000; border: none; border-radius: 8px; cursor: pointer; }
+#idBtn:disabled { opacity: .4; }
+.id-submitted-msg { font-size: clamp(11px, 1.8vw, 15px); color: var(--success); font-weight: 600; padding: 2px 0; }
+.id-card.id-correct { border-color: var(--success); background: rgba(34,197,94,.20); }
+.id-card.id-wrong { border-color: var(--danger); background: rgba(239,68,68,.20); }
+
 .gp-scoreboard { padding: 20px; gap: 14px; }
 .gp-scoreboard h2 { font-size: 22px; color: var(--gold); text-align: center; }
 .sb-table { width: 100%; border-collapse: collapse; }
@@ -381,6 +415,21 @@ input:focus { border-color: var(--accent); }
             <div class="q-submitted" id="boomSubmitted" style="display:none">Respuesta enviada</div>
             <button id="boomBtn" onclick="submitBoom()" style="display:none; width:80%; max-width:400px; margin:10px auto; padding:18px; font-size:22px; font-weight:bold; text-align:center; background:#00d4ff; color:#000; border:none; border-radius:12px; cursor:pointer;">Enviar</button>
         </div>
+        <div class="gphase gp-identidad" id="gp-identidad">
+            <div class="id-statement" id="idStatement"></div>
+            <div class="id-columns" id="idColumns">
+                <div class="id-col id-col-left" id="idColLeft"></div>
+                <div class="id-col id-col-right" id="idColRight"></div>
+            </div>
+            <div class="id-center-msg" id="idCenterMsg" style="display:none">
+                <div class="id-msg-icon"></div>
+                <div class="id-msg-text"></div>
+            </div>
+            <div class="id-bottom" id="idBottom">
+                <div class="id-submitted-msg" id="idSubmittedMsg" style="display:none">✓ Respuesta enviada</div>
+                <button id="idBtn" onclick="submitIdentidad()" style="display:none">Enviar</button>
+            </div>
+        </div>
         <div class="gphase gp-scoreboard" id="gp-scoreboard">
             <h2>Marcador</h2>
             <table class="sb-table"><tbody id="sbBody"></tbody></table>
@@ -427,6 +476,7 @@ var S = {
     gameId: null, game: null, myTeamId: null, myTeam: null,
     ps: null, selectedOptions: [], boomOrder: [], submitted: false,
     photoUrl: null,
+    identidadRight: [], identidad: { myOrder: null, mySubmitted: false },
 };
 var socket = null;
 var deviceId = localStorage.getItem('gs_deviceId') || (function() {
@@ -698,6 +748,20 @@ function connectSocket(onReady) {
         if (!S.ps) return;
         S.ps.roulettePanelVisible = true;
     });
+
+    socket.on('game:pair_revealed', function() {
+        if (S.ps && S.ps.roundType === 'identidad' && S.ps.phase === 'answer_revealed') {
+            renderIdentidad();
+        }
+    });
+
+    socket.on('game:your_order', function(d) {
+        _yourOrderPending = { order: d.order, submitted: !!d.submitted };
+        if (S.ps && S.ps.roundType === 'identidad') {
+            applyYourOrder();
+            renderIdentidad();
+        }
+    });
 }
 
 function emit(ev, data) { if (socket) socket.emit(ev, data || {}); }
@@ -779,10 +843,16 @@ function onPlayerSync(ps) {
     // Reset answer state on new question
     if (ps.questionIdx !== lastQIdx) {
         S.selectedOptions = []; S.boomOrder = []; S.submitted = false; S._precioSubmittedValue = undefined; lastQIdx = ps.questionIdx;
+        S.identidadRight = []; S.identidad = { myOrder: null, mySubmitted: false };
+        applyYourOrder();
         var _pi = document.getElementById('precioInput'); if (_pi) _pi.value = '';
         if (_boomDragState.dragging) {
             if (_boomIndicator && _boomIndicator.parentNode) _boomIndicator.parentNode.removeChild(_boomIndicator);
             _boomDragState.dragging = false; _boomDragState.dragIdx = -1; _boomDragState.dropIdx = -1;
+        }
+        if (_identidadDragState.dragging) {
+            if (_identidadIndicator && _identidadIndicator.parentNode) _identidadIndicator.parentNode.removeChild(_identidadIndicator);
+            _identidadDragState.dragging = false; _identidadDragState.dragIdx = -1; _identidadDragState.dropIdx = -1;
         }
     }
 
@@ -844,6 +914,8 @@ function renderGamePhase() {
     } else if (phase === 'answer_revealed') {
         if (type === 'precio') {
             renderPrecioRevealed(); document.getElementById('gp-precio').classList.add('active');
+        } else if (type === 'identidad') {
+            renderIdentidad(); document.getElementById('gp-identidad').classList.add('active');
         } else {
             renderRevealed(); document.getElementById('gp-revealed').classList.add('active');
         }
@@ -872,6 +944,8 @@ function renderGamePhase() {
             renderPrecio(); document.getElementById('gp-precio').classList.add('active');
         } else if (type === 'boom') {
             renderBoom(); document.getElementById('gp-boom').classList.add('active');
+        } else if (type === 'identidad') {
+            renderIdentidad(); document.getElementById('gp-identidad').classList.add('active');
         } else {
             document.getElementById('gp-waiting').classList.add('active');
         }
@@ -1248,11 +1322,223 @@ function submitBoom() {
     document.getElementById('boomSubmitted').style.display = 'block';
 }
 
+// ── Identidad ──
+var _identidadDragState = { inited: false, dragging: false, dragIdx: -1, dropIdx: -1 };
+var _identidadIndicator = null;
+var _yourOrderPending = null;
+
+function applyYourOrder() {
+    if (!_yourOrderPending) return;
+    S.identidad.myOrder = _yourOrderPending.order;
+    S.identidad.mySubmitted = _yourOrderPending.submitted;
+    S.identidadRight = Array.isArray(_yourOrderPending.order) ? _yourOrderPending.order.slice() : [];
+    _yourOrderPending = null;
+}
+
+function idCardInner(item) {
+    if (!item) return '';
+    var html = '';
+    if (item.image) html += '<img class="id-card-photo" src="' + esc(item.image) + '" alt="" draggable="false">';
+    if (item.text) html += '<div class="id-card-text">' + esc(item.text) + '</div>';
+    if (!item.image && !item.text) html += '<div class="id-card-text">-</div>';
+    return html;
+}
+
+function identidadRenderRight(col) {
+    col.innerHTML = S.identidadRight.map(function(item, i) {
+        var cls = 'id-card';
+        if (S.submitted || S.identidad.mySubmitted) cls += ' submitted';
+        return '<div class="' + cls + '" data-idx="' + i + '">' + idCardInner(item) + '</div>';
+    }).join('');
+}
+
+function renderIdentidad() {
+    var ps = S.ps; if (!ps) return;
+    var q = ps.question;
+    var c = (q && q.content) || {};
+    var pairs = c.pairs || [];
+
+    var stmt = document.getElementById('idStatement');
+    var cols = document.getElementById('idColumns');
+    var leftCol = document.getElementById('idColLeft');
+    var rightCol = document.getElementById('idColRight');
+    var centerMsg = document.getElementById('idCenterMsg');
+    var btn = document.getElementById('idBtn');
+    var submittedMsg = document.getElementById('idSubmittedMsg');
+
+    stmt.textContent = c.statement || '';
+
+    // answer_revealed: show own order with green/red gated by revealIndex
+    if (ps.phase === 'answer_revealed') {
+        btn.style.display = 'none';
+        submittedMsg.style.display = 'none';
+        centerMsg.style.display = 'none';
+
+        var lqs = ps.lastQuestionScores || {};
+        var myScore = lqs[S.myTeamId];
+        if (!myScore || myScore.noAnswer || !S.identidadRight.length) {
+            cols.style.display = 'none';
+            centerMsg.querySelector('.id-msg-icon').textContent = '📺';
+            centerMsg.querySelector('.id-msg-text').textContent = 'Mira la pantalla';
+            centerMsg.style.display = 'flex';
+            return;
+        }
+
+        cols.style.display = 'flex';
+        leftCol.innerHTML = pairs.map(function(p) {
+            return '<div class="id-card">' + idCardInner(p.left) + '</div>';
+        }).join('');
+
+        var revealedPairs = c.revealedPairs || [];
+        var revIdx = (ps.identidad && ps.identidad.revealIndex) || 0;
+
+        rightCol.innerHTML = S.identidadRight.map(function(item, i) {
+            var cls = 'id-card submitted';
+            if (i < revIdx && i < revealedPairs.length) {
+                var correct = JSON.stringify(item) === JSON.stringify(revealedPairs[i].right);
+                cls += correct ? ' id-correct' : ' id-wrong';
+            }
+            return '<div class="' + cls + '">' + idCardInner(item) + '</div>';
+        }).join('');
+        return;
+    }
+
+    centerMsg.style.display = 'none';
+    cols.style.display = 'flex';
+
+    leftCol.innerHTML = pairs.map(function(p) {
+        return '<div class="id-card">' + idCardInner(p.left) + '</div>';
+    }).join('');
+
+    if (!ps.optionsRevealed || !c.rightShuffled) {
+        rightCol.innerHTML = '';
+        btn.style.display = 'none';
+        submittedMsg.style.display = 'none';
+        return;
+    }
+
+    if (!S.identidadRight.length) {
+        if (S.identidad.myOrder && S.identidad.myOrder.length) {
+            S.identidadRight = S.identidad.myOrder.slice();
+        } else {
+            S.identidadRight = c.rightShuffled.slice();
+        }
+    }
+
+    identidadRenderRight(rightCol);
+
+    if (S.submitted || S.identidad.mySubmitted) {
+        btn.style.display = 'none';
+        submittedMsg.style.display = 'block';
+        return;
+    }
+
+    submittedMsg.style.display = 'none';
+
+    var duringPre = !!(ps.preCountdown && ps.preCountdown > 0);
+    btn.style.display = 'block';
+    btn.disabled = duringPre;
+
+    if (!duringPre) identidadInitDrag(rightCol);
+}
+
+function identidadInitDrag(list) {
+    if (_identidadDragState.inited) return;
+    _identidadDragState.inited = true;
+
+    _identidadIndicator = document.createElement('div');
+    _identidadIndicator.className = 'id-drop-indicator';
+
+    function getDropIdx(y) {
+        var items = list.querySelectorAll('.id-card');
+        for (var i = 0; i < items.length; i++) {
+            var r = items[i].getBoundingClientRect();
+            if (y < r.top + r.height / 2) return i;
+        }
+        return items.length;
+    }
+
+    function showIndicator(idx) {
+        if (_identidadIndicator.parentNode) _identidadIndicator.parentNode.removeChild(_identidadIndicator);
+        if (idx === _identidadDragState.dragIdx || idx === _identidadDragState.dragIdx + 1) { _identidadDragState.dropIdx = -1; return; }
+        _identidadDragState.dropIdx = idx;
+        var items = list.querySelectorAll('.id-card');
+        if (idx < items.length) {
+            list.insertBefore(_identidadIndicator, items[idx]);
+        } else {
+            list.appendChild(_identidadIndicator);
+        }
+    }
+
+    function cleanupDrag() {
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        document.removeEventListener('mouseup', onEnd);
+        if (_identidadIndicator.parentNode) _identidadIndicator.parentNode.removeChild(_identidadIndicator);
+        var dragging = list.querySelector('.id-card.dragging');
+        if (dragging) dragging.classList.remove('dragging');
+        _identidadDragState.dragging = false;
+        _identidadDragState.dragIdx = -1;
+        _identidadDragState.dropIdx = -1;
+    }
+
+    function onStart(e) {
+        if (S.submitted || S.identidad.mySubmitted || _identidadDragState.dragging) return;
+        var el = e.target.closest('.id-card');
+        if (!el) return;
+        e.preventDefault();
+        _identidadDragState.dragging = true;
+        _identidadDragState.dragIdx = parseInt(el.dataset.idx);
+        el.classList.add('dragging');
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('touchend', onEnd);
+        document.addEventListener('mouseup', onEnd);
+    }
+
+    function onMove(e) {
+        if (!_identidadDragState.dragging) return;
+        e.preventDefault();
+        var y = (e.touches ? e.touches[0] : e).clientY;
+        showIndicator(getDropIdx(y));
+    }
+
+    function onEnd() {
+        if (!_identidadDragState.dragging) return;
+        var dragIdx = _identidadDragState.dragIdx;
+        var dropIdx = _identidadDragState.dropIdx;
+        cleanupDrag();
+        if (dropIdx >= 0 && dropIdx !== dragIdx && dropIdx !== dragIdx + 1) {
+            var target = dropIdx > dragIdx ? dropIdx - 1 : dropIdx;
+            var moved = S.identidadRight.splice(dragIdx, 1)[0];
+            S.identidadRight.splice(target, 0, moved);
+            emit('player:update_order', { order: S.identidadRight });
+        }
+        identidadRenderRight(list);
+    }
+
+    list.addEventListener('touchstart', onStart, { passive: false });
+    list.addEventListener('mousedown', onStart);
+}
+
+function submitIdentidad() {
+    if (S.submitted || S.identidad.mySubmitted) return;
+    if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return;
+    if (!S.identidadRight.length) return;
+    emit('player:submit_order', { order: S.identidadRight });
+    S.submitted = true;
+    S.identidad.mySubmitted = true;
+    document.getElementById('idBtn').style.display = 'none';
+    document.getElementById('idSubmittedMsg').style.display = 'block';
+    document.querySelectorAll('#idColRight .id-card').forEach(function(el) { el.classList.add('submitted'); });
+}
+
 // ── Menu (mirrors director navigation) ──
 var PLAY_TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
     imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad'
 };
 
 var _playMenuLevel = null;

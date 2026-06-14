@@ -395,6 +395,46 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     90% { opacity: 0.6; }
     100% { opacity: 0; transform: translateY(-10vh) scale(1); }
 }
+
+/* ═══════════════ IDENTIDAD (Emparejar) — SCREEN ═══════════════ */
+#identidadScreenWrap { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; gap: clamp(8px, 1.5vh, 16px); }
+.id-timer-band { flex-shrink: 0; width: 100%; display: flex; justify-content: flex-end; align-items: center; }
+.id-timer { font-size: clamp(36px, 5vw, 64px); font-weight: 800; font-variant-numeric: tabular-nums;
+    color: var(--cyan); text-shadow: 0 0 20px #00d4ff, 0 2px 4px rgba(0,0,0,.8); }
+.id-timer.danger { color: var(--danger); text-shadow: 0 0 20px rgba(239,68,68,.5); }
+.id-content { flex: 1; min-height: 0; display: flex; gap: clamp(8px, 1.5vw, 24px); }
+#identidadScreenWrap.id-reveal-mode { gap: clamp(4px, 0.5vh, 8px); }
+#identidadScreenWrap.id-reveal-mode .id-content { flex-direction: column; gap: clamp(2px, 0.4vh, 6px); }
+.id-col { flex: 1; display: flex; flex-direction: column; gap: clamp(2px, 0.4vh, 6px); }
+.id-card { display: flex; align-items: center; gap: clamp(6px, 0.8vw, 12px);
+    padding: clamp(4px, 0.5vh, 8px) clamp(8px, 1vw, 14px);
+    background: rgba(0,0,0,.60); border: 2px solid rgba(255,255,255,.15); border-radius: 12px;
+    color: #fff; backdrop-filter: blur(6px); flex: 1; min-height: 0; overflow: hidden;
+    transition: border-color .6s ease, background .6s ease, box-shadow .6s ease, opacity .4s ease; }
+.id-card-img { height: 80%; aspect-ratio: 1/1; max-width: 20%;
+    border-radius: 8px; object-fit: contain; flex-shrink: 0; background: rgba(255,255,255,.05); }
+.id-card-text { flex: 1; font-size: clamp(0.9rem, 2.8vw, 2.6rem); font-weight: 600;
+    line-height: 1.2; overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.id-col-right .id-card, .id-card.id-mirror { flex-direction: row-reverse; }
+.id-col-right .id-card .id-card-text, .id-card.id-mirror .id-card-text { text-align: right; }
+.id-pairs { flex: 1; min-height: 0; display: flex; flex-direction: column;
+    gap: clamp(2px, 0.4vh, 6px); }
+.id-pair-row { display: flex; gap: clamp(8px, 1.5vw, 24px); flex: 1; min-height: 0; }
+.id-pair-row .id-card { flex: 1; }
+.id-card.id-revealed { border-color: var(--green);
+    background: linear-gradient(rgba(34,197,94,.30),rgba(34,197,94,.30)),rgba(0,0,0,.60);
+    box-shadow: 0 0 20px rgba(34,197,94,.3); }
+.id-reveal-anim { animation: id-reveal-pop .6s cubic-bezier(.34,1.56,.64,1); }
+@keyframes id-reveal-pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
+/* Identidad mode: no logo, no statement — timer lives in-flow inside identidadScreenWrap */
+#phase-question.identidad-mode { padding-top: clamp(16px, 2vh, 24px); }
+#phase-question.identidad-mode .q-statement { display: none; }
+.id-explanation { flex-shrink: 0; text-align: center;
+    font-size: clamp(0.85rem, 1.3vw, 1.2rem); font-weight: 600; color: rgba(255,255,255,.8);
+    padding: clamp(6px, 0.8vh, 12px) clamp(12px, 2vw, 24px);
+    background: rgba(0,0,0,.40); border: 1px solid rgba(255,255,255,.1); border-radius: 12px;
+    backdrop-filter: blur(6px); max-height: 8vh; overflow: hidden; }
 </style>
 </head>
 <body>
@@ -439,6 +479,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
         </div>
         <div id="imagenFijaWrap" style="display:none"></div>
         <div id="cancionScreenWrap" style="display:none"></div>
+        <div id="identidadScreenWrap" style="display:none"></div>
         <div class="letter-panel" id="letterPanel" style="display:none"></div>
         <div class="mini-scores" id="miniScores"></div>
     </div>
@@ -641,6 +682,13 @@ function connect() {
         updateImageAnswer(d.visible, d.answer);
     });
 
+    // Identidad pair reveal
+    socket.on('game:pair_revealed', function(d) {
+        if (!ps || ps.roundType !== 'identidad') return;
+        _identidadAnimateIdx = d.index;
+        sfxCorrect();
+    });
+
     fetch('/api/games/' + gameId).then(function(r) { return r.json(); }).then(function(g) {
         if (g && g.name) document.getElementById('lobbyTitle').textContent = g.name;
         if (g && g.theme) applyTheme(g.theme);
@@ -787,8 +835,8 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         showPhase('question');
         var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija' || type === 'cancion';
         timerStrip.style.display = hideTimer ? 'none' : '';
-        timerBig.style.display = hideTimer ? 'none' : '';
-        document.getElementById('roundLogo').style.display = (type === 'imagen' || type === 'imagen_fija' || type === 'cancion') ? 'none' : '';
+        timerBig.style.display = (hideTimer || type === 'identidad') ? 'none' : '';
+        document.getElementById('roundLogo').style.display = (type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'identidad') ? 'none' : '';
         renderQuestion(type, newQuestion, optionsJustRevealed);
     } else if (phase === 'round_end') {
         showPhase('round-end');
@@ -846,6 +894,7 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
 
     // Toggle fullscreen mode for imagen
     document.getElementById('phase-question').classList.toggle('imagen-mode', type === 'imagen');
+    document.getElementById('phase-question').classList.toggle('identidad-mode', type === 'identidad');
     _imagenState.built = type === 'imagen' ? _imagenState.built : false;
 
     // Hide all type-specific
@@ -859,6 +908,8 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     document.getElementById('letterPanel').style.display = 'none';
     document.getElementById('pulsadorScreen').style.display = 'none';
     document.getElementById('ruletaScreenPanel').style.display = 'none';
+    document.getElementById('identidadScreenWrap').style.display = 'none';
+    _identidadAnimateIdx = -1;
 
     if (type === 'multirespuesta') {
         renderMultiOptions(c, optionsJustRevealed, stmtEl);
@@ -888,6 +939,8 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
         renderPrecioScreen(c, q, newQuestion);
     } else if (type === 'boom') {
         renderBoomItems(c);
+    } else if (type === 'identidad') {
+        renderIdentidadScreen(c, q);
     }
 }
 
@@ -1069,6 +1122,7 @@ function renderBoomItems(c) {
 // ═══════════════ IMAGEN PUZZLE (Adivina la Imagen) ═══════════════
 var _imagenState = { rows: 0, cols: 0, imgUrl: '', built: false };
 var _imagenNatural = { qId: '', w: 0, h: 0 };
+var _identidadAnimateIdx = -1;
 
 function renderImageScreen(c, q) {
     var imgUrl = c.image || q.media_url || '';
@@ -1268,6 +1322,101 @@ function renderCancionScreen(c, q) {
     wrap.innerHTML = html;
 }
 
+// ═══════════════ IDENTIDAD (Emparejar) — SCREEN ═══════════════
+
+function renderIdentidadScreen(c, q) {
+    var wrap = document.getElementById('identidadScreenWrap');
+    wrap.style.display = 'flex';
+    wrap.classList.remove('id-reveal-mode');
+    document.getElementById('qStatement').style.display = 'none';
+    document.getElementById('qMedia').style.display = 'none';
+
+    var pairs = c.pairs || [];
+    var rightShuffled = c.rightShuffled || [];
+
+    var leftHtml = '';
+    pairs.forEach(function(p) {
+        leftHtml += identidadCardHtml(p.left, false, '');
+    });
+
+    var srcTimer = document.getElementById('timerBig');
+    var timerText = srcTimer ? srcTimer.textContent : '00:00';
+    var timerCls = 'id-timer' + (srcTimer && srcTimer.classList.contains('danger') ? ' danger' : '');
+
+    var html = '<div class="id-timer-band"><div class="' + timerCls + '" id="idTimerBig">' + timerText + '</div></div>';
+    html += '<div class="id-content">';
+    html += '<div class="id-col id-col-left">' + leftHtml + '</div>';
+
+    if (ps.optionsRevealed && rightShuffled.length) {
+        var rightHtml = '';
+        rightShuffled.forEach(function(r) {
+            rightHtml += identidadCardHtml(r, true, '');
+        });
+        html += '<div class="id-col id-col-right">' + rightHtml + '</div>';
+    } else {
+        html += '<div class="id-col id-col-right"></div>';
+    }
+
+    html += '</div>';
+    wrap.innerHTML = html;
+}
+
+function renderIdentidadReveal() {
+    var wrap = document.getElementById('identidadScreenWrap');
+    wrap.style.display = 'flex';
+    wrap.classList.add('id-reveal-mode');
+    document.getElementById('phase-question').classList.add('identidad-mode');
+    document.getElementById('roundLogo').style.display = 'none';
+    document.getElementById('qStatement').style.display = 'none';
+    document.getElementById('qMedia').style.display = 'none';
+
+    var c = ps.question ? (ps.question.content || {}) : {};
+    var revealedPairs = c.revealedPairs || [];
+
+    var animIdx = _identidadAnimateIdx;
+    _identidadAnimateIdx = -1;
+
+    var totalPairs = (c.pairs || []).length || revealedPairs.length;
+
+    var html = '<div class="id-content">';
+    html += '<div class="id-pairs">';
+    for (var i = 0; i < totalPairs; i++) {
+        if (i < revealedPairs.length) {
+            var rp = revealedPairs[i];
+            var shouldAnimate = animIdx === i;
+            var animClass = shouldAnimate ? ' id-reveal-anim' : '';
+            html += '<div class="id-pair-row">';
+            html += identidadCardHtml(rp.left, false, ' id-revealed' + animClass);
+            html += identidadCardHtml(rp.right, true, ' id-revealed' + animClass);
+            html += '</div>';
+        } else {
+            html += '<div class="id-pair-row"></div>';
+        }
+    }
+    html += '</div>';
+
+    if (c.explanation) {
+        html += '<div class="id-explanation">' + esc(c.explanation) + '</div>';
+    }
+
+    html += '</div>';
+    wrap.innerHTML = html;
+}
+
+function identidadCardHtml(item, mirror, extraClass) {
+    if (!item) return '<div class="id-card' + (mirror ? ' id-mirror' : '') + (extraClass || '') + '"></div>';
+    var cls = 'id-card' + (mirror ? ' id-mirror' : '') + (extraClass || '');
+    var html = '<div class="' + cls + '">';
+    if (item.image) {
+        html += '<img class="id-card-img" src="' + esc(item.image) + '" draggable="false">';
+    }
+    if (item.text) {
+        html += '<span class="id-card-text">' + esc(item.text) + '</span>';
+    }
+    html += '</div>';
+    return html;
+}
+
 // ═══════════════ RULETA SCREEN (new visual panel) ═══════════════
 function renderRuletaScreen(c, q, newQuestion) {
     // Hide standard question elements
@@ -1342,6 +1491,12 @@ function renderTimer() {
     var s = rem % 60;
     big.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
     big.className = 'timer-big' + (rem <= 5 && rem > 0 ? ' danger' : '');
+
+    var idTimer = document.getElementById('idTimerBig');
+    if (idTimer) {
+        idTimer.textContent = big.textContent;
+        idTimer.className = 'id-timer' + (rem <= 5 && rem > 0 ? ' danger' : '');
+    }
 }
 
 // ═══════════════ PRE-COUNTDOWN ═══════════════
@@ -1464,6 +1619,8 @@ function renderRevealedInPlace() {
         document.getElementById('buzzerQueue').style.display = 'none';
         document.getElementById('imagenFijaWrap').style.display = 'none';
         document.getElementById('cancionScreenWrap').style.display = 'none';
+    } else if (type === 'identidad') {
+        renderIdentidadReveal();
     } else {
         // For other types, fall back to legacy revealed phase
         renderRevealed();
@@ -1755,7 +1912,7 @@ document.addEventListener('click', function(e) {
 var TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
     imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad'
 };
 
 function renderScreenLobbyDefault() {

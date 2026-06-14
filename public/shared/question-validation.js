@@ -57,6 +57,17 @@
         if (!nonEmpty(c.answer)) missing.push('answer');
         break;
       }
+      case 'identidad': {
+        if (!nonEmpty(c.statement)) missing.push('statement');
+        var pairs = Array.isArray(c.pairs) ? c.pairs : [];
+        if (pairs.length < 2) missing.push('pairs');
+        var allItemsOk = pairs.length >= 2 && pairs.every(function (p) {
+          var l = p.left || {}; var r = p.right || {};
+          return (nonEmpty(l.image) || nonEmpty(l.text)) && (nonEmpty(r.image) || nonEmpty(r.text));
+        });
+        if (pairs.length >= 2 && !allItemsOk) missing.push('pair_items');
+        break;
+      }
       default:
         break;
     }
@@ -74,7 +85,9 @@
     phrase: 'frase',
     image: 'imagen',
     image_or_video: 'imagen o vídeo',
-    audio: 'audio'
+    audio: 'audio',
+    pairs: 'parejas (mínimo 2)',
+    pair_items: 'cada elemento con foto o texto'
   };
 
   return { isComplete: isComplete, LABELS: LABELS };

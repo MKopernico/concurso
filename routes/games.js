@@ -200,7 +200,7 @@ function contentToRow(typeDef, roundName, question) {
 }
 
 // ── Shared instruction rows for template & export ──
-const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion'];
+const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'identidad'];
 
 function buildInstructionRows() {
     const rows = [

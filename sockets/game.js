@@ -38,6 +38,7 @@ function createGameState() {
             rouletteSolved: false,
             roulettePanelVisible: false,
             imagePuzzle: { questionId: null, revealedTiles: [], answerVisible: false },
+            identidad: null,
             completedRounds: [],
             optionsRevealed: false,
             lastQuestionScores: {},
@@ -109,6 +110,16 @@ function getQuestionConfig(state) {
     };
 }
 
+function initIdentidadState(ds) {
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (ds.currentRound && ds.currentRound.type === 'identidad' && q && q.content && q.content.pairs) {
+        const correctRight = q.content.pairs.map(p => p.right);
+        ds.identidad = { shuffledRight: shuffleNotIdentical(correctRight), revealIndex: 0 };
+    } else {
+        ds.identidad = null;
+    }
+}
+
 function clearPreCountdown(state) {
     if (state._preCountdownHandle) { clearInterval(state._preCountdownHandle); state._preCountdownHandle = null; }
     delete state.director.preCountdown;
@@ -159,6 +170,76 @@ function autoScoreMultirespuesta(state) {
     for (const [teamId, ans] of Object.entries(ds.answers)) {
         const picked = Array.isArray(ans.answer) ? ans.answer : [ans.answer];
         const ok = picked.length === correctSet.size && picked.every(a => correctSet.has(a));
+        if (!ds.scores[teamId]) ds.scores[teamId] = 0;
+        if (ok) {
+            const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+            ds.scores[teamId] += cfg.basePoints + bonus;
+        } else if (cfg.penalty > 0) {
+            ds.scores[teamId] -= cfg.penalty;
+        }
+    }
+}
+
+function shuffleArray(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+function shuffleNotIdentical(arr) {
+    if (arr.length < 2) return arr.slice();
+    let shuffled;
+    do {
+        shuffled = shuffleArray(arr);
+    } while (JSON.stringify(shuffled) === JSON.stringify(arr));
+    return shuffled;
+}
+
+function autoScoreIdentidad(state) {
+    const ds = state.director;
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (!q || !q.content || !q.content.pairs) return;
+    const pairs = q.content.pairs;
+    const nPairs = pairs.length;
+    if (nPairs === 0) return;
+    const cfg = getQuestionConfig(state);
+    const correctRight = pairs.map(p => p.right);
+
+    for (const [teamId, ans] of Object.entries(ds.answers)) {
+        const submitted = Array.isArray(ans.answer) ? ans.answer : [];
+        let correctCount = 0;
+        for (let i = 0; i < nPairs; i++) {
+            if (i < submitted.length && JSON.stringify(submitted[i]) === JSON.stringify(correctRight[i])) {
+                correctCount++;
+            }
+        }
+        if (!ds.scores[teamId]) ds.scores[teamId] = 0;
+        const proportional = Math.floor(cfg.basePoints * correctCount / nPairs);
+        if (correctCount === nPairs) {
+            const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+            ds.scores[teamId] += proportional + bonus;
+        } else {
+            ds.scores[teamId] += proportional;
+            if (cfg.penalty > 0 && correctCount < nPairs) {
+                ds.scores[teamId] -= cfg.penalty;
+            }
+        }
+    }
+}
+
+function autoScoreBoom(state) {
+    const ds = state.director;
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (!q || !q.content || !q.content.correct_order) return;
+    const order = q.content.correct_order;
+    const cfg = getQuestionConfig(state);
+
+    for (const [teamId, ans] of Object.entries(ds.answers)) {
+        const submitted = Array.isArray(ans.answer) ? ans.answer : [];
+        const ok = JSON.stringify(submitted) === JSON.stringify(order);
         if (!ds.scores[teamId]) ds.scores[teamId] = 0;
         if (ok) {
             const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
@@ -222,6 +303,29 @@ function computeLastQuestionScores(state) {
             } else if (cfg.penalty > 0) {
                 entry.points = -cfg.penalty;
             }
+        } else if (roundType === 'identidad' && c.pairs) {
+            const correctRight = c.pairs.map(p => p.right);
+            const nPairs = c.pairs.length;
+            const submitted = Array.isArray(ans.answer) ? ans.answer : [];
+            let correctCount = 0;
+            for (let i = 0; i < nPairs; i++) {
+                if (i < submitted.length && JSON.stringify(submitted[i]) === JSON.stringify(correctRight[i])) {
+                    correctCount++;
+                }
+            }
+            entry.correct = correctCount === nPairs;
+            entry.correctCount = correctCount;
+            entry.totalPairs = nPairs;
+            const proportional = Math.floor(cfg.basePoints * correctCount / nPairs);
+            if (entry.correct) {
+                const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+                entry.points = proportional + bonus;
+            } else {
+                entry.points = proportional;
+                if (cfg.penalty > 0 && correctCount < nPairs) {
+                    entry.points -= cfg.penalty;
+                }
+            }
         }
         results[teamId] = entry;
     }
@@ -261,7 +365,29 @@ function playerView(state) {
             if (ds.currentRound && ds.currentRound.type === 'boom' && !ds.optionsRevealed) {
                 delete c.items;
             }
+            // Identidad: gate right column and explanation
+            if (ds.currentRound && ds.currentRound.type === 'identidad') {
+                delete c.explanation;
+                if (c.pairs) {
+                    if (!ds.optionsRevealed) {
+                        // Before "open options": only left column
+                        c.pairs = c.pairs.map(p => ({ left: p.left }));
+                    } else {
+                        // After "open options": left column + shuffled right as separate field
+                        c.pairs = c.pairs.map(p => ({ left: p.left }));
+                        c.rightShuffled = ds.identidad ? ds.identidad.shuffledRight : [];
+                    }
+                }
+            }
             delete c.correct; delete c.answer; delete c.correct_value; delete c.correct_order;
+        }
+        // Identidad answer_revealed: gate by revealIndex, show explanation
+        if (ds.phase === 'answer_revealed' && ds.currentRound && ds.currentRound.type === 'identidad') {
+            if (c.pairs && ds.identidad) {
+                c.revealedPairs = c.pairs.slice(0, ds.identidad.revealIndex);
+                c.pairs = c.pairs.map(p => ({ left: p.left }));
+                c.rightShuffled = ds.identidad.shuffledRight;
+            }
         }
         question = { id: curQ.id, content: c, media_url: curQ.media_url };
     }
@@ -295,7 +421,7 @@ function playerView(state) {
         totalQuestions: ds.questions.length,
         timer: { total: ds.timer.total, remaining: ds.timer.remaining, running: ds.timer.running },
         scores: ds.scores,
-        answeredTeams: Object.keys(ds.answers),
+        answeredTeams: Object.entries(ds.answers).filter(([, a]) => a.submitted !== false).map(([tid]) => tid),
         equipos: state.equipos.map(e => ({ id: e.id, nombre: e.nombre, photo_url: e.photo_url, ocupado: e.ocupado, bloqueado: e.bloqueado })),
         pulsadorActivo: state.pulsadorActivo,
         colaPulsador: state.colaPulsador,
@@ -319,7 +445,17 @@ function playerView(state) {
         rounds: roundsSummary,
         precioWinner,
         videoState: ds.videoState || null,
+        identidad: ds.identidad ? { revealIndex: ds.identidad.revealIndex } : null,
     };
+}
+
+function emitYourOrder(socket, state) {
+    if (!socket.equipoId) return;
+    const ds = state.director;
+    if (!(ds.currentRound && ds.currentRound.type === 'identidad')) return;
+    const entry = ds.answers[socket.equipoId];
+    if (!entry) return;
+    socket.emit('game:your_order', { order: entry.answer, submitted: !!entry.submitted });
 }
 
 function broadcastDirector(io, gameId, state) {
@@ -396,6 +532,7 @@ function attachSocketHandlers(io) {
                     state._gameTheme = loadGameTheme(gameId);
                     socket.emit('login_success', { miEquipo: eq, estado: publicView(state), equiposRivales: state.equipos });
                     socket.emit('game:player_sync', playerView(state));
+                    emitYourOrder(socket, state);
                     broadcastDirector(io, gameId, state);
                     return;
                 }
@@ -449,6 +586,7 @@ function attachSocketHandlers(io) {
             state._gameTheme = loadGameTheme(gameId);
             socket.emit('login_success', { miEquipo: eq, estado: publicView(state), equiposRivales: state.equipos });
             socket.emit('game:player_sync', playerView(state));
+            emitYourOrder(socket, state);
             broadcastDirector(io, gameId, state);
         });
 
@@ -470,6 +608,7 @@ function attachSocketHandlers(io) {
             state._gameTheme = loadGameTheme(gameId);
             socket.emit('login_success', { miEquipo: equipo, estado: publicView(state), equiposRivales: state.equipos });
             socket.emit('game:player_sync', playerView(state));
+            emitYourOrder(socket, state);
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
             broadcastDirector(io, gameId, state);
         });
@@ -656,10 +795,34 @@ function attachSocketHandlers(io) {
             if (!socket.equipoId) return;
             const ds = state.director;
             if (ds.phase !== 'question') return;
-            if (ds.answers[socket.equipoId]) return;
             if (!Array.isArray(data.order)) return;
-            ds.answers[socket.equipoId] = { answer: data.order, timestamp: Date.now(), timerRemaining: ds.timer.remaining };
+            const existing = ds.answers[socket.equipoId];
+            // For identidad: allow promoting provisional to definitive
+            if (existing) {
+                if (ds.currentRound && ds.currentRound.type === 'identidad' && !existing.submitted) {
+                    existing.answer = data.order;
+                    existing.timestamp = Date.now();
+                    existing.timerRemaining = ds.timer.remaining;
+                    existing.submitted = true;
+                } else {
+                    return; // Already submitted (Boom or identidad definitive)
+                }
+            } else {
+                ds.answers[socket.equipoId] = { answer: data.order, timestamp: Date.now(), timerRemaining: ds.timer.remaining, submitted: true };
+            }
             broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('player:update_order', (data) => {
+            if (!socket.equipoId) return;
+            const ds = state.director;
+            if (ds.phase !== 'question') return;
+            if (!ds.optionsRevealed) return;
+            if (!(ds.currentRound && ds.currentRound.type === 'identidad')) return;
+            if (!Array.isArray(data.order)) return;
+            const existing = ds.answers[socket.equipoId];
+            if (existing && existing.submitted) return;
+            ds.answers[socket.equipoId] = { answer: data.order, timestamp: Date.now(), timerRemaining: ds.timer.remaining, submitted: false };
         });
 
         socket.on('usar_bono', (data) => {
@@ -798,6 +961,7 @@ function attachSocketHandlers(io) {
                 ds.qrVisible = false;
                 ds.menuLevel = null;
                 ds.selectedCategory = null;
+                initIdentidadState(ds);
                 if (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen') {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
@@ -826,6 +990,7 @@ function attachSocketHandlers(io) {
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
+            initIdentidadState(ds);
             if (ds.currentRound && ds.currentRound.type === 'pulsador') {
                 ds.timer = { total: 0, remaining: 0, running: false };
             } else {
@@ -848,6 +1013,7 @@ function attachSocketHandlers(io) {
                 ds.revealedLetters = [];
                 ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
                 ds.optionsRevealed = false;
+                initIdentidadState(ds);
                 if (ds.currentRound && ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen') {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
@@ -871,6 +1037,7 @@ function attachSocketHandlers(io) {
                 ds.revealedLetters = [];
                 ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
                 ds.optionsRevealed = false;
+                initIdentidadState(ds);
                 if (ds.currentRound && ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen') {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
@@ -903,6 +1070,17 @@ function attachSocketHandlers(io) {
                             autoScoreMultirespuesta(state);
                         } else if (ds.currentRound && ds.currentRound.type === 'precio') {
                             autoScorePrecio(state);
+                        } else if (ds.currentRound && ds.currentRound.type === 'identidad') {
+                            // Promote provisional orders to definitive
+                            for (const [tid, ans] of Object.entries(ds.answers)) {
+                                if (!ans.submitted) {
+                                    ans.submitted = true;
+                                    ans.timerRemaining = 0;
+                                }
+                            }
+                            autoScoreIdentidad(state);
+                        } else if (ds.currentRound && ds.currentRound.type === 'boom') {
+                            autoScoreBoom(state);
                         }
                         ds.phase = 'answer_revealed';
                         state.pulsadorActivo = false;
@@ -929,10 +1107,22 @@ function attachSocketHandlers(io) {
         socket.on('director:reveal_answer', () => {
             stopTimer(state, gameId, io);
             const ds = state.director;
-            if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
-                autoScoreMultirespuesta(state);
-            } else if (ds.currentRound && ds.currentRound.type === 'precio') {
-                autoScorePrecio(state);
+            if (ds.phase === 'question') {
+                if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
+                    autoScoreMultirespuesta(state);
+                } else if (ds.currentRound && ds.currentRound.type === 'precio') {
+                    autoScorePrecio(state);
+                } else if (ds.currentRound && ds.currentRound.type === 'identidad') {
+                    for (const [tid, ans] of Object.entries(ds.answers)) {
+                        if (!ans.submitted) {
+                            ans.submitted = true;
+                            ans.timerRemaining = ds.timer.remaining;
+                        }
+                    }
+                    autoScoreIdentidad(state);
+                } else if (ds.currentRound && ds.currentRound.type === 'boom') {
+                    autoScoreBoom(state);
+                }
             }
             ds.phase = 'answer_revealed';
             state.pulsadorActivo = false;
@@ -1101,6 +1291,19 @@ function attachSocketHandlers(io) {
             broadcastDirector(io, gameId, state);
         });
 
+        // ═══════════════════════ IDENTIDAD REVEAL ═══════════════════════
+
+        socket.on('director:reveal_next_pair', () => {
+            const ds = state.director;
+            if (!ds.identidad) return;
+            const q = ds.questions[ds.currentQuestionIdx];
+            if (!q || !q.content || !q.content.pairs) return;
+            if (ds.identidad.revealIndex >= q.content.pairs.length) return;
+            ds.identidad.revealIndex++;
+            io.to(roomOf(gameId)).emit('game:pair_revealed', { index: ds.identidad.revealIndex - 1 });
+            broadcastDirector(io, gameId, state);
+        });
+
         // ═══════════════════════ VIDEO CONTROL (imagen_fija) ═══════════════════════
 
         socket.on('director:video_command', (data) => {
@@ -1230,6 +1433,16 @@ function attachSocketHandlers(io) {
                                         autoScoreMultirespuesta(state);
                                     } else if (ds.currentRound && ds.currentRound.type === 'precio') {
                                         autoScorePrecio(state);
+                                    } else if (ds.currentRound && ds.currentRound.type === 'identidad') {
+                                        for (const [tid, ans] of Object.entries(ds.answers)) {
+                                            if (!ans.submitted) {
+                                                ans.submitted = true;
+                                                ans.timerRemaining = 0;
+                                            }
+                                        }
+                                        autoScoreIdentidad(state);
+                                    } else if (ds.currentRound && ds.currentRound.type === 'boom') {
+                                        autoScoreBoom(state);
                                     }
                                     ds.phase = 'answer_revealed';
                                     state.pulsadorActivo = false;
@@ -1264,6 +1477,7 @@ function attachSocketHandlers(io) {
                 ds.completedRounds.push(ds.currentRoundId);
             }
             stopTimer(state, gameId, io);
+            ds.identidad = null;
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
@@ -1283,6 +1497,7 @@ function attachSocketHandlers(io) {
             ds.revealedCells = [];
             ds.revealedLetters = [];
             ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
+            ds.identidad = null;
             ds.phase = 'lobby';
             ds.menuLevel = 'home';
             ds.selectedCategory = null;
@@ -1305,6 +1520,7 @@ function attachSocketHandlers(io) {
             ds.revealedCells = [];
             ds.revealedLetters = [];
             ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
+            ds.identidad = null;
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
@@ -1338,6 +1554,7 @@ function attachSocketHandlers(io) {
             ds.revealedCells = [];
             ds.revealedLetters = [];
             ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
+            ds.identidad = null;
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;

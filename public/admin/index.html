@@ -91,6 +91,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .type-boom { background: #9a3412; color: #fdba74; }
 .type-ruleta { background: #1e3a5f; color: #7dd3fc; }
 .type-imagen_fija { background: #365314; color: #bef264; }
+.type-identidad { background: #4a1942; color: #f0abfc; }
 
 /* Sortable highlight */
 .sort-handle { cursor: grab; color: var(--text2); user-select: none; font-size: 18px; }
@@ -359,6 +360,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                     <option value="boom">Boom (ordenar)</option>
                     <option value="ruleta">Ruleta de la suerte</option>
                     <option value="imagen_fija">Imagen fija</option>
+                    <option value="identidad">Identidad (emparejar)</option>
                 </select>
             </div>
             <div class="field-row-3">
@@ -534,7 +536,7 @@ function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.
 const TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador rápido', precio: 'Precio justo',
     imagen: 'Adivina imagen', cancion: 'Adivina canción', boom: 'Boom (ordenar)',
-    ruleta: 'Ruleta de la suerte', imagen_fija: 'Imagen fija'
+    ruleta: 'Ruleta de la suerte', imagen_fija: 'Imagen fija', identidad: 'Identidad'
 };
 
 function statusBadge(s) {
@@ -1047,6 +1049,7 @@ function buildFieldsForType(type, c) {
         case 'boom':           return fieldsBoom(c);
         case 'ruleta':         return fieldsRuleta(c);
         case 'imagen_fija':    return fieldsImagenFija(c);
+        case 'identidad':      return fieldsIdentidad(c);
         default:               return `<div class="field"><label>Contenido (JSON)</label><textarea name="raw_json">${esc(JSON.stringify(c, null, 2))}</textarea></div>`;
     }
 }
@@ -1251,6 +1254,68 @@ function fieldsBoom(c) {
     `;
 }
 
+function fieldsIdentidad(c) {
+    const pairs = c.pairs || [{left:{image:'',text:''}, right:{image:'',text:''}}, {left:{image:'',text:''}, right:{image:'',text:''}}];
+    let rows = '';
+    pairs.forEach((p, i) => {
+        rows += identidadPairRow(i, p);
+    });
+    return `
+        <div class="field"><label>Enunciado</label><textarea name="c_statement" required placeholder="Empareja cada país con su capital">${esc(c.statement || '')}</textarea></div>
+        <div class="field"><label>Parejas (mín 2). Cada item necesita foto y/o texto.</label>
+            <div id="identidad-pairs">${rows}</div>
+            <button type="button" class="btn-ghost btn-sm" onclick="addIdentidadPair()" style="margin-top:8px">+ Añadir pareja</button>
+        </div>
+        <div class="field"><label>Explicación (opcional)</label><textarea name="c_explanation">${esc(c.explanation || '')}</textarea></div>
+    `;
+}
+
+function identidadPairRow(i, p) {
+    p = p || {left:{image:'',text:''}, right:{image:'',text:''}};
+    const l = p.left || {}; const r = p.right || {};
+    return `<div class="identidad-pair" data-idx="${i}" style="display:flex; gap:10px; align-items:flex-start; margin-bottom:10px; padding:10px; border:1px solid var(--border); border-radius:8px;">
+        <span style="font-weight:700; min-width:22px; padding-top:4px">${i+1}</span>
+        <div style="flex:1">
+            <div style="font-size:11px; color:var(--text2); margin-bottom:4px">Izquierda</div>
+            <div class="upload-row" style="margin-bottom:4px">
+                <input type="text" name="c_pair_${i}_left_image" value="${esc(l.image || '')}" placeholder="Foto (URL)" style="flex:1">
+                <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_pair_${i}_left_image')"></label>
+                ${libBtn('c_pair_'+i+'_left_image','images')}
+            </div>
+            <input type="text" name="c_pair_${i}_left_text" value="${esc(l.text || '')}" placeholder="Texto" style="width:100%">
+        </div>
+        <div style="flex:1">
+            <div style="font-size:11px; color:var(--text2); margin-bottom:4px">Derecha</div>
+            <div class="upload-row" style="margin-bottom:4px">
+                <input type="text" name="c_pair_${i}_right_image" value="${esc(r.image || '')}" placeholder="Foto (URL)" style="flex:1">
+                <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_pair_${i}_right_image')"></label>
+                ${libBtn('c_pair_'+i+'_right_image','images')}
+            </div>
+            <input type="text" name="c_pair_${i}_right_text" value="${esc(r.text || '')}" placeholder="Texto" style="width:100%">
+        </div>
+        <button type="button" class="btn-ghost btn-sm" onclick="removeIdentidadPair(this)" style="color:#f87171; flex-shrink:0; padding-top:4px" title="Eliminar pareja">&#10005;</button>
+    </div>`;
+}
+
+function addIdentidadPair() {
+    const container = document.getElementById('identidad-pairs');
+    const idx = container.querySelectorAll('.identidad-pair').length;
+    container.insertAdjacentHTML('beforeend', identidadPairRow(idx, null));
+}
+
+function removeIdentidadPair(btn) {
+    const container = document.getElementById('identidad-pairs');
+    if (container.querySelectorAll('.identidad-pair').length <= 2) { toast('Mínimo 2 parejas'); return; }
+    btn.closest('.identidad-pair').remove();
+    container.querySelectorAll('.identidad-pair').forEach((row, i) => {
+        row.dataset.idx = i;
+        row.querySelector('span').textContent = i + 1;
+        row.querySelectorAll('input').forEach(inp => {
+            inp.name = inp.name.replace(/c_pair_\d+/, 'c_pair_' + i);
+        });
+    });
+}
+
 function fieldsRuleta(c) {
     return `
         <div class="field"><label>Pista (categoría / tema)</label><input name="c_hint" value="${esc(c.hint || '')}" required placeholder="Ej: Refrán popular, Película, Ciudad..."></div>
@@ -1429,6 +1494,17 @@ function extractContent(type, form) {
         case 'ruleta': {
             var phrase = val(form, 'c_phrase').toUpperCase();
             return { hint: val(form, 'c_hint'), phrase: phrase || undefined };
+        }
+        case 'identidad': {
+            const pairEls = form.querySelectorAll('#identidad-pairs .identidad-pair');
+            const pairs = [];
+            pairEls.forEach((row, i) => {
+                pairs.push({
+                    left:  { image: val(form, 'c_pair_'+i+'_left_image') || null,  text: val(form, 'c_pair_'+i+'_left_text') },
+                    right: { image: val(form, 'c_pair_'+i+'_right_image') || null, text: val(form, 'c_pair_'+i+'_right_text') }
+                });
+            });
+            return { statement: val(form, 'c_statement'), pairs, explanation: val(form, 'c_explanation') || undefined };
         }
         case 'imagen_fija': {
             const ifMode = val(form, 'c_if_media_mode');

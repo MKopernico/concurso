@@ -699,6 +699,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                 <button class="btn-ghost btn-sm" id="btnRevealAll" style="display:none" onclick="revealAll()">Revelar todo</button>
                 <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Marcar ronda completada</button>
             </div>
+            <div id="dirIdentidadStatus" style="display:none; margin-top:10px; text-align:center; font-size:13px; color:var(--text2);"></div>
         </div>
 
         <!-- Phase: Answer revealed -->
@@ -715,6 +716,11 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             <div class="answer-card">
                 <h3>Respuesta correcta</h3>
                 <div class="answer-text" id="answerText">-</div>
+            </div>
+            <div id="identidadExplanation" style="display:none; margin-top:8px; padding:10px 14px; background:var(--surface2); border-radius:8px; font-size:13px; color:var(--text2); text-align:left;"></div>
+            <div id="identidadRevealPanel" style="display:none; margin-top:10px; text-align:center;">
+                <button class="btn-orange" id="btnRevealNextPair" onclick="emit('director:reveal_next_pair')">&#128065; Ir revelando</button>
+                <span id="identidadRevealCount" style="margin-left:8px; font-size:13px; color:var(--text2);"></span>
             </div>
             <div id="teamResultsPanel"></div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;">
@@ -1886,10 +1892,23 @@ function renderQuestion() {
     // Show/hide "Abrir opciones" button for multirespuesta, boom (precio uses its own panel)
     var roundType2 = ds.currentRound ? ds.currentRound.type : '';
     var btnRevealOpts = document.getElementById('btnRevealOptions');
-    if ((roundType2 === 'multirespuesta' || roundType2 === 'boom') && !ds.optionsRevealed) {
+    if ((roundType2 === 'multirespuesta' || roundType2 === 'boom' || roundType2 === 'identidad') && !ds.optionsRevealed) {
         btnRevealOpts.style.display = '';
     } else {
         btnRevealOpts.style.display = 'none';
+    }
+
+    // Identidad: equipos enviados counter (only when options revealed and timer running)
+    var idStatusEl = document.getElementById('dirIdentidadStatus');
+    if (idStatusEl) {
+        if (roundType2 === 'identidad' && ds.optionsRevealed) {
+            var answeredCount = Object.entries(ds.answers).filter(function(e) { return e[1].submitted !== false; }).length;
+            var totalTeams = S.equipos.length;
+            idStatusEl.innerHTML = '&#10003; <strong>' + answeredCount + ' de ' + totalTeams + '</strong> equipos han enviado';
+            idStatusEl.style.display = '';
+        } else {
+            idStatusEl.style.display = 'none';
+        }
     }
 
     var ansDiv = document.getElementById('questionAnswer');
@@ -1904,6 +1923,12 @@ function renderQuestion() {
         ansDiv.innerHTML = 'Valor correcto: <strong>' + c.correct_value + '</strong>';
     } else if (c.correct_order && c.items) {
         ansDiv.innerHTML = 'Orden: <strong>' + c.correct_order.map(function(i) { return c.items[i]; }).join(' → ') + '</strong>';
+    } else if (c.pairs) {
+        ansDiv.innerHTML = 'Parejas: <strong>' + c.pairs.map(function(p) {
+            var l = (p.left && p.left.text) || '📷';
+            var r = (p.right && p.right.text) || '📷';
+            return esc(l) + ' → ' + esc(r);
+        }).join(' | ') + '</strong>';
     } else { ansDiv.style.display = 'none'; }
 
     renderDirImageGrid(roundType, c, q);
@@ -2077,7 +2102,39 @@ function renderAnswerRevealed() {
     } else if (c.answer !== undefined) ans = String(c.answer);
     else if (c.correct_value !== undefined) ans = String(c.correct_value);
     else if (c.correct_order && c.items) ans = c.correct_order.map(function(i) { return c.items[i]; }).join(' → ');
+    else if (c.pairs) ans = c.pairs.map(function(p) {
+        var l = (p.left && p.left.text) || '📷';
+        var r = (p.right && p.right.text) || '📷';
+        return l + ' → ' + r;
+    }).join(' | ');
     document.getElementById('answerText').textContent = ans || '-';
+
+    // Identidad: explanation panel
+    var idExplEl = document.getElementById('identidadExplanation');
+    if (idExplEl) {
+        if (roundType === 'identidad' && c.explanation) {
+            idExplEl.textContent = c.explanation;
+            idExplEl.style.display = '';
+        } else {
+            idExplEl.style.display = 'none';
+        }
+    }
+
+    // Identidad: "Ir revelando" controls (calcado de Adivina la imagen tile counter)
+    var idRevPanel = document.getElementById('identidadRevealPanel');
+    if (idRevPanel) {
+        if (roundType === 'identidad' && ds.identidad) {
+            var totalPairs = c.pairs ? c.pairs.length : 0;
+            var revIdx = ds.identidad.revealIndex || 0;
+            idRevPanel.style.display = '';
+            document.getElementById('identidadRevealCount').textContent = revIdx + ' / ' + totalPairs + ' reveladas';
+            var btnRevPair = document.getElementById('btnRevealNextPair');
+            btnRevPair.disabled = revIdx >= totalPairs;
+            btnRevPair.innerHTML = revIdx >= totalPairs ? '&#10003; Todas reveladas' : '&#128065; Ir revelando';
+        } else {
+            idRevPanel.style.display = 'none';
+        }
+    }
 
     // Team results breakdown (always visible in director)
     renderTeamResults();
