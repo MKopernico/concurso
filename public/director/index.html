@@ -1902,7 +1902,8 @@ function renderQuestion() {
     var idStatusEl = document.getElementById('dirIdentidadStatus');
     if (idStatusEl) {
         if (roundType2 === 'identidad' && ds.optionsRevealed) {
-            var answeredCount = Object.entries(ds.answers).filter(function(e) { return e[1].submitted !== false; }).length;
+            // answeredCount computed server-side in publicView (single source of truth)
+            var answeredCount = ds.answeredCount || 0;
             var totalTeams = S.equipos.length;
             idStatusEl.innerHTML = '&#10003; <strong>' + answeredCount + ' de ' + totalTeams + '</strong> equipos han enviado';
             idStatusEl.style.display = '';

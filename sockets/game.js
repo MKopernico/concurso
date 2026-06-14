@@ -80,7 +80,10 @@ function getOrCreateState(gameId) {
 function publicView(state) {
     const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _gameTheme, _sessionId, _rounds, ...rest } = state;
     rest.gameTheme = _gameTheme || {};
-    console.log('[DEBUG gameTheme]', JSON.stringify(rest.gameTheme));
+    const ds = rest.director;
+    if (ds && ds.answers) {
+        ds.answeredCount = Object.values(ds.answers).filter(a => a.submitted !== false).length;
+    }
     return rest;
 }
 
