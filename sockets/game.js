@@ -113,8 +113,9 @@ function getQuestionConfig(state) {
 function initIdentidadState(ds) {
     const q = ds.questions[ds.currentQuestionIdx];
     if (ds.currentRound && ds.currentRound.type === 'identidad' && q && q.content && q.content.pairs) {
-        const correctRight = q.content.pairs.map(p => p.right);
-        ds.identidad = { shuffledRight: shuffleNotIdentical(correctRight), revealIndex: 0 };
+        const n = q.content.pairs.length;
+        const indices = Array.from({length: n}, (_, i) => i);
+        ds.identidad = { shuffledRight: shuffleNotIdentical(indices), revealIndex: 0 };
     } else {
         ds.identidad = null;
     }
@@ -206,13 +207,12 @@ function autoScoreIdentidad(state) {
     const nPairs = pairs.length;
     if (nPairs === 0) return;
     const cfg = getQuestionConfig(state);
-    const correctRight = pairs.map(p => p.right);
 
     for (const [teamId, ans] of Object.entries(ds.answers)) {
         const submitted = Array.isArray(ans.answer) ? ans.answer : [];
         let correctCount = 0;
         for (let i = 0; i < nPairs; i++) {
-            if (i < submitted.length && JSON.stringify(submitted[i]) === JSON.stringify(correctRight[i])) {
+            if (i < submitted.length && submitted[i] === i) {
                 correctCount++;
             }
         }
@@ -304,12 +304,11 @@ function computeLastQuestionScores(state) {
                 entry.points = -cfg.penalty;
             }
         } else if (roundType === 'identidad' && c.pairs) {
-            const correctRight = c.pairs.map(p => p.right);
             const nPairs = c.pairs.length;
             const submitted = Array.isArray(ans.answer) ? ans.answer : [];
             let correctCount = 0;
             for (let i = 0; i < nPairs; i++) {
-                if (i < submitted.length && JSON.stringify(submitted[i]) === JSON.stringify(correctRight[i])) {
+                if (i < submitted.length && submitted[i] === i) {
                     correctCount++;
                 }
             }
@@ -370,10 +369,9 @@ function playerView(state) {
                 delete c.explanation;
                 if (c.pairs) {
                     if (!ds.optionsRevealed) {
-                        // Before "open options": only left column
                         c.pairs = c.pairs.map(p => ({ left: p.left }));
                     } else {
-                        // After "open options": left column + shuffled right as separate field
+                        c.rightsCanonical = c.pairs.map(p => p.right);
                         c.pairs = c.pairs.map(p => ({ left: p.left }));
                         c.rightShuffled = ds.identidad ? ds.identidad.shuffledRight : [];
                     }
@@ -385,6 +383,7 @@ function playerView(state) {
         if (ds.phase === 'answer_revealed' && ds.currentRound && ds.currentRound.type === 'identidad') {
             if (c.pairs && ds.identidad) {
                 c.revealedPairs = c.pairs.slice(0, ds.identidad.revealIndex);
+                c.rightsCanonical = c.pairs.map(p => p.right);
                 c.pairs = c.pairs.map(p => ({ left: p.left }));
                 c.rightShuffled = ds.identidad.shuffledRight;
             }

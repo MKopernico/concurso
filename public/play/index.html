@@ -1345,10 +1345,11 @@ function idCardInner(item) {
 }
 
 function identidadRenderRight(col) {
-    col.innerHTML = S.identidadRight.map(function(item, i) {
+    var rc = ((S.ps && S.ps.question && S.ps.question.content) || {}).rightsCanonical || [];
+    col.innerHTML = S.identidadRight.map(function(idx, i) {
         var cls = 'id-card';
         if (S.submitted || S.identidad.mySubmitted) cls += ' submitted';
-        return '<div class="' + cls + '" data-idx="' + i + '">' + idCardInner(item) + '</div>';
+        return '<div class="' + cls + '" data-idx="' + i + '">' + idCardInner(rc[idx]) + '</div>';
     }).join('');
 }
 
@@ -1389,16 +1390,15 @@ function renderIdentidad() {
             return '<div class="id-card">' + idCardInner(p.left) + '</div>';
         }).join('');
 
-        var revealedPairs = c.revealedPairs || [];
         var revIdx = (ps.identidad && ps.identidad.revealIndex) || 0;
+        var rc = c.rightsCanonical || [];
 
-        rightCol.innerHTML = S.identidadRight.map(function(item, i) {
+        rightCol.innerHTML = S.identidadRight.map(function(idx, i) {
             var cls = 'id-card submitted';
-            if (i < revIdx && i < revealedPairs.length) {
-                var correct = JSON.stringify(item) === JSON.stringify(revealedPairs[i].right);
-                cls += correct ? ' id-correct' : ' id-wrong';
+            if (i < revIdx) {
+                cls += (idx === i) ? ' id-correct' : ' id-wrong';
             }
-            return '<div class="' + cls + '">' + idCardInner(item) + '</div>';
+            return '<div class="' + cls + '">' + idCardInner(rc[idx]) + '</div>';
         }).join('');
         return;
     }

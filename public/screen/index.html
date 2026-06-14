@@ -1348,9 +1348,10 @@ function renderIdentidadScreen(c, q) {
     html += '<div class="id-col id-col-left">' + leftHtml + '</div>';
 
     if (ps.optionsRevealed && rightShuffled.length) {
+        var rc = c.rightsCanonical || [];
         var rightHtml = '';
-        rightShuffled.forEach(function(r) {
-            rightHtml += identidadCardHtml(r, true, '');
+        rightShuffled.forEach(function(idx) {
+            rightHtml += identidadCardHtml(rc[idx], true, '');
         });
         html += '<div class="id-col id-col-right">' + rightHtml + '</div>';
     } else {
