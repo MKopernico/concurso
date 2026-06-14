@@ -271,10 +271,27 @@ input:focus { border-color: var(--accent); }
 .gp-round-intro .intro-type { font-size: 13px; padding: 3px 10px; border-radius: 4px; font-weight: 700; text-transform: uppercase; }
 .gp-round-intro p { color: var(--text2); }
 
-.blocked-overlay { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.85); flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
-.blocked-overlay.active { display: flex; }
+.blocked-overlay {
+    display: flex; position: fixed; inset: 0; z-index: 100;
+    background: linear-gradient(135deg, rgba(173,216,230,.25), rgba(135,206,250,.35));
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    opacity: 0; pointer-events: none; transition: opacity .5s ease;
+}
+.blocked-overlay.active { opacity: 1; pointer-events: auto; }
+.blocked-overlay::before {
+    content: ''; position: absolute; inset: 0;
+    background: url('frost.png') center / cover no-repeat;
+    opacity: .4; pointer-events: none;
+}
+.blocked-overlay .block-icon,
+.blocked-overlay .block-text { position: relative; z-index: 1; }
 .blocked-overlay .block-icon { font-size: 64px; }
-.blocked-overlay .block-text { font-size: 20px; font-weight: 700; color: var(--danger); }
+.blocked-overlay .block-text {
+    font-size: 22px; font-weight: 800; color: #fff;
+    text-shadow: 0 0 20px rgba(135,206,250,.8), 0 0 40px rgba(173,216,230,.5);
+    text-transform: uppercase; letter-spacing: 2px;
+}
 
 .conn-banner { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 300; background: var(--gold); color: #000; font-size: 13px; font-weight: 700; text-align: center; padding: 6px; gap: 8px; align-items: center; justify-content: center; }
 .conn-banner.active { display: flex; }
@@ -457,8 +474,8 @@ input:focus { border-color: var(--accent); }
 </div>
 
 <div class="blocked-overlay" id="blockedOverlay">
-    <div class="block-icon">&#10060;</div>
-    <div class="block-text">BLOQUEADO</div>
+    <div class="block-icon">&#10052;</div>
+    <div class="block-text">¡TE HAN CONGELADO!</div>
 </div>
 
 <div class="conn-banner" id="connBanner">

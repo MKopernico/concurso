@@ -508,7 +508,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                             <span class="buzzer-first-name" id="puFirstName"></span>
                             <button class="btn-success" id="puBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="puBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
-                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#128274; Bloqueo</button>
+                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
                         </div>
                     </div>
                 </div>
@@ -576,7 +576,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                             <span class="buzzer-first-name" id="ruFirstName"></span>
                             <button class="btn-success" id="ruBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="ruBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
-                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#128274; Bloqueo</button>
+                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
                         </div>
                     </div>
                 </div>
@@ -615,7 +615,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                             <span class="buzzer-first-name" id="imgFirstName"></span>
                             <button class="btn-success" id="imgBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="imgBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
-                            <button class="btn-ghost btn-sm" id="imgBtnBlockAll" onclick="toggleBlockAll()">&#128274; Bloqueo</button>
+                            <button class="btn-ghost btn-sm" id="imgBtnBlockAll" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
                         </div>
                     </div>
                 </div>
@@ -651,7 +651,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                             <span class="buzzer-first-name" id="ifFirstName"></span>
                             <button class="btn-success" id="ifBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="ifBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
-                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#128274; Bloqueo</button>
+                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
                         </div>
                     </div>
                 </div>
@@ -678,7 +678,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
                             <span class="buzzer-first-name" id="cnFirstName"></span>
                             <button class="btn-success" id="cnBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="cnBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
-                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#128274; Bloqueo</button>
+                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
                         </div>
                     </div>
                 </div>
@@ -2396,7 +2396,7 @@ function renderTeams() {
         var blocked = e.bloqueado;
         return '<div class="bb-card">'
             + '<span class="bb-card-dot ' + (connected ? 'on' : 'off') + '"></span>'
-            + '<span class="bb-card-name">' + (blocked ? '&#128274; ' : '') + esc(e.nombre) + '</span>'
+            + '<span class="bb-card-name">' + (blocked ? '&#10052; ' : '') + esc(e.nombre) + '</span>'
             + '<span class="bb-card-score">' + score + '</span>'
             + '</div>';
     }).join('');
@@ -2408,12 +2408,15 @@ function renderTeams() {
         var blocked = e.bloqueado;
         return '<div class="bb-card-lg">'
             + '<span class="bb-card-dot ' + (connected ? 'on' : 'off') + '"></span>'
-            + '<span class="bb-card-name">' + (blocked ? '&#128274; ' : '') + esc(e.nombre) + '</span>'
+            + '<span class="bb-card-name">' + (blocked ? '&#10052; ' : '') + esc(e.nombre) + '</span>'
             + '<button class="bb-card-edit" onclick="event.stopPropagation();openEditTeamModal(\'' + e.id + '\')" title="Editar">&#9998;</button>'
             + '<span class="bb-card-score">' + score + '</span>'
             + '<div class="bb-lg-actions">'
             + '<button class="btn-success" onclick="event.stopPropagation();openQuickPoints(\'' + e.id + '\',\'add\',this)">+</button>'
             + '<button class="btn-danger" onclick="event.stopPropagation();openQuickPoints(\'' + e.id + '\',\'sub\',this)">&minus;</button>'
+            + (blocked
+                ? '<button class="btn-ghost btn-sm" style="border-color:rgba(135,206,250,.6);background:rgba(135,206,250,.15);" onclick="event.stopPropagation();toggleBlock(\'' + e.id + '\',true)" title="Descongelar">&#128275;</button>'
+                : '<button class="btn-ghost btn-sm" onclick="event.stopPropagation();toggleBlock(\'' + e.id + '\',false)" title="Congelar">&#10052;</button>')
             + '</div>'
             + '<button class="bb-card-kick" onclick="event.stopPropagation();removeTeam(\'' + e.id + '\')" title="Expulsar">&#10005;</button>'
             + '</div>';
