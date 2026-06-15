@@ -905,6 +905,11 @@ function connectSocket() {
     socket.on('actualizar_pulsador_lista', (c) => { S.colaPulsador = c; renderBuzzer(); });
     socket.on('estado_pulsador_cambio', (d) => { S.pulsadorActivo = d.activo; S.colaPulsador = d.cola; renderBuzzer(); });
     socket.on('init_connection', () => socket.emit('director:join'));
+    socket.on('actualizar_admin_equipos', function(equipos) {
+        S.equipos = equipos || [];
+        render();
+        if (_bpTeamId) refreshBonusMenuBody();
+    });
 }
 
 function emit(ev, data) { if (socket) socket.emit(ev, data || {}); }
@@ -2535,18 +2540,7 @@ function openBonusMenu(teamId, btnEl) {
     var label = document.getElementById('bpLabel');
     var team = S.equipos.find(function(e) { return e.id === teamId; });
     label.textContent = (team ? team.nombre : '') + ' — Bonos';
-    var bonos = (team && team.bonos) || [];
-
-    body.innerHTML = _bonusTypes.map(function(bt) {
-        var count = bonos.filter(function(b) { return b === bt.tipo; }).length;
-        return '<div class="bp-row">'
-            + '<span class="bp-icon">' + bt.icon + '</span>'
-            + '<span class="bp-name">' + bt.nombre + '</span>'
-            + '<span class="bp-count">(' + count + ')</span>'
-            + '<button class="bp-add btn-success" onclick="addBonus(\'' + teamId + '\',\'' + bt.tipo + '\')">Dar</button>'
-            + '<button class="bp-rm btn-danger" onclick="removeBonus(\'' + teamId + '\',\'' + bt.tipo + '\')">Quitar</button>'
-            + '</div>';
-    }).join('');
+    refreshBonusMenuBody();
 
     var rect = btnEl.getBoundingClientRect();
     pop.classList.add('active');
@@ -2559,6 +2553,23 @@ function openBonusMenu(teamId, btnEl) {
     if (left + popW > window.innerWidth - 4) left = window.innerWidth - popW - 4;
     pop.style.left = left + 'px';
     pop.style.top = top + 'px';
+}
+
+function refreshBonusMenuBody() {
+    if (!_bpTeamId) return;
+    var body = document.getElementById('bpBody');
+    var team = S.equipos.find(function(e) { return e.id === _bpTeamId; });
+    var bonos = (team && team.bonos) || [];
+    body.innerHTML = _bonusTypes.map(function(bt) {
+        var count = bonos.filter(function(b) { return b === bt.tipo; }).length;
+        return '<div class="bp-row">'
+            + '<span class="bp-icon">' + bt.icon + '</span>'
+            + '<span class="bp-name">' + bt.nombre + '</span>'
+            + '<span class="bp-count">(' + count + ')</span>'
+            + '<button class="bp-add btn-success" onclick="addBonus(\'' + _bpTeamId + '\',\'' + bt.tipo + '\')">Dar</button>'
+            + '<button class="bp-rm btn-danger" onclick="removeBonus(\'' + _bpTeamId + '\',\'' + bt.tipo + '\')">Quitar</button>'
+            + '</div>';
+    }).join('');
 }
 
 function closeBonusMenu() {
