@@ -283,32 +283,20 @@ input:focus { border-color: var(--accent); }
     background: url('frost.png') center / cover no-repeat;
     opacity: .55; pointer-events: none;
 }
-.blocked-overlay .block-halo {
-    position: absolute;
-    top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: 90%; max-width: 640px; height: 320px;
-    background: radial-gradient(ellipse at center,
-        rgba(255,255,255,.95) 0%,
-        rgba(255,255,255,.7) 30%,
-        rgba(255,255,255,.25) 55%,
-        rgba(255,255,255,0) 75%);
-    filter: blur(16px);
-    pointer-events: none;
-    z-index: 1;
-}
+.blocked-overlay .block-halo { display: none; }
 .blocked-overlay .block-text {
     position: relative; z-index: 2;
     font-size: clamp(40px, 9vw, 88px);
     font-weight: 900;
     letter-spacing: 1px; text-transform: uppercase;
     text-align: center; padding: 0 20px; line-height: 1.05;
-    color: #bfe4ff;
+    color: #7ec8f5;
+    -webkit-text-stroke: 1.5px rgba(255,255,255,.85);
     text-shadow:
-        0 1px 0 rgba(255,255,255,.9),
-        0 0 6px rgba(255,255,255,.8),
-        0 0 14px rgba(180,225,255,.7),
-        0 0 30px rgba(120,190,255,.55),
-        0 2px 4px rgba(40,90,150,.4);
+        0 0 6px rgba(255,255,255,.9),
+        0 0 16px rgba(150,210,255,.8),
+        0 0 34px rgba(90,170,255,.6),
+        0 3px 6px rgba(30,80,140,.5);
 }
 
 /* ── Bonus panel (bottom-right chips, two rows by type) ── */
