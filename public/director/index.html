@@ -201,6 +201,19 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .qp-popover .qp-cancel { background: none; border: none; color: var(--text2); font-size: 11px; cursor: pointer; font-family: inherit; text-align: center; padding: 2px; }
 .qp-popover .qp-cancel:hover { color: var(--text); }
 
+/* Bonus popover (cloned from qp-popover) */
+.bp-popover { display: none; position: fixed; z-index: 250; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.5); min-width: 180px; }
+.bp-popover.active { display: flex; flex-direction: column; gap: 8px; }
+.bp-popover .bp-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); }
+.bp-popover .bp-row { display: flex; gap: 6px; align-items: center; }
+.bp-popover .bp-icon { font-size: 16px; flex-shrink: 0; }
+.bp-popover .bp-name { flex: 1; font-size: 12px; font-weight: 600; color: var(--text); }
+.bp-popover .bp-count { font-size: 11px; color: var(--text2); font-variant-numeric: tabular-nums; min-width: 18px; text-align: center; }
+.bp-popover .bp-add { padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 5px; border: none; cursor: pointer; font-family: inherit; }
+.bp-popover .bp-rm { padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 5px; border: none; cursor: pointer; font-family: inherit; }
+.bp-popover .bp-cancel { background: none; border: none; color: var(--text2); font-size: 11px; cursor: pointer; font-family: inherit; text-align: center; padding: 2px; }
+.bp-popover .bp-cancel:hover { color: var(--text); }
+
 /* Buzzer compact row (collapsed state) */
 .buzzer-compact { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .buzzer-indicator { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
@@ -832,6 +845,13 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         <button class="qp-confirm" id="qpConfirm">Añadir</button>
     </div>
     <button class="qp-cancel" onclick="closeQuickPoints()">Cancelar</button>
+</div>
+
+<!-- Bonus popover -->
+<div class="bp-popover" id="bpPopover">
+    <span class="bp-label" id="bpLabel">Bonos</span>
+    <div id="bpBody"></div>
+    <button class="bp-cancel" onclick="closeBonusMenu()">Cerrar</button>
 </div>
 
 <div id="toast"></div>
@@ -2417,6 +2437,7 @@ function renderTeams() {
             + (blocked
                 ? '<button class="btn-ghost btn-sm" style="border-color:rgba(135,206,250,.6);background:rgba(135,206,250,.15);" onclick="event.stopPropagation();toggleBlock(\'' + e.id + '\',true)" title="Descongelar">&#128275;</button>'
                 : '<button class="btn-ghost btn-sm" onclick="event.stopPropagation();toggleBlock(\'' + e.id + '\',false)" title="Congelar">&#10052;</button>')
+            + '<button class="btn-ghost btn-sm" onclick="event.stopPropagation();openBonusMenu(\'' + e.id + '\',this)" title="Bonos">&#127873;</button>'
             + '</div>'
             + '<button class="bb-card-kick" onclick="event.stopPropagation();removeTeam(\'' + e.id + '\')" title="Expulsar">&#10005;</button>'
             + '</div>';
@@ -2499,6 +2520,64 @@ document.getElementById('qpInput').addEventListener('keydown', function(e) {
 
 function toggleBlock(teamId, isBlocked) { emit(isBlocked ? 'director:unblock_team' : 'director:block_team', { teamId: teamId }); }
 function toggleBlockAll() { emit(S.bloqueoGlobal ? 'director:unblock_all' : 'director:block_all'); }
+
+// ── Bonus popover ──
+var _bpTeamId = null;
+var _bonusTypes = [
+    { tipo: 'freeze', icon: '&#10052;', nombre: 'Congelar rival' },
+    { tipo: 'lock_all', icon: '&#128274;', nombre: 'Congelar a todos' }
+];
+
+function openBonusMenu(teamId, btnEl) {
+    _bpTeamId = teamId;
+    var pop = document.getElementById('bpPopover');
+    var body = document.getElementById('bpBody');
+    var label = document.getElementById('bpLabel');
+    var team = S.equipos.find(function(e) { return e.id === teamId; });
+    label.textContent = (team ? team.nombre : '') + ' — Bonos';
+    var bonos = (team && team.bonos) || [];
+
+    body.innerHTML = _bonusTypes.map(function(bt) {
+        var count = bonos.filter(function(b) { return b === bt.tipo; }).length;
+        return '<div class="bp-row">'
+            + '<span class="bp-icon">' + bt.icon + '</span>'
+            + '<span class="bp-name">' + bt.nombre + '</span>'
+            + '<span class="bp-count">(' + count + ')</span>'
+            + '<button class="bp-add btn-success" onclick="addBonus(\'' + teamId + '\',\'' + bt.tipo + '\')">Dar</button>'
+            + '<button class="bp-rm btn-danger" onclick="removeBonus(\'' + teamId + '\',\'' + bt.tipo + '\')">Quitar</button>'
+            + '</div>';
+    }).join('');
+
+    var rect = btnEl.getBoundingClientRect();
+    pop.classList.add('active');
+    var popW = pop.offsetWidth;
+    var popH = pop.offsetHeight;
+    var left = rect.left + rect.width / 2 - popW / 2;
+    var top = rect.top - popH - 8;
+    if (top < 4) top = rect.bottom + 8;
+    if (left < 4) left = 4;
+    if (left + popW > window.innerWidth - 4) left = window.innerWidth - popW - 4;
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+}
+
+function closeBonusMenu() {
+    document.getElementById('bpPopover').classList.remove('active');
+    _bpTeamId = null;
+}
+
+function addBonus(teamId, tipo) {
+    emit('admin_gestionar_bono', { equipoId: teamId, tipo: tipo, accion: 'add' });
+}
+
+function removeBonus(teamId, tipo) {
+    emit('admin_gestionar_bono', { equipoId: teamId, tipo: tipo, accion: 'remove' });
+}
+
+document.addEventListener('mousedown', function(e) {
+    var pop = document.getElementById('bpPopover');
+    if (pop.classList.contains('active') && !pop.contains(e.target)) closeBonusMenu();
+});
 
 // ── Points modal ──
 function openPointsModal(teamId) {
