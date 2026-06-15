@@ -981,7 +981,7 @@ function attachSocketHandlers(io) {
             const idx = Number(data && data.idx);
             if (!isFinite(idx) || idx < 0 || idx >= ds.questions.length) return;
             const freezeMode = state._gameTheme && state._gameTheme.freezeMode || 'coordinador';
-            console.log('[DIAG 2A] launch_question — freezeMode=', freezeMode, '| _gameTheme=', JSON.stringify(state._gameTheme), '| equipos=', state.equipos.map(e => ({ id: e.id, bloq: e.bloqueado, desc: e.descongelaEn })));
+            console.error('[DIAG 2A] launch_question — freezeMode=', freezeMode, '| _gameTheme=', JSON.stringify(state._gameTheme), '| equipos=', state.equipos.map(e => ({ id: e.id, bloq: e.bloqueado, desc: e.descongelaEn })));
             if (freezeMode === 'pregunta') {
                 state.equipos.forEach(eq => {
                     if (eq.bloqueado && eq.descongelaEn > 0) {
@@ -1388,6 +1388,7 @@ function attachSocketHandlers(io) {
         socket.on('director:select_category', (data) => { if (!data || !data.category) return; state.director.phase = 'lobby'; state.director.menuLevel = 'category'; state.director.selectedCategory = data.category; state.director.scoreboardVisible = false; state.director.qrVisible = false; broadcastDirector(io, gameId, state); });
 
         socket.on('director:block_team', (data) => {
+            console.error('[DIAG CANARIO] block_team ejecutado, teamId=', data && data.teamId);
             if (!data || !data.teamId) return;
             const eq = state.equipos.find(e => e.id === data.teamId);
             if (eq) { eq.bloqueado = true; eq.descongelaEn = (state.director.phase === 'question') ? 1 : 2; io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos); if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); }
