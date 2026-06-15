@@ -851,7 +851,13 @@ function attachSocketHandlers(io) {
             let mensaje = '';
             if (data.tipo === 'lock_all') {
                 state.equipos.forEach(eq => {
-                    if (eq.id !== emisor.id) { eq.bloqueado = true; if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); }
+                    if (eq.id !== emisor.id) {
+                        if (!eq.bloqueado) {
+                            eq.bloqueado = true;
+                            eq.descongelaEn = (state.director.phase === 'question') ? 1 : 2;
+                            if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
+                        }
+                    }
                 });
                 io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
                 mensaje = `${emisor.nombre} BLOQUEÓ A RIVALES`;
@@ -859,7 +865,9 @@ function attachSocketHandlers(io) {
                 let victima = state.equipos.find(e => e.id === data.targetId);
                 if (!victima) { socket.emit('notificacion_bono', { msg: 'Equipo no encontrado' }); return; }
                 if (victima.id === emisor.id) { socket.emit('notificacion_bono', { msg: 'No te puedes congelar a ti mismo' }); return; }
+                if (victima.bloqueado) { socket.emit('notificacion_bono', { msg: `${victima.nombre} ya está congelado` }); return; }
                 victima.bloqueado = true;
+                victima.descongelaEn = (state.director.phase === 'question') ? 1 : 2;
                 mensaje = `${emisor.nombre} CONGELÓ A ${victima.nombre}`;
                 io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
                 if (victima.socketId) io.to(victima.socketId).emit('update_mi_equipo', victima);
