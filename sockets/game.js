@@ -460,6 +460,26 @@ function emitYourOrder(socket, state) {
     socket.emit('game:your_order', { order: entry.answer, submitted: !!entry.submitted });
 }
 
+function aplicarDescongelacionPorPregunta(state, io, gameId) {
+    const freezeMode = state._gameTheme && state._gameTheme.freezeMode || 'coordinador';
+    console.error('[DIAG 2A] descongelacion — freezeMode=', freezeMode,
+                  '| equipos=', state.equipos.map(e => ({ id: e.id, bloq: e.bloqueado, desc: e.descongelaEn })));
+    if (freezeMode !== 'pregunta') return;
+    let cambios = false;
+    state.equipos.forEach(eq => {
+        if (eq.bloqueado && eq.descongelaEn > 0) {
+            eq.descongelaEn -= 1;
+            if (eq.descongelaEn <= 0) {
+                eq.bloqueado = false;
+                eq.descongelaEn = 0;
+                if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
+                cambios = true;
+            }
+        }
+    });
+    if (cambios) io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
+}
+
 function broadcastDirector(io, gameId, state) {
     io.to(`directors:${gameId}`).emit('game:director_sync', publicView(state));
     io.to(roomOf(gameId)).emit('game:player_sync', playerView(state));
@@ -950,6 +970,7 @@ function attachSocketHandlers(io) {
         socket.on('director:start_round', () => {
             const ds = state.director;
             if (ds.currentRound && ds.questions.length > 0) {
+                aplicarDescongelacionPorPregunta(state, io, gameId);
                 ds.currentQuestionIdx = 0;
                 ds.phase = 'question';
                 ds.answers = {};
@@ -980,21 +1001,7 @@ function attachSocketHandlers(io) {
             const ds = state.director;
             const idx = Number(data && data.idx);
             if (!isFinite(idx) || idx < 0 || idx >= ds.questions.length) return;
-            const freezeMode = state._gameTheme && state._gameTheme.freezeMode || 'coordinador';
-            console.error('[DIAG 2A] launch_question — freezeMode=', freezeMode, '| _gameTheme=', JSON.stringify(state._gameTheme), '| equipos=', state.equipos.map(e => ({ id: e.id, bloq: e.bloqueado, desc: e.descongelaEn })));
-            if (freezeMode === 'pregunta') {
-                state.equipos.forEach(eq => {
-                    if (eq.bloqueado && eq.descongelaEn > 0) {
-                        eq.descongelaEn -= 1;
-                        if (eq.descongelaEn <= 0) {
-                            eq.bloqueado = false;
-                            eq.descongelaEn = 0;
-                            if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
-                        }
-                    }
-                });
-                io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
-            }
+            aplicarDescongelacionPorPregunta(state, io, gameId);
             stopTimer(state, gameId, io);
             ds.currentQuestionIdx = idx;
             ds.phase = 'question';
@@ -1022,6 +1029,7 @@ function attachSocketHandlers(io) {
         socket.on('director:next_question', () => {
             const ds = state.director;
             if (ds.currentQuestionIdx < ds.questions.length - 1) {
+                aplicarDescongelacionPorPregunta(state, io, gameId);
                 stopTimer(state, gameId, io);
                 ds.currentQuestionIdx++;
                 ds.phase = 'question';
