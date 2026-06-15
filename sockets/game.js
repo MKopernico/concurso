@@ -980,6 +980,20 @@ function attachSocketHandlers(io) {
             const ds = state.director;
             const idx = Number(data && data.idx);
             if (!isFinite(idx) || idx < 0 || idx >= ds.questions.length) return;
+            const freezeMode = state._gameTheme && state._gameTheme.freezeMode || 'coordinador';
+            if (freezeMode === 'pregunta') {
+                state.equipos.forEach(eq => {
+                    if (eq.bloqueado && eq.descongelaEn > 0) {
+                        eq.descongelaEn -= 1;
+                        if (eq.descongelaEn <= 0) {
+                            eq.bloqueado = false;
+                            eq.descongelaEn = 0;
+                            if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
+                        }
+                    }
+                });
+                io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
+            }
             stopTimer(state, gameId, io);
             ds.currentQuestionIdx = idx;
             ds.phase = 'question';
