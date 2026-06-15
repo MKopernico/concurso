@@ -1375,14 +1375,14 @@ function attachSocketHandlers(io) {
         socket.on('director:block_team', (data) => {
             if (!data || !data.teamId) return;
             const eq = state.equipos.find(e => e.id === data.teamId);
-            if (eq) { eq.bloqueado = true; io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos); if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); }
+            if (eq) { eq.bloqueado = true; eq.descongelaEn = (state.director.phase === 'question') ? 1 : 2; io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos); if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); }
             broadcastDirector(io, gameId, state);
         });
 
         socket.on('director:unblock_team', (data) => {
             if (!data || !data.teamId) return;
             const eq = state.equipos.find(e => e.id === data.teamId);
-            if (eq) { eq.bloqueado = false; io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos); if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); }
+            if (eq) { eq.bloqueado = false; eq.descongelaEn = 0; io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos); if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); }
             broadcastDirector(io, gameId, state);
         });
 
