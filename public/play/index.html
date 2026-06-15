@@ -283,13 +283,23 @@ input:focus { border-color: var(--accent); }
     background: url('frost.png') center / cover no-repeat;
     opacity: .55; pointer-events: none;
 }
-.blocked-overlay .block-icon,
-.blocked-overlay .block-text { position: relative; z-index: 1; }
-.blocked-overlay .block-icon { font-size: 64px; }
+.blocked-overlay .block-halo {
+    position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 80%; max-width: 520px; height: 220px;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,.85) 0%, rgba(255,255,255,.45) 35%, rgba(255,255,255,0) 70%);
+    filter: blur(8px);
+    pointer-events: none;
+    z-index: 1;
+}
 .blocked-overlay .block-text {
-    font-size: 22px; font-weight: 800; color: #fff;
-    text-shadow: 0 0 20px rgba(135,206,250,.8), 0 0 40px rgba(173,216,230,.5);
-    text-transform: uppercase; letter-spacing: 2px;
+    position: relative; z-index: 2;
+    font-size: 30px; font-weight: 900;
+    letter-spacing: 1px; text-transform: uppercase;
+    text-align: center; padding: 0 20px;
+    background: linear-gradient(180deg, #ffffff 0%, #7fc3ff 55%, #3a8fd6 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
 }
 
 /* ── Bonus panel (bottom-right chips, two rows by type) ── */
@@ -538,7 +548,7 @@ input:focus { border-color: var(--accent); }
 <div class="bonus-panel" id="bonusPanel"></div>
 
 <div class="blocked-overlay" id="blockedOverlay">
-    <div class="block-icon">&#10052;</div>
+    <div class="block-halo"></div>
     <div class="block-text">¡TE HAN CONGELADO!</div>
 </div>
 
