@@ -78,7 +78,7 @@ function getOrCreateState(gameId) {
 }
 
 function publicView(state) {
-    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _gameTheme, _sessionId, _rounds, ...rest } = state;
+    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _preCountdownHandle, _gameTheme, _sessionId, _rounds, ...rest } = state;
     rest.gameTheme = _gameTheme || {};
     const ds = rest.director;
     if (ds && ds.answers) {
