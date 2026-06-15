@@ -335,6 +335,14 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
             <div class="section-label">Logos y fondos por categoría</div>
             <div id="type-logos-container"></div>
 
+            <div class="section-label">Configuración de juego</div>
+            <div class="field"><label>Modo de congelación</label>
+                <select name="freeze_mode" style="width:100%">
+                    <option value="coordinador">Coordinador (descongelo yo)</option>
+                    <option value="pregunta">Por pregunta (se descongela solo)</option>
+                </select>
+            </div>
+
             <input type="hidden" name="id">
             <div class="modal-footer">
                 <button type="button" class="btn-ghost" onclick="closeModal('modal-game-overlay')">Cancelar</button>
@@ -1644,6 +1652,8 @@ function buildThemeFromForm(form) {
         }
     });
     if (Object.keys(types).length) theme.types = types;
+    const freezeMode = form.freeze_mode.value;
+    if (freezeMode && freezeMode !== 'coordinador') theme.freezeMode = freezeMode;
     return Object.keys(theme).length ? theme : null;
 }
 
@@ -1686,6 +1696,7 @@ function populateThemeForm(form, theme) {
     form.theme_home_bg.value = theme.homeBackground || '';
     // Render per-type logo and background fields
     renderTypeLogos(theme.types || {});
+    form.freeze_mode.value = theme.freezeMode || 'coordinador';
 }
 
 // ─── Session management ───
