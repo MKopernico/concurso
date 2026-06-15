@@ -424,7 +424,7 @@ function playerView(state) {
         timer: { total: ds.timer.total, remaining: ds.timer.remaining, running: ds.timer.running },
         scores: ds.scores,
         answeredTeams: Object.entries(ds.answers).filter(([, a]) => a.submitted !== false).map(([tid]) => tid),
-        equipos: state.equipos.map(e => ({ id: e.id, nombre: e.nombre, photo_url: e.photo_url, ocupado: e.ocupado, bloqueado: e.bloqueado })),
+        equipos: state.equipos.map(e => ({ id: e.id, nombre: e.nombre, photo_url: e.photo_url, ocupado: e.ocupado, bloqueado: e.bloqueado, bonos: e.bonos })),
         pulsadorActivo: state.pulsadorActivo,
         colaPulsador: state.colaPulsador,
         bloqueoGlobal: state.bloqueoGlobal,

@@ -292,6 +292,23 @@ input:focus { border-color: var(--accent); }
     text-transform: uppercase; letter-spacing: 2px;
 }
 
+/* ── Bonus panel (bottom-right chips) ── */
+.bonus-panel {
+    position: fixed; bottom: 16px; right: 16px; z-index: 95;
+    display: flex; flex-direction: column; gap: 8px; pointer-events: auto;
+}
+.bonus-chip {
+    width: 48px; height: 48px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; cursor: pointer;
+    background: rgba(135,206,250,.15);
+    border: 1px solid rgba(135,206,250,.5);
+    box-shadow: 0 2px 8px rgba(0,0,0,.3);
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .1s ease;
+}
+.bonus-chip:active { transform: scale(.94); }
+
 .conn-banner { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 300; background: var(--gold); color: #000; font-size: 13px; font-weight: 700; text-align: center; padding: 6px; gap: 8px; align-items: center; justify-content: center; }
 .conn-banner.active { display: flex; }
 
@@ -471,6 +488,8 @@ input:focus { border-color: var(--accent); }
     <h2>&#127942; Marcador</h2>
     <table class="sb-table" style="max-width:400px;width:100%;"><tbody id="sbOverlayBody"></tbody></table>
 </div>
+
+<div class="bonus-panel" id="bonusPanel"></div>
 
 <div class="blocked-overlay" id="blockedOverlay">
     <div class="block-icon">&#10052;</div>
@@ -730,6 +749,7 @@ function connectSocket(onReady) {
         S.myTeam = eq;
         renderMyTeamHeader();
         document.getElementById('blockedOverlay').classList.toggle('active', eq.bloqueado);
+        renderBonusPanel();
     });
 
     socket.on('game:player_sync', onPlayerSync);
@@ -886,6 +906,24 @@ function onPlayerSync(ps) {
     }
     renderGamePhase();
     renderTimer();
+    renderBonusPanel();
+}
+
+// ═══════════════ Bonus panel ═══════════════
+var _bonoIcons = { freeze: '❄', lock_all: '🔒' };
+var _bonoTitles = { freeze: 'Congelar a un rival', lock_all: 'Congelar a todos los rivales' };
+function renderBonusPanel() {
+    var panel = document.getElementById('bonusPanel');
+    if (!panel) return;
+    var bonos = (S.myTeam && S.myTeam.bonos) || (S.ps && S.myTeamId && S.ps.equipos
+        ? (S.ps.equipos.find(function(e) { return e.id === S.myTeamId; }) || {}).bonos : null) || [];
+    var sbVisible = S.ps && S.ps.scoreboardVisible;
+    panel.style.display = (!bonos.length || sbVisible) ? 'none' : 'flex';
+    panel.innerHTML = bonos.map(function(tipo, i) {
+        var icon = _bonoIcons[tipo] || '🎁';
+        var title = _bonoTitles[tipo] || 'Bono';
+        return '<div class="bonus-chip" title="' + title + '" data-tipo="' + tipo + '" data-idx="' + i + '">' + icon + '</div>';
+    }).join('');
 }
 
 // ═══════════════ Game phase rendering ═══════════════
