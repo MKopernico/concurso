@@ -981,6 +981,7 @@ function attachSocketHandlers(io) {
             const idx = Number(data && data.idx);
             if (!isFinite(idx) || idx < 0 || idx >= ds.questions.length) return;
             const freezeMode = state._gameTheme && state._gameTheme.freezeMode || 'coordinador';
+            console.log('[DIAG 2A] launch_question — freezeMode=', freezeMode, '| _gameTheme=', JSON.stringify(state._gameTheme), '| equipos=', state.equipos.map(e => ({ id: e.id, bloq: e.bloqueado, desc: e.descongelaEn })));
             if (freezeMode === 'pregunta') {
                 state.equipos.forEach(eq => {
                     if (eq.bloqueado && eq.descongelaEn > 0) {
