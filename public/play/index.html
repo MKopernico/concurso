@@ -349,6 +349,49 @@ input:focus { border-color: var(--accent); }
 #toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 200; pointer-events: none; }
 .toast-msg { background: var(--surface); border: 1px solid var(--accent); padding: 10px 20px; border-radius: 8px; font-size: 14px; opacity: 0; animation: fadeIn .3s forwards; }
 @keyframes fadeIn { to { opacity: 1; } }
+
+/* ── Bonus popover (freeze selector / lock_all confirm) ── */
+.bonus-popover-overlay {
+    position: fixed; inset: 0; z-index: 98;
+    background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn .2s ease;
+}
+.bonus-popover {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; width: 88%; max-width: 340px;
+    display: flex; flex-direction: column; gap: 12px;
+}
+.bonus-popover h3 {
+    margin: 0; font-size: 18px; font-weight: 700; color: var(--text);
+    text-align: center;
+}
+.bonus-popover-list { display: flex; flex-direction: column; gap: 8px; }
+.bonus-rival-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; border-radius: var(--radius);
+    background: var(--surface2); border: 1px solid var(--border);
+    font-size: 16px; font-weight: 600; color: var(--text);
+    cursor: pointer; transition: .15s; -webkit-tap-highlight-color: transparent;
+}
+.bonus-rival-btn:active { transform: scale(.96); }
+.bonus-rival-btn img {
+    width: 36px; height: 36px; border-radius: 50%; object-fit: cover;
+    border: 2px solid var(--border);
+}
+.bonus-rival-btn.frozen {
+    opacity: .5; cursor: default;
+    background: rgba(135,206,250,.12); border-color: rgba(135,206,250,.3);
+    color: rgba(135,206,250,.8);
+}
+.bonus-rival-btn.frozen:active { transform: none; }
+.bonus-popover .btn-cancel {
+    margin-top: 4px; padding: 12px; border-radius: var(--radius);
+    background: transparent; border: 2px solid var(--border);
+    font-size: 16px; font-weight: 700; color: var(--text2);
+    cursor: pointer; text-align: center; -webkit-tap-highlight-color: transparent;
+}
+.bonus-popover .btn-cancel:active { background: var(--surface2); }
 </style>
 </head>
 <body>
@@ -936,6 +979,133 @@ function renderBonusPanel() {
         }
         return '<div class="bonus-row">' + chips + '</div>';
     }).join('');
+}
+
+// ── Bonus chip click handler (delegated) ──
+(function() {
+    var bp = document.getElementById('bonusPanel');
+    if (!bp) return;
+    bp.addEventListener('click', function(e) {
+        var chip = e.target.closest('.bonus-chip');
+        if (!chip) return;
+        var tipo = chip.getAttribute('data-tipo');
+        if (tipo === 'freeze') openFreezeSelector();
+        else if (tipo === 'lock_all') confirmLockAll();
+    });
+})();
+
+function _closeBonusPopover() {
+    var el = document.getElementById('bonusPopoverOverlay');
+    if (el) el.remove();
+}
+
+function openFreezeSelector() {
+    _closeBonusPopover();
+    var equipos = (S.ps && S.ps.equipos) || [];
+    var rivales = equipos.filter(function(e) { return e.id !== S.myTeamId; });
+
+    var overlay = document.createElement('div');
+    overlay.id = 'bonusPopoverOverlay';
+    overlay.className = 'bonus-popover-overlay';
+
+    var card = document.createElement('div');
+    card.className = 'bonus-popover';
+
+    var title = document.createElement('h3');
+    title.textContent = '¿A quién congelas?';
+    card.appendChild(title);
+
+    var list = document.createElement('div');
+    list.className = 'bonus-popover-list';
+
+    if (!rivales.length) {
+        var empty = document.createElement('div');
+        empty.style.cssText = 'text-align:center;color:var(--text2);font-size:15px;padding:8px 0';
+        empty.textContent = 'No hay rivales';
+        list.appendChild(empty);
+    } else {
+        rivales.forEach(function(rival) {
+            var btn = document.createElement('div');
+            btn.className = 'bonus-rival-btn' + (rival.bloqueado ? ' frozen' : '');
+
+            if (rival.photo_url) {
+                var img = document.createElement('img');
+                img.src = rival.photo_url;
+                img.alt = rival.nombre;
+                btn.appendChild(img);
+            }
+
+            var lbl = document.createElement('span');
+            lbl.textContent = rival.bloqueado ? '❄️ ' + rival.nombre : rival.nombre;
+            btn.appendChild(lbl);
+
+            if (!rival.bloqueado) {
+                btn.addEventListener('click', function() {
+                    socket.emit('usar_bono', { tipo: 'freeze', targetId: rival.id });
+                    _closeBonusPopover();
+                });
+            }
+
+            list.appendChild(btn);
+        });
+    }
+
+    card.appendChild(list);
+
+    var cancel = document.createElement('div');
+    cancel.className = 'btn-cancel';
+    cancel.textContent = 'Cancelar';
+    cancel.addEventListener('click', _closeBonusPopover);
+    card.appendChild(cancel);
+
+    overlay.appendChild(card);
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) _closeBonusPopover();
+    });
+    document.body.appendChild(overlay);
+}
+
+function confirmLockAll() {
+    _closeBonusPopover();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'bonusPopoverOverlay';
+    overlay.className = 'bonus-popover-overlay';
+
+    var card = document.createElement('div');
+    card.className = 'bonus-popover';
+    card.style.textAlign = 'center';
+
+    var title = document.createElement('h3');
+    title.textContent = '¿Congelar a todos los rivales?';
+    card.appendChild(title);
+
+    var hint = document.createElement('div');
+    hint.style.cssText = 'font-size:14px;color:var(--text2);margin:-4px 0 4px';
+    hint.textContent = 'Se gastará tu bono 🔒';
+    card.appendChild(hint);
+
+    var btnYes = document.createElement('div');
+    btnYes.className = 'bonus-rival-btn';
+    btnYes.style.cssText = 'justify-content:center;background:rgba(255,90,30,.25);border-color:rgba(255,90,30,.5);color:#ff8844';
+    btnYes.textContent = 'Sí, congelar';
+    btnYes.addEventListener('click', function() {
+        socket.emit('usar_bono', { tipo: 'lock_all' });
+        _closeBonusPopover();
+    });
+    card.appendChild(btnYes);
+
+    var cancel = document.createElement('div');
+    cancel.className = 'btn-cancel';
+    cancel.textContent = 'Cancelar';
+    cancel.addEventListener('click', _closeBonusPopover);
+    card.appendChild(cancel);
+
+    overlay.appendChild(card);
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) _closeBonusPopover();
+    });
+    document.body.appendChild(overlay);
 }
 
 // ═══════════════ Game phase rendering ═══════════════
