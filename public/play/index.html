@@ -286,20 +286,29 @@ input:focus { border-color: var(--accent); }
 .blocked-overlay .block-halo {
     position: absolute;
     top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: 80%; max-width: 520px; height: 220px;
-    background: radial-gradient(ellipse at center, rgba(255,255,255,.85) 0%, rgba(255,255,255,.45) 35%, rgba(255,255,255,0) 70%);
-    filter: blur(8px);
+    width: 90%; max-width: 640px; height: 320px;
+    background: radial-gradient(ellipse at center,
+        rgba(255,255,255,.95) 0%,
+        rgba(255,255,255,.7) 30%,
+        rgba(255,255,255,.25) 55%,
+        rgba(255,255,255,0) 75%);
+    filter: blur(16px);
     pointer-events: none;
     z-index: 1;
 }
 .blocked-overlay .block-text {
     position: relative; z-index: 2;
-    font-size: 30px; font-weight: 900;
+    font-size: clamp(40px, 9vw, 88px);
+    font-weight: 900;
     letter-spacing: 1px; text-transform: uppercase;
-    text-align: center; padding: 0 20px;
-    background: linear-gradient(180deg, #ffffff 0%, #7fc3ff 55%, #3a8fd6 100%);
-    -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent; color: transparent;
+    text-align: center; padding: 0 20px; line-height: 1.05;
+    color: #bfe4ff;
+    text-shadow:
+        0 1px 0 rgba(255,255,255,.9),
+        0 0 6px rgba(255,255,255,.8),
+        0 0 14px rgba(180,225,255,.7),
+        0 0 30px rgba(120,190,255,.55),
+        0 2px 4px rgba(40,90,150,.4);
 }
 
 /* ── Bonus panel (bottom-right chips, two rows by type) ── */
