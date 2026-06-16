@@ -264,6 +264,23 @@ input:focus { border-color: var(--accent); }
 }
 .player-scoreboard-overlay h2 { font-size: 22px; color: var(--gold); margin-bottom: 16px; }
 
+/* ── Premio announcement overlay ── */
+.player-premio-overlay {
+    position: fixed; inset: 0; z-index: 91;
+    display: flex; align-items: center; justify-content: center; flex-direction: column;
+    background: rgba(10,10,26,0); backdrop-filter: blur(0px);
+    opacity: 0; pointer-events: none;
+    transition: opacity .4s ease, background .4s ease, backdrop-filter .4s ease;
+    padding: 20px;
+}
+.player-premio-overlay.active {
+    background: rgba(10,10,26,.88); backdrop-filter: blur(14px);
+    opacity: 1; pointer-events: auto;
+}
+.player-premio-title { font-size: 26px; font-weight: 900; color: #ffd700; text-shadow: 0 0 16px rgba(255,215,0,.6), 0 0 32px rgba(255,215,0,.3); margin-bottom: 16px; text-align: center; }
+.player-premio-bono { font-size: 20px; color: #fff; display: flex; align-items: center; gap: 10px; }
+.player-premio-bono-icon { font-size: 1.4em; }
+
 /* ── Round intro ── */
 .gp-round-intro { align-items: center; justify-content: center; gap: 20px; text-align: center; padding: 24px; }
 .gp-round-intro .intro-logo { max-height: 120px; max-width: 260px; object-fit: contain; border-radius: 10px; }
@@ -540,6 +557,12 @@ input:focus { border-color: var(--accent); }
 <div class="player-scoreboard-overlay" id="playerScoreboardOverlay">
     <h2>&#127942; Marcador</h2>
     <table class="sb-table" style="max-width:400px;width:100%;"><tbody id="sbOverlayBody"></tbody></table>
+</div>
+
+<!-- Premio announcement overlay (synced from server) -->
+<div class="player-premio-overlay" id="playerPremioOverlay">
+    <div class="player-premio-title" id="playPremioTitle"></div>
+    <div class="player-premio-bono"><span class="player-premio-bono-icon" id="playPremioIcon"></span><span id="playPremioNombre"></span></div>
 </div>
 
 <div class="bonus-panel" id="bonusPanel"></div>
@@ -966,6 +989,11 @@ function onPlayerSync(ps) {
 var _bonoIcons = { freeze: '❄', lock_all: '🔒' };
 var _bonoTitles = { freeze: 'Congelar a un rival', lock_all: 'Congelar a todos los rivales' };
 var _bonoRowOrder = ['freeze', 'lock_all'];
+var _premioStrings = {
+    title: '¡PRUEBA CON BONO!',
+    bonos: { freeze: 'Congelar a un rival', lock_all: 'Congelar a todos' },
+    icons: { freeze: '❄️', lock_all: '🔒' }
+};
 function renderBonusPanel() {
     var panel = document.getElementById('bonusPanel');
     if (!panel) return;
@@ -1127,6 +1155,9 @@ function renderGamePhase() {
     var phase = ps.phase, type = ps.roundType;
     var timerBar = document.getElementById('timerBar');
     timerBar.style.display = 'none';
+
+    // Premio announcement overlay (synced from server, independent of phase)
+    renderPremioOverlay();
 
     // Scoreboard overlay (synced from server, independent of phase)
     var sbOverlay = document.getElementById('playerScoreboardOverlay');
@@ -1865,6 +1896,20 @@ function renderPlayMenu() {
             var menu = container.querySelector('.play-menu');
             if (menu) menu.classList.remove('fade-out');
         });
+    }
+}
+
+// ── Premio Announcement Overlay ──
+function renderPremioOverlay() {
+    var ps = S.ps; if (!ps) return;
+    var overlay = document.getElementById('playerPremioOverlay');
+    if (ps.premioAnuncioVisible && ps.premioTipo) {
+        document.getElementById('playPremioTitle').textContent = _premioStrings.title;
+        document.getElementById('playPremioIcon').textContent = _premioStrings.icons[ps.premioTipo] || '🎁';
+        document.getElementById('playPremioNombre').textContent = _premioStrings.bonos[ps.premioTipo] || '';
+        overlay.classList.add('active');
+    } else {
+        overlay.classList.remove('active');
     }
 }
 

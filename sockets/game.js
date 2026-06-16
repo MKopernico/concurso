@@ -45,6 +45,7 @@ function createGameState() {
             showTeamResults: false,
             scoreboardVisible: false,
             qrVisible: false,
+            premioAnuncioVisible: false,
         },
         precioCifraCorrecta: null,
         precioTimeoutHandle: null,
@@ -440,6 +441,8 @@ function playerView(state) {
         showTeamResults: ds.showTeamResults,
         scoreboardVisible: ds.scoreboardVisible,
         qrVisible: ds.qrVisible,
+        premioAnuncioVisible: ds.premioAnuncioVisible,
+        premioTipo: (curQ && curQ.config && curQ.config.premio) ? curQ.config.premio.tipo : null,
         preCountdown: ds.preCountdown || 0,
         gameTheme: state._gameTheme || {},
         typeTheme: resolveTypeTheme(state, ds.currentRound ? ds.currentRound.type : null),
@@ -476,6 +479,12 @@ function aplicarDescongelacionPorPregunta(state, io, gameId) {
         }
     });
     if (cambios) io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
+}
+
+function setPremioAnuncio(state) {
+    const ds = state.director;
+    const q = ds.questions[ds.currentQuestionIdx];
+    ds.premioAnuncioVisible = !!(q && q.config && q.config.premio);
 }
 
 function broadcastDirector(io, gameId, state) {
@@ -999,6 +1008,7 @@ function attachSocketHandlers(io) {
                 }
                 state.pulsadorActivo = false;
                 state.colaPulsador = [];
+                setPremioAnuncio(state);
                 broadcastDirector(io, gameId, state);
             }
         });
@@ -1029,6 +1039,7 @@ function attachSocketHandlers(io) {
             }
             state.pulsadorActivo = false;
             state.colaPulsador = [];
+            setPremioAnuncio(state);
             broadcastDirector(io, gameId, state);
         });
 
@@ -1053,6 +1064,7 @@ function attachSocketHandlers(io) {
                 }
                 state.pulsadorActivo = false;
                 state.colaPulsador = [];
+                setPremioAnuncio(state);
                 broadcastDirector(io, gameId, state);
             }
         });
@@ -1382,24 +1394,29 @@ function attachSocketHandlers(io) {
 
         socket.on('director:toggle_scoreboard', () => {
             state.director.scoreboardVisible = !state.director.scoreboardVisible;
-            if (state.director.scoreboardVisible) state.director.qrVisible = false;
+            if (state.director.scoreboardVisible) { state.director.qrVisible = false; state.director.premioAnuncioVisible = false; }
             broadcastDirector(io, gameId, state);
         });
         // Legacy: also support show_scoreboard as toggle
         socket.on('director:show_scoreboard', () => {
             state.director.scoreboardVisible = !state.director.scoreboardVisible;
-            if (state.director.scoreboardVisible) state.director.qrVisible = false;
+            if (state.director.scoreboardVisible) { state.director.qrVisible = false; state.director.premioAnuncioVisible = false; }
             broadcastDirector(io, gameId, state);
         });
         socket.on('director:toggle_qr', () => {
             state.director.qrVisible = !state.director.qrVisible;
-            if (state.director.qrVisible) state.director.scoreboardVisible = false;
+            if (state.director.qrVisible) { state.director.scoreboardVisible = false; state.director.premioAnuncioVisible = false; }
             broadcastDirector(io, gameId, state);
         });
-        socket.on('director:show_waiting', () => { stopTimer(state, gameId, io); state.director.phase = 'waiting'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; broadcastDirector(io, gameId, state); });
-        socket.on('director:show_lobby', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; broadcastDirector(io, gameId, state); });
-        socket.on('director:show_home', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = 'home'; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; broadcastDirector(io, gameId, state); });
-        socket.on('director:select_category', (data) => { if (!data || !data.category) return; state.director.phase = 'lobby'; state.director.menuLevel = 'category'; state.director.selectedCategory = data.category; state.director.scoreboardVisible = false; state.director.qrVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:toggle_premio_anuncio', () => {
+            state.director.premioAnuncioVisible = !state.director.premioAnuncioVisible;
+            if (state.director.premioAnuncioVisible) { state.director.scoreboardVisible = false; state.director.qrVisible = false; }
+            broadcastDirector(io, gameId, state);
+        });
+        socket.on('director:show_waiting', () => { stopTimer(state, gameId, io); state.director.phase = 'waiting'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_lobby', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_home', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = 'home'; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:select_category', (data) => { if (!data || !data.category) return; state.director.phase = 'lobby'; state.director.menuLevel = 'category'; state.director.selectedCategory = data.category; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; broadcastDirector(io, gameId, state); });
 
         socket.on('director:block_team', (data) => {
             if (!data || !data.teamId) return;

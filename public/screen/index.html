@@ -183,6 +183,14 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .gs-qr-card { background: #fff; border-radius: 28px; padding: 40px; box-shadow: 0 8px 60px rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; }
 .gs-qr-card #qrCanvas { display: flex; align-items: center; justify-content: center; }
 
+/* Premio announcement overlay */
+.gs-premio-overlay { position: fixed; inset: 0; z-index: 86; background: rgba(0,0,0,.75); opacity: 0; pointer-events: none; transition: opacity .4s ease; display: flex; align-items: center; justify-content: center; }
+.gs-premio-overlay.active { opacity: 1; pointer-events: auto; }
+.gs-premio-card { text-align: center; padding: 48px 64px; }
+.gs-premio-title { font-size: clamp(36px, 5vw, 64px); font-weight: 900; color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,.6), 0 0 40px rgba(255,215,0,.3); margin-bottom: 24px; }
+.gs-premio-bono { font-size: clamp(24px, 3vw, 42px); color: #fff; display: flex; align-items: center; justify-content: center; gap: 16px; }
+.gs-premio-bono-icon { font-size: 1.4em; }
+
 /* ═══════════════ WAITING ═══════════════ */
 #phase-waiting { background: transparent; }
 #phase-waiting .gs-waiting-logo { max-height: 180px; max-width: 400px; object-fit: contain; filter: drop-shadow(0 0 30px rgba(0,0,0,.5)); }
@@ -515,6 +523,14 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
         </div>
     </div>
 
+    <!-- PREMIO ANNOUNCEMENT OVERLAY (global) -->
+    <div class="gs-premio-overlay" id="premioOverlay">
+        <div class="gs-premio-card">
+            <div class="gs-premio-title" id="premioTitle"></div>
+            <div class="gs-premio-bono"><span class="gs-premio-bono-icon" id="premioIcon"></span><span id="premioNombre"></span></div>
+        </div>
+    </div>
+
     <!-- SCOREBOARD (phase, legacy fallback) -->
     <div class="phase" id="phase-scoreboard">
         <div class="sb-title">MARCADOR</div>
@@ -563,6 +579,12 @@ var socket = null;
 var prevPhaseKey = 'lobby';
 var prevOptionsRevealed = false;
 var prevQuestionIdx = -1;
+
+var _premioStrings = {
+    title: '¡PRUEBA CON BONO!',
+    bonos: { freeze: 'Congelar a un rival', lock_all: 'Congelar a todos' },
+    icons: { freeze: '❄️', lock_all: '🔒' }
+};
 
 // ═══════════════ CONNECT ═══════════════
 function connect() {
@@ -720,6 +742,7 @@ function onSync(data) {
     renderMiniScores();
     renderScoreboardOverlay();
     renderQrOverlay();
+    renderPremioOverlay();
 
     // Recover video state on reconnect
     if (data.videoState) {
@@ -1714,6 +1737,20 @@ function renderQrOverlay() {
     } else {
         overlay.classList.remove('active');
         _qrActive = false;
+    }
+}
+
+// ═══════════════ PREMIO ANNOUNCEMENT OVERLAY ═══════════════
+function renderPremioOverlay() {
+    if (!ps) return;
+    var overlay = document.getElementById('premioOverlay');
+    if (ps.premioAnuncioVisible && ps.premioTipo) {
+        document.getElementById('premioTitle').textContent = _premioStrings.title;
+        document.getElementById('premioIcon').textContent = _premioStrings.icons[ps.premioTipo] || '🎁';
+        document.getElementById('premioNombre').textContent = _premioStrings.bonos[ps.premioTipo] || '';
+        overlay.classList.add('active');
+    } else {
+        overlay.classList.remove('active');
     }
 }
 
