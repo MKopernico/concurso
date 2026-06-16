@@ -414,6 +414,21 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 <div class="field"><label>Puntos base</label><input type="number" name="q_basePoints" placeholder="Hereda"></div>
                 <div class="field"><label>Bonus máx</label><input type="number" name="q_bonusMax" placeholder="Hereda"></div>
             </div>
+            <div class="field-row-2" style="margin-top:12px; align-items:end">
+                <div class="field" style="flex:0 0 auto">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer">
+                        <input type="checkbox" name="q_premio_check" onchange="document.getElementById('q_premio_tipo').disabled = !this.checked">
+                        Pregunta con premio
+                    </label>
+                </div>
+                <div class="field">
+                    <label>Tipo de bono</label>
+                    <select name="q_premio_tipo" id="q_premio_tipo" disabled>
+                        <option value="freeze">&#10052; Congelar a un rival</option>
+                        <option value="lock_all">&#128274; Congelar a todos</option>
+                    </select>
+                </div>
+            </div>
             <div class="field"><label>Media URL</label>
                 <div class="upload-row"><input name="media_url" placeholder="URL de imagen o audio (opcional)">
                 <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*,audio/*" style="display:none" onchange="uploadFile(this,'media_url')"></label>
@@ -1026,6 +1041,7 @@ function openQuestionModal(question = null) {
     const container = document.getElementById('question-fields');
     const form = document.getElementById('form-question');
     form.reset();
+    document.getElementById('q_premio_tipo').disabled = true;
 
     const type = currentRound.type;
     const isEdit = !!question;
@@ -1038,6 +1054,11 @@ function openQuestionModal(question = null) {
         if (cfg.time) form.q_time.value = cfg.time;
         if (cfg.basePoints) form.q_basePoints.value = cfg.basePoints;
         if (cfg.bonusMax) form.q_bonusMax.value = cfg.bonusMax;
+        if (cfg.premio) {
+            form.q_premio_check.checked = true;
+            form.q_premio_tipo.disabled = false;
+            form.q_premio_tipo.value = cfg.premio.tipo || 'freeze';
+        }
     } else {
         form.id.value = '';
     }
@@ -1440,6 +1461,7 @@ async function saveQuestion(e) {
     if (form.q_time.value) config.time = Number(form.q_time.value);
     if (form.q_basePoints.value) config.basePoints = Number(form.q_basePoints.value);
     if (form.q_bonusMax.value) config.bonusMax = Number(form.q_bonusMax.value);
+    if (form.q_premio_check.checked) config.premio = { tipo: form.q_premio_tipo.value };
 
     const data = {
         content,
