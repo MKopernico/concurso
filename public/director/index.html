@@ -294,6 +294,23 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .modal input:focus { border-color: var(--accent); outline: none; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
+/* Premio ganador selector modal */
+.pg-modal { max-width: 380px; }
+.pg-header { text-align: center; margin-bottom: 16px; }
+.pg-header h3 { color: var(--accent); margin: 0 0 6px; font-size: 16px; }
+.pg-header .pg-bono { font-size: 14px; color: var(--text2); }
+.pg-header .pg-bono-icon { font-size: 18px; margin-right: 4px; }
+.pg-teams { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 50vh; overflow-y: auto; }
+.pg-team-btn { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 8px; border: 2px solid var(--border); background: var(--surface2); color: var(--text); font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; transition: border-color .15s, background .15s; }
+.pg-team-btn:hover { border-color: var(--accent); }
+.pg-team-btn.selected { border-color: var(--accent); background: rgba(99,102,241,.15); }
+.pg-team-btn .pg-team-photo { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.pg-team-btn .pg-team-name { flex: 1; text-align: left; }
+.pg-team-btn .pg-presel { font-size: 11px; color: var(--accent); font-weight: 700; text-transform: uppercase; }
+.pg-nobody { padding: 10px 14px; border-radius: 8px; border: 2px solid var(--border); background: none; color: var(--text2); font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; text-align: center; transition: border-color .15s; }
+.pg-nobody:hover { border-color: var(--danger, #ef4444); color: var(--text); }
+.pg-nobody.selected { border-color: var(--danger, #ef4444); color: var(--text); }
+
 /* Toast */
 #toast { position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%); z-index: 500; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 .toast-msg { background: var(--surface); border: 1px solid var(--accent); padding: 10px 20px; border-radius: 8px; font-size: 13px; opacity: 0; animation: toastIn .3s forwards; white-space: nowrap; }
@@ -487,7 +504,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             <div class="question-nav">
                 <button class="btn-ghost btn-sm" id="btnPrevQ" onclick="emit('director:prev_question')">&#9664; Anterior</button>
                 <span class="question-counter" id="questionCounter">-</span>
-                <button class="btn-ghost btn-sm" id="btnNextQ" onclick="emit('director:next_question')">Siguiente &#9654;</button>
+                <button class="btn-ghost btn-sm" id="btnNextQ" onclick="handleNextQuestion()">Siguiente &#9654;</button>
             </div>
             <!-- Pulsador director panel (2-column layout, same pattern as imagen_fija) -->
             <div id="pulsadorDirectorPanel" style="display:none; flex:1; overflow:hidden;">
@@ -721,7 +738,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             <div class="question-nav">
                 <button class="btn-ghost btn-sm" onclick="emit('director:prev_question')">&#9664; Anterior</button>
                 <span class="question-counter" id="answerCounter">-</span>
-                <button class="btn-ghost btn-sm" id="btnAnswerNext" onclick="emit('director:next_question')">Siguiente &#9654;</button>
+                <button class="btn-ghost btn-sm" id="btnAnswerNext" onclick="handleNextQuestion()">Siguiente &#9654;</button>
             </div>
             <div id="answerQuestionCard" class="question-card">
                 <div class="question-statement" id="answerStatement">-</div>
@@ -738,7 +755,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             </div>
             <div id="teamResultsPanel"></div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;">
-                <button class="btn-success" id="btnAnswerNextBig" onclick="emit('director:next_question')">Siguiente pregunta &#9654;</button>
+                <button class="btn-success" id="btnAnswerNextBig" onclick="handleNextQuestion()">Siguiente pregunta &#9654;</button>
                 <button class="btn-ghost btn-sm" id="btnShowTeamResults" onclick="emit('director:toggle_team_results')">&#128101; Mostrar resultados</button>
                 <button class="btn-ghost btn-sm" onclick="toggleScoreboard()">&#127942; Marcador</button>
                 <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Marcar ronda completada</button>
@@ -834,6 +851,22 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         <div class="modal-footer">
             <button class="btn-ghost" onclick="closeEditTeamModal()">Cancelar</button>
             <button class="btn-accent" onclick="submitEditTeam()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Premio ganador selector modal -->
+<div class="modal-overlay" id="premioGanadorModal">
+    <div class="modal pg-modal">
+        <div class="pg-header">
+            <h3 id="pgTitle"></h3>
+            <div class="pg-bono"><span class="pg-bono-icon" id="pgBonoIcon"></span><span id="pgBonoNombre"></span></div>
+        </div>
+        <div class="pg-teams" id="pgTeamList"></div>
+        <button class="pg-nobody" id="pgNobody" onclick="pgSelectNobody()">Nadie se lleva el bono</button>
+        <div class="modal-footer">
+            <button class="btn-ghost" onclick="closePremioGanadorModal()">Cancelar</button>
+            <button class="btn-accent" id="pgConfirm" onclick="confirmPremioGanador()">Confirmar</button>
         </div>
     </div>
 </div>
@@ -1298,7 +1331,7 @@ function renderQuestionPulsador() {
         btnNext.onclick = function() { emit('director:finish_round'); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
-        btnNext.onclick = function() { emit('director:next_question'); };
+        btnNext.onclick = function() { handleNextQuestion(); };
     }
 
     // Show pulsador panel, hide others
@@ -1361,7 +1394,7 @@ function renderQuestionPrecio() {
         btnNext.onclick = function() { emit('director:finish_round'); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
-        btnNext.onclick = function() { emit('director:next_question'); };
+        btnNext.onclick = function() { handleNextQuestion(); };
     }
 
     // Show precio panel, hide others
@@ -1515,7 +1548,7 @@ function renderQuestionRuleta() {
         btnNext.onclick = function() { emit('director:finish_round'); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
-        btnNext.onclick = function() { emit('director:next_question'); };
+        btnNext.onclick = function() { handleNextQuestion(); };
     }
 
     // Show ruleta panel, hide others
@@ -1566,7 +1599,7 @@ function renderQuestionImagen() {
         btnNext.onclick = function() { emit('director:finish_round'); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
-        btnNext.onclick = function() { emit('director:next_question'); };
+        btnNext.onclick = function() { handleNextQuestion(); };
     }
 
     // Show imagen panel, hide others
@@ -1718,7 +1751,7 @@ function renderQuestionImagenFija() {
         btnNext.onclick = function() { emit('director:finish_round'); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
-        btnNext.onclick = function() { emit('director:next_question'); };
+        btnNext.onclick = function() { handleNextQuestion(); };
     }
 
     // Show imagen fija panel, hide others
@@ -1793,7 +1826,7 @@ function renderQuestionCancion() {
         btnNext.onclick = function() { emit('director:finish_round'); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
-        btnNext.onclick = function() { emit('director:next_question'); };
+        btnNext.onclick = function() { handleNextQuestion(); };
     }
 
     document.getElementById('cancionDirectorPanel').style.display = 'flex';
@@ -1895,7 +1928,7 @@ function renderQuestion() {
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
         btnNext.disabled = false;
-        btnNext.onclick = function() { emit('director:next_question'); };
+        btnNext.onclick = function() { handleNextQuestion(); };
     }
 
     const c = q.content || {};
@@ -2102,9 +2135,9 @@ function renderAnswerRevealed() {
         btnANbig.className = 'btn-accent';
     } else {
         btnANnav.innerHTML = 'Siguiente &#9654;';
-        btnANnav.onclick = function() { emit('director:next_question'); };
+        btnANnav.onclick = function() { handleNextQuestion(); };
         btnANbig.innerHTML = 'Siguiente pregunta &#9654;';
-        btnANbig.onclick = function() { emit('director:next_question'); };
+        btnANbig.onclick = function() { handleNextQuestion(); };
         btnANbig.className = 'btn-success';
     }
     document.getElementById('answerStatement').textContent = c.statement || c.phrase || '-';
@@ -2591,6 +2624,93 @@ document.addEventListener('mousedown', function(e) {
     if (pop.classList.contains('active') && !pop.contains(e.target)) closeBonusMenu();
 });
 
+// ── Premio ganador selector ──
+var _pgPremioTipo = null;
+var _pgSelectedTeamId = null; // null = nobody, string = teamId
+var _pgNobodySelected = false;
+var _AUTO_TYPES = { multirespuesta: 1, precio: 1, boom: 1, identidad: 1 };
+var _pgBonoStrings = { freeze: { icon: '&#10052;', nombre: 'Congelar rival' }, lock_all: { icon: '&#128274;', nombre: 'Congelar a todos' } };
+
+function handleNextQuestion() {
+    var ds = S.director;
+    if (!ds) return;
+    var q = ds.questions && ds.questions[ds.currentQuestionIdx];
+    var premio = q && q.config && q.config.premio;
+    if (premio) {
+        openPremioGanadorSelector(premio.tipo);
+    } else {
+        emit('director:next_question');
+    }
+}
+
+function openPremioGanadorSelector(premioTipo) {
+    _pgPremioTipo = premioTipo;
+    _pgSelectedTeamId = null;
+    _pgNobodySelected = false;
+    var ds = S.director;
+    var bs = _pgBonoStrings[premioTipo] || { icon: '&#127873;', nombre: premioTipo };
+    document.getElementById('pgTitle').textContent = '¿Quién se lleva el bono?';
+    document.getElementById('pgBonoIcon').innerHTML = bs.icon;
+    document.getElementById('pgBonoNombre').textContent = bs.nombre;
+
+    var preselId = null;
+    var roundType = ds.currentRound ? ds.currentRound.type : '';
+    if (_AUTO_TYPES[roundType] && ds.lastQuestionScores) {
+        var candidates = Object.entries(ds.lastQuestionScores)
+            .filter(function(e) { return e[1].points > 0; })
+            .sort(function(a, b) {
+                if (b[1].points !== a[1].points) return b[1].points - a[1].points;
+                var tA = ds.answers && ds.answers[a[0]] ? ds.answers[a[0]].timestamp : Infinity;
+                var tB = ds.answers && ds.answers[b[0]] ? ds.answers[b[0]].timestamp : Infinity;
+                return tA - tB;
+            });
+        if (candidates.length > 0) preselId = candidates[0][0];
+    }
+
+    var list = document.getElementById('pgTeamList');
+    list.innerHTML = S.equipos.map(function(e) {
+        var isSel = e.id === preselId;
+        var photo = e.photo_url ? '<img class="pg-team-photo" src="' + e.photo_url + '">' : '';
+        var preTag = isSel ? '<span class="pg-presel">Auto</span>' : '';
+        return '<button class="pg-team-btn' + (isSel ? ' selected' : '') + '" data-teamid="' + e.id + '" onclick="pgSelectTeam(\'' + e.id + '\')">'
+            + photo + '<span class="pg-team-name">' + e.nombre + '</span>' + preTag + '</button>';
+    }).join('');
+
+    _pgSelectedTeamId = preselId;
+    document.getElementById('pgNobody').classList.remove('selected');
+    document.getElementById('premioGanadorModal').classList.add('active');
+}
+
+function pgSelectTeam(teamId) {
+    _pgSelectedTeamId = teamId;
+    _pgNobodySelected = false;
+    var btns = document.querySelectorAll('#pgTeamList .pg-team-btn');
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('selected', btns[i].getAttribute('data-teamid') === teamId);
+    }
+    document.getElementById('pgNobody').classList.remove('selected');
+}
+
+function pgSelectNobody() {
+    _pgSelectedTeamId = null;
+    _pgNobodySelected = true;
+    var btns = document.querySelectorAll('#pgTeamList .pg-team-btn');
+    for (var i = 0; i < btns.length; i++) btns[i].classList.remove('selected');
+    document.getElementById('pgNobody').classList.add('selected');
+}
+
+function confirmPremioGanador() {
+    closePremioGanadorModal();
+    emit('director:next_with_premio', { teamId: _pgSelectedTeamId || null, premioTipo: _pgPremioTipo });
+}
+
+function closePremioGanadorModal() {
+    document.getElementById('premioGanadorModal').classList.remove('active');
+    _pgPremioTipo = null;
+    _pgSelectedTeamId = null;
+    _pgNobodySelected = false;
+}
+
 // ── Points modal ──
 function openPointsModal(teamId) {
     pointsTeamId = teamId;
@@ -2648,7 +2768,7 @@ function toast(msg) {
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.key === 'ArrowRight') emit('director:next_question');
+    if (e.key === 'ArrowRight') handleNextQuestion();
     if (e.key === 'ArrowLeft') emit('director:prev_question');
     if (e.key === ' ') { e.preventDefault(); emit('director:start_timer'); }
     if (e.key === 'r' || e.key === 'R') emit('director:reveal_answer');
