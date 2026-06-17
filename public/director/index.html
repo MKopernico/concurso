@@ -2700,8 +2700,10 @@ function pgSelectNobody() {
 }
 
 function confirmPremioGanador() {
+    var teamId = _pgSelectedTeamId || null;
+    var premioTipo = _pgPremioTipo;
     closePremioGanadorModal();
-    emit('director:next_with_premio', { teamId: _pgSelectedTeamId || null, premioTipo: _pgPremioTipo });
+    emit('director:next_with_premio', { teamId: teamId, premioTipo: premioTipo });
 }
 
 function closePremioGanadorModal() {
