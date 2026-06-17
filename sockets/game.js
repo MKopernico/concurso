@@ -46,6 +46,7 @@ function createGameState() {
             scoreboardVisible: false,
             qrVisible: false,
             premioAnuncioVisible: false,
+            premioGanadorVisible: false,
             premioGanadorTeam: null,
             premioGanadorTipo: null,
         },
@@ -444,6 +445,9 @@ function playerView(state) {
         scoreboardVisible: ds.scoreboardVisible,
         qrVisible: ds.qrVisible,
         premioAnuncioVisible: ds.premioAnuncioVisible,
+        premioGanadorVisible: ds.premioGanadorVisible,
+        premioGanadorTeam: ds.premioGanadorTeam,
+        premioGanadorTipo: ds.premioGanadorTipo,
         premioTipo: (curQ && curQ.config && curQ.config.premio) ? curQ.config.premio.tipo : null,
         preCountdown: ds.preCountdown || 0,
         gameTheme: state._gameTheme || {},
@@ -504,6 +508,7 @@ function avanzarPregunta(state, io, gameId) {
     }
     state.pulsadorActivo = false;
     state.colaPulsador = [];
+    ds.premioGanadorVisible = false;
     setPremioAnuncio(state);
     broadcastDirector(io, gameId, state);
     return true;
@@ -521,6 +526,7 @@ function finalizarRonda(state, io, gameId) {
     ds.showTeamResults = false;
     ds.scoreboardVisible = false;
     ds.qrVisible = false;
+    ds.premioGanadorVisible = false;
     ds.phase = 'round_end';
     broadcastDirector(io, gameId, state);
 }
@@ -1074,6 +1080,7 @@ function attachSocketHandlers(io) {
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
+            ds.premioGanadorVisible = false;
             initIdentidadState(ds);
             if (ds.currentRound && ds.currentRound.type === 'pulsador') {
                 ds.timer = { total: 0, remaining: 0, running: false };
@@ -1109,6 +1116,8 @@ function attachSocketHandlers(io) {
                 ds.premioGanadorTipo = null;
             }
             avanzarPregunta(state, io, gameId);
+            ds.premioGanadorVisible = true;
+            broadcastDirector(io, gameId, state);
         });
 
         socket.on('director:prev_question', () => {
@@ -1436,29 +1445,34 @@ function attachSocketHandlers(io) {
 
         socket.on('director:toggle_scoreboard', () => {
             state.director.scoreboardVisible = !state.director.scoreboardVisible;
-            if (state.director.scoreboardVisible) { state.director.qrVisible = false; state.director.premioAnuncioVisible = false; }
+            if (state.director.scoreboardVisible) { state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; }
             broadcastDirector(io, gameId, state);
         });
         // Legacy: also support show_scoreboard as toggle
         socket.on('director:show_scoreboard', () => {
             state.director.scoreboardVisible = !state.director.scoreboardVisible;
-            if (state.director.scoreboardVisible) { state.director.qrVisible = false; state.director.premioAnuncioVisible = false; }
+            if (state.director.scoreboardVisible) { state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; }
             broadcastDirector(io, gameId, state);
         });
         socket.on('director:toggle_qr', () => {
             state.director.qrVisible = !state.director.qrVisible;
-            if (state.director.qrVisible) { state.director.scoreboardVisible = false; state.director.premioAnuncioVisible = false; }
+            if (state.director.qrVisible) { state.director.scoreboardVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; }
             broadcastDirector(io, gameId, state);
         });
         socket.on('director:toggle_premio_anuncio', () => {
             state.director.premioAnuncioVisible = !state.director.premioAnuncioVisible;
-            if (state.director.premioAnuncioVisible) { state.director.scoreboardVisible = false; state.director.qrVisible = false; }
+            if (state.director.premioAnuncioVisible) { state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioGanadorVisible = false; }
             broadcastDirector(io, gameId, state);
         });
-        socket.on('director:show_waiting', () => { stopTimer(state, gameId, io); state.director.phase = 'waiting'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; broadcastDirector(io, gameId, state); });
-        socket.on('director:show_lobby', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; broadcastDirector(io, gameId, state); });
-        socket.on('director:show_home', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = 'home'; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; broadcastDirector(io, gameId, state); });
-        socket.on('director:select_category', (data) => { if (!data || !data.category) return; state.director.phase = 'lobby'; state.director.menuLevel = 'category'; state.director.selectedCategory = data.category; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:toggle_premio_ganador', () => {
+            state.director.premioGanadorVisible = !state.director.premioGanadorVisible;
+            if (state.director.premioGanadorVisible) { state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; }
+            broadcastDirector(io, gameId, state);
+        });
+        socket.on('director:show_waiting', () => { stopTimer(state, gameId, io); state.director.phase = 'waiting'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_lobby', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_home', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = 'home'; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:select_category', (data) => { if (!data || !data.category) return; state.director.phase = 'lobby'; state.director.menuLevel = 'category'; state.director.selectedCategory = data.category; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; broadcastDirector(io, gameId, state); });
 
         socket.on('director:block_team', (data) => {
             if (!data || !data.teamId) return;
@@ -1583,6 +1597,8 @@ function attachSocketHandlers(io) {
                 ds.premioGanadorTipo = null;
             }
             finalizarRonda(state, io, gameId);
+            ds.premioGanadorVisible = true;
+            broadcastDirector(io, gameId, state);
         });
 
         socket.on('director:go_home', () => {

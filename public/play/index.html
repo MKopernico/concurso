@@ -264,19 +264,30 @@ input:focus { border-color: var(--accent); }
 }
 .player-scoreboard-overlay h2 { font-size: 22px; color: var(--gold); margin-bottom: 16px; }
 
-/* ── Premio announcement overlay ── */
+/* ── Premio overlay (shared structure: bg-layer + filter + content) ── */
 .player-premio-overlay {
     position: fixed; inset: 0; z-index: 91;
     display: flex; align-items: center; justify-content: center; flex-direction: column;
-    background: rgba(10,10,26,0); backdrop-filter: blur(0px);
     opacity: 0; pointer-events: none;
-    transition: opacity .4s ease, background .4s ease, backdrop-filter .4s ease;
+    transition: opacity .4s ease;
     padding: 20px;
+    overflow: hidden;
 }
-.player-premio-overlay.active {
-    background: rgba(10,10,26,.88); backdrop-filter: blur(14px);
-    opacity: 1; pointer-events: auto;
+.player-premio-overlay.active { opacity: 1; pointer-events: auto; }
+.premio-bg-layer {
+    position: absolute; inset: 0;
+    filter: blur(18px);
+    background: var(--bg, #0a0a1a);
+    background-size: cover; background-position: center;
+    transform: scale(1.08);
 }
+.premio-bg-layer.bg-gradient-anim { animation: bgShift 12s ease-in-out infinite; background-size: 300% 300%; }
+.premio-bg-layer.bg-image-cover { background-size: cover; background-position: center; }
+.premio-filter-layer {
+    position: absolute; inset: 0;
+    background: rgba(10,10,26,.88);
+}
+.player-premio-content { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; }
 .player-premio-title { font-size: 26px; font-weight: 900; color: #ffd700; text-shadow: 0 0 16px rgba(255,215,0,.6), 0 0 32px rgba(255,215,0,.3); margin-bottom: 16px; text-align: center; }
 .player-premio-bono { font-size: 20px; color: #fff; display: flex; align-items: center; gap: 10px; }
 .player-premio-bono-icon { font-size: 1.4em; }
@@ -561,8 +572,21 @@ input:focus { border-color: var(--accent); }
 
 <!-- Premio announcement overlay (synced from server) -->
 <div class="player-premio-overlay" id="playerPremioOverlay">
-    <div class="player-premio-title" id="playPremioTitle"></div>
-    <div class="player-premio-bono"><span class="player-premio-bono-icon" id="playPremioIcon"></span><span id="playPremioNombre"></span></div>
+    <div class="premio-bg-layer" id="playPremioBg"></div>
+    <div class="premio-filter-layer"></div>
+    <div class="player-premio-content">
+        <div class="player-premio-title" id="playPremioTitle"></div>
+        <div class="player-premio-bono"><span class="player-premio-bono-icon" id="playPremioIcon"></span><span id="playPremioNombre"></span></div>
+    </div>
+</div>
+
+<!-- Premio ganador overlay (synced from server) -->
+<div class="player-premio-overlay" id="playerPremioGanadorOverlay">
+    <div class="premio-bg-layer" id="playPremioGanadorBg"></div>
+    <div class="premio-filter-layer"></div>
+    <div class="player-premio-content">
+        <div class="player-premio-title" id="playPremioGanadorTitle"></div>
+    </div>
 </div>
 
 <div class="bonus-panel" id="bonusPanel"></div>
@@ -992,7 +1016,10 @@ var _bonoRowOrder = ['freeze', 'lock_all'];
 var _premioStrings = {
     title: '¡PRUEBA CON BONO!',
     bonos: { freeze: 'Congelar a un rival', lock_all: 'Congelar a todos' },
-    icons: { freeze: '❄️', lock_all: '🔒' }
+    icons: { freeze: '❄️', lock_all: '🔒' },
+    ganadorPrefix: '¡BONO PARA ',
+    ganadorSuffix: '!',
+    ganadorNadie: '¡NADIE SE LLEVA EL BONO!'
 };
 function renderBonusPanel() {
     var panel = document.getElementById('bonusPanel');
@@ -1156,8 +1183,9 @@ function renderGamePhase() {
     var timerBar = document.getElementById('timerBar');
     timerBar.style.display = 'none';
 
-    // Premio announcement overlay (synced from server, independent of phase)
+    // Premio overlays (synced from server, independent of phase)
     renderPremioOverlay();
+    renderPremioGanadorOverlay();
 
     // Scoreboard overlay (synced from server, independent of phase)
     var sbOverlay = document.getElementById('playerScoreboardOverlay');
@@ -1899,14 +1927,60 @@ function renderPlayMenu() {
     }
 }
 
+// ── Premio background layer (reusable for both premio overlays) ──
+function paintPremioBgLayer(el, resolved) {
+    el.className = 'premio-bg-layer';
+    el.style.background = '';
+    el.style.backgroundImage = '';
+    if (!resolved || resolved.type === 'none') {
+        el.style.background = 'var(--bg, #0a0a1a)';
+        return;
+    }
+    if (resolved.type === 'color') {
+        el.style.background = resolved.value;
+    } else if (resolved.type === 'gradient') {
+        el.style.background = resolved.value;
+        el.style.backgroundSize = '300% 300%';
+        el.classList.add('bg-gradient-anim');
+    } else if (resolved.type === 'image') {
+        el.style.backgroundImage = 'url("' + resolved.value + '")';
+        el.classList.add('bg-image-cover');
+    }
+}
+
+function _resolveCurrentBg() {
+    var ps = S.ps; if (!ps) return null;
+    var gt = ps.gameTheme || {};
+    var rc = ps.roundTheme || {};
+    var roundType = ps.roundType || null;
+    return GameShowShared.Theme.resolveBackground(gt, rc, roundType);
+}
+
 // ── Premio Announcement Overlay ──
 function renderPremioOverlay() {
     var ps = S.ps; if (!ps) return;
     var overlay = document.getElementById('playerPremioOverlay');
     if (ps.premioAnuncioVisible && ps.premioTipo) {
+        paintPremioBgLayer(document.getElementById('playPremioBg'), _resolveCurrentBg());
         document.getElementById('playPremioTitle').textContent = _premioStrings.title;
         document.getElementById('playPremioIcon').textContent = _premioStrings.icons[ps.premioTipo] || '🎁';
         document.getElementById('playPremioNombre').textContent = _premioStrings.bonos[ps.premioTipo] || '';
+        overlay.classList.add('active');
+    } else {
+        overlay.classList.remove('active');
+    }
+}
+
+// ── Premio Ganador Overlay ──
+function renderPremioGanadorOverlay() {
+    var ps = S.ps; if (!ps) return;
+    var overlay = document.getElementById('playerPremioGanadorOverlay');
+    if (ps.premioGanadorVisible) {
+        paintPremioBgLayer(document.getElementById('playPremioGanadorBg'), _resolveCurrentBg());
+        var text = ps.premioGanadorTeam
+            ? _premioStrings.ganadorPrefix + ps.premioGanadorTeam + _premioStrings.ganadorSuffix
+            : _premioStrings.ganadorNadie;
+        document.getElementById('playPremioGanadorTitle').textContent = text;
         overlay.classList.add('active');
     } else {
         overlay.classList.remove('active');
