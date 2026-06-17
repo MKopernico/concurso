@@ -46,6 +46,8 @@ function createGameState() {
             scoreboardVisible: false,
             qrVisible: false,
             premioAnuncioVisible: false,
+            premioGanadorTeam: null,
+            premioGanadorTipo: null,
         },
         precioCifraCorrecta: null,
         precioTimeoutHandle: null,
@@ -479,6 +481,32 @@ function aplicarDescongelacionPorPregunta(state, io, gameId) {
         }
     });
     if (cambios) io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
+}
+
+function avanzarPregunta(state, io, gameId) {
+    const ds = state.director;
+    if (ds.currentQuestionIdx >= ds.questions.length - 1) return false;
+    aplicarDescongelacionPorPregunta(state, io, gameId);
+    stopTimer(state, gameId, io);
+    ds.currentQuestionIdx++;
+    ds.phase = 'question';
+    ds.answers = {};
+    ds.revealedCells = [];
+    ds.revealedLetters = [];
+    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
+    ds.optionsRevealed = false;
+    initIdentidadState(ds);
+    if (ds.currentRound && ds.currentRound.type === 'pulsador') {
+        ds.timer = { total: 0, remaining: 0, running: false };
+    } else {
+        const cfg = getQuestionConfig(state);
+        ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
+    }
+    state.pulsadorActivo = false;
+    state.colaPulsador = [];
+    setPremioAnuncio(state);
+    broadcastDirector(io, gameId, state);
+    return true;
 }
 
 function setPremioAnuncio(state) {
@@ -1044,29 +1072,27 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:next_question', () => {
+            avanzarPregunta(state, io, gameId);
+        });
+
+        socket.on('director:next_with_premio', (data) => {
             const ds = state.director;
-            if (ds.currentQuestionIdx < ds.questions.length - 1) {
-                aplicarDescongelacionPorPregunta(state, io, gameId);
-                stopTimer(state, gameId, io);
-                ds.currentQuestionIdx++;
-                ds.phase = 'question';
-                ds.answers = {};
-                ds.revealedCells = [];
-                ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
-                ds.optionsRevealed = false;
-                initIdentidadState(ds);
-                if (ds.currentRound && ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen') {
-                    ds.timer = { total: 0, remaining: 0, running: false };
-                } else {
-                    const cfg = getQuestionConfig(state);
-                    ds.timer = { total: cfg.time, remaining: cfg.time, running: false };
+            const teamId = data && data.teamId;
+            const premioTipo = data && data.premioTipo;
+            if (teamId && premioTipo) {
+                const eq = state.equipos.find(e => e.id === teamId);
+                if (eq) {
+                    eq.bonos.push(premioTipo);
+                    ds.premioGanadorTeam = eq.nombre;
+                    ds.premioGanadorTipo = premioTipo;
+                    io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
+                    if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
                 }
-                state.pulsadorActivo = false;
-                state.colaPulsador = [];
-                setPremioAnuncio(state);
-                broadcastDirector(io, gameId, state);
+            } else {
+                ds.premioGanadorTeam = null;
+                ds.premioGanadorTipo = null;
             }
+            avanzarPregunta(state, io, gameId);
         });
 
         socket.on('director:prev_question', () => {
