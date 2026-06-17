@@ -509,6 +509,22 @@ function avanzarPregunta(state, io, gameId) {
     return true;
 }
 
+function finalizarRonda(state, io, gameId) {
+    const ds = state.director;
+    if (ds.currentRoundId && ds.completedRounds.indexOf(ds.currentRoundId) === -1) {
+        ds.completedRounds.push(ds.currentRoundId);
+    }
+    stopTimer(state, gameId, io);
+    ds.identidad = null;
+    ds.optionsRevealed = false;
+    ds.lastQuestionScores = {};
+    ds.showTeamResults = false;
+    ds.scoreboardVisible = false;
+    ds.qrVisible = false;
+    ds.phase = 'round_end';
+    broadcastDirector(io, gameId, state);
+}
+
 function setPremioAnuncio(state) {
     const ds = state.director;
     const q = ds.questions[ds.currentQuestionIdx];
@@ -1547,19 +1563,27 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:finish_round', () => {
+            finalizarRonda(state, io, gameId);
+        });
+
+        socket.on('director:finish_with_premio', (data) => {
             const ds = state.director;
-            if (ds.currentRoundId && ds.completedRounds.indexOf(ds.currentRoundId) === -1) {
-                ds.completedRounds.push(ds.currentRoundId);
+            const teamId = data && data.teamId;
+            const premioTipo = data && data.premioTipo;
+            if (teamId && premioTipo) {
+                const eq = state.equipos.find(e => e.id === teamId);
+                if (eq) {
+                    eq.bonos.push(premioTipo);
+                    ds.premioGanadorTeam = eq.nombre;
+                    ds.premioGanadorTipo = premioTipo;
+                    io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
+                    if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
+                }
+            } else {
+                ds.premioGanadorTeam = null;
+                ds.premioGanadorTipo = null;
             }
-            stopTimer(state, gameId, io);
-            ds.identidad = null;
-            ds.optionsRevealed = false;
-            ds.lastQuestionScores = {};
-            ds.showTeamResults = false;
-            ds.scoreboardVisible = false;
-            ds.qrVisible = false;
-            ds.phase = 'round_end';
-            broadcastDirector(io, gameId, state);
+            finalizarRonda(state, io, gameId);
         });
 
         socket.on('director:go_home', () => {

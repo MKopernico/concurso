@@ -1328,7 +1328,7 @@ function renderQuestionPulsador() {
     var btnNext = document.getElementById('btnNextQ');
     if (idx >= total - 1) {
         btnNext.textContent = '✓ Terminar ronda';
-        btnNext.onclick = function() { emit('director:finish_round'); };
+        btnNext.onclick = function() { handleFinishRound(); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
         btnNext.onclick = function() { handleNextQuestion(); };
@@ -1391,7 +1391,7 @@ function renderQuestionPrecio() {
     var btnNext = document.getElementById('btnNextQ');
     if (idx >= total - 1) {
         btnNext.textContent = '✓ Terminar ronda';
-        btnNext.onclick = function() { emit('director:finish_round'); };
+        btnNext.onclick = function() { handleFinishRound(); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
         btnNext.onclick = function() { handleNextQuestion(); };
@@ -1545,7 +1545,7 @@ function renderQuestionRuleta() {
     var btnNext = document.getElementById('btnNextQ');
     if (idx >= total - 1) {
         btnNext.textContent = '✓ Terminar ronda';
-        btnNext.onclick = function() { emit('director:finish_round'); };
+        btnNext.onclick = function() { handleFinishRound(); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
         btnNext.onclick = function() { handleNextQuestion(); };
@@ -1596,7 +1596,7 @@ function renderQuestionImagen() {
     var btnNext = document.getElementById('btnNextQ');
     if (idx >= total - 1) {
         btnNext.textContent = '✓ Terminar ronda';
-        btnNext.onclick = function() { emit('director:finish_round'); };
+        btnNext.onclick = function() { handleFinishRound(); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
         btnNext.onclick = function() { handleNextQuestion(); };
@@ -1748,7 +1748,7 @@ function renderQuestionImagenFija() {
     var btnNext = document.getElementById('btnNextQ');
     if (idx >= total - 1) {
         btnNext.textContent = '✓ Terminar ronda';
-        btnNext.onclick = function() { emit('director:finish_round'); };
+        btnNext.onclick = function() { handleFinishRound(); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
         btnNext.onclick = function() { handleNextQuestion(); };
@@ -1823,7 +1823,7 @@ function renderQuestionCancion() {
     var btnNext = document.getElementById('btnNextQ');
     if (idx >= total - 1) {
         btnNext.textContent = '✓ Terminar ronda';
-        btnNext.onclick = function() { emit('director:finish_round'); };
+        btnNext.onclick = function() { handleFinishRound(); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
         btnNext.onclick = function() { handleNextQuestion(); };
@@ -1924,7 +1924,7 @@ function renderQuestion() {
     if (idx >= total - 1) {
         btnNext.textContent = '✓ Terminar ronda';
         btnNext.disabled = false;
-        btnNext.onclick = function() { emit('director:finish_round'); };
+        btnNext.onclick = function() { handleFinishRound(); };
     } else {
         btnNext.innerHTML = 'Siguiente &#9654;';
         btnNext.disabled = false;
@@ -2129,9 +2129,9 @@ function renderAnswerRevealed() {
     var btnANbig = document.getElementById('btnAnswerNextBig');
     if (isLast) {
         btnANnav.textContent = '✓ Terminar ronda';
-        btnANnav.onclick = function() { emit('director:finish_round'); };
+        btnANnav.onclick = function() { handleFinishRound(); };
         btnANbig.textContent = '✓ Terminar ronda';
-        btnANbig.onclick = function() { emit('director:finish_round'); };
+        btnANbig.onclick = function() { handleFinishRound(); };
         btnANbig.className = 'btn-accent';
     } else {
         btnANnav.innerHTML = 'Siguiente &#9654;';
@@ -2628,8 +2628,21 @@ document.addEventListener('mousedown', function(e) {
 var _pgPremioTipo = null;
 var _pgSelectedTeamId = null; // null = nobody, string = teamId
 var _pgNobodySelected = false;
+var _pgModo = 'next'; // 'next' | 'finish'
 var _AUTO_TYPES = { multirespuesta: 1, precio: 1, boom: 1, identidad: 1 };
 var _pgBonoStrings = { freeze: { icon: '&#10052;', nombre: 'Congelar rival' }, lock_all: { icon: '&#128274;', nombre: 'Congelar a todos' } };
+
+function handleFinishRound() {
+    var ds = S.director;
+    if (!ds) return;
+    var q = ds.questions && ds.questions[ds.currentQuestionIdx];
+    var premio = q && q.config && q.config.premio;
+    if (premio) {
+        openPremioGanadorSelector(premio.tipo, 'finish');
+    } else {
+        emit('director:finish_round');
+    }
+}
 
 function handleNextQuestion() {
     var ds = S.director;
@@ -2643,8 +2656,9 @@ function handleNextQuestion() {
     }
 }
 
-function openPremioGanadorSelector(premioTipo) {
+function openPremioGanadorSelector(premioTipo, modo) {
     _pgPremioTipo = premioTipo;
+    _pgModo = modo || 'next';
     _pgSelectedTeamId = null;
     _pgNobodySelected = false;
     var ds = S.director;
@@ -2702,8 +2716,13 @@ function pgSelectNobody() {
 function confirmPremioGanador() {
     var teamId = _pgSelectedTeamId || null;
     var premioTipo = _pgPremioTipo;
+    var modo = _pgModo;
     closePremioGanadorModal();
-    emit('director:next_with_premio', { teamId: teamId, premioTipo: premioTipo });
+    if (modo === 'finish') {
+        emit('director:finish_with_premio', { teamId: teamId, premioTipo: premioTipo });
+    } else {
+        emit('director:next_with_premio', { teamId: teamId, premioTipo: premioTipo });
+    }
 }
 
 function closePremioGanadorModal() {
@@ -2711,6 +2730,7 @@ function closePremioGanadorModal() {
     _pgPremioTipo = null;
     _pgSelectedTeamId = null;
     _pgNobodySelected = false;
+    _pgModo = 'next';
 }
 
 // ── Points modal ──
