@@ -1079,6 +1079,7 @@ function attachSocketHandlers(io) {
             const ds = state.director;
             const teamId = data && data.teamId;
             const premioTipo = data && data.premioTipo;
+            console.error('[DIAG PREMIO] next_with_premio — teamId=', teamId, '| premioTipo=', premioTipo, '| equipoEncontrado=', !!state.equipos.find(e => e.id === teamId), '| equiposIds=', state.equipos.map(e => e.id));
             if (teamId && premioTipo) {
                 const eq = state.equipos.find(e => e.id === teamId);
                 if (eq) {
