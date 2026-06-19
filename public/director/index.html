@@ -2773,10 +2773,10 @@ function openPremioGanadorSelector(premioTipo, modo) {
     var list = document.getElementById('pgTeamList');
     list.innerHTML = S.equipos.map(function(e) {
         var isSel = e.id === preselId;
-        var photo = e.photo_url ? '<img class="pg-team-photo" src="' + e.photo_url + '">' : '';
+        var photo = e.photo_url ? '<img class="pg-team-photo" src="' + esc(e.photo_url) + '">' : '';
         var preTag = isSel ? '<span class="pg-presel">Auto</span>' : '';
         return '<button class="pg-team-btn' + (isSel ? ' selected' : '') + '" data-teamid="' + e.id + '" onclick="pgSelectTeam(\'' + e.id + '\')">'
-            + photo + '<span class="pg-team-name">' + e.nombre + '</span>' + preTag + '</button>';
+            + photo + '<span class="pg-team-name">' + esc(e.nombre) + '</span>' + preTag + '</button>';
     }).join('');
 
     _pgSelectedTeamId = preselId;
