@@ -501,7 +501,7 @@ function avanzarPregunta(state, io, gameId) {
     ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
     ds.optionsRevealed = false;
     initIdentidadState(ds);
-    if (ds.currentRound && ds.currentRound.type === 'pulsador') {
+    if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen')) {
         ds.timer = { total: 0, remaining: 0, running: false };
     } else {
         const cfg = getQuestionConfig(state);
@@ -1057,7 +1057,7 @@ function attachSocketHandlers(io) {
                 ds.menuLevel = null;
                 ds.selectedCategory = null;
                 initIdentidadState(ds);
-                if (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen') {
+                if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen')) {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
                     const cfg = getQuestionConfig(state);
@@ -1089,7 +1089,7 @@ function attachSocketHandlers(io) {
             ds.qrVisible = false;
             ds.premioGanadorVisible = false;
             initIdentidadState(ds);
-            if (ds.currentRound && ds.currentRound.type === 'pulsador') {
+            if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen')) {
                 ds.timer = { total: 0, remaining: 0, running: false };
             } else {
                 const cfg = getQuestionConfig(state);
@@ -1141,7 +1141,7 @@ function attachSocketHandlers(io) {
                 ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
                 ds.optionsRevealed = false;
                 initIdentidadState(ds);
-                if (ds.currentRound && ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen') {
+                if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen')) {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
                     const cfg = getQuestionConfig(state);
