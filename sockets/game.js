@@ -921,7 +921,7 @@ function attachSocketHandlers(io) {
                     }
                 });
                 io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
-                mensaje = `${emisor.nombre} BLOQUEÓ A RIVALES`;
+                mensaje = `${emisor.nombre} BLOQUEÓ AL RESTO DE EQUIPOS`;
             } else if (data.tipo === 'freeze') {
                 victima = state.equipos.find(e => e.id === data.targetId);
                 if (!victima) { socket.emit('notificacion_bono', { msg: 'Equipo no encontrado' }); return; }
