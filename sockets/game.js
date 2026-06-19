@@ -909,6 +909,7 @@ function attachSocketHandlers(io) {
             const emisor = state.equipos.find(e => e.id === socket.equipoId);
             if (!emisor || !emisor.bonos.includes(data.tipo)) return;
             let mensaje = '';
+            let victima = null;
             if (data.tipo === 'lock_all') {
                 state.equipos.forEach(eq => {
                     if (eq.id !== emisor.id) {
@@ -922,7 +923,7 @@ function attachSocketHandlers(io) {
                 io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
                 mensaje = `${emisor.nombre} BLOQUEÓ A RIVALES`;
             } else if (data.tipo === 'freeze') {
-                let victima = state.equipos.find(e => e.id === data.targetId);
+                victima = state.equipos.find(e => e.id === data.targetId);
                 if (!victima) { socket.emit('notificacion_bono', { msg: 'Equipo no encontrado' }); return; }
                 if (victima.id === emisor.id) { socket.emit('notificacion_bono', { msg: 'No te puedes congelar a ti mismo' }); return; }
                 if (victima.bloqueado) { socket.emit('notificacion_bono', { msg: `${victima.nombre} ya está congelado` }); return; }
