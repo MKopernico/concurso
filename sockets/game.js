@@ -40,6 +40,7 @@ function createGameState() {
             imagePuzzle: { questionId: null, revealedTiles: [], answerVisible: false },
             identidad: null,
             completedRounds: [],
+            bonoLog: [],
             optionsRevealed: false,
             lastQuestionScores: {},
             showTeamResults: false,
@@ -933,6 +934,11 @@ function attachSocketHandlers(io) {
             }
             const idx = emisor.bonos.indexOf(data.tipo);
             if (idx > -1) emisor.bonos.splice(idx, 1);
+            state.director.bonoLog.push({
+                action: 'used', team: emisor.nombre, bono: data.tipo,
+                target: data.tipo === 'freeze' ? (victima && victima.nombre) : null,
+                ts: Date.now()
+            });
             socket.emit('update_mi_equipo', emisor);
             io.to(roomOf(gameId)).emit('notificacion_bono', { msg: mensaje });
         });
@@ -1108,12 +1114,14 @@ function attachSocketHandlers(io) {
                     eq.bonos.push(premioTipo);
                     ds.premioGanadorTeam = eq.nombre;
                     ds.premioGanadorTipo = premioTipo;
+                    ds.bonoLog.push({ action: 'awarded', team: eq.nombre, bono: premioTipo, ts: Date.now() });
                     io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
                     if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
                 }
             } else {
                 ds.premioGanadorTeam = null;
                 ds.premioGanadorTipo = null;
+                if (premioTipo) ds.bonoLog.push({ action: 'awarded', team: null, bono: premioTipo, ts: Date.now() });
             }
             avanzarPregunta(state, io, gameId);
             ds.premioGanadorVisible = true;
@@ -1589,12 +1597,14 @@ function attachSocketHandlers(io) {
                     eq.bonos.push(premioTipo);
                     ds.premioGanadorTeam = eq.nombre;
                     ds.premioGanadorTipo = premioTipo;
+                    ds.bonoLog.push({ action: 'awarded', team: eq.nombre, bono: premioTipo, ts: Date.now() });
                     io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
                     if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
                 }
             } else {
                 ds.premioGanadorTeam = null;
                 ds.premioGanadorTipo = null;
+                if (premioTipo) ds.bonoLog.push({ action: 'awarded', team: null, bono: premioTipo, ts: Date.now() });
             }
             finalizarRonda(state, io, gameId);
             ds.premioGanadorVisible = true;
@@ -1624,6 +1634,7 @@ function attachSocketHandlers(io) {
             Object.keys(ds.scores).forEach(k => { ds.scores[k] = 0; });
             // Reset completed rounds
             ds.completedRounds = [];
+            ds.bonoLog = [];
             // Reset round/question state
             ds.currentRoundId = null;
             ds.currentRound = null;
@@ -1657,6 +1668,7 @@ function attachSocketHandlers(io) {
             // Reset all director state
             ds.scores = {};
             ds.completedRounds = [];
+            ds.bonoLog = [];
             ds.currentRoundId = null;
             ds.currentRound = null;
             ds.questions = [];

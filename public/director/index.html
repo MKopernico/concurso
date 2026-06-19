@@ -214,6 +214,21 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .bp-popover .bp-cancel { background: none; border: none; color: var(--text2); font-size: 11px; cursor: pointer; font-family: inherit; text-align: center; padding: 2px; }
 .bp-popover .bp-cancel:hover { color: var(--text); }
 
+/* Bono log panel */
+.bl-panel { display: none; position: fixed; z-index: 260; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.5); width: 320px; max-height: 400px; overflow-y: auto; }
+.bl-panel.active { display: flex; flex-direction: column; gap: 6px; }
+.bl-panel .bl-header { display: flex; justify-content: space-between; align-items: center; }
+.bl-panel .bl-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); }
+.bl-panel .bl-empty { font-size: 12px; color: var(--text2); text-align: center; padding: 12px 0; }
+.bl-panel .bl-entry { display: flex; gap: 6px; align-items: flex-start; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.bl-panel .bl-entry:last-child { border-bottom: none; }
+.bl-panel .bl-icon { flex-shrink: 0; font-size: 14px; }
+.bl-panel .bl-text { flex: 1; color: var(--text); line-height: 1.4; }
+.bl-panel .bl-time { flex-shrink: 0; font-size: 10px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.bl-panel .bl-cancel { background: none; border: none; color: var(--text2); font-size: 11px; cursor: pointer; font-family: inherit; padding: 2px; }
+.bl-panel .bl-cancel:hover { color: var(--text); }
+.bl-badge { background: var(--accent); color: #fff; font-size: 9px; font-weight: 700; border-radius: 8px; padding: 1px 5px; margin-left: 3px; vertical-align: top; }
+
 /* Buzzer compact row (collapsed state) */
 .buzzer-compact { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .buzzer-indicator { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
@@ -464,6 +479,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
         <button class="btn-ghost btn-sm" onclick="emit('director:toggle_premio_anuncio')" title="Anuncio de premio en pantalla">&#127873;</button>
         <button class="btn-ghost btn-sm" onclick="emit('director:toggle_premio_ganador')" title="Anuncio de ganador del bono">&#127941;</button>
         <button class="btn-ghost btn-sm" onclick="emit('director:toggle_qr')" title="QR acceso jugadores en pantalla">QR</button>
+        <button class="btn-ghost btn-sm" id="btnBonoLog" onclick="toggleBonoLog(this)" title="Log de bonos">&#128203;</button>
         <button class="btn-accent btn-sm" onclick="openScreen()" title="Abrir pantalla proyector">&#128250; Pantalla</button>
     </div>
 </div>
@@ -889,6 +905,14 @@ button:disabled { opacity: .4; cursor: not-allowed; }
     <button class="bp-cancel" onclick="closeBonusMenu()">Cerrar</button>
 </div>
 
+<div class="bl-panel" id="blPanel">
+    <div class="bl-header">
+        <span class="bl-label">Log de bonos</span>
+        <button class="bl-cancel" onclick="closeBonoLog()">Cerrar</button>
+    </div>
+    <div id="blBody"></div>
+</div>
+
 <div id="toast"></div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
@@ -956,6 +980,8 @@ function onSync(state) {
     S.colaPulsador = state.colaPulsador || [];
     S.bloqueoGlobal = state.bloqueoGlobal;
     render();
+    updateBonoLogBadge();
+    if (document.getElementById('blPanel').classList.contains('active')) renderBonoLog();
 }
 
 // ═══════════════ Render ═══════════════
@@ -2623,7 +2649,69 @@ function removeBonus(teamId, tipo) {
 document.addEventListener('mousedown', function(e) {
     var pop = document.getElementById('bpPopover');
     if (pop.classList.contains('active') && !pop.contains(e.target)) closeBonusMenu();
+    var blp = document.getElementById('blPanel');
+    if (blp.classList.contains('active') && !blp.contains(e.target) && e.target.id !== 'btnBonoLog') closeBonoLog();
 });
+
+// ── Bono Log panel ──
+var _blSeen = 0;
+var _bonoIcons = { freeze: '❄️', lock_all: '🔒', double: '✖️2', shield: '🛡️' };
+var _bonoNames = { freeze: 'Congelar', lock_all: 'Bloqueo total', double: 'Puntos x2', shield: 'Escudo' };
+
+function toggleBonoLog(btnEl) {
+    var panel = document.getElementById('blPanel');
+    if (panel.classList.contains('active')) { closeBonoLog(); return; }
+    renderBonoLog();
+    var log = (S.director && S.director.bonoLog) || [];
+    _blSeen = log.length;
+    updateBonoLogBadge();
+    var rect = btnEl.getBoundingClientRect();
+    panel.classList.add('active');
+    var left = rect.left + rect.width / 2 - panel.offsetWidth / 2;
+    var top = rect.bottom + 8;
+    if (left < 4) left = 4;
+    if (left + panel.offsetWidth > window.innerWidth - 4) left = window.innerWidth - panel.offsetWidth - 4;
+    panel.style.left = left + 'px';
+    panel.style.top = top + 'px';
+}
+
+function closeBonoLog() {
+    document.getElementById('blPanel').classList.remove('active');
+}
+
+function renderBonoLog() {
+    var body = document.getElementById('blBody');
+    var log = (S.director && S.director.bonoLog) || [];
+    if (!log.length) { body.innerHTML = '<div class="bl-empty">Sin actividad de bonos</div>'; return; }
+    var html = '';
+    for (var i = log.length - 1; i >= 0; i--) {
+        var e = log[i];
+        var icon = e.action === 'awarded' ? '🎁' : (_bonoIcons[e.bono] || '⚡');
+        var text = '';
+        if (e.action === 'awarded') {
+            text = e.team ? ('<b>' + esc(e.team) + '</b> ganó <b>' + (_bonoNames[e.bono] || e.bono) + '</b>')
+                         : ('Nadie ganó <b>' + (_bonoNames[e.bono] || e.bono) + '</b>');
+        } else {
+            text = '<b>' + esc(e.team) + '</b> usó <b>' + (_bonoNames[e.bono] || e.bono) + '</b>';
+            if (e.target) text += ' contra <b>' + esc(e.target) + '</b>';
+        }
+        var t = e.ts ? new Date(e.ts) : null;
+        var timeStr = t ? (('0'+t.getHours()).slice(-2) + ':' + ('0'+t.getMinutes()).slice(-2)) : '';
+        html += '<div class="bl-entry"><span class="bl-icon">' + icon + '</span><span class="bl-text">' + text + '</span><span class="bl-time">' + timeStr + '</span></div>';
+    }
+    body.innerHTML = html;
+}
+
+function updateBonoLogBadge() {
+    var btn = document.getElementById('btnBonoLog');
+    var log = (S.director && S.director.bonoLog) || [];
+    var unseen = log.length - _blSeen;
+    var badge = btn.querySelector('.bl-badge');
+    if (unseen > 0) {
+        if (!badge) { badge = document.createElement('span'); badge.className = 'bl-badge'; btn.appendChild(badge); }
+        badge.textContent = unseen;
+    } else if (badge) { badge.remove(); }
+}
 
 // ── Premio ganador selector ──
 var _pgPremioTipo = null;
