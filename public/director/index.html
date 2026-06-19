@@ -15,9 +15,11 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
 
 /* Header */
 .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0; display: flex; flex-direction: column; flex-shrink: 0; z-index: 50; }
-.header-top { display: flex; align-items: center; gap: 12px; padding: 6px 16px; }
+.header-top { display: flex; align-items: center; padding: 6px 16px; }
+.header-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.header-right { flex: 1; }
 .header-logo { font-size: 14px; font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
-.header-game { font-size: 14px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.header-game { font-size: 14px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
 .header-game strong { color: var(--text); }
 .header-actions { display: flex; gap: 3px; padding: 4px 8px 6px; border-top: 1px solid var(--border); }
 .header-actions .hdr-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px 4px; min-width: 0; flex: 1; border-radius: 8px; font-size: 20px; line-height: 1; white-space: nowrap; }
@@ -463,9 +465,11 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 <!-- Header -->
 <div class="header">
     <div class="header-top">
-        <button class="btn-ghost btn-sm" onclick="openAdmin()" title="Backoffice">&#9881;</button>
-        <span class="header-logo">Mesa de control</span>
-        <span class="header-game" id="headerGameName">Cargando...</span>
+        <div class="header-left">
+            <button class="btn-ghost btn-sm" onclick="openAdmin()" title="Backoffice">&#9881;</button>
+            <span class="header-logo">Mesa de control</span>
+            <span class="header-game" id="headerGameName">Cargando...</span>
+        </div>
         <div class="header-timer" id="headerTimer">
             <div class="timer-display stopped" id="timerDisplay">--:--</div>
             <span id="dirPreCountdown" style="display:none; font-size:13px; font-weight:700; color:var(--accent); white-space:nowrap;"></span>
@@ -473,19 +477,20 @@ button:disabled { opacity: .4; cursor: not-allowed; }
             <button class="btn-ghost btn-sm" id="btnStopTimer" onclick="emit('director:stop_timer')">&#9632;</button>
             <button class="btn-ghost btn-sm" onclick="emit('director:extend_timer', {seconds:10})">+10s</button>
         </div>
+        <div class="header-right"></div>
     </div>
     <div class="header-actions">
         <button class="btn-ghost hdr-btn" onclick="emit('director:show_home')" title="Menu Home"><span>&#127968;</span><span class="hdr-label">Home</span></button>
         <button class="btn-ghost hdr-btn" onclick="toggleScoreboard()" title="Marcador"><span>&#127942;</span><span class="hdr-label">Ranking</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:show_waiting')" title="Espera"><span>&#9208;</span><span class="hdr-label">Espera</span></button>
-        <button class="btn-danger hdr-btn" onclick="resetSession()" title="Reset puntos (los equipos siguen)"><span>&#128260;</span><span class="hdr-label">Reset pts</span></button>
-        <button class="btn-danger hdr-btn" onclick="resetFull()" title="Borrar todo (borra equipos y puntos)"><span>&#128465;</span><span class="hdr-label">Borrar todo</span></button>
         <button class="btn-ghost hdr-btn" id="btnRefreshContent" onclick="refreshContent()" title="Aplicar cambios en caliente"><span>&#128259;</span><span class="hdr-label">Cargar</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_premio_anuncio')" title="Anuncio de premio en pantalla"><span>&#127873;</span><span class="hdr-label">Bono</span></button>
-        <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_premio_ganador')" title="Anuncio de ganador del bono"><span>&#127941;</span><span class="hdr-label">Ganador</span></button>
-        <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_qr')" title="QR acceso jugadores en pantalla"><span>QR</span><span class="hdr-label">QR</span></button>
+        <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_premio_ganador')" title="Anuncio de ganador del bono"><span>&#127941;</span><span class="hdr-label">Ganador bono</span></button>
+        <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_qr')" title="QR acceso jugadores en pantalla"><span>&#128241;</span><span class="hdr-label">QR</span></button>
         <button class="btn-ghost hdr-btn" id="btnBonoLog" onclick="toggleBonoLog(this)" title="Log de bonos"><span>&#128203;</span><span class="hdr-label">Log</span></button>
         <button class="btn-accent hdr-btn" onclick="openScreen()" title="Abrir pantalla proyector"><span>&#128250;</span><span class="hdr-label">Pantalla</span></button>
+        <button class="btn-danger hdr-btn" onclick="resetSession()" title="Reset puntos (los equipos siguen)"><span>&#128260;</span><span class="hdr-label">Reset pts</span></button>
+        <button class="btn-danger hdr-btn" onclick="resetFull()" title="Borrar todo (borra equipos y puntos)"><span>&#128465;</span><span class="hdr-label">Borrar todo</span></button>
     </div>
 </div>
 
