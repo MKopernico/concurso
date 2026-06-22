@@ -942,6 +942,8 @@ function attachSocketHandlers(io) {
             });
             socket.emit('update_mi_equipo', emisor);
             io.to(roomOf(gameId)).emit('notificacion_bono', { msg: mensaje });
+            // Refrescar el panel del director en vivo tras registrar el bono en el log
+            io.to(`directors:${gameId}`).emit('game:director_sync', publicView(state));
         });
 
         // ═══════════════════════ DIRECTOR ═══════════════════════
