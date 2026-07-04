@@ -417,16 +417,37 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
             <div class="field-row-2" style="margin-top:12px; align-items:end">
                 <div class="field" style="flex:0 0 auto">
                     <label style="display:flex; align-items:center; gap:6px; cursor:pointer">
-                        <input type="checkbox" name="q_premio_check" onchange="document.getElementById('q_premio_tipo').disabled = !this.checked">
+                        <input type="checkbox" name="q_premio_check" onchange="document.getElementById('q_premio_tipo').disabled = !this.checked; updatePremioFields()">
                         Pregunta con premio
                     </label>
                 </div>
                 <div class="field">
                     <label>Tipo de bono</label>
-                    <select name="q_premio_tipo" id="q_premio_tipo" disabled>
+                    <select name="q_premio_tipo" id="q_premio_tipo" disabled onchange="updatePremioFields()">
                         <option value="freeze">&#10052; Congelar a un rival</option>
                         <option value="lock_all">&#128274; Congelar a todos</option>
+                        <option value="puntos">&#10133; Puntos extra</option>
+                        <option value="anuncio">&#128226; Anuncio (texto/imagen)</option>
                     </select>
+                </div>
+            </div>
+            <div id="q_premio_extra" style="display:none; margin-top:10px">
+                <div class="field" id="q_premio_extra_puntos" style="display:none">
+                    <label>Puntos extra para el ganador</label>
+                    <input type="number" name="q_premio_cantidad" min="1" step="1" placeholder="Ej: 50">
+                </div>
+                <div id="q_premio_extra_anuncio" style="display:none">
+                    <div class="field">
+                        <label>Texto del anuncio (opcional si hay imagen)</label>
+                        <input type="text" name="q_premio_texto" placeholder="Ej: ¡Elegís tema de la siguiente ronda!">
+                    </div>
+                    <div class="field">
+                        <label>Imagen del anuncio (opcional si hay texto)</label>
+                        <div class="upload-row">
+                            <input type="text" name="q_premio_imagenUrl" placeholder="URL de imagen" readonly>
+                            <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'q_premio_imagenUrl')"></label>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="field"><label>Media URL</label>
@@ -1035,6 +1056,17 @@ async function deleteQuestion(id) {
     } catch (e) { toast('Error: ' + e.message); }
 }
 
+// ─────────────────── PREMIO FIELDS TOGGLE ───────────────────
+function updatePremioFields() {
+    var checked = document.querySelector('[name="q_premio_check"]').checked;
+    var tipo = document.getElementById('q_premio_tipo').value;
+    var showPuntos  = checked && tipo === 'puntos';
+    var showAnuncio = checked && tipo === 'anuncio';
+    document.getElementById('q_premio_extra_puntos').style.display  = showPuntos  ? '' : 'none';
+    document.getElementById('q_premio_extra_anuncio').style.display = showAnuncio ? '' : 'none';
+    document.getElementById('q_premio_extra').style.display = (showPuntos || showAnuncio) ? '' : 'none';
+}
+
 // ─────────────────── QUESTION FORMS (per type) ───────────────────
 
 function openQuestionModal(question = null) {
@@ -1058,6 +1090,9 @@ function openQuestionModal(question = null) {
             form.q_premio_check.checked = true;
             form.q_premio_tipo.disabled = false;
             form.q_premio_tipo.value = cfg.premio.tipo || 'freeze';
+            if (form.q_premio_cantidad) form.q_premio_cantidad.value = cfg.premio.cantidad || '';
+            if (form.q_premio_texto) form.q_premio_texto.value = cfg.premio.texto || '';
+            if (form.q_premio_imagenUrl) form.q_premio_imagenUrl.value = cfg.premio.imagenUrl || '';
         }
     } else {
         form.id.value = '';
@@ -1065,6 +1100,7 @@ function openQuestionModal(question = null) {
 
     const c = isEdit ? (question.content || {}) : {};
     container.innerHTML = buildFieldsForType(type, c);
+    updatePremioFields();
     openModal('modal-question-overlay');
 }
 
@@ -1461,7 +1497,23 @@ async function saveQuestion(e) {
     if (form.q_time.value) config.time = Number(form.q_time.value);
     if (form.q_basePoints.value) config.basePoints = Number(form.q_basePoints.value);
     if (form.q_bonusMax.value) config.bonusMax = Number(form.q_bonusMax.value);
-    if (form.q_premio_check.checked) config.premio = { tipo: form.q_premio_tipo.value };
+    if (form.q_premio_check.checked) {
+        var premioTipo = form.q_premio_tipo.value;
+        if (premioTipo === 'puntos') {
+            var cant = Number(form.q_premio_cantidad.value);
+            if (!isFinite(cant) || cant <= 0) { toast('Indica una cantidad de puntos válida'); return; }
+            config.premio = { tipo: 'puntos', cantidad: cant };
+        } else if (premioTipo === 'anuncio') {
+            var txt = (form.q_premio_texto.value || '').trim();
+            var img = (form.q_premio_imagenUrl.value || '').trim();
+            if (!txt && !img) { toast('El anuncio necesita texto o imagen'); return; }
+            config.premio = { tipo: 'anuncio' };
+            if (txt) config.premio.texto = txt;
+            if (img) config.premio.imagenUrl = img;
+        } else {
+            config.premio = { tipo: premioTipo };
+        }
+    }
 
     const data = {
         content,

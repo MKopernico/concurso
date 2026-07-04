@@ -2665,8 +2665,8 @@ document.addEventListener('mousedown', function(e) {
 
 // ── Bono Log panel ──
 var _blSeen = 0;
-var _bonoIcons = { freeze: '❄️', lock_all: '🔒', double: '✖️2', shield: '🛡️' };
-var _bonoNames = { freeze: 'Congelar', lock_all: 'Bloqueo total', double: 'Puntos x2', shield: 'Escudo' };
+var _bonoIcons = { freeze: '❄️', lock_all: '🔒', double: '✖️2', shield: '🛡️', puntos: '➕', anuncio: '🎁' };
+var _bonoNames = { freeze: 'Congelar', lock_all: 'Bloqueo total', double: 'Puntos x2', shield: 'Escudo', puntos: 'Puntos extra', anuncio: 'Premio sorpresa' };
 
 function toggleBonoLog(btnEl) {
     var panel = document.getElementById('blPanel');
@@ -2699,8 +2699,11 @@ function renderBonoLog() {
         var icon = e.action === 'awarded' ? '🎁' : (_bonoIcons[e.bono] || '⚡');
         var text = '';
         if (e.action === 'awarded') {
-            text = e.team ? ('<b>' + esc(e.team) + '</b> ganó <b>' + (_bonoNames[e.bono] || e.bono) + '</b>')
-                         : ('Nadie ganó <b>' + (_bonoNames[e.bono] || e.bono) + '</b>');
+            var detalle = '';
+            if (e.bono === 'puntos' && e.cantidad) detalle = ' (+' + e.cantidad + ' pts)';
+            if (e.bono === 'anuncio' && e.texto) { var t = e.texto.length > 30 ? e.texto.substring(0, 30) + '…' : e.texto; detalle = ' («' + esc(t) + '»)'; }
+            text = e.team ? ('<b>' + esc(e.team) + '</b> ganó <b>' + (_bonoNames[e.bono] || e.bono) + '</b>' + detalle)
+                         : ('Nadie ganó <b>' + (_bonoNames[e.bono] || e.bono) + '</b>' + detalle);
         } else {
             text = '<b>' + esc(e.team) + '</b> usó <b>' + (_bonoNames[e.bono] || e.bono) + '</b>';
             if (e.target) text += ' contra <b>' + esc(e.target) + '</b>';
@@ -2729,7 +2732,7 @@ var _pgSelectedTeamId = null; // null = nobody, string = teamId
 var _pgNobodySelected = false;
 var _pgModo = 'next'; // 'next' | 'finish'
 var _AUTO_TYPES = { multirespuesta: 1, precio: 1, boom: 1, identidad: 1 };
-var _pgBonoStrings = { freeze: { icon: '&#10052;', nombre: 'Congelar rival' }, lock_all: { icon: '&#128274;', nombre: 'Congelar a todos' } };
+var _pgBonoStrings = { freeze: { icon: '&#10052;', nombre: 'Congelar rival' }, lock_all: { icon: '&#128274;', nombre: 'Congelar a todos' }, puntos: { icon: '&#10133;', nombre: 'Puntos extra' }, anuncio: { icon: '&#127873;', nombre: 'Premio sorpresa' } };
 
 function handleFinishRound() {
     var ds = S.director;

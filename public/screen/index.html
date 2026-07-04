@@ -204,6 +204,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .gs-premio-title { font-size: clamp(36px, 5vw, 64px); font-weight: 900; color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,.6), 0 0 40px rgba(255,215,0,.3); margin-bottom: 24px; }
 .gs-premio-bono { font-size: clamp(24px, 3vw, 42px); color: #fff; display: flex; align-items: center; justify-content: center; gap: 16px; }
 .gs-premio-bono-icon { font-size: 1.4em; }
+.gs-premio-puntos { font-size: clamp(28px,4vw,52px); font-weight: 900; color: #ffd700; margin-top: 16px; text-shadow: 0 0 20px rgba(255,215,0,.6), 0 0 40px rgba(255,215,0,.3); }
+.gs-premio-anuncio { position: relative; display: flex; align-items: center; justify-content: center; margin-top: 20px; }
+.gs-premio-anuncio img { max-width: 70vw; max-height: 60vh; border-radius: 16px; display: block; }
+.gs-premio-anuncio-text { position: absolute; left: 0; right: 0; bottom: 0; padding: 24px; font-size: clamp(24px,3.5vw,44px); font-weight: 900; color: #fff; text-align: center; background: linear-gradient(to top, rgba(0,0,0,.85), transparent); border-radius: 0 0 16px 16px; }
+.gs-premio-anuncio.no-img .gs-premio-anuncio-text { position: static; background: none; padding: 0; font-size: clamp(28px,4vw,52px); color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,.6), 0 0 40px rgba(255,215,0,.3); }
 
 /* ═══════════════ WAITING ═══════════════ */
 #phase-waiting { background: transparent; }
@@ -553,6 +558,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
         <div class="gs-premio-filter-layer"></div>
         <div class="gs-premio-card">
             <div class="gs-premio-title" id="premioGanadorTitle"></div>
+            <div class="gs-premio-puntos" id="premioGanadorPuntos" style="display:none"></div>
+            <div class="gs-premio-anuncio" id="premioGanadorAnuncio" style="display:none">
+                <img id="premioGanadorImg" alt="">
+                <div class="gs-premio-anuncio-text" id="premioGanadorTexto"></div>
+            </div>
         </div>
     </div>
 
@@ -610,8 +620,8 @@ var prevQuestionIdx = -1;
 
 var _premioStrings = {
     title: '¡PRUEBA CON BONO!',
-    bonos: { freeze: 'Congelar a un rival', lock_all: 'Congelar a todos' },
-    icons: { freeze: '❄️', lock_all: '🔒' },
+    bonos: { freeze: 'Congelar a un rival', lock_all: 'Congelar a todos', puntos: 'Puntos extra', anuncio: 'Premio sorpresa' },
+    icons: { freeze: '❄️', lock_all: '🔒', puntos: '➕', anuncio: '🎁' },
     ganadorPrefix: '¡BONO PARA ',
     ganadorSuffix: '!',
     ganadorNadie: '¡NADIE SE LLEVA EL BONO!'
@@ -1832,12 +1842,28 @@ function renderPremioOverlay() {
 function renderPremioGanadorOverlay() {
     if (!ps) return;
     var overlay = document.getElementById('premioGanadorOverlay');
+    var elP = document.getElementById('premioGanadorPuntos');
+    var elA = document.getElementById('premioGanadorAnuncio');
+    var elImg = document.getElementById('premioGanadorImg');
+    var elTxt = document.getElementById('premioGanadorTexto');
     if (ps.premioGanadorVisible) {
         paintScreenPremioBgLayer(document.getElementById('screenPremioGanadorBg'), _resolveCurrentBg());
         var text = ps.premioGanadorTeam
             ? _premioStrings.ganadorPrefix + ps.premioGanadorTeam + _premioStrings.ganadorSuffix
             : _premioStrings.ganadorNadie;
         document.getElementById('premioGanadorTitle').textContent = text;
+        var tipo = ps.premioGanadorTipo;
+        var extra = ps.premioGanadorExtra || {};
+        elP.style.display = 'none'; elA.style.display = 'none'; elA.classList.remove('no-img');
+        if (tipo === 'puntos') {
+            elP.textContent = '➕ +' + (extra.cantidad || 0) + ' puntos';
+            elP.style.display = '';
+        } else if (tipo === 'anuncio') {
+            if (extra.imagenUrl) { elImg.src = extra.imagenUrl; elImg.style.display = ''; }
+            else { elImg.removeAttribute('src'); elImg.style.display = 'none'; elA.classList.add('no-img'); }
+            elTxt.textContent = extra.texto || '';
+            elA.style.display = '';
+        }
         overlay.classList.add('active');
     } else {
         overlay.classList.remove('active');

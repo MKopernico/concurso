@@ -449,6 +449,7 @@ function playerView(state) {
         premioGanadorVisible: ds.premioGanadorVisible,
         premioGanadorTeam: ds.premioGanadorTeam,
         premioGanadorTipo: ds.premioGanadorTipo,
+        premioGanadorExtra: ds.premioGanadorExtra || null,
         premioTipo: (curQ && curQ.config && curQ.config.premio) ? curQ.config.premio.tipo : null,
         preCountdown: ds.preCountdown || 0,
         gameTheme: state._gameTheme || {},
@@ -510,6 +511,7 @@ function avanzarPregunta(state, io, gameId) {
     state.pulsadorActivo = false;
     state.colaPulsador = [];
     ds.premioGanadorVisible = false;
+    ds.premioGanadorExtra = null;
     setPremioAnuncio(state);
     broadcastDirector(io, gameId, state);
     return true;
@@ -528,6 +530,7 @@ function finalizarRonda(state, io, gameId) {
     ds.scoreboardVisible = false;
     ds.qrVisible = false;
     ds.premioGanadorVisible = false;
+    ds.premioGanadorExtra = null;
     ds.phase = 'round_end';
     broadcastDirector(io, gameId, state);
 }
@@ -536,6 +539,47 @@ function setPremioAnuncio(state) {
     const ds = state.director;
     const q = ds.questions[ds.currentQuestionIdx];
     ds.premioAnuncioVisible = !!(q && q.config && q.config.premio);
+}
+
+function resolverPremioAsignado(state, data, io, gameId) {
+    const ds = state.director;
+    const qActual = ds.questions[ds.currentQuestionIdx];
+    const premioCfg = (qActual && qActual.config && qActual.config.premio) || null;
+    const teamId = data && data.teamId;
+    ds.premioGanadorExtra = null;
+
+    if (teamId) {
+        const eq = state.equipos.find(e => e.id === teamId);
+        if (eq) {
+            const tipo = premioCfg ? premioCfg.tipo : (data && data.premioTipo);
+            if (tipo === 'freeze' || tipo === 'lock_all') {
+                eq.bonos.push(tipo);
+                if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
+            } else if (tipo === 'puntos') {
+                const cant = Number(premioCfg && premioCfg.cantidad) || 0;
+                if (cant > 0) { if (!ds.scores[eq.id]) ds.scores[eq.id] = 0; ds.scores[eq.id] += cant; }
+                ds.premioGanadorExtra = { cantidad: cant };
+            } else if (tipo === 'anuncio') {
+                ds.premioGanadorExtra = {
+                    texto: (premioCfg && premioCfg.texto) || null,
+                    imagenUrl: (premioCfg && premioCfg.imagenUrl) || null
+                };
+            }
+            ds.premioGanadorTeam = eq.nombre;
+            ds.premioGanadorTipo = tipo || null;
+            const logEntry = { action: 'awarded', team: eq.nombre, bono: tipo, ts: Date.now() };
+            if (tipo === 'puntos') logEntry.cantidad = Number(premioCfg && premioCfg.cantidad) || 0;
+            if (tipo === 'anuncio') logEntry.texto = (premioCfg && premioCfg.texto) || null;
+            ds.bonoLog.push(logEntry);
+            io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
+        }
+    } else {
+        ds.premioGanadorTeam = null;
+        ds.premioGanadorTipo = null;
+        ds.premioGanadorExtra = null;
+        const premioTipo = data && data.premioTipo;
+        if (premioTipo) ds.bonoLog.push({ action: 'awarded', team: null, bono: premioTipo, ts: Date.now() });
+    }
 }
 
 function broadcastDirector(io, gameId, state) {
@@ -1108,26 +1152,9 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:next_with_premio', (data) => {
-            const ds = state.director;
-            const teamId = data && data.teamId;
-            const premioTipo = data && data.premioTipo;
-            if (teamId && premioTipo) {
-                const eq = state.equipos.find(e => e.id === teamId);
-                if (eq) {
-                    eq.bonos.push(premioTipo);
-                    ds.premioGanadorTeam = eq.nombre;
-                    ds.premioGanadorTipo = premioTipo;
-                    ds.bonoLog.push({ action: 'awarded', team: eq.nombre, bono: premioTipo, ts: Date.now() });
-                    io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
-                    if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
-                }
-            } else {
-                ds.premioGanadorTeam = null;
-                ds.premioGanadorTipo = null;
-                if (premioTipo) ds.bonoLog.push({ action: 'awarded', team: null, bono: premioTipo, ts: Date.now() });
-            }
+            resolverPremioAsignado(state, data, io, gameId);
             avanzarPregunta(state, io, gameId);
-            ds.premioGanadorVisible = true;
+            state.director.premioGanadorVisible = true;
             broadcastDirector(io, gameId, state);
         });
 
@@ -1591,26 +1618,9 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:finish_with_premio', (data) => {
-            const ds = state.director;
-            const teamId = data && data.teamId;
-            const premioTipo = data && data.premioTipo;
-            if (teamId && premioTipo) {
-                const eq = state.equipos.find(e => e.id === teamId);
-                if (eq) {
-                    eq.bonos.push(premioTipo);
-                    ds.premioGanadorTeam = eq.nombre;
-                    ds.premioGanadorTipo = premioTipo;
-                    ds.bonoLog.push({ action: 'awarded', team: eq.nombre, bono: premioTipo, ts: Date.now() });
-                    io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
-                    if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
-                }
-            } else {
-                ds.premioGanadorTeam = null;
-                ds.premioGanadorTipo = null;
-                if (premioTipo) ds.bonoLog.push({ action: 'awarded', team: null, bono: premioTipo, ts: Date.now() });
-            }
+            resolverPremioAsignado(state, data, io, gameId);
             finalizarRonda(state, io, gameId);
-            ds.premioGanadorVisible = true;
+            state.director.premioGanadorVisible = true;
             broadcastDirector(io, gameId, state);
         });
 

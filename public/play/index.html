@@ -291,6 +291,11 @@ input:focus { border-color: var(--accent); }
 .player-premio-title { font-size: 26px; font-weight: 900; color: #ffd700; text-shadow: 0 0 16px rgba(255,215,0,.6), 0 0 32px rgba(255,215,0,.3); margin-bottom: 16px; text-align: center; }
 .player-premio-bono { font-size: 20px; color: #fff; display: flex; align-items: center; gap: 10px; }
 .player-premio-bono-icon { font-size: 1.4em; }
+.player-premio-puntos { font-size: 30px; font-weight: 900; color: #ffd700; margin-top: 12px; text-shadow: 0 0 16px rgba(255,215,0,.6), 0 0 32px rgba(255,215,0,.3); }
+.player-premio-anuncio { position: relative; display: flex; align-items: center; justify-content: center; margin-top: 16px; }
+.player-premio-anuncio img { max-width: 88vw; max-height: 60vh; border-radius: 12px; display: block; }
+.player-premio-anuncio-text { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px; font-size: 22px; font-weight: 900; color: #fff; text-align: center; background: linear-gradient(to top, rgba(0,0,0,.85), transparent); border-radius: 0 0 12px 12px; }
+.player-premio-anuncio.no-img .player-premio-anuncio-text { position: static; background: none; padding: 0; font-size: 28px; color: #ffd700; text-shadow: 0 0 16px rgba(255,215,0,.6), 0 0 32px rgba(255,215,0,.3); }
 
 /* ── Round intro ── */
 .gp-round-intro { align-items: center; justify-content: center; gap: 20px; text-align: center; padding: 24px; }
@@ -586,6 +591,11 @@ input:focus { border-color: var(--accent); }
     <div class="premio-filter-layer"></div>
     <div class="player-premio-content">
         <div class="player-premio-title" id="playPremioGanadorTitle"></div>
+        <div class="player-premio-puntos" id="playPremioGanadorPuntos" style="display:none"></div>
+        <div class="player-premio-anuncio" id="playPremioGanadorAnuncio" style="display:none">
+            <img id="playPremioGanadorImg" alt="">
+            <div class="player-premio-anuncio-text" id="playPremioGanadorTexto"></div>
+        </div>
     </div>
 </div>
 
@@ -1015,8 +1025,8 @@ var _bonoTitles = { freeze: 'Congelar a un rival', lock_all: 'Congelar a todos l
 var _bonoRowOrder = ['freeze', 'lock_all'];
 var _premioStrings = {
     title: '¡PRUEBA CON BONO!',
-    bonos: { freeze: 'Congelar a un rival', lock_all: 'Congelar a todos' },
-    icons: { freeze: '❄️', lock_all: '🔒' },
+    bonos: { freeze: 'Congelar a un rival', lock_all: 'Congelar a todos', puntos: 'Puntos extra', anuncio: 'Premio sorpresa' },
+    icons: { freeze: '❄️', lock_all: '🔒', puntos: '➕', anuncio: '🎁' },
     ganadorPrefix: '¡BONO PARA ',
     ganadorSuffix: '!',
     ganadorNadie: '¡NADIE SE LLEVA EL BONO!'
@@ -1975,12 +1985,28 @@ function renderPremioOverlay() {
 function renderPremioGanadorOverlay() {
     var ps = S.ps; if (!ps) return;
     var overlay = document.getElementById('playerPremioGanadorOverlay');
+    var elP = document.getElementById('playPremioGanadorPuntos');
+    var elA = document.getElementById('playPremioGanadorAnuncio');
+    var elImg = document.getElementById('playPremioGanadorImg');
+    var elTxt = document.getElementById('playPremioGanadorTexto');
     if (ps.premioGanadorVisible) {
         paintPremioBgLayer(document.getElementById('playPremioGanadorBg'), _resolveCurrentBg());
         var text = ps.premioGanadorTeam
             ? _premioStrings.ganadorPrefix + ps.premioGanadorTeam + _premioStrings.ganadorSuffix
             : _premioStrings.ganadorNadie;
         document.getElementById('playPremioGanadorTitle').textContent = text;
+        var tipo = ps.premioGanadorTipo;
+        var extra = ps.premioGanadorExtra || {};
+        elP.style.display = 'none'; elA.style.display = 'none'; elA.classList.remove('no-img');
+        if (tipo === 'puntos') {
+            elP.textContent = '➕ +' + (extra.cantidad || 0) + ' puntos';
+            elP.style.display = '';
+        } else if (tipo === 'anuncio') {
+            if (extra.imagenUrl) { elImg.src = extra.imagenUrl; elImg.style.display = ''; }
+            else { elImg.removeAttribute('src'); elImg.style.display = 'none'; elA.classList.add('no-img'); }
+            elTxt.textContent = extra.texto || '';
+            elA.style.display = '';
+        }
         overlay.classList.add('active');
     } else {
         overlay.classList.remove('active');
