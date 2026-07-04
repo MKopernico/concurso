@@ -1832,7 +1832,11 @@ function renderPremioOverlay() {
         paintScreenPremioBgLayer(document.getElementById('screenPremioBg'), _resolveCurrentBg());
         document.getElementById('premioTitle').textContent = _premioStrings.title;
         document.getElementById('premioIcon').textContent = _premioStrings.icons[ps.premioTipo] || '🎁';
-        document.getElementById('premioNombre').textContent = _premioStrings.bonos[ps.premioTipo] || '';
+        var _pn = _premioStrings.bonos[ps.premioTipo] || '';
+        if (ps.premioTipo === 'puntos' && ps.premioAnuncioCantidad > 0) {
+            _pn = _pn + ': +' + ps.premioAnuncioCantidad;
+        }
+        document.getElementById('premioNombre').textContent = _pn;
         overlay.classList.add('active');
     } else {
         overlay.classList.remove('active');

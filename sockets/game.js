@@ -451,6 +451,7 @@ function playerView(state) {
         premioGanadorTipo: ds.premioGanadorTipo,
         premioGanadorExtra: ds.premioGanadorExtra || null,
         premioTipo: (curQ && curQ.config && curQ.config.premio) ? curQ.config.premio.tipo : null,
+        premioAnuncioCantidad: (curQ && curQ.config && curQ.config.premio && curQ.config.premio.tipo === 'puntos') ? (Number(curQ.config.premio.cantidad) || 0) : null,
         preCountdown: ds.preCountdown || 0,
         gameTheme: state._gameTheme || {},
         typeTheme: resolveTypeTheme(state, ds.currentRound ? ds.currentRound.type : null),

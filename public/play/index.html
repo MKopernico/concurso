@@ -1974,7 +1974,11 @@ function renderPremioOverlay() {
         paintPremioBgLayer(document.getElementById('playPremioBg'), _resolveCurrentBg());
         document.getElementById('playPremioTitle').textContent = _premioStrings.title;
         document.getElementById('playPremioIcon').textContent = _premioStrings.icons[ps.premioTipo] || '🎁';
-        document.getElementById('playPremioNombre').textContent = _premioStrings.bonos[ps.premioTipo] || '';
+        var _pn = _premioStrings.bonos[ps.premioTipo] || '';
+        if (ps.premioTipo === 'puntos' && ps.premioAnuncioCantidad > 0) {
+            _pn = _pn + ': +' + ps.premioAnuncioCantidad;
+        }
+        document.getElementById('playPremioNombre').textContent = _pn;
         overlay.classList.add('active');
     } else {
         overlay.classList.remove('active');
