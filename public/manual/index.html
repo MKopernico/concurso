@@ -312,6 +312,11 @@
           <p>Una canción que empieza distorsionada y se va aclarando con el Chaos Studio mientras los equipos pulsan. El audio lo sirve el Chaos Studio aparte (ver <a href="#s4-sonido">Sonido</a>).</p>
           <span class="req"><b>Requisito</b> Respuesta (no hace falta subir el audio)</span>
         </div>
+        <div class="type">
+          <h4>Identidad (emparejar)</h4>
+          <p>El jugador ve dos columnas: una fija a la izquierda y otra desordenada a la derecha. Arrastra las tarjetas de la derecha para emparejar cada una con la de su izquierda. Cada elemento puede ser una foto, un texto o ambos. Puntúa cada pareja acertada, con bonus por tiempo si las acierta todas.</p>
+          <span class="req"><b>Requisito</b> Parejas de elementos (foto y/o texto en cada lado)</span>
+        </div>
       </div>
 
       <!-- EXCEL -->
@@ -368,7 +373,7 @@
         <li><strong>Bonus por tiempo</strong>: puntos extra proporcionales a lo rápido que se responde.</li>
         <li><strong>Penalización por fallo</strong>: opcional.</li>
       </ul>
-      <p>Además, cada prueba puede llevar un <strong>bonus especial</strong> para el ganador, que se anuncia en la pantalla de sala: <strong>congelar</strong> a un rival, <strong>congelar a todos</strong>, <strong>puntos extra</strong>, <strong>multiplicador</strong> de la prueba siguiente, o un <strong>premio personalizado</strong> de texto libre. El <strong>marcador general</strong> acumula todo, y el coordinador puede sumar o restar puntos a mano en cualquier momento.</p>
+      <p>Además, cada prueba puede llevar un <strong>bonus especial</strong> para el ganador, que se anuncia en la pantalla de sala: <strong>congelar</strong> a un rival o <strong>congelar a todos</strong> los rivales. El <strong>marcador general</strong> acumula todo, y el coordinador puede sumar o restar puntos a mano en cualquier momento.</p>
 
       <figure class="shot" data-file="img/10-puntuacion-bonus.png">
         <img src="img/10-puntuacion-bonus.png" alt="Configuración de puntuación" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
@@ -416,6 +421,57 @@
         <img src="img/13-director-pulsador.png" alt="Control de pulsador" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
         <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 13</div><div class="ph-file">img/13-director-pulsador.png</div><div class="ph-label">Control de pulsador: la cola de equipos y los botones de acierto/fallo.</div></div>
         <figcaption><span class="cn">13</span>El control del pulsador con su cola.</figcaption>
+      </figure>
+
+      <p><strong>Identidad.</strong> Pulsa <strong>"Abrir opciones"</strong> para mostrar la columna a emparejar: en los iPads arranca una cuenta atrás de 5 segundos antes de que empiece el tiempo, y en la pantalla de sala aparece la columna desordenada. Cuando se acaba el tiempo, revela las parejas correctas una a una con cada click, de arriba abajo (igual que en Adivina la imagen).</p>
+
+      <div id="s3-bonos"></div>
+      <h3>Bonos y premios en directo</h3>
+
+      <p>Algunas pruebas llevan un <strong>bonus</strong> configurado (ver <a href="#s2-punt">Puntuación y bonus</a>): una recompensa para el equipo ganador que entra en juego al cerrar la prueba. Hay dos tipos, ambos de bloqueo: <strong>congelar a un rival</strong> o <strong>congelar a todos los rivales</strong>. El equipo que lo gana lo guarda y decide cuándo usarlo en una prueba posterior.</p>
+
+      <h4>Asignar el premio al ganador</h4>
+      <p>Al revelar el resultado de una prueba con bonus se abre <strong>siempre</strong> la ventana de selección de ganador, tanto si lo dejaste en automático como si no:</p>
+      <ul>
+        <li>Si el bonus está configurado para asignarse <strong>automáticamente</strong>, el equipo ganador ya viene marcado: solo tienes que <strong>confirmar</strong>.</li>
+        <li>Si no, <strong>eliges tú</strong> el equipo antes de continuar.</li>
+      </ul>
+      <p>Puedes abrir esta misma ventana cuando quieras con el botón <strong>"Ganador bono"</strong> de la cabecera del panel.</p>
+
+      <figure class="shot" data-file="img/14-director-ganador-bono.png">
+        <img src="img/14-director-ganador-bono.png" alt="Ventana de selección de ganador de bono" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 14</div><div class="ph-file">img/14-director-ganador-bono.png</div><div class="ph-label">Ventana '¿Quién se lleva el bono?' con la lista de equipos.</div></div>
+        <figcaption><span class="cn">14</span>La ventana de asignación del bono al ganador.</figcaption>
+      </figure>
+
+      <div class="note"><span class="tag">EN SALA</span>Al asignar el bono, la pantalla de sala muestra un anuncio de ganador a pantalla completa que tapa la pregunta por detrás. No se quita solo: lo cierras tú cuando convenga al ritmo.</div>
+
+      <h4>El registro de bonos</h4>
+      <p>El panel de <strong>log de bonos</strong> del director lleva la cuenta de todos los bonos repartidos y usados durante el juego. Un indicador te avisa de los movimientos que aún no has visto, y el panel se actualiza <strong>en vivo</strong>: cuando un equipo usa un bono, la entrada aparece al momento sin cerrar ni reabrir.</p>
+
+      <figure class="shot" data-file="img/16-director-log-bonos.png">
+        <img src="img/16-director-log-bonos.png" alt="Panel de registro de bonos" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 16</div><div class="ph-file">img/16-director-log-bonos.png</div><div class="ph-label">Panel de registro de bonos repartidos y usados, con indicador de no-vistos.</div></div>
+        <figcaption><span class="cn">16</span>El registro de bonos del coordinador.</figcaption>
+      </figure>
+
+      <h4>Cómo usan los bonos los jugadores</h4>
+      <p>El equipo que tiene un bono lo ve siempre en su iPad con un botón disponible. Al pulsarlo, elige sobre qué equipo lo aplica y se activa al instante. El bono de <strong>congelar a todos</strong> no pide objetivo: bloquea a todos los rivales de golpe.</p>
+      <ul>
+        <li><strong>En sala</strong> aparece una banda avisando del movimiento ("X congeló a Y"), que se retira sola a los pocos segundos para dar ambiente sin frenar el juego.</li>
+        <li><strong>En el iPad del equipo afectado</strong> aparece un aviso a pantalla completa ("¡TE HAN CONGELADO!") que le impide responder mientras dura el bloqueo.</li>
+      </ul>
+
+      <figure class="shot" data-file="img/21-play-usar-bono.png">
+        <img src="img/21-play-usar-bono.png" alt="Uso de un bono desde el iPad" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 21</div><div class="ph-file">img/21-play-usar-bono.png</div><div class="ph-label">Botón de bono en el iPad y selección del equipo objetivo.</div></div>
+        <figcaption><span class="cn">21</span>Un equipo usa su bono desde el iPad.</figcaption>
+      </figure>
+
+      <figure class="shot" data-file="img/22-screen-anuncio-bono.png">
+        <img src="img/22-screen-anuncio-bono.png" alt="Aviso de bono en la pantalla de sala" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
+        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 22</div><div class="ph-file">img/22-screen-anuncio-bono.png</div><div class="ph-label">Banda de aviso de congelación en la pantalla de sala.</div></div>
+        <figcaption><span class="cn">22</span>El aviso de congelación en la sala.</figcaption>
       </figure>
 
       <h3>Marcador, bloqueos y final</h3>
