@@ -580,6 +580,7 @@ function resolverPremioAsignado(state, data, io, gameId) {
         const premioTipo = data && data.premioTipo;
         if (premioTipo) ds.bonoLog.push({ action: 'awarded', team: null, bono: premioTipo, ts: Date.now() });
     }
+    return { extra: ds.premioGanadorExtra, team: ds.premioGanadorTeam, tipo: ds.premioGanadorTipo };
 }
 
 function broadcastDirector(io, gameId, state) {
@@ -1152,8 +1153,11 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:next_with_premio', (data) => {
-            resolverPremioAsignado(state, data, io, gameId);
+            const r = resolverPremioAsignado(state, data, io, gameId);
             avanzarPregunta(state, io, gameId);
+            state.director.premioGanadorExtra = r.extra;
+            state.director.premioGanadorTeam = r.team;
+            state.director.premioGanadorTipo = r.tipo;
             state.director.premioGanadorVisible = true;
             broadcastDirector(io, gameId, state);
         });
@@ -1618,8 +1622,11 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:finish_with_premio', (data) => {
-            resolverPremioAsignado(state, data, io, gameId);
+            const r = resolverPremioAsignado(state, data, io, gameId);
             finalizarRonda(state, io, gameId);
+            state.director.premioGanadorExtra = r.extra;
+            state.director.premioGanadorTeam = r.team;
+            state.director.premioGanadorTipo = r.tipo;
             state.director.premioGanadorVisible = true;
             broadcastDirector(io, gameId, state);
         });
