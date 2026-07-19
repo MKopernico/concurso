@@ -464,7 +464,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     backdrop-filter: blur(6px); max-height: 8vh; overflow: hidden; }
 
 /* ═══════════════ KARAOKE — SCREEN ═══════════════ */
-#karaokeScreenWrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+#karaokeScreenWrap { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; }
 .karaoke-screen-bg { position: absolute; inset: 0; z-index: 0; }
 .karaoke-screen-bg.kb-grid-1 { display: block; }
 .karaoke-screen-bg.kb-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
@@ -482,6 +482,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .karaoke-screen-winner-dot { width: clamp(24px, 4vw, 48px); height: clamp(24px, 4vw, 48px); border-radius: 50%; display: inline-block; flex-shrink: 0; border: 3px solid rgba(255,255,255,.5); }
 #phase-question.karaoke-mode { padding: 0; }
 #phase-question.karaoke-mode .q-statement { display: none; }
+.karaoke-mode ~ .timer-strip,
+.karaoke-mode ~ .timer-big { display: none !important; }
+body.karaoke-screen-active .timer-strip,
+body.karaoke-screen-active .timer-big,
+body.karaoke-screen-active .round-logo { display: none !important; }
 </style>
 </head>
 <body>
@@ -933,7 +938,7 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         renderTeamResultsOverlay();
     } else if (phase === 'question') {
         showPhase('question');
-        var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija' || type === 'cancion';
+        var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'karaoke';
         timerStrip.style.display = hideTimer ? 'none' : '';
         timerBig.style.display = (hideTimer || type === 'identidad') ? 'none' : '';
         document.getElementById('roundLogo').style.display = (type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'identidad') ? 'none' : '';
@@ -1011,6 +1016,7 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     document.getElementById('identidadScreenWrap').style.display = 'none';
     document.getElementById('karaokeScreenWrap').style.display = 'none';
     document.getElementById('phase-question').classList.toggle('karaoke-mode', type === 'karaoke');
+    document.body.classList.toggle('karaoke-screen-active', type === 'karaoke');
     _identidadAnimateIdx = -1;
 
     if (type === 'karaoke') {

@@ -243,15 +243,17 @@ input:focus { border-color: var(--accent); }
 
 /* ── Karaoke play ── */
 .gp-karaoke { padding: 0; }
-#karaokePlayWrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+#karaokePlayWrap { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; }
 .karaoke-play-bg { position: absolute; inset: 0; z-index: 0; }
 .karaoke-play-bg.kp-grid-1 { display: block; }
 .karaoke-play-bg.kp-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
 .karaoke-play-bg.kp-grid-4 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
-.karaoke-play-zone { transition: opacity 300ms ease, filter 300ms ease; }
+.karaoke-play-zone { min-height: 0; min-width: 0; transition: opacity 300ms ease, filter 300ms ease; }
 .karaoke-play-zone--active { opacity: 1; filter: none; }
 .karaoke-play-zone--muted { opacity: 1; filter: grayscale(80%) brightness(0.3); }
 .karaoke-play-logo { position: relative; z-index: 1; max-width: 40vw; max-height: 30vh; object-fit: contain; filter: drop-shadow(0 4px 16px rgba(0,0,0,.6)); }
+body.karaoke-active .game-top,
+body.karaoke-active .player-timer-bar { display: none !important; }
 
 /* ── Phase fade transitions ── */
 .gphase { transition: opacity 1s ease-in-out; opacity: 0; pointer-events: none; position: absolute; inset: 0; display: flex; flex: 1; flex-direction: column; overflow: hidden; }
@@ -1208,6 +1210,7 @@ function renderGamePhase() {
     var phase = ps.phase, type = ps.roundType;
     var timerBar = document.getElementById('timerBar');
     timerBar.style.display = 'none';
+    if (phase !== 'question' || type !== 'karaoke') document.body.classList.remove('karaoke-active');
 
     // Premio overlays (synced from server, independent of phase)
     renderPremioOverlay();
@@ -1248,7 +1251,8 @@ function renderGamePhase() {
             renderRevealed(); document.getElementById('gp-revealed').classList.add('active');
         }
     } else if (phase === 'question') {
-        timerBar.style.display = (type === 'pulsador') ? 'none' : 'flex';
+        document.body.classList.toggle('karaoke-active', type === 'karaoke');
+        timerBar.style.display = (type === 'pulsador' || type === 'karaoke') ? 'none' : 'flex';
         if (type === 'multirespuesta') {
             renderMulti(); document.getElementById('gp-multi').classList.add('active');
             // Show submit button (disabled during precountdown, enabled after)
