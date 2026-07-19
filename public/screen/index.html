@@ -462,6 +462,26 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     padding: clamp(6px, 0.8vh, 12px) clamp(12px, 2vw, 24px);
     background: rgba(0,0,0,.40); border: 1px solid rgba(255,255,255,.1); border-radius: 12px;
     backdrop-filter: blur(6px); max-height: 8vh; overflow: hidden; }
+
+/* ═══════════════ KARAOKE — SCREEN ═══════════════ */
+#karaokeScreenWrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.karaoke-screen-bg { position: absolute; inset: 0; z-index: 0; }
+.karaoke-screen-bg.kb-grid-1 { display: block; }
+.karaoke-screen-bg.kb-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
+.karaoke-screen-bg.kb-grid-4 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.karaoke-screen-zone { transition: opacity 300ms ease, filter 300ms ease; }
+.karaoke-screen-zone--active { opacity: 1; filter: none; }
+.karaoke-screen-zone--muted { opacity: 1; filter: grayscale(80%) brightness(0.3); }
+.karaoke-screen-lyrics { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: clamp(12px, 2vh, 24px); max-width: 85vw; }
+.karaoke-screen-overlay { background: rgba(0,0,0,0.55); border-radius: 16px; padding: clamp(24px, 4vh, 48px) clamp(32px, 5vw, 64px); display: flex; flex-direction: column; align-items: center; gap: clamp(8px, 1.5vh, 20px); }
+.karaoke-screen-current { font-size: clamp(3rem, 6vw, 6rem); font-weight: 800; color: #fff; text-align: center; white-space: pre-line; line-height: 1.2; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+.karaoke-screen-next { font-size: clamp(1.8rem, 3.5vw, 3.5rem); font-weight: 600; color: rgba(255,255,255,0.5); text-align: center; white-space: pre-line; line-height: 1.2; }
+.karaoke-screen-pre { font-size: clamp(3rem, 6vw, 6rem); font-weight: 800; color: #fff; text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+.karaoke-screen-fin { font-size: clamp(6rem, 12vw, 14rem); font-weight: 900; color: #fff; text-align: center; text-shadow: 0 4px 16px rgba(0,0,0,.6); line-height: 1; }
+.karaoke-screen-winner { font-size: clamp(2rem, 4vw, 4rem); font-weight: 700; color: #fff; text-align: center; display: flex; align-items: center; justify-content: center; gap: 12px; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+.karaoke-screen-winner-dot { width: clamp(24px, 4vw, 48px); height: clamp(24px, 4vw, 48px); border-radius: 50%; display: inline-block; flex-shrink: 0; border: 3px solid rgba(255,255,255,.5); }
+#phase-question.karaoke-mode { padding: 0; }
+#phase-question.karaoke-mode .q-statement { display: none; }
 </style>
 </head>
 <body>
@@ -507,6 +527,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
         <div id="imagenFijaWrap" style="display:none"></div>
         <div id="cancionScreenWrap" style="display:none"></div>
         <div id="identidadScreenWrap" style="display:none"></div>
+        <div id="karaokeScreenWrap" style="display:none"></div>
         <div class="letter-panel" id="letterPanel" style="display:none"></div>
         <div class="mini-scores" id="miniScores"></div>
     </div>
@@ -601,6 +622,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 
 <script src="/shared/qrcode.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
+<script src="/shared/karaoke-colors.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
 <script>
@@ -987,7 +1009,16 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     document.getElementById('pulsadorScreen').style.display = 'none';
     document.getElementById('ruletaScreenPanel').style.display = 'none';
     document.getElementById('identidadScreenWrap').style.display = 'none';
+    document.getElementById('karaokeScreenWrap').style.display = 'none';
+    document.getElementById('phase-question').classList.toggle('karaoke-mode', type === 'karaoke');
     _identidadAnimateIdx = -1;
+
+    if (type === 'karaoke') {
+        stmtEl.style.display = 'none';
+        document.getElementById('qMedia').style.display = 'none';
+        renderKaraokeScreen(c, q);
+        return;
+    }
 
     if (type === 'multirespuesta') {
         renderMultiOptions(c, optionsJustRevealed, stmtEl);
@@ -1548,6 +1579,76 @@ function renderLetterPanel(c) {
         }
     }
     container.innerHTML = html;
+}
+
+// ═══════════════ KARAOKE SCREEN ═══════════════
+function renderKaraokeScreen(c, q) {
+    var wrap = document.getElementById('karaokeScreenWrap');
+    wrap.style.display = 'flex';
+
+    var colors = c.colors || [];
+    var numColors = c.numColors || colors.length;
+    var ks = ps.karaoke || null;
+
+    var blocks = ks ? ks.blocks : [];
+    var blockIdx = ks ? ks.blockIdx : -1;
+    var activeCombo = ks ? ks.activeCombo : null;
+    var finished = ks ? ks.finished : false;
+    var winnerColor = ks ? ks.winnerColor : null;
+
+    var bgHtml = renderKaraokeBackground(colors, numColors, activeCombo, finished);
+    var lyricsHtml = renderKaraokeLyrics(blocks, blockIdx, activeCombo, finished, winnerColor, colors);
+
+    wrap.innerHTML = bgHtml + lyricsHtml;
+}
+
+function renderKaraokeBackground(colors, numColors, activeCombo, finished) {
+    var hex = window.KARAOKE_COLOR_HEX || {};
+    var gridClass = 'kb-grid-' + (numColors <= 1 ? '1' : numColors <= 2 ? '2' : '4');
+    var html = '<div class="karaoke-screen-bg ' + gridClass + '">';
+
+    for (var i = 0; i < numColors; i++) {
+        var col = colors[i] || 'rojo';
+        var colHex = hex[col] || '#888';
+        var isActive = false;
+        if (finished) {
+            isActive = true;
+        } else if (activeCombo && activeCombo.length > 0) {
+            isActive = activeCombo.indexOf(col) >= 0;
+        }
+        var modClass = isActive ? 'karaoke-screen-zone--active' : 'karaoke-screen-zone--muted';
+        html += '<div class="karaoke-screen-zone ' + modClass + '" style="background:' + colHex + ';"></div>';
+    }
+
+    html += '</div>';
+    return html;
+}
+
+function renderKaraokeLyrics(blocks, blockIdx, activeCombo, finished, winnerColor, colors) {
+    var hex = window.KARAOKE_COLOR_HEX || {};
+    var html = '<div class="karaoke-screen-lyrics"><div class="karaoke-screen-overlay">';
+
+    if (finished) {
+        html += '<div class="karaoke-screen-fin">FIN</div>';
+        if (winnerColor) {
+            var colHex = hex[winnerColor] || '#888';
+            html += '<div class="karaoke-screen-winner">';
+            html += '<span>Ganó</span>';
+            html += '<span class="karaoke-screen-winner-dot" style="background:' + colHex + ';"></span>';
+            html += '<span>' + esc(winnerColor) + '</span>';
+            html += '</div>';
+        }
+    } else if (blockIdx < 0 || !activeCombo) {
+        html += '<div class="karaoke-screen-pre">🎤 Preparados...</div>';
+    } else {
+        html += '<div class="karaoke-screen-current">' + esc(blocks[blockIdx] || '') + '</div>';
+        if (blockIdx < blocks.length - 1) {
+            html += '<div class="karaoke-screen-next">' + esc(blocks[blockIdx + 1] || '') + '</div>';
+        }
+    }
+
+    html += '</div></div>';
+    return html;
 }
 
 // ═══════════════ TIMER ═══════════════

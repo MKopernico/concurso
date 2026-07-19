@@ -140,6 +140,59 @@ function stopTimer(state, gameId, io) {
     state.director.timer.running = false;
 }
 
+function computeKaraokeAutoCombo(karaokeState, configColors) {
+    const { history, colorParticipation } = karaokeState;
+    const n = configColors.length;
+
+    // Generate all valid combos (solos + pairs + all-together; never trios)
+    const combos = [];
+    for (let i = 0; i < n; i++) combos.push([configColors[i]]);
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) combos.push([configColors[i], configColors[j]]);
+    if (n > 1) combos.push([...configColors]);
+    // Deduplicate all-together if it matches a pair (n === 2)
+    const comboKeys = new Set();
+    const uniqueCombos = [];
+    for (const c of combos) {
+        const k = c.slice().sort().join(',');
+        if (!comboKeys.has(k)) { comboKeys.add(k); uniqueCombos.push(c); }
+    }
+
+    // Add silence
+    const allCandidates = [...uniqueCombos, []];
+
+    // Remove last combo from candidates (no consecutive repeat)
+    const lastCombo = history.length > 0 ? history[history.length - 1] : null;
+    function comboEqual(a, b) {
+        if (!a || !b) return false;
+        if (a.length !== b.length) return false;
+        const sa = a.slice().sort(); const sb = b.slice().sort();
+        return sa.every((v, i) => v === sb[i]);
+    }
+    let candidates = allCandidates.filter(c => !comboEqual(c, lastCombo));
+    if (candidates.length === 0) candidates = allCandidates;
+
+    // Silence with ~10% probability (never on first block, never consecutive)
+    const lastWasSilence = lastCombo && lastCombo.length === 0;
+    if (history.length > 0 && !lastWasSilence && Math.random() < 0.10) return [];
+    // Remove silence from candidates for weighted selection
+    candidates = candidates.filter(c => c.length > 0);
+
+    if (candidates.length === 0) return configColors.length > 0 ? [configColors[0]] : [];
+
+    // Weighted selection favoring less-participated colors
+    const maxPart = Math.max(...Object.values(colorParticipation), 0);
+    const weights = candidates.map(combo => {
+        return combo.reduce((sum, color) => sum + (maxPart - (colorParticipation[color] || 0) + 1), 0);
+    });
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    let r = Math.random() * totalWeight;
+    for (let i = 0; i < candidates.length; i++) {
+        r -= weights[i];
+        if (r <= 0) return candidates[i];
+    }
+    return candidates[candidates.length - 1];
+}
+
 function autoScorePrecio(state) {
     const ds = state.director;
     const q = ds.questions[ds.currentQuestionIdx];
@@ -460,6 +513,7 @@ function playerView(state) {
         precioWinner,
         videoState: ds.videoState || null,
         identidad: ds.identidad ? { revealIndex: ds.identidad.revealIndex } : null,
+        karaoke: ds.karaoke ? { blocks: ds.karaoke.blocks, blockIdx: ds.karaoke.blockIdx, activeCombo: ds.karaoke.activeCombo, finished: ds.karaoke.finished, winnerColor: ds.karaoke.winnerColor, teamsByColor: ds.karaoke.teamsByColor } : null,
     };
 }
 
@@ -503,7 +557,7 @@ function avanzarPregunta(state, io, gameId) {
     ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
     ds.optionsRevealed = false;
     initIdentidadState(ds);
-    if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen')) {
+    if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'karaoke')) {
         ds.timer = { total: 0, remaining: 0, running: false };
     } else {
         const cfg = getQuestionConfig(state);
@@ -532,6 +586,7 @@ function finalizarRonda(state, io, gameId) {
     ds.qrVisible = false;
     ds.premioGanadorVisible = false;
     ds.premioGanadorExtra = null;
+    ds.karaoke = null;
     ds.phase = 'round_end';
     broadcastDirector(io, gameId, state);
 }
@@ -1105,7 +1160,7 @@ function attachSocketHandlers(io) {
                 ds.menuLevel = null;
                 ds.selectedCategory = null;
                 initIdentidadState(ds);
-                if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen')) {
+                if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'karaoke')) {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
                     const cfg = getQuestionConfig(state);
@@ -1137,7 +1192,7 @@ function attachSocketHandlers(io) {
             ds.qrVisible = false;
             ds.premioGanadorVisible = false;
             initIdentidadState(ds);
-            if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen')) {
+            if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'karaoke')) {
                 ds.timer = { total: 0, remaining: 0, running: false };
             } else {
                 const cfg = getQuestionConfig(state);
@@ -1714,6 +1769,149 @@ function attachSocketHandlers(io) {
             state.colaPulsador = [];
             // Notify all players to reset their local state
             io.to(roomOf(gameId)).emit('game:reset_full');
+            broadcastDirector(io, gameId, state);
+        });
+
+        // ─── Karaoke handlers ───
+        socket.on('director:karaoke_start', (data) => {
+            if (!data || !data.teamsByColor) return;
+            const ds = state.director;
+            const q = ds.questions[ds.currentQuestionIdx];
+            if (!q || !ds.currentRound || ds.currentRound.type !== 'karaoke') {
+                socket.emit('karaoke:error', { msg: 'La ronda actual no es de tipo karaoke' }); return;
+            }
+            const content = q.content || {};
+            if (state.equipos.length < 4) {
+                socket.emit('karaoke:error', { msg: 'Se requieren al menos 4 equipos' }); return;
+            }
+            const configColors = content.colors || [];
+            const tbc = data.teamsByColor;
+            // Validate all keys are valid colors
+            for (const color of Object.keys(tbc)) {
+                if (configColors.indexOf(color) === -1) {
+                    socket.emit('karaoke:error', { msg: 'Color no válido: ' + color }); return;
+                }
+            }
+            // Validate all teams assigned exactly once
+            const allTeamIds = state.equipos.map(e => e.id);
+            const assignedIds = [];
+            for (const color of Object.keys(tbc)) {
+                if (!Array.isArray(tbc[color])) { socket.emit('karaoke:error', { msg: 'teamsByColor[' + color + '] no es un array' }); return; }
+                for (const tid of tbc[color]) assignedIds.push(tid);
+            }
+            const assignedSet = new Set(assignedIds);
+            if (assignedSet.size !== assignedIds.length) {
+                socket.emit('karaoke:error', { msg: 'Hay equipos asignados a más de un color' }); return;
+            }
+            for (const tid of allTeamIds) {
+                if (!assignedSet.has(tid)) { socket.emit('karaoke:error', { msg: 'Equipo sin asignar: ' + tid }); return; }
+            }
+            // Parse lyrics into blocks
+            const blocks = (content.lyrics || '').split(/^\s*---\s*$/m).map(b => b.trim()).filter(b => b.length > 0);
+            if (blocks.length === 0) {
+                socket.emit('karaoke:error', { msg: 'La letra no contiene bloques válidos' }); return;
+            }
+            // Initialize karaoke state
+            const colorParticipation = {};
+            configColors.forEach(c => { colorParticipation[c] = 0; });
+            ds.karaoke = {
+                blocks,
+                blockIdx: -1,
+                activeCombo: null,
+                history: [],
+                colorParticipation,
+                teamsByColor: tbc,
+                finished: false,
+                winnerColor: null
+            };
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:karaoke_advance', (data) => {
+            if (!data || !data.combo) return;
+            const ds = state.director;
+            const k = ds.karaoke;
+            if (!k) { socket.emit('karaoke:error', { msg: 'Karaoke no iniciado' }); return; }
+            if (k.finished) { socket.emit('karaoke:error', { msg: 'La canción ya ha terminado' }); return; }
+            const q = ds.questions[ds.currentQuestionIdx];
+            const configColors = (q && q.content && q.content.colors) || [];
+            const combo = data.combo;
+            if (!Array.isArray(combo)) { socket.emit('karaoke:error', { msg: 'Combo inválido' }); return; }
+            // Validate combo colors
+            for (const c of combo) { if (configColors.indexOf(c) === -1) { socket.emit('karaoke:error', { msg: 'Color no válido en combo: ' + c }); return; } }
+            if (new Set(combo).size !== combo.length) { socket.emit('karaoke:error', { msg: 'Colores duplicados en combo' }); return; }
+            // Apply advance
+            if (k.blockIdx >= k.blocks.length - 1) {
+                k.finished = true;
+                k.activeCombo = combo;
+            } else {
+                k.blockIdx++;
+                k.activeCombo = combo;
+                k.history.push(combo);
+                for (const c of combo) k.colorParticipation[c]++;
+            }
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:karaoke_color_only', (data) => {
+            if (!data || !data.combo) return;
+            const ds = state.director;
+            const k = ds.karaoke;
+            if (!k) { socket.emit('karaoke:error', { msg: 'Karaoke no iniciado' }); return; }
+            if (k.finished) { socket.emit('karaoke:error', { msg: 'La canción ya ha terminado' }); return; }
+            if (k.blockIdx < 0) { socket.emit('karaoke:error', { msg: 'Primero avanza al menos un bloque' }); return; }
+            const q = ds.questions[ds.currentQuestionIdx];
+            const configColors = (q && q.content && q.content.colors) || [];
+            const combo = data.combo;
+            if (!Array.isArray(combo)) { socket.emit('karaoke:error', { msg: 'Combo inválido' }); return; }
+            for (const c of combo) { if (configColors.indexOf(c) === -1) { socket.emit('karaoke:error', { msg: 'Color no válido en combo: ' + c }); return; } }
+            if (new Set(combo).size !== combo.length) { socket.emit('karaoke:error', { msg: 'Colores duplicados en combo' }); return; }
+            k.activeCombo = combo;
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:karaoke_auto', () => {
+            const ds = state.director;
+            const k = ds.karaoke;
+            if (!k) { socket.emit('karaoke:error', { msg: 'Karaoke no iniciado' }); return; }
+            if (k.finished) { socket.emit('karaoke:error', { msg: 'La canción ya ha terminado' }); return; }
+            const q = ds.questions[ds.currentQuestionIdx];
+            const configColors = (q && q.content && q.content.colors) || [];
+            const combo = computeKaraokeAutoCombo(k, configColors);
+            if (k.blockIdx >= k.blocks.length - 1) {
+                k.finished = true;
+                k.activeCombo = combo;
+            } else {
+                k.blockIdx++;
+                k.activeCombo = combo;
+                k.history.push(combo);
+                for (const c of combo) k.colorParticipation[c]++;
+            }
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('director:karaoke_award', (data) => {
+            if (!data || !data.winnerColor) return;
+            const ds = state.director;
+            const k = ds.karaoke;
+            if (!k) { socket.emit('karaoke:error', { msg: 'Karaoke no iniciado' }); return; }
+            if (!k.finished) { socket.emit('karaoke:error', { msg: 'La canción no ha terminado aún' }); return; }
+            const q = ds.questions[ds.currentQuestionIdx];
+            const configColors = (q && q.content && q.content.colors) || [];
+            if (configColors.indexOf(data.winnerColor) === -1) {
+                socket.emit('karaoke:error', { msg: 'Color ganador no válido: ' + data.winnerColor }); return;
+            }
+            const winnerTeams = k.teamsByColor[data.winnerColor];
+            if (!winnerTeams || winnerTeams.length === 0) {
+                socket.emit('karaoke:error', { msg: 'No hay equipos asignados al color ' + data.winnerColor }); return;
+            }
+            k.winnerColor = data.winnerColor;
+            const basePoints = (q.content && q.content.basePoints) || 0;
+            const pointsPerTeam = Math.floor(basePoints / winnerTeams.length);
+            for (const teamId of winnerTeams) {
+                if (!ds.scores[teamId]) ds.scores[teamId] = 0;
+                ds.scores[teamId] += pointsPerTeam;
+            }
             broadcastDirector(io, gameId, state);
         });
 

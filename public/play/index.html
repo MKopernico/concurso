@@ -241,6 +241,18 @@ input:focus { border-color: var(--accent); }
 /* ── Round logo in game-top ── */
 .game-top .round-logo-img { max-height: 32px; max-width: 80px; object-fit: contain; border-radius: 4px; }
 
+/* ── Karaoke play ── */
+.gp-karaoke { padding: 0; }
+#karaokePlayWrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.karaoke-play-bg { position: absolute; inset: 0; z-index: 0; }
+.karaoke-play-bg.kp-grid-1 { display: block; }
+.karaoke-play-bg.kp-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
+.karaoke-play-bg.kp-grid-4 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.karaoke-play-zone { transition: opacity 300ms ease, filter 300ms ease; }
+.karaoke-play-zone--active { opacity: 1; filter: none; }
+.karaoke-play-zone--muted { opacity: 1; filter: grayscale(80%) brightness(0.3); }
+.karaoke-play-logo { position: relative; z-index: 1; max-width: 40vw; max-height: 30vh; object-fit: contain; filter: drop-shadow(0 4px 16px rgba(0,0,0,.6)); }
+
 /* ── Phase fade transitions ── */
 .gphase { transition: opacity 1s ease-in-out; opacity: 0; pointer-events: none; position: absolute; inset: 0; display: flex; flex: 1; flex-direction: column; overflow: hidden; }
 .gphase.active { opacity: 1; pointer-events: auto; }
@@ -549,6 +561,9 @@ input:focus { border-color: var(--accent); }
                 <button id="idBtn" onclick="submitIdentidad()" style="display:none">Enviar</button>
             </div>
         </div>
+        <div class="gphase gp-karaoke" id="gp-karaoke">
+            <div id="karaokePlayWrap"></div>
+        </div>
         <div class="gphase gp-scoreboard" id="gp-scoreboard">
             <h2>Marcador</h2>
             <table class="sb-table"><tbody id="sbBody"></tbody></table>
@@ -613,6 +628,7 @@ input:focus { border-color: var(--accent); }
 <div id="toast"></div>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="/shared/karaoke-colors.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
 <script>
@@ -1258,6 +1274,8 @@ function renderGamePhase() {
             renderBoom(); document.getElementById('gp-boom').classList.add('active');
         } else if (type === 'identidad') {
             renderIdentidad(); document.getElementById('gp-identidad').classList.add('active');
+        } else if (type === 'karaoke') {
+            renderKaraokePlay(); document.getElementById('gp-karaoke').classList.add('active');
         } else {
             document.getElementById('gp-waiting').classList.add('active');
         }
@@ -2085,6 +2103,50 @@ function renderRevealed() {
         resultEl.textContent = ok ? '✅ RESPUESTA CORRECTA' : '❌ RESPUESTA INCORRECTA';
         resultEl.className = 'reveal-result ' + (ok ? 'win' : 'lose');
     } else { resultEl.textContent = ''; resultEl.className = 'reveal-result'; }
+}
+
+// ── Karaoke play ──
+function renderKaraokePlay() {
+    var wrap = document.getElementById('karaokePlayWrap');
+    var ps = S.ps;
+    var q = ps.question || {};
+    var c = q.content || {};
+    var colors = c.colors || [];
+    var numColors = c.numColors || colors.length;
+    var ks = ps.karaoke || null;
+
+    var activeCombo = ks ? ks.activeCombo : null;
+    var finished = ks ? ks.finished : false;
+    var blockIdx = ks ? ks.blockIdx : -1;
+
+    var bgHtml = renderKaraokePlayBackground(colors, numColors, activeCombo, finished, blockIdx);
+
+    var logoSrc = (ps.roundTheme && ps.roundTheme.logo) || (ps.typeTheme && ps.typeTheme.logo) || (ps.gameTheme && ps.gameTheme.logo) || null;
+    var logoHtml = logoSrc ? '<img class="karaoke-play-logo" src="' + esc(logoSrc) + '" onerror="this.style.display=\'none\'">' : '';
+
+    wrap.innerHTML = bgHtml + logoHtml;
+}
+
+function renderKaraokePlayBackground(colors, numColors, activeCombo, finished, blockIdx) {
+    var hex = window.KARAOKE_COLOR_HEX || {};
+    var gridClass = 'kp-grid-' + (numColors <= 1 ? '1' : numColors <= 2 ? '2' : '4');
+    var html = '<div class="karaoke-play-bg ' + gridClass + '">';
+
+    for (var i = 0; i < numColors; i++) {
+        var col = colors[i] || 'rojo';
+        var colHex = hex[col] || '#888';
+        var isActive = false;
+        if (finished) {
+            isActive = true;
+        } else if (activeCombo && activeCombo.length > 0 && blockIdx >= 0) {
+            isActive = activeCombo.indexOf(col) >= 0;
+        }
+        var modClass = isActive ? 'karaoke-play-zone--active' : 'karaoke-play-zone--muted';
+        html += '<div class="karaoke-play-zone ' + modClass + '" style="background:' + colHex + ';"></div>';
+    }
+
+    html += '</div>';
+    return html;
 }
 
 // ── Timer ──

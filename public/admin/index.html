@@ -92,6 +92,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .type-ruleta { background: #1e3a5f; color: #7dd3fc; }
 .type-imagen_fija { background: #365314; color: #bef264; }
 .type-identidad { background: #4a1942; color: #f0abfc; }
+.type-karaoke { background: #7c3aed; color: #e9d5ff; }
 
 /* Sortable highlight */
 .sort-handle { cursor: grab; color: var(--text2); user-select: none; font-size: 18px; }
@@ -369,6 +370,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                     <option value="ruleta">Ruleta de la suerte</option>
                     <option value="imagen_fija">Imagen fija</option>
                     <option value="identidad">Identidad (emparejar)</option>
+                    <option value="karaoke">Karaoke</option>
                 </select>
             </div>
             <div class="field-row-3">
@@ -580,7 +582,8 @@ function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.
 const TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador rápido', precio: 'Precio justo',
     imagen: 'Adivina imagen', cancion: 'Adivina canción', boom: 'Boom (ordenar)',
-    ruleta: 'Ruleta de la suerte', imagen_fija: 'Imagen fija', identidad: 'Identidad'
+    ruleta: 'Ruleta de la suerte', imagen_fija: 'Imagen fija', identidad: 'Identidad',
+    karaoke: 'Karaoke'
 };
 
 function statusBadge(s) {
@@ -1115,6 +1118,7 @@ function buildFieldsForType(type, c) {
         case 'ruleta':         return fieldsRuleta(c);
         case 'imagen_fija':    return fieldsImagenFija(c);
         case 'identidad':      return fieldsIdentidad(c);
+        case 'karaoke':        return fieldsKaraoke(c);
         default:               return `<div class="field"><label>Contenido (JSON)</label><textarea name="raw_json">${esc(JSON.stringify(c, null, 2))}</textarea></div>`;
     }
 }
@@ -1381,6 +1385,59 @@ function removeIdentidadPair(btn) {
     });
 }
 
+function fieldsKaraoke(c) {
+    const numColors = c.numColors || 4;
+    const colors = c.colors || [];
+    const BASE_COLORS = [
+        { key: 'rojo', label: 'Rojo', hex: '#ef4444' },
+        { key: 'amarillo', label: 'Amarillo', hex: '#eab308' },
+        { key: 'azul', label: 'Azul', hex: '#3b82f6' },
+        { key: 'verde', label: 'Verde', hex: '#22c55e' }
+    ];
+    const checksHtml = BASE_COLORS.map(col =>
+        `<label style="display:inline-flex; align-items:center; gap:6px; margin-right:14px; cursor:pointer">
+            <input type="checkbox" name="karaoke_color_${col.key}" ${colors.includes(col.key) ? 'checked' : ''} onchange="karaokeColorCheck()">
+            <span style="display:inline-block; width:16px; height:16px; border-radius:3px; background:${col.hex}"></span>
+            ${col.label}
+        </label>`
+    ).join('');
+    return `
+        <div class="field"><label>Letra de la canción</label>
+            <textarea name="karaoke_lyrics" rows="16" required style="font-family:monospace; font-size:13px" placeholder="Primera línea del bloque 1\nsegunda línea del bloque 1\n---\nEste es el bloque 2\ncon varias líneas\n---\nBloque 3">${esc(c.lyrics || '')}</textarea>
+            <p style="font-size:12px; color:var(--text2); margin-top:4px">Separa cada bloque con una línea que contenga solo <code>---</code>. Los saltos de línea dentro de un bloque son líneas de la misma estrofa.</p>
+        </div>
+        <div class="field"><label>Número de colores en pantalla</label>
+            <select name="karaoke_num_colors" onchange="karaokeColorCheck()">
+                <option value="1" ${numColors === 1 ? 'selected' : ''}>1</option>
+                <option value="2" ${numColors === 2 ? 'selected' : ''}>2</option>
+                <option value="4" ${numColors === 4 ? 'selected' : ''}>4</option>
+            </select>
+        </div>
+        <div class="field"><label>Colores</label>
+            <div>${checksHtml}</div>
+            <p id="karaoke-color-hint" style="font-size:12px; color:var(--text2); margin-top:4px"></p>
+        </div>
+        <div class="field"><label>Puntos base</label>
+            <input type="number" name="karaoke_base_points" min="0" step="1" value="${c.basePoints != null ? c.basePoints : 100}">
+            <p style="font-size:12px; color:var(--text2); margin-top:4px">Se repartirán a partes iguales entre los equipos del color ganador (redondeo hacia abajo).</p>
+        </div>
+    `;
+}
+
+function karaokeColorCheck() {
+    var form = document.getElementById('form-question');
+    if (!form) return;
+    var numSel = form.querySelector('[name="karaoke_num_colors"]');
+    if (!numSel) return;
+    var n = parseInt(numSel.value, 10);
+    var checked = ['rojo','amarillo','azul','verde'].filter(function(k) { return form.querySelector('[name="karaoke_color_'+k+'"]')?.checked; }).length;
+    var hint = document.getElementById('karaoke-color-hint');
+    if (hint) {
+        if (checked === n) { hint.textContent = ''; hint.style.color = 'var(--text2)'; }
+        else { hint.textContent = 'Debes seleccionar exactamente ' + n + ' colores (tienes ' + checked + ')'; hint.style.color = '#f87171'; }
+    }
+}
+
 function fieldsRuleta(c) {
     return `
         <div class="field"><label>Pista (categoría / tema)</label><input name="c_hint" value="${esc(c.hint || '')}" required placeholder="Ej: Refrán popular, Película, Ciudad..."></div>
@@ -1601,6 +1658,14 @@ function extractContent(type, form) {
             if (val(form, 'c_statement')) r.statement = val(form, 'c_statement');
             if (val(form, 'c_answer')) r.answer = val(form, 'c_answer');
             return r;
+        }
+        case 'karaoke': {
+            return {
+                lyrics: form.karaoke_lyrics.value || '',
+                numColors: parseInt(form.karaoke_num_colors.value, 10),
+                colors: ['rojo','amarillo','azul','verde'].filter(k => form['karaoke_color_' + k]?.checked),
+                basePoints: Math.max(0, parseInt(form.karaoke_base_points.value, 10) || 0)
+            };
         }
         default: {
             const raw = form.querySelector('[name="raw_json"]');

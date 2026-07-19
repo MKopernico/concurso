@@ -68,6 +68,21 @@
         if (pairs.length >= 2 && !allItemsOk) missing.push('pair_items');
         break;
       }
+      case 'karaoke': {
+        var VALID_COLORS = ['rojo', 'amarillo', 'azul', 'verde'];
+        if (!nonEmpty(c.lyrics)) { missing.push('lyrics'); break; }
+        var blocks = c.lyrics.split(/^\s*---\s*$/m).filter(function (b) { return b.trim().length > 0; });
+        if (blocks.length < 1) missing.push('lyrics');
+        if ([1, 2, 4].indexOf(c.numColors) === -1) missing.push('numColors');
+        if (!Array.isArray(c.colors) || c.colors.length !== c.numColors) missing.push('colors');
+        else {
+          var allValid = c.colors.every(function (col) { return VALID_COLORS.indexOf(col) !== -1; });
+          var noDups = c.colors.length === (new Set(c.colors)).size;
+          if (!allValid || !noDups) missing.push('colors');
+        }
+        if (typeof c.basePoints !== 'number' || c.basePoints < 0 || c.basePoints !== Math.floor(c.basePoints)) missing.push('basePoints');
+        break;
+      }
       default:
         break;
     }
@@ -87,7 +102,11 @@
     image_or_video: 'imagen o vídeo',
     audio: 'audio',
     pairs: 'parejas (mínimo 2)',
-    pair_items: 'cada elemento con foto o texto'
+    pair_items: 'cada elemento con foto o texto',
+    lyrics: 'letra de la canción',
+    numColors: 'número de colores (1, 2 o 4)',
+    colors: 'colores seleccionados',
+    basePoints: 'puntos base (entero ≥ 0)'
   };
 
   return { isComplete: isComplete, LABELS: LABELS };

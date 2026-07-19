@@ -553,6 +553,10 @@ const xlsxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize:
 
 // Canonical type definitions: sheet name, type key, and columns.
 // Single source of truth for importer (SHEET_TYPE_MAP + parseExcelSheet) AND template generator.
+// NOTE: 'karaoke' se omite intencionalmente del round-trip Excel.
+// La estructura de content (lyrics + colores + puntos) no encaja en el modelo
+// tabular de las demás pruebas y su volumen es bajo. Si se importa un Excel
+// con una hoja "karaoke_*", se ignorará silenciosamente igual que 'config.premio'.
 const EXCEL_TYPE_DEFS = [
     { sheet: 'Multirespuesta', type: 'multirespuesta', columns: ['ronda', 'enunciado', 'opcion_1', 'opcion_2', 'opcion_3', 'opcion_4', 'opcion_5', 'correctas', 'explicacion', 'tiempo', 'puntos_base', 'bonus_max', 'penalizacion'] },
     { sheet: 'Pulsador',       type: 'pulsador',       columns: ['ronda', 'enunciado', 'respuesta', 'pista_1', 'pista_2', 'tiempo', 'puntos_base', 'penalizacion'] },
