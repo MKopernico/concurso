@@ -1,10 +1,10 @@
 // Service Worker — GameShow /play
-// - Shell y estáticos: cache-first, actualizando la caché en segundo plano.
+// - Shell y estáticos: primero la red (actualizaciones a la primera); copia guardada si no hay red.
 // - Contenido del juego (/uploads/*): lo descarga y verifica la pantalla de precarga
 //   (shared/asset-preloader.js) en su propia caché; aquí solo se sirve desde ella.
 importScripts('/shared/media-sw-core.js');
 
-const CACHE_NAME = 'gameshow-play-v42';
+const CACHE_NAME = 'gameshow-play-v43';
 const SHELL = [
     '/play/',
     '/play/index.html',
@@ -45,18 +45,22 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Shell and static: cache-first, update cache on fetch
-    event.respondWith(
-        caches.match(req).then(cached => {
-            const fetchPromise = fetch(req).then(resp => {
-                if (resp && resp.ok && url.origin === self.location.origin) {
-                    const copy = resp.clone();
-                    caches.open(CACHE_NAME).then(c => c.put(req, copy));
-                }
-                return resp;
-            }).catch(() => null);
-
-            return cached || fetchPromise;
-        })
-    );
+    // Shell y estáticos: primero la red (así una actualización se ve a la primera), guardando copia.
+    // Si la red falla o tarda más de 4 s (WiFi mala), se sirve la copia guardada.
+    event.respondWith(networkFirst(req, url));
 });
+
+function networkFirst(req, url) {
+    const network = fetch(req).then(resp => {
+        if (resp && resp.ok && url.origin === self.location.origin) {
+            const copy = resp.clone();
+            caches.open(CACHE_NAME).then(c => c.put(req, copy));
+        }
+        return resp;
+    });
+    const timeout = new Promise(resolve => setTimeout(resolve, 4000));
+    return Promise.race([network.catch(() => null), timeout]).then(resp => {
+        if (resp) return resp;
+        return caches.match(req, { ignoreSearch: req.mode === 'navigate' }).then(cached => cached || network);
+    });
+}
