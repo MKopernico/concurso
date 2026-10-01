@@ -7,3 +7,4 @@ uploads/audio/*
 !uploads/images/.gitkeep
 !uploads/audio/.gitkeep
 .env
+tmp/

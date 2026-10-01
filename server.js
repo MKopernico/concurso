@@ -20,6 +20,7 @@ require('./db'); // arranca la BD e inserta el juego 'default' si no existe (efe
 const apiRoutes = require('./routes/games');
 const uploadRoutes = require('./routes/uploads');
 const authRoutes = require('./routes/auth');
+const transferRoutes = require('./routes/transfer');
 const auth = require('./auth');
 const { attachSocketHandlers } = require('./sockets/game');
 
@@ -35,6 +36,7 @@ app.use(express.json({ limit: '2mb' }));
 app.use('/api', auth.requireStaffApi);
 app.use('/api', authRoutes);
 app.use('/api', apiRoutes);
+app.use('/api', transferRoutes); // exportar/importar juego completo (.zip)
 app.use('/api', uploadRoutes);
 
 // Health-check para keepalive en Render (los WebSockets no cuentan como tráfico HTTP).

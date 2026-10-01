@@ -271,3 +271,5 @@ router.use((err, req, res, next) => {
 });
 
 module.exports = router;
+// Reutilizados por la exportación/importación de juegos (routes/transfer.js)
+module.exports.helpers = { UPLOADS_DIR, sanitizeName, uniqueName, kindOf, gameUploadUrls };

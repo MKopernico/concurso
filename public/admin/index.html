@@ -187,6 +187,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
     <div id="screen-games" class="screen active">
         <div class="toolbar">
             <button class="btn-primary" onclick="openGameModal()">+ Nuevo juego</button>
+            <label class="btn-ghost btn-sm" style="cursor:pointer" title="Crear un juego a partir de una exportación .zip (con imágenes, vídeos y audio)">📦 Importar juego (.zip)<input type="file" accept=".zip,application/zip" style="display:none" onchange="importGameZip(this)"></label>
             <div class="toolbar-right">
                 <div class="filter-tabs" id="status-filter">
                     <button class="filter-tab active" data-val="">Todos</button>
@@ -664,6 +665,7 @@ function renderGames() {
                     ${g.status === 'published' ? `<button class="btn-success btn-sm" onclick="startSession('${g.id}')" title="Iniciar sesión y abrir director">▶ Jugar</button><a class="btn-ghost btn-sm" href="/director/${g.id}" target="_blank" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Ir al director">🎬 Director</a>` : ''}
                     <button class="btn-icon" onclick="openGameModal(${JSON.stringify(g).replace(/"/g,'&quot;')})" title="Editar">✏️</button>
                     <button class="btn-icon" onclick="duplicateGame('${g.id}')" title="Duplicar">📋</button>
+                    <button class="btn-icon" onclick="exportGameZip('${g.id}')" title="Exportar juego completo (.zip con imágenes, vídeos y audio)">📦</button>
                     ${g.id !== 'default' ? `<button class="btn-icon" onclick="deleteGame('${g.id}')" title="Eliminar">🗑️</button>` : ''}
                 </div>
             </div>
@@ -724,6 +726,51 @@ async function duplicateGame(id) {
         toast(`Juego duplicado: ${dup.name}`);
         loadGames();
     } catch (e) { toast('Error: ' + e.message); }
+}
+
+// ─── Exportar / importar juego completo (.zip) ───
+function exportGameZip(id) {
+    toast('Preparando la exportación…');
+    window.location = '/api/games/' + id + '/export-zip';
+}
+
+function importGameZip(input) {
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    const xhr = new XMLHttpRequest();
+    const progress = document.createElement('div');
+    progress.className = 'toast-msg';
+    progress.textContent = 'Subiendo ' + file.name + '… 0%';
+    document.getElementById('toast').appendChild(progress);
+    xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) {
+            const pct = Math.round(ev.loaded / ev.total * 100);
+            progress.textContent = pct < 100 ? 'Subiendo ' + file.name + '… ' + pct + '%' : 'Importando contenido…';
+        }
+    };
+    xhr.onload = () => {
+        progress.remove();
+        let data = {};
+        try { data = JSON.parse(xhr.responseText); } catch (e) {}
+        if (xhr.status === 401) { GSStaff.goLogin(); return; }
+        if (xhr.status !== 201) { alert('No se pudo importar: ' + (data.error || 'error ' + xhr.status)); return; }
+        const f = data.files || {};
+        let msg = 'Juego importado: "' + data.name + '" (' + data.rounds + ' rondas)\n\n'
+            + 'Archivos nuevos: ' + (f.imported || 0) + (f.renamed ? ' (' + f.renamed + ' renombrados por coincidir el nombre con otro distinto)' : '') + '\n'
+            + 'Archivos que ya estaban: ' + (f.reused || 0);
+        if (data.missing && data.missing.length) {
+            msg += '\n\n⚠️ ' + data.missing.length + ' archivo(s) ya faltaban en el juego original:\n'
+                + data.missing.map(u => '  · ' + decodeURIComponent(u.split('/').pop())).join('\n');
+        }
+        alert(msg);
+        loadGames();
+    };
+    xhr.onerror = () => { progress.remove(); alert('Se cortó la conexión durante la subida. Vuelve a intentarlo.'); };
+    xhr.open('POST', '/api/games/import-zip');
+    xhr.send(fd);
 }
 
 async function deleteGame(id) {
