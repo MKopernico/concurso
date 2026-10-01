@@ -1,0 +1,55 @@
+GAMESHOW · KIT OFFLINE
+======================
+
+Para jugar sin internet: este ordenador hace de servidor y los iPads se conectan
+a él por la WiFi de un router (no hace falta que el router tenga internet).
+
+
+ANTES DEL EVENTO
+----------------
+1. Conecta el ordenador y los iPads a la MISMA WiFi.
+   - Mejor un router propio: las WiFi de hoteles o de invitados suelen
+     impedir que los dispositivos se vean entre sí.
+   - Si puedes, conecta el ordenador al router por cable.
+2. Desactiva la suspensión del ordenador mientras dure el juego
+   (Configuración > Sistema > Inicio/apagado y suspensión > Nunca).
+
+
+ARRANCAR
+--------
+1. Doble clic en ARRANCAR.bat
+2. La primera vez te pedirá una contraseña para el backoffice y el
+   coordinador (mínimo 8 caracteres). Apúntala.
+3. La primera vez Windows preguntará si permite el acceso a la red a
+   "Node.js": marca "Redes privadas" y pulsa Permitir.
+   (Si no lo haces, los iPads no podrán conectarse.)
+4. Se abre el navegador con la página del kit: QR para los iPads y
+   botones para el backoffice y el coordinador.
+5. NO CIERRES la ventana negra mientras dure el juego. Cerrarla apaga
+   el servidor.
+
+
+LLEVAR UN JUEGO DE ONLINE A OFFLINE
+-----------------------------------
+1. En el backoffice online, pulsa 📦 en el juego: se descarga un .zip.
+2. En el backoffice del kit: "📦 Importar juego (.zip)".
+Para el camino contrario (offline -> online), igual pero al revés.
+
+
+DÓNDE ESTÁN LOS DATOS
+---------------------
+- datos\            juegos, imágenes, vídeos, audios y ajustes.
+                    Copiando la carpeta entera del kit te llevas todo.
+- datos\ajustes.env contraseña maestra (ADMIN_PASSWORD) y puerto (PORT).
+                    Si olvidas la contraseña, mírala aquí: siempre funciona.
+
+
+SI ALGO NO VA
+-------------
+- Los iPads no cargan: comprueba que están en la misma WiFi y prueba las
+  otras direcciones que muestra la ventana negra.
+- "El puerto 3000 ya está en uso": GameShow ya está abierto en otra
+  ventana. Ciérrala y vuelve a arrancar.
+- Firewall: si pulsaste "Cancelar" en el aviso de Windows, ve a
+  Seguridad de Windows > Firewall > Permitir una aplicación, y activa
+  Node.js en "Privada".

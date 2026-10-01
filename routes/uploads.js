@@ -13,7 +13,7 @@ const auth = require('../auth');
 
 const router = express.Router();
 
-const UPLOADS_DIR = fs.existsSync('/data') ? '/data/uploads' : path.join(__dirname, '..', 'uploads');
+const { UPLOADS_DIR } = require('../paths');
 
 // Crear subdirectorios al cargar el módulo
 [path.join(UPLOADS_DIR, 'images'), path.join(UPLOADS_DIR, 'audio'), path.join(UPLOADS_DIR, 'videos')].forEach(dir => {

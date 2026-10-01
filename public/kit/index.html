@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GameShow · Kit offline</title>
+<style>
+:root { --bg: #121217; --surface: #1c1c24; --border: #33333d; --text: #e4e4e7; --text2: #9898a6; --accent: #00d4ff; --gold: #facc15; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+.wrap { width: 100%; max-width: 900px; display: grid; grid-template-columns: auto 1fr; gap: 40px; align-items: center; }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; justify-items: center; text-align: center; } }
+.qr { background: #fff; padding: 18px; border-radius: 16px; }
+.qr img, .qr canvas { display: block; }
+h1 { font-size: 15px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+h2 { font-size: 30px; margin-bottom: 10px; }
+.url { font-size: 22px; font-weight: 700; color: var(--gold); margin-bottom: 8px; word-break: break-all; }
+p { color: var(--text2); font-size: 15px; line-height: 1.5; margin-bottom: 8px; }
+.btns { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+.btns a { background: var(--accent); color: #000; text-decoration: none; font-weight: 700; padding: 12px 18px; border-radius: 10px; font-size: 15px; }
+.btns a.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.warn { display: none; background: rgba(250,204,21,.1); border: 1px solid var(--gold); color: var(--gold); padding: 12px 14px; border-radius: 10px; margin-top: 16px; font-size: 14px; }
+.warn a { color: var(--gold); }
+.others { font-size: 13px; color: var(--text2); margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="qr" id="qr"></div>
+    <div>
+        <h1>GameShow · Kit offline</h1>
+        <h2>Escanea para jugar</h2>
+        <div class="url" id="url"></div>
+        <p>Los iPads tienen que estar conectados a la <strong>misma WiFi</strong> que este ordenador.</p>
+        <p>Desde el coordinador también puedes mostrar el QR de cada juego en la pantalla.</p>
+        <div class="warn" id="warn"></div>
+        <div class="btns">
+            <a href="/admin/">Backoffice</a>
+            <a href="/" class="ghost">Coordinador y pantallas</a>
+        </div>
+        <div class="others" id="others"></div>
+    </div>
+</div>
+<script src="/shared/qrcode.min.js"></script>
+<script>
+var playUrl = location.origin + '/play/';
+document.getElementById('url').textContent = playUrl;
+new QRCode(document.getElementById('qr'), { text: playUrl, width: 260, height: 260, correctLevel: QRCode.CorrectLevel.M });
+
+fetch('/kit/info').then(function(r) { return r.json(); }).then(function(info) {
+    var local = /^(localhost|127\.)/.test(location.hostname);
+    var warn = document.getElementById('warn');
+    if (local && info.ips.length) {
+        // Abierta como localhost: el QR no serviría a los iPads → ofrecer la dirección por IP
+        var ipUrl = 'http://' + info.ips[0] + ':' + info.port + '/kit/';
+        warn.innerHTML = 'Esta página está abierta como «localhost» y los iPads no podrían usar ese QR. <a href="' + ipUrl + '">Ábrela por la IP de la red</a>.';
+        warn.style.display = 'block';
+    } else if (!info.ips.length) {
+        warn.textContent = 'Este ordenador no está conectado a ninguna red. Conéctalo a la WiFi del router y vuelve a arrancar GameShow.';
+        warn.style.display = 'block';
+    }
+    var others = info.ips.filter(function(ip) { return ip !== location.hostname; });
+    if (others.length && !local) {
+        document.getElementById('others').textContent = 'Si los iPads no conectan, prueba: ' + others.map(function(ip) { return 'http://' + ip + ':' + info.port + '/play/'; }).join(' · ');
+    }
+}).catch(function() {});
+</script>
+</body>
+</html>

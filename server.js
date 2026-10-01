@@ -14,7 +14,7 @@ const http = require('http');
 const { Server: SocketIOServer } = require('socket.io');
 
 // Directorio de uploads: disco persistente en Render (/data/uploads) o local (./uploads)
-const UPLOADS_DIR = fs.existsSync('/data') ? '/data/uploads' : path.join(__dirname, 'uploads');
+const { UPLOADS_DIR } = require('./paths');
 
 require('./db'); // arranca la BD e inserta el juego 'default' si no existe (efecto colateral)
 const apiRoutes = require('./routes/games');
@@ -45,6 +45,12 @@ app.get('/ping', (req, res) => res.send('ok'));
 // Vistas estáticas. Cada rol tiene su carpeta (spec §10.2).
 // El monolítico legacy sigue en /public para no perder funcionalidad.
 app.use('/login',    express.static(path.join(__dirname, 'public', 'login')));
+// Kit offline: página de bienvenida con el QR para los iPads (solo cuando arranca desde el kit)
+if (process.env.GAMESHOW_KIT === '1') {
+    const { localIps } = require('./kit/net');
+    app.get('/kit/info', (req, res) => res.json({ ips: localIps().map(i => i.ip), port: Number(process.env.PORT) || 3000 }));
+    app.use('/kit', express.static(path.join(__dirname, 'public', 'kit')));
+}
 // Service worker de contenido precargado: se publica dentro de cada vista para que su ámbito la cubra.
 app.get(['/screen/media-sw.js', '/director/media-sw.js'], (req, res) => {
     res.set('Cache-Control', 'no-cache');

@@ -173,12 +173,16 @@ async function importZip(zipPath) {
                 fs.unlinkSync(tmp);         // mismo archivo ya presente → reutilizar
                 finalName = original;
                 stats.reused++;
+            } else if (!fs.existsSync(existing) && /^[\w.\-]+$/.test(original)) {
+                finalName = original;       // nombre libre y seguro → se conserva tal cual
+                moveFile(tmp, existing);
+                stats.imported++;
             } else {
                 const { base, ext } = sanitizeName(original);
                 finalName = uniqueName(destDir, base, ext);
                 moveFile(tmp, path.join(destDir, finalName));
                 stats.imported++;
-                if (finalName !== original) stats.renamed++;
+                if (fs.existsSync(existing)) stats.renamed++; // solo cuenta si chocaba con otro archivo
             }
             const newUrl = '/uploads/' + type + '/' + encodeURIComponent(finalName);
             if (newUrl !== url) urlMap[url] = newUrl;
