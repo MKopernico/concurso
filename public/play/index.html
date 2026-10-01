@@ -630,6 +630,7 @@ body.karaoke-active .player-timer-bar { display: none !important; }
 <div id="toast"></div>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="/shared/asset-preloader.js"></script>
 <script src="/shared/karaoke-colors.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
@@ -685,9 +686,11 @@ document.addEventListener('DOMContentLoaded', function() {
         S.myTeamId = saved.teamId || null;
         // Show a loading state while we try to reconnect
         goScreen('screen-games');
-        connectSocket(function onReady() {
-            // Socket connected — try auto-reconnect
-            socket.emit('player:reconnect', { deviceId: deviceId });
+        preloadGame(function() {
+            connectSocket(function onReady() {
+                // Socket connected — try auto-reconnect
+                socket.emit('player:reconnect', { deviceId: deviceId });
+            });
         });
     } else {
         loadGames();
@@ -778,7 +781,32 @@ function submitCode() {
 }
 
 // ═══════════════ Enter game: connect socket, try reconnect, else register ═══════════════
+// Precarga verificada del contenido del juego antes de entrar. Sin pase se salta
+// (la conexión lo rechazará y se pedirá el código; tras él vuelve a pasar por aquí).
+function preloadGame(then) {
+    var pass = getPass(S.gameId);
+    if (!pass || !window.GSPreload) { then(); return; }
+    GSPreload.showOverlay({
+        gameId: S.gameId, role: 'play', pass: pass,
+        title: S.game && S.game.name ? S.game.name : 'Preparando el juego',
+        onDone: function(result) {
+            S.preloadSummary = GSPreload.summary(result);
+            sendPreloadStatus();
+            then();
+        }
+    });
+}
+
+// Informa al coordinador del resultado de la precarga (cuando ya hay equipo asignado).
+function sendPreloadStatus() {
+    if (S.preloadSummary && socket && socket.connected && S.myTeamId) socket.emit('player:preload_status', S.preloadSummary);
+}
+
 function enterGame() {
+    preloadGame(enterGameNow);
+}
+
+function enterGameNow() {
     // Connect socket and attempt auto-reconnect by deviceId
     connectSocket(function onReady() {
         socket.emit('player:reconnect', { deviceId: deviceId });
@@ -864,6 +892,7 @@ function connectSocket(onReady) {
         localStorage.setItem('gs_session', JSON.stringify({ gameId: S.gameId, teamId: S.myTeamId }));
         goScreen('screen-game');
         renderMyTeamHeader();
+        sendPreloadStatus();
     });
 
     // ── Reconnect failed: no session, no team, or slot taken ──

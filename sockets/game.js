@@ -46,6 +46,7 @@ function createGameState() {
             showTeamResults: false,
             scoreboardVisible: false,
             qrVisible: false,
+            screensPreload: {},     // socketId de pantalla → resumen de su precarga
             premioAnuncioVisible: false,
             premioGanadorVisible: false,
             premioGanadorTeam: null,
@@ -93,6 +94,18 @@ function publicView(state) {
 }
 
 function roomOf(gameId) { return `game:${gameId}`; }
+
+// Resumen de precarga que envía cada dispositivo (ver shared/asset-preloader.js summary()).
+function cleanPreloadStatus(d) {
+    d = d || {};
+    const n = (v) => Math.max(0, Math.min(100000, Number(v) || 0));
+    return {
+        total: n(d.total), ok: n(d.ok), failed: n(d.failed), missing: n(d.missing),
+        names: Array.isArray(d.names) ? d.names.slice(0, 20).map(s => String(s).slice(0, 80)) : [],
+        skipped: !!d.skipped,
+        at: Date.now(),
+    };
+}
 
 function parseJson(str) {
     if (!str) return {};
@@ -1041,6 +1054,22 @@ function attachSocketHandlers(io) {
             socket.emit('game:player_sync', playerView(state));
         });
 
+        // ═══════════════════════ PRECARGA (estado por dispositivo para el coordinador) ═══════════════════════
+
+        socket.on('player:preload_status', (data) => {
+            const eq = state.equipos.find(e => e.id === socket.equipoId);
+            if (!eq) return;
+            eq.preload = cleanPreloadStatus(data);
+            io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
+            broadcastDirector(io, gameId, state);
+        });
+
+        socket.on('screen:preload_status', (data) => {
+            if (!state.director.screensPreload) state.director.screensPreload = {};
+            state.director.screensPreload[socket.id] = cleanPreloadStatus(data);
+            broadcastDirector(io, gameId, state);
+        });
+
         socket.on('director:refresh_content', () => {
             const ds = state.director;
             if (ds.currentRoundId) {
@@ -1899,6 +1928,10 @@ function attachSocketHandlers(io) {
 
         // ─── Disconnect ───
         socket.on('disconnect', () => {
+            if (state.director.screensPreload && state.director.screensPreload[socket.id]) {
+                delete state.director.screensPreload[socket.id];
+                broadcastDirector(io, gameId, state);
+            }
             if (!socket.equipoId) return;
             const equipo = state.equipos.find(e => e.id === socket.equipoId);
             if (equipo && equipo.socketId === socket.id) {

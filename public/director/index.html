@@ -177,6 +177,9 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .bb-card-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .bb-card-dot.on { background: var(--success); }
 .bb-card-dot.off { background: var(--text2); opacity: .4; }
+.bb-preload { font-size: 11px; flex-shrink: 0; cursor: help; }
+.bb-preload-info { margin-left: auto; cursor: help; }
+.bb-preload-info.warn { color: var(--gold); }
 .bb-card-name { font-size: 11px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bb-card-edit { background: none; border: none; color: var(--text2); cursor: pointer; padding: 2px; font-size: 12px; flex-shrink: 0; min-width: 0; width: auto; }
 .bb-card-edit:hover { color: var(--accent); }
@@ -907,6 +910,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
         <span class="bb-chevron">&#9650;</span>
         <span class="bb-title">&#127942; Equipos &amp; puntos</span>
         <span class="bb-count" id="bbTeamCount"></span>
+        <span class="bb-count bb-preload-info" id="bbPreloadInfo"></span>
     </div>
     <div class="bb-teams-row" id="bbTeamsRow"></div>
     <div class="bb-teams-expanded" id="bbTeamsExpanded"></div>
@@ -1007,6 +1011,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 <div id="toast"></div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/shared/staff-session.js"></script>
+<script src="/shared/asset-preloader.js"></script>
 <script src="/shared/karaoke-colors.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
@@ -1032,6 +1037,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('headerGameName').innerHTML = '<strong>' + esc(S.game.name) + '</strong>';
     renderRounds();
     connectSocket();
+    // Precarga del contenido que usa el coordinador (imágenes + audio/música)
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/director/media-sw.js', { scope: '/director/' }).catch(function() {});
+    GSPreload.showOverlay({ gameId: S.gameId, role: 'director', title: 'Preparando el coordinador' });
 });
 
 function extractGameId() {
@@ -2590,7 +2598,45 @@ function renderRightPanelRuleta() {
 }
 
 // ── Bottom bar: Teams ──
+// ── Estado de la precarga de contenido por dispositivo ──
+function preloadText(p) {
+    var bad = p.failed + p.missing;
+    if (!bad) return 'Contenido descargado (' + p.ok + ' archivos)';
+    return bad + ' archivo' + (bad > 1 ? 's' : '') + ' sin descargar' + (p.names.length ? ': ' + p.names.join(', ') : '');
+}
+
+function preloadBadge(e) {
+    var p = e.preload;
+    if (!p) return e.ocupado ? '<span class="bb-preload" title="Sin datos de descarga todavía">&#8987;</span>' : '';
+    var bad = p.failed + p.missing;
+    return '<span class="bb-preload" title="' + esc(preloadText(p)) + '">' + (bad ? '&#9888;&#65039;' : '&#9989;') + '</span>';
+}
+
+function renderPreloadInfo() {
+    var el = document.getElementById('bbPreloadInfo');
+    if (!el) return;
+    var teams = S.equipos;
+    var okTeams = teams.filter(function(e) { return e.preload && !(e.preload.failed + e.preload.missing); }).length;
+    var screens = Object.values((S.director && S.director.screensPreload) || {});
+    var parts = [], details = [], warn = false;
+    if (teams.length) {
+        parts.push('iPads ' + okTeams + '/' + teams.length + ' ' + (okTeams === teams.length ? '&#9989;' : '&#9888;&#65039;'));
+        if (okTeams < teams.length) warn = true;
+        teams.forEach(function(e) { details.push(e.nombre + ': ' + (e.preload ? preloadText(e.preload) : 'sin datos todavía')); });
+    }
+    screens.forEach(function(p, i) {
+        var bad = p.failed + p.missing;
+        if (bad) warn = true;
+        parts.push('Pantalla' + (screens.length > 1 ? ' ' + (i + 1) : '') + ' ' + (bad ? '&#9888;&#65039;' : '&#9989;'));
+        details.push('Pantalla' + (screens.length > 1 ? ' ' + (i + 1) : '') + ': ' + preloadText(p));
+    });
+    el.innerHTML = parts.length ? 'Contenido: ' + parts.join(' · ') : '';
+    el.title = details.join('\n');
+    el.classList.toggle('warn', warn);
+}
+
 function renderTeams() {
+    renderPreloadInfo();
     var rowEl = document.getElementById('bbTeamsRow');
     var expEl = document.getElementById('bbTeamsExpanded');
     var countEl = document.getElementById('bbTeamCount');
@@ -2610,6 +2656,7 @@ function renderTeams() {
         var blocked = e.bloqueado;
         return '<div class="bb-card">'
             + '<span class="bb-card-dot ' + (connected ? 'on' : 'off') + '"></span>'
+            + preloadBadge(e)
             + '<span class="bb-card-name">' + (blocked ? '&#10052; ' : '') + esc(e.nombre) + '</span>'
             + '<span class="bb-card-score">' + score + '</span>'
             + '</div>';
@@ -2622,6 +2669,7 @@ function renderTeams() {
         var blocked = e.bloqueado;
         return '<div class="bb-card-lg">'
             + '<span class="bb-card-dot ' + (connected ? 'on' : 'off') + '"></span>'
+            + preloadBadge(e)
             + '<span class="bb-card-name">' + (blocked ? '&#10052; ' : '') + esc(e.nombre) + '</span>'
             + '<button class="bb-card-edit" onclick="event.stopPropagation();openEditTeamModal(\'' + e.id + '\')" title="Editar">&#9998;</button>'
             + '<span class="bb-card-score">' + score + '</span>'

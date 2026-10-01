@@ -8,6 +8,8 @@ const fs = require('fs');
 const express = require('express');
 const multer = require('multer');
 const sizeOf = require('image-size');
+const { db } = require('../db');
+const auth = require('../auth');
 
 const router = express.Router();
 
@@ -158,6 +160,64 @@ router.put('/audio/default-playlist', express.json(), (req, res) => {
     }
     writePlaylist(playlist);
     res.json({ playlist });
+});
+
+// ───────────── Precarga: lista de archivos de un juego por dispositivo ─────────────
+// Devuelve solo URLs + tamaño + versión (nunca el contenido de las preguntas).
+//   role=play     → imágenes (requiere pase del juego)
+//   role=screen   → imágenes + vídeos (público, igual que /screen)
+//   role=director → imágenes + audio + playlist por defecto (requiere sesión)
+
+const KIND_BY_EXT = {
+    images: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif', 'bmp'],
+    videos: ['mp4', 'webm', 'mov', 'm4v'],
+    audio:  ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'opus'],
+};
+const ROLE_KINDS = { play: ['images'], screen: ['images', 'videos'], director: ['images', 'audio'] };
+
+function kindOf(url) {
+    const ext = path.extname(url).slice(1).toLowerCase();
+    return Object.keys(KIND_BY_EXT).find(k => KIND_BY_EXT[k].includes(ext)) || null;
+}
+
+function gameUploadUrls(gameId) {
+    const g = db.prepare('SELECT theme FROM games WHERE id = ?').get(gameId);
+    if (!g) return null;
+    const blobs = [g.theme];
+    db.prepare('SELECT id, config FROM rounds WHERE game_id = ?').all(gameId).forEach(r => {
+        blobs.push(r.config);
+        db.prepare('SELECT content, media_url, config FROM questions WHERE round_id = ?').all(r.id)
+            .forEach(q => blobs.push(q.content, q.media_url, q.config));
+    });
+    const urls = new Set();
+    const re = /\/uploads\/[^\s"'()<>?#\\]+/g;
+    blobs.filter(Boolean).forEach(b => (String(b).match(re) || []).forEach(u => urls.add(u)));
+    return urls;
+}
+
+router.get('/games/:id/assets', (req, res) => {
+    const role = req.query.role;
+    if (!ROLE_KINDS[role]) return res.status(400).json({ error: 'role inválido (play|screen|director)' });
+    if (role === 'play' && !auth.verifyGamePass(req.params.id, req.query.pass)) return res.status(403).json({ error: 'pase no válido' });
+    if (role === 'director' && !auth.isStaffRequest(req, res)) return res.status(401).json({ error: 'sesión requerida', auth: true });
+
+    const urls = gameUploadUrls(req.params.id);
+    if (!urls) return res.status(404).json({ error: 'juego no encontrado' });
+    if (role === 'director') readPlaylist().forEach(u => { if (String(u).startsWith('/uploads/')) urls.add(u); });
+
+    const kinds = ROLE_KINDS[role];
+    const files = [], missing = [];
+    for (const url of urls) {
+        const kind = kindOf(url);
+        if (!kinds.includes(kind)) continue;
+        let rel;
+        try { rel = decodeURIComponent(url.slice('/uploads/'.length)); } catch { missing.push(url); continue; }
+        const abs = path.join(UPLOADS_DIR, rel);
+        if (!abs.startsWith(UPLOADS_DIR) || !fs.existsSync(abs)) { missing.push(url); continue; }
+        const st = fs.statSync(abs);
+        files.push({ url, kind, size: st.size, ver: st.size + '-' + Math.floor(st.mtimeMs) });
+    }
+    res.json({ files, missing, totalBytes: files.reduce((a, f) => a + f.size, 0) });
 });
 
 // ───────────── Template download (dynamic) ─────────────

@@ -1,8 +1,10 @@
-// Service Worker — GameShow /play (FASE 6)
-// Cache-first para shell y assets estáticos. Precarga bajo demanda de assets de un juego
-// (imágenes de preguntas, logos, fondos) vía mensaje 'PRECACHE_GAME' desde el cliente.
+// Service Worker — GameShow /play
+// - Shell y estáticos: cache-first, actualizando la caché en segundo plano.
+// - Contenido del juego (/uploads/*): lo descarga y verifica la pantalla de precarga
+//   (shared/asset-preloader.js) en su propia caché; aquí solo se sirve desde ella.
+importScripts('/shared/media-sw-core.js');
 
-const CACHE_NAME = 'gameshow-play-v41';
+const CACHE_NAME = 'gameshow-play-v42';
 const SHELL = [
     '/play/',
     '/play/index.html',
@@ -10,6 +12,7 @@ const SHELL = [
     '/socket.io/socket.io.js',
     '/play/frost.png',
     '/shared/karaoke-colors.js',
+    '/shared/asset-preloader.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -21,7 +24,8 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then(keys =>
-            Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+            // Las cachés de contenido (gameshow-media-*) sobreviven a las actualizaciones de la app
+            Promise.all(keys.filter(k => k !== CACHE_NAME && !k.startsWith('gameshow-media-')).map(k => caches.delete(k)))
         ).then(() => self.clients.claim())
     );
 });
@@ -36,20 +40,8 @@ self.addEventListener('fetch', (event) => {
     if (url.pathname === '/ping') return;
     if (req.method !== 'GET') return;
 
-    // For uploads (images/audio), use cache-first with network fallback
-    if (url.pathname.startsWith('/uploads/')) {
-        event.respondWith(
-            caches.match(req).then(cached => {
-                if (cached) return cached;
-                return fetch(req).then(resp => {
-                    if (resp && resp.ok) {
-                        const copy = resp.clone();
-                        caches.open(CACHE_NAME).then(c => c.put(req, copy));
-                    }
-                    return resp;
-                });
-            })
-        );
+    if (gsIsMedia(url)) {
+        event.respondWith(gsServeMedia(req));
         return;
     }
 
@@ -67,23 +59,4 @@ self.addEventListener('fetch', (event) => {
             return cached || fetchPromise;
         })
     );
-});
-
-// Precache game assets on demand (called from client after selecting a game)
-self.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'PRECACHE_GAME') {
-        const urls = event.data.urls || [];
-        if (urls.length === 0) return;
-        caches.open(CACHE_NAME).then(cache => {
-            urls.forEach(url => {
-                cache.match(url).then(existing => {
-                    if (!existing) {
-                        fetch(url).then(resp => {
-                            if (resp && resp.ok) cache.put(url, resp);
-                        }).catch(() => {});
-                    }
-                });
-            });
-        });
-    }
 });

@@ -627,6 +627,7 @@ body.karaoke-screen-active .round-logo { display: none !important; }
 
 <script src="/shared/qrcode.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
+<script src="/shared/asset-preloader.js"></script>
 <script src="/shared/karaoke-colors.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
@@ -662,6 +663,7 @@ function connect() {
     socket.on('connect', function() {
         document.getElementById('connDot').classList.remove('disconnected');
         socket.emit('screen:join');
+        if (_preloadSummary) socket.emit('screen:preload_status', _preloadSummary);
     });
 
     socket.on('disconnect', function() {
@@ -2317,6 +2319,21 @@ document.addEventListener('fullscreenchange', function() {
 });
 
 window.toggleFullscreen = toggleFullscreen;
+// ═══════════════ PRECARGA ═══════════════
+// La pantalla descarga y verifica imágenes y vídeos del juego al abrirse; el resultado
+// se envía al coordinador. El service worker sirve luego el contenido desde el PC.
+var _preloadSummary = null;
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/screen/media-sw.js', { scope: '/screen/' }).catch(function() {});
+if (gameId && window.GSPreload) {
+    GSPreload.showOverlay({
+        gameId: gameId, role: 'screen', title: 'Preparando la pantalla',
+        onDone: function(result) {
+            _preloadSummary = GSPreload.summary(result);
+            if (socket && socket.connected) socket.emit('screen:preload_status', _preloadSummary);
+        }
+    });
+}
+
 connect();
 
 })();

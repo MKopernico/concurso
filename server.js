@@ -43,6 +43,11 @@ app.get('/ping', (req, res) => res.send('ok'));
 // Vistas estáticas. Cada rol tiene su carpeta (spec §10.2).
 // El monolítico legacy sigue en /public para no perder funcionalidad.
 app.use('/login',    express.static(path.join(__dirname, 'public', 'login')));
+// Service worker de contenido precargado: se publica dentro de cada vista para que su ámbito la cubra.
+app.get(['/screen/media-sw.js', '/director/media-sw.js'], (req, res) => {
+    res.set('Cache-Control', 'no-cache');
+    res.sendFile(path.join(__dirname, 'public', 'shared', 'media-sw.js'));
+});
 // Backoffice, coordinador y portada (enlaces a coordinadores) exigen sesión. /play y /screen son públicos.
 app.use(['/admin', '/director'], auth.requireStaffPage);
 app.get(['/', '/index.html'], auth.requireStaffPage);

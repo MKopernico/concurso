@@ -142,6 +142,7 @@ const PUBLIC_API = [
     ['GET',  /^\/active-games$/],
     ['GET',  /^\/games\/[^/]+\/public$/],
     ['POST', /^\/games\/[^/]+\/join$/],
+    ['GET',  /^\/games\/[^/]+\/assets$/],      // valida pase/sesión según role dentro de la ruta
     ['POST', /^\/upload\/image$/],           // foto del equipo desde el iPad
     ['POST', /^\/auth\/login$/],
     ['POST', /^\/auth\/logout$/],
