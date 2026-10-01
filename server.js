@@ -5,6 +5,10 @@
 
 const path = require('path');
 const fs = require('fs');
+
+// Config local opcional (.env junto a server.js: ADMIN_PASSWORD=...). En Render se usan sus variables de entorno.
+const ENV_FILE = path.join(__dirname, '.env');
+if (fs.existsSync(ENV_FILE) && typeof process.loadEnvFile === 'function') process.loadEnvFile(ENV_FILE);
 const express = require('express');
 const http = require('http');
 const { Server: SocketIOServer } = require('socket.io');
@@ -15,15 +19,21 @@ const UPLOADS_DIR = fs.existsSync('/data') ? '/data/uploads' : path.join(__dirna
 require('./db'); // arranca la BD e inserta el juego 'default' si no existe (efecto colateral)
 const apiRoutes = require('./routes/games');
 const uploadRoutes = require('./routes/uploads');
+const authRoutes = require('./routes/auth');
+const auth = require('./auth');
 const { attachSocketHandlers } = require('./sockets/game');
 
 const app = express();
 const server = http.createServer(app);
 const io = new SocketIOServer(server, { cors: { origin: '*' } });
 
+app.set('trust proxy', 1); // Render va detrás de proxy: req.secure/req.ip correctos
 app.use(express.json({ limit: '2mb' }));
 
-// API REST (CRUD de juegos/rondas/preguntas + uploads — spec §10.3)
+// API REST (CRUD de juegos/rondas/preguntas + uploads — spec §10.3).
+// Todo exige sesión salvo las rutas públicas de iPads/pantalla (ver auth.PUBLIC_API).
+app.use('/api', auth.requireStaffApi);
+app.use('/api', authRoutes);
 app.use('/api', apiRoutes);
 app.use('/api', uploadRoutes);
 
@@ -32,6 +42,10 @@ app.get('/ping', (req, res) => res.send('ok'));
 
 // Vistas estáticas. Cada rol tiene su carpeta (spec §10.2).
 // El monolítico legacy sigue en /public para no perder funcionalidad.
+app.use('/login',    express.static(path.join(__dirname, 'public', 'login')));
+// Backoffice, coordinador y portada (enlaces a coordinadores) exigen sesión. /play y /screen son públicos.
+app.use(['/admin', '/director'], auth.requireStaffPage);
+app.get(['/', '/index.html'], auth.requireStaffPage);
 app.use('/play',     express.static(path.join(__dirname, 'public', 'play')));
 app.use('/director', express.static(path.join(__dirname, 'public', 'director')));
 // Catch-all: /director/:gameId sirve el mismo index.html (el client extrae gameId de la URL).
@@ -54,6 +68,7 @@ attachSocketHandlers(io);
 const port = process.env.PORT || 3000;
 const listener = server.listen(port, '0.0.0.0', () => {
     console.log('🚀 GameShow ON · puerto', listener.address().port, '· uploads:', UPLOADS_DIR);
+    if (!auth.isConfigured()) console.warn('⚠️  Sin contraseña: define ADMIN_PASSWORD para poder entrar al backoffice/coordinador.');
 });
 listener.on('error', (e) => {
     if (e.code === 'EADDRINUSE') process.exit(1);

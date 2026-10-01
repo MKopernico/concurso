@@ -3,7 +3,7 @@
 
 const { db, DEFAULT_GAME_ID } = require('../db');
 
-const ADMIN_PIN = process.env.ADMIN_PIN || '6174';
+const auth = require('../auth');
 
 const gameStates = new Map();
 
@@ -498,6 +498,7 @@ function playerView(state) {
         showTeamResults: ds.showTeamResults,
         scoreboardVisible: ds.scoreboardVisible,
         qrVisible: ds.qrVisible,
+        qrPass: ds.qrVisible ? ds.qrPass : null,
         premioAnuncioVisible: ds.premioAnuncioVisible,
         premioGanadorVisible: ds.premioGanadorVisible,
         premioGanadorTeam: ds.premioGanadorTeam,
@@ -658,14 +659,24 @@ function attachSocketHandlers(io) {
         socket.gameId = gameId;
         socket.join(roomOf(gameId));
 
+        // Roles: staff = sesión de backoffice/coordinador (cookie); hasPass = el iPad tiene pase del juego.
+        socket.isStaff = !!auth.sessionFromCookieHeader(socket.handshake.headers.cookie);
+        const pass = socket.handshake.query && socket.handshake.query.pass;
+        socket.hasPass = auth.verifyGamePass(gameId, pass);
+
+        // Las órdenes de coordinador solo se aceptan de conexiones con sesión.
+        socket.use(([event], next) => {
+            if ((event.startsWith('director:') || event.startsWith('admin_')) && !socket.isStaff) {
+                socket.emit('auth_required');
+                return;
+            }
+            next();
+        });
+
         const state = getOrCreateState(gameId);
 
-        socket.emit('init_connection', {
-            juegoIniciado: state.juegoIniciado,
-            estadoJuego: publicView(state),
-            equipos: state.equipos,
-            gameId
-        });
+        // El estado completo (incluye respuestas) solo viaja a coordinadores vía game:director_sync.
+        socket.emit('init_connection', { gameId });
 
         function finalizarPrecio() {
             if (state.precioTimeoutHandle) { clearTimeout(state.precioTimeoutHandle); state.precioTimeoutHandle = null; }
@@ -682,12 +693,13 @@ function attachSocketHandlers(io) {
             io.to(roomOf(gameId)).emit('precio_resultado', {
                 cifraCorrecta: cifra, respuestas: state.precio.respuestas, ganadorId: state.precio.ganadorId
             });
-            io.to(roomOf(gameId)).emit('sync_estado', publicView(state));
+            io.to(`directors:${gameId}`).emit('sync_estado', publicView(state));
         }
 
         // ═══════════════════════ PLAYER TEAM REGISTRATION ═══════════════════════
 
         socket.on('player:register_team', (data) => {
+            if (!socket.hasPass) { socket.emit('register_error', { error: 'Código de acceso no válido', reason: 'no_pass' }); return; }
             if (!data || !data.name || !data.name.trim()) return;
             const session = db.prepare('SELECT id FROM sessions WHERE game_id = ? AND ended_at IS NULL LIMIT 1').get(gameId);
             if (!session) { socket.emit('register_error', { error: 'No hay sesión activa' }); return; }
@@ -711,7 +723,7 @@ function attachSocketHandlers(io) {
                     eq.socketId = socket.id;
                     socket.equipoId = eq.id;
                     state._gameTheme = loadGameTheme(gameId);
-                    socket.emit('login_success', { miEquipo: eq, estado: publicView(state), equiposRivales: state.equipos });
+                    socket.emit('login_success', { miEquipo: eq, equiposRivales: state.equipos });
                     socket.emit('game:player_sync', playerView(state));
                     emitYourOrder(socket, state);
                     broadcastDirector(io, gameId, state);
@@ -732,7 +744,7 @@ function attachSocketHandlers(io) {
             socket.equipoId = teamId;
 
             state._gameTheme = loadGameTheme(gameId);
-            socket.emit('login_success', { miEquipo: eq, estado: publicView(state), equiposRivales: state.equipos });
+            socket.emit('login_success', { miEquipo: eq, equiposRivales: state.equipos });
             socket.emit('game:player_sync', playerView(state));
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
             broadcastDirector(io, gameId, state);
@@ -740,6 +752,7 @@ function attachSocketHandlers(io) {
 
         // Device-based auto-reconnect
         socket.on('player:reconnect', (data) => {
+            if (!socket.hasPass) { socket.emit('reconnect_failed', { reason: 'no_pass' }); return; }
             const devId = data && data.deviceId || deviceId;
             if (!devId) { socket.emit('reconnect_failed', { reason: 'no_device' }); return; }
             const session = db.prepare('SELECT id FROM sessions WHERE game_id = ? AND ended_at IS NULL LIMIT 1').get(gameId);
@@ -765,46 +778,14 @@ function attachSocketHandlers(io) {
             socket.equipoId = eq.id;
 
             state._gameTheme = loadGameTheme(gameId);
-            socket.emit('login_success', { miEquipo: eq, estado: publicView(state), equiposRivales: state.equipos });
+            socket.emit('login_success', { miEquipo: eq, equiposRivales: state.equipos });
             socket.emit('game:player_sync', playerView(state));
             emitYourOrder(socket, state);
-            broadcastDirector(io, gameId, state);
-        });
-
-        // ═══════════════════════ LEGACY JOIN (keep for compat) ═══════════════════════
-
-        socket.on('join_team', (data) => {
-            const equipo = state.equipos.find(e => e.id === data.id);
-            if (!equipo) return;
-            if (equipo.ocupado && equipo.socketId && equipo.socketId !== socket.id) {
-                const prev = io.sockets.sockets.get(equipo.socketId);
-                if (prev && prev.connected) {
-                    socket.emit('join_team_rejected', { motivo: 'ocupado', equipoId: equipo.id });
-                    return;
-                }
-            }
-            equipo.ocupado = true;
-            equipo.socketId = socket.id;
-            socket.equipoId = equipo.id;
-            state._gameTheme = loadGameTheme(gameId);
-            socket.emit('login_success', { miEquipo: equipo, estado: publicView(state), equiposRivales: state.equipos });
-            socket.emit('game:player_sync', playerView(state));
-            emitYourOrder(socket, state);
-            io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
             broadcastDirector(io, gameId, state);
         });
 
         // ═══════════════════════ ADMIN (legacy) ═══════════════════════
-
-        socket.on('login_admin', (pin) => {
-            if (String(pin).trim() === ADMIN_PIN) {
-                socket.isAdmin = true;
-                socket.emit('admin_auth_success', {
-                    equipos: state.equipos, estadoJuego: publicView(state),
-                    juegoIniciado: state.juegoIniciado, precioCifra: state.precioCifraCorrecta, gameId
-                });
-            } else { socket.emit('admin_auth_fail'); }
-        });
+        // Solo accesibles con sesión de staff (ver socket.use arriba). join_team y login_admin eliminados.
 
         socket.on('admin_crear_juego', (n) => {
             const total = Math.max(1, Math.min(20, Number(n) || 0));
@@ -817,7 +798,7 @@ function attachSocketHandlers(io) {
             state.bloqueoGlobal = false;
             state.pulsadorActivo = false;
             io.to(roomOf(gameId)).emit('juego_iniciado_teams', state.equipos);
-            io.to(roomOf(gameId)).emit('sync_estado', publicView(state));
+            io.to(`directors:${gameId}`).emit('sync_estado', publicView(state));
         });
 
         socket.on('admin_rename_team', (data) => {
@@ -839,15 +820,15 @@ function attachSocketHandlers(io) {
 
         socket.on('admin_config_escenas', (data) => {
             state.escenas.espera = data.espera;
-            io.to(roomOf(gameId)).emit('sync_estado', publicView(state));
-            if (state.vistaActual === 'espera') io.to(roomOf(gameId)).emit('cambio_de_escena', publicView(state));
+            io.to(`directors:${gameId}`).emit('sync_estado', publicView(state));
+            if (state.vistaActual === 'espera') io.to(`directors:${gameId}`).emit('cambio_de_escena', publicView(state));
         });
 
         socket.on('admin_set_escena', (d) => {
             state.vistaActual = d.vista;
             if (d.vista === 'web' && d.url) state.urlActual = d.url;
             if (d.saveSlot !== undefined && d.urlToSave) state.urlsGuardadas[d.saveSlot] = d.urlToSave;
-            io.to(roomOf(gameId)).emit('cambio_de_escena', publicView(state));
+            io.to(`directors:${gameId}`).emit('cambio_de_escena', publicView(state));
         });
 
         socket.on('admin_gestionar_bono', (data) => {
@@ -872,7 +853,7 @@ function attachSocketHandlers(io) {
 
         socket.on('admin_toggle_global_lock', (valor) => {
             state.bloqueoGlobal = valor;
-            io.to(roomOf(gameId)).emit('sync_estado', publicView(state));
+            io.to(`directors:${gameId}`).emit('sync_estado', publicView(state));
         });
 
         socket.on('admin_reset_total', () => {
@@ -896,7 +877,7 @@ function attachSocketHandlers(io) {
             const n = Number(segundos);
             if (!isFinite(n) || n < 5) return;
             state.precio.tiempoSegundos = Math.round(n);
-            io.to(roomOf(gameId)).emit('sync_estado', publicView(state));
+            io.to(`directors:${gameId}`).emit('sync_estado', publicView(state));
         });
 
         socket.on('admin_precio_nueva_partida', () => {
@@ -906,7 +887,7 @@ function attachSocketHandlers(io) {
             state.precio.fase = 'config';
             state.precio.ganadorId = null;
             state.precio.cifraCorrecta = null;
-            io.to(roomOf(gameId)).emit('sync_estado', publicView(state));
+            io.to(`directors:${gameId}`).emit('sync_estado', publicView(state));
         });
 
         socket.on('admin_precio_iniciar', () => {
@@ -921,7 +902,7 @@ function attachSocketHandlers(io) {
             state.precio.ganadorId = null;
             state.precio.cifraCorrecta = null;
             state.precioTimeoutHandle = setTimeout(finalizarPrecio, state.precio.tiempoSegundos * 1000);
-            io.to(roomOf(gameId)).emit('sync_estado', publicView(state));
+            io.to(`directors:${gameId}`).emit('sync_estado', publicView(state));
         });
 
         socket.on('admin_precio_forzar_resultado', () => {
@@ -936,7 +917,7 @@ function attachSocketHandlers(io) {
             if (!isFinite(valor)) return;
             if (state.precio.respuestas[eq.id]) return;
             state.precio.respuestas[eq.id] = { valor, tiempo: Date.now() };
-            io.to(roomOf(gameId)).emit('sync_estado', publicView(state));
+            io.to(`directors:${gameId}`).emit('sync_estado', publicView(state));
         });
 
         // ═══════════════════════ PLAYER ANSWERS ═══════════════════════
@@ -1554,6 +1535,7 @@ function attachSocketHandlers(io) {
         });
         socket.on('director:toggle_qr', () => {
             state.director.qrVisible = !state.director.qrVisible;
+            state.director.qrPass = state.director.qrVisible ? auth.gamePassFor(gameId) : null;
             if (state.director.qrVisible) { state.director.scoreboardVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; }
             broadcastDirector(io, gameId, state);
         });

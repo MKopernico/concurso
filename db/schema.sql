@@ -58,3 +58,9 @@ CREATE TABLE IF NOT EXISTS teams (
 
 CREATE INDEX IF NOT EXISTS idx_teams_session ON teams(session_id);
 CREATE INDEX IF NOT EXISTS idx_teams_device  ON teams(device_id);
+
+-- Ajustes clave/valor (auth: hash de la contraseña general, secreto de firma, época de sesiones)
+CREATE TABLE IF NOT EXISTS settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT
+);

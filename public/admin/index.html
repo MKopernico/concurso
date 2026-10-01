@@ -169,6 +169,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .picker-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
 </style>
 <script src="/shared/question-validation.js"></script>
+<script src="/shared/staff-session.js"></script>
 </head>
 <body>
 <header>
@@ -177,6 +178,8 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
     <div style="margin-left:auto; display:flex; gap:6px;">
         <button class="btn-ghost btn-sm" onclick="showMediaLibrary()">&#128193; Medios</button>
         <a href="/manual/" target="_blank" class="btn-ghost btn-sm" style="text-decoration:none;">&#128214; Manual</a>
+        <button class="btn-ghost btn-sm" onclick="openPasswordModal()" title="Cambiar la contraseña general">&#128273; Contraseña</button>
+        <button class="btn-ghost btn-sm" onclick="GSStaff.logout()">Salir</button>
     </div>
 </header>
 <main>
@@ -253,6 +256,23 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
         </div>
     </div>
 </main>
+
+<!-- ============ MODAL: Cambiar contraseña general ============ -->
+<div id="modal-password-overlay" class="modal-overlay">
+    <div class="modal" style="max-width:420px;">
+        <h2>Cambiar contraseña general</h2>
+        <form id="form-password" onsubmit="return savePassword(event)">
+            <div class="field"><label>Contraseña actual</label><input type="password" name="current" required autocomplete="current-password"></div>
+            <div class="field"><label>Nueva contraseña (mín. 8 caracteres)</label><input type="password" name="password" required minlength="8" autocomplete="new-password"></div>
+            <div class="field"><label>Repite la nueva contraseña</label><input type="password" name="password2" required minlength="8" autocomplete="new-password"></div>
+            <p style="color:var(--text2);font-size:12px;">Al cambiarla se cerrará la sesión en el resto de dispositivos (incluidos coordinadores abiertos).</p>
+            <div class="modal-footer">
+                <button type="button" class="btn-ghost" onclick="closeModal('modal-password-overlay')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <!-- ============ MODAL: Game form ============ -->
 <div id="modal-game-overlay" class="modal-overlay">
@@ -598,6 +618,23 @@ function typeBadge(t) {
 // ─── Modal helpers ───
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+function openPasswordModal() {
+    document.getElementById('form-password').reset();
+    openModal('modal-password-overlay');
+}
+
+async function savePassword(e) {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    if (fd.get('password') !== fd.get('password2')) { toast('Las contraseñas nuevas no coinciden'); return false; }
+    try {
+        await api('/auth/password', { method: 'PUT', body: { current: fd.get('current'), password: fd.get('password') } });
+        closeModal('modal-password-overlay');
+        toast('Contraseña cambiada');
+    } catch (err) { toast(err.message); }
+    return false;
+}
 
 // ─────────────────── GAMES ───────────────────
 

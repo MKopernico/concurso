@@ -568,6 +568,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
         <button class="btn-accent hdr-btn" onclick="openScreen()" title="Abrir pantalla proyector"><span>&#128250;</span><span class="hdr-label">Pantalla</span></button>
         <button class="btn-danger hdr-btn" onclick="resetSession()" title="Reset puntos (los equipos siguen)"><span>&#128260;</span><span class="hdr-label">Reset pts</span></button>
         <button class="btn-danger hdr-btn" onclick="resetFull()" title="Borrar todo (borra equipos y puntos)"><span>&#128465;</span><span class="hdr-label">Borrar todo</span></button>
+        <button class="btn-ghost hdr-btn" onclick="GSStaff.logout()" title="Cerrar sesión"><span>&#128682;</span><span class="hdr-label">Salir</span></button>
     </div>
 </div>
 
@@ -1005,6 +1006,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 
 <div id="toast"></div>
 <script src="/socket.io/socket.io.js"></script>
+<script src="/shared/staff-session.js"></script>
 <script src="/shared/karaoke-colors.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
@@ -1046,6 +1048,7 @@ function showNoGame() {
 // ═══════════════ Socket ═══════════════
 function connectSocket() {
     socket = io({ query: { gameId: S.gameId } });
+    GSStaff.watchSocket(socket);
     socket.on('connect', () => socket.emit('director:join'));
     socket.on('game:director_sync', onSync);
     socket.on('game:timer_tick', (d) => {

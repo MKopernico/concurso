@@ -4,6 +4,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const { db, DEFAULT_GAME_ID } = require('../db');
+const auth = require('../auth');
 
 const QuestionValidation = require('../public/shared/question-validation.js');
 
@@ -977,8 +978,31 @@ router.get('/active-games', (req, res) => {
         WHERE g.status = 'published'
         ORDER BY s.started_at DESC
     `).all();
-    rows.forEach(r => { r.theme = parseJsonField(r.theme, null); });
-    res.json(rows);
+    // El código nunca sale del servidor: el iPad solo sabe si hace falta.
+    res.json(rows.map(({ access_code, ...r }) => ({ ...r, theme: parseJsonField(r.theme, null), has_code: !!access_code })));
+});
+
+// Datos mínimos de un juego para /screen y para el iPad que entra por QR (sin preguntas ni respuestas).
+router.get('/games/:id/public', (req, res) => {
+    const g = db.prepare('SELECT id, name, theme FROM games WHERE id = ?').get(req.params.id);
+    if (!g) return res.status(404).json({ error: 'no encontrado' });
+    res.json({ id: g.id, name: g.name, theme: parseJsonField(g.theme, null) });
+});
+
+// El iPad valida el código de acceso y recibe un pase para conectarse al juego.
+const joinLimiter = auth.makeLimiter(20, 5 * 60 * 1000); // 20 fallos por IP y juego cada 5 min
+router.post('/games/:id/join', (req, res) => {
+    const game = db.prepare('SELECT id, access_code FROM games WHERE id = ?').get(req.params.id);
+    if (!game) return res.status(404).json({ error: 'juego no encontrado' });
+    const key = req.ip + '|' + game.id;
+    if (joinLimiter.blocked(key)) return res.status(429).json({ error: 'Demasiados intentos. Espera unos minutos.' });
+    const code = String((req.body && req.body.code) || '').trim();
+    if (game.access_code && code !== game.access_code) {
+        joinLimiter.fail(key);
+        return res.status(403).json({ error: 'Código incorrecto' });
+    }
+    joinLimiter.reset(key);
+    res.json({ pass: auth.gamePass(game.id, game.access_code) });
 });
 
 // Create a team in the active session (player self-registration)

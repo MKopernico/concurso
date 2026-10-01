@@ -648,8 +648,36 @@ var deviceId = localStorage.getItem('gs_deviceId') || (function() {
     return id;
 })();
 
+// ═══════════════ Pases de juego ═══════════════
+// El servidor entrega un pase al validar el código (o vía QR). Se guarda por juego y viaja en el handshake del socket.
+function getPasses() { try { return JSON.parse(localStorage.getItem('gs_passes') || '{}'); } catch (e) { return {}; } }
+function getPass(gameId) { return getPasses()[gameId] || null; }
+function setPass(gameId, pass) { var p = getPasses(); p[gameId] = pass; localStorage.setItem('gs_passes', JSON.stringify(p)); }
+function clearPass(gameId) { var p = getPasses(); delete p[gameId]; localStorage.setItem('gs_passes', JSON.stringify(p)); }
+
 // ═══════════════ Boot ═══════════════
 document.addEventListener('DOMContentLoaded', function() {
+    // Entrada por QR: /play/?g=<gameId>&p=<pase>
+    var qs = new URLSearchParams(location.search);
+    var qrGame = qs.get('g');
+    if (qrGame) {
+        history.replaceState(null, '', '/play/');
+        if (qs.get('p')) setPass(qrGame, qs.get('p'));
+        var prev = JSON.parse(localStorage.getItem('gs_session') || 'null');
+        if (prev && prev.gameId !== qrGame) localStorage.removeItem('gs_session');
+        if (!prev || prev.gameId !== qrGame) {
+            fetch('/api/games/' + encodeURIComponent(qrGame) + '/public').then(function(r) {
+                if (!r.ok) throw new Error();
+                return r.json();
+            }).then(function(g) {
+                S.gameId = g.id;
+                S.game = { id: g.id, name: g.name };
+                enterGame();
+            }).catch(function() { loadGames(); toast('Juego no encontrado'); });
+            return;
+        }
+    }
+
     // Check if we have a saved session to restore
     var saved = JSON.parse(localStorage.getItem('gs_session') || 'null');
     if (saved && saved.gameId) {
@@ -691,7 +719,7 @@ function loadGames() {
             return;
         }
         list.innerHTML = games.map(function(g) {
-            return '<div class="game-card" onclick="selectGame(\'' + g.id + '\',\'' + esc(g.access_code || '') + '\',\'' + esc(g.name) + '\')">'
+            return '<div class="game-card" onclick="selectGame(\'' + g.id + '\',' + (g.has_code ? 'true' : 'false') + ',\'' + esc(g.name) + '\')">'
                 + '<div class="game-icon">&#127918;</div>'
                 + '<div class="game-info"><div class="game-name">' + esc(g.name) + '</div>'
                 + (g.date ? '<div class="game-date">' + g.date + '</div>' : '')
@@ -704,31 +732,49 @@ function loadGames() {
 }
 
 // ═══════════════ Screen 2: Select game → code or register ═══════════════
-function selectGame(gameId, accessCode, gameName) {
+function selectGame(gameId, hasCode, gameName) {
     S.gameId = gameId;
-    S.game = { id: gameId, name: gameName, access_code: accessCode };
+    S.game = { id: gameId, name: gameName };
 
-    if (accessCode) {
+    if (hasCode && !getPass(gameId)) {
         // Show code entry screen
         document.getElementById('codeGameName').textContent = gameName;
         document.getElementById('codeInput').value = '';
         document.getElementById('codeError').style.display = 'none';
         goScreen('screen-code');
         document.getElementById('codeInput').focus();
-    } else {
-        // No code required — go straight to connect + register/reconnect
+    } else if (getPass(gameId)) {
         enterGame();
+    } else {
+        // Sin código: el servidor entrega el pase directamente
+        requestPass('', function(ok) { if (ok) enterGame(); else toast('No se pudo entrar al juego'); });
     }
+}
+
+// Pide al servidor el pase del juego validando el código. cb(true) si lo concede.
+function requestPass(code, cb) {
+    fetch('/api/games/' + encodeURIComponent(S.gameId) + '/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code })
+    }).then(function(r) {
+        return r.json().then(function(d) { return { status: r.status, d: d }; });
+    }).then(function(res) {
+        if (res.status === 200 && res.d.pass) { setPass(S.gameId, res.d.pass); cb(true); }
+        else cb(false, res.status, res.d.error);
+    }).catch(function() { cb(false, 0, 'Sin conexión'); });
 }
 
 function submitCode() {
     var code = document.getElementById('codeInput').value.trim();
     if (!S.game) return;
-    if (code === S.game.access_code) {
-        enterGame();
-    } else {
-        document.getElementById('codeError').style.display = 'block';
-    }
+    var errEl = document.getElementById('codeError');
+    errEl.style.display = 'none';
+    requestPass(code, function(ok, status, msg) {
+        if (ok) { enterGame(); return; }
+        errEl.textContent = status === 403 ? 'Código incorrecto' : (msg || 'Error al comprobar el código');
+        errEl.style.display = 'block';
+    });
 }
 
 // ═══════════════ Enter game: connect socket, try reconnect, else register ═══════════════
@@ -775,6 +821,17 @@ function registerTeam() {
     socket.emit('player:register_team', { name: name, photo_url: S.photoUrl, deviceId: deviceId });
 }
 
+// El pase ya no vale (p.ej. cambiaron el código del juego): olvidarlo y volver a la lista.
+function passRejected() {
+    if (S.gameId) clearPass(S.gameId);
+    if (socket) { socket.disconnect(); socket = null; }
+    localStorage.removeItem('gs_session');
+    S.gameId = null; S.game = null; S.myTeamId = null; S.myTeam = null;
+    goScreen('screen-games');
+    loadGames();
+    toast('Vuelve a introducir el código del juego');
+}
+
 // ═══════════════ Socket connection ═══════════════
 function connectSocket(onReady) {
     if (socket && socket.connected && socket.gameId === S.gameId) {
@@ -784,7 +841,7 @@ function connectSocket(onReady) {
     }
     if (socket) { socket.disconnect(); socket = null; }
 
-    socket = io({ query: { gameId: S.gameId, deviceId: deviceId } });
+    socket = io({ query: { gameId: S.gameId, deviceId: deviceId, pass: getPass(S.gameId) || '' } });
     socket.gameId = S.gameId;
 
     socket.on('connect', function() {
@@ -812,6 +869,7 @@ function connectSocket(onReady) {
     // ── Reconnect failed: no session, no team, or slot taken ──
     socket.on('reconnect_failed', function(data) {
         var reason = data && data.reason;
+        if (reason === 'no_pass') { passRejected(); return; }
         if (reason === 'no_session') {
             // Session ended — clear saved state and go back to games
             localStorage.removeItem('gs_session');
@@ -836,6 +894,7 @@ function connectSocket(onReady) {
     });
 
     socket.on('register_error', function(data) {
+        if (data && data.reason === 'no_pass') { passRejected(); return; }
         toast(data.error || 'Error al registrar equipo');
         document.getElementById('registerBtn').disabled = false;
     });

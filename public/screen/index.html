@@ -792,7 +792,7 @@ function connect() {
         }, 4000);
     });
 
-    fetch('/api/games/' + gameId).then(function(r) { return r.json(); }).then(function(g) {
+    fetch('/api/games/' + gameId + '/public').then(function(r) { return r.json(); }).then(function(g) {
         if (g && g.name) document.getElementById('lobbyTitle').textContent = g.name;
         if (g && g.theme) applyTheme(g.theme);
     }).catch(function() {});
@@ -1886,14 +1886,16 @@ function renderQrOverlay() {
     if (!ps) return;
     var overlay = document.getElementById('qrOverlay');
     if (ps.qrVisible) {
-        if (!_qrActive) {
+        // El QR lleva al iPad directo a este juego, con el pase incluido (sin teclear el código)
+        var qrUrl = window.location.origin + '/play/?g=' + encodeURIComponent(gameId) + (ps.qrPass ? '&p=' + encodeURIComponent(ps.qrPass) : '');
+        if (_qrActive !== qrUrl) {
             var container = document.getElementById('qrCanvas');
             container.innerHTML = '';
             var vw = window.innerWidth;
             var vh = window.innerHeight;
             var size = Math.floor(Math.min(vw, vh) * 0.65);
-            new QRCode(container, { text: window.location.origin + '/play/', width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
-            _qrActive = true;
+            new QRCode(container, { text: qrUrl, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+            _qrActive = qrUrl;
         }
         overlay.classList.add('active');
     } else {
