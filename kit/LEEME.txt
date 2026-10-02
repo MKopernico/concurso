@@ -13,6 +13,11 @@ ANTES DEL EVENTO
    - Si puedes, conecta el ordenador al router por cable.
 2. Desactiva la suspensión del ordenador mientras dure el juego
    (Configuración > Sistema > Inicio/apagado y suspensión > Nunca).
+3. Marca la WiFi del router como red PRIVADA en el ordenador:
+   Configuración > Red e Internet > Wi-Fi > (tu red) > Tipo de perfil de
+   red: Privada. Con una red nueva Windows suele ponerla como "Pública", y
+   entonces el firewall bloquea a los iPads. Si se te olvida, la ventana
+   negra te avisará al arrancar.
 
 
 ARRANCAR
@@ -52,4 +57,6 @@ SI ALGO NO VA
   ventana. Ciérrala y vuelve a arrancar.
 - Firewall: si pulsaste "Cancelar" en el aviso de Windows, ve a
   Seguridad de Windows > Firewall > Permitir una aplicación, y activa
-  Node.js en "Privada".
+  Node.js en "Privada". Y comprueba que la red está como "Privada"
+  (paso 3 de ANTES DEL EVENTO): si está como "Pública", los iPads no
+  conectan aunque Node.js esté permitido.

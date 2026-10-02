@@ -588,6 +588,10 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 
     <!-- Main content -->
     <div class="main">
+        <!-- Volver a la pregunta que quedó a medias (Espera / Home) -->
+        <div id="resumeBar" style="display:none;padding:10px 16px 0;text-align:center;flex-shrink:0;">
+            <button class="btn-accent" onclick="emit('director:resume_question')"></button>
+        </div>
         <!-- Control strips -->
 
         <!-- No game -->
@@ -1071,7 +1075,7 @@ function connectSocket() {
         render();
         if (_bpTeamId) refreshBonusMenuBody();
     });
-    socket.on('karaoke:error', function(d) { showKaraokeToast(d.msg || 'Error en karaoke'); });
+    socket.on('karaoke:error', function(d) { _karaokeAwardSent = false; showKaraokeToast(d.msg || 'Error en karaoke'); });
 }
 
 // Órdenes que dependen de la pregunta en curso: viajan con la pregunta que ve el coordinador,
@@ -1117,6 +1121,7 @@ function render() {
         document.getElementById('scoreboardOverlay').classList.remove('active');
     }
 
+    renderResumeBar();
     renderTimer();
     renderBuzzer();
     renderTeams();
@@ -2607,8 +2612,10 @@ function renderRightPanelRuleta() {
 
 // ── Bottom bar: Teams ──
 // ── Estado de la precarga de contenido por dispositivo ──
+function preloadBad(p) { return p.failed + p.missing + ((p.skipped && !(p.failed + p.missing)) ? 1 : 0); }
 function preloadText(p) {
     var bad = p.failed + p.missing;
+    if (!bad && p.skipped) return 'Precarga omitida: pulsó "Continuar" sin descargar el contenido';
     if (!bad) return 'Contenido descargado (' + p.ok + ' archivos)';
     return bad + ' archivo' + (bad > 1 ? 's' : '') + ' sin descargar' + (p.names.length ? ': ' + p.names.join(', ') : '');
 }
@@ -2616,7 +2623,7 @@ function preloadText(p) {
 function preloadBadge(e) {
     var p = e.preload;
     if (!p) return e.ocupado ? '<span class="bb-preload" title="Sin datos de descarga todavía">&#8987;</span>' : '';
-    var bad = p.failed + p.missing;
+    var bad = preloadBad(p);
     return '<span class="bb-preload" title="' + esc(preloadText(p)) + '">' + (bad ? '&#9888;&#65039;' : '&#9989;') + '</span>';
 }
 
@@ -2624,7 +2631,7 @@ function renderPreloadInfo() {
     var el = document.getElementById('bbPreloadInfo');
     if (!el) return;
     var teams = S.equipos;
-    var okTeams = teams.filter(function(e) { return e.preload && !(e.preload.failed + e.preload.missing); }).length;
+    var okTeams = teams.filter(function(e) { return e.preload && !preloadBad(e.preload); }).length;
     var screens = Object.values((S.director && S.director.screensPreload) || {});
     var parts = [], details = [], warn = false;
     if (teams.length) {
@@ -2633,7 +2640,7 @@ function renderPreloadInfo() {
         teams.forEach(function(e) { details.push(e.nombre + ': ' + (e.preload ? preloadText(e.preload) : 'sin datos todavía')); });
     }
     screens.forEach(function(p, i) {
-        var bad = p.failed + p.missing;
+        var bad = preloadBad(p);
         if (bad) warn = true;
         parts.push('Pantalla' + (screens.length > 1 ? ' ' + (i + 1) : '') + ' ' + (bad ? '&#9888;&#65039;' : '&#9989;'));
         details.push('Pantalla' + (screens.length > 1 ? ' ' + (i + 1) : '') + ': ' + preloadText(p));
@@ -3051,8 +3058,27 @@ function resetRuleta() {
 // ── Navigation ──
 function openScreen() { window.open('/screen/' + S.gameId, '_blank'); }
 function openAdmin() { window.open('/admin', '_blank'); }
+// Barra "Volver a la pregunta": visible en Espera/Home si se dejó una pregunta a medias
+function renderResumeBar() {
+    var ds = S.director;
+    var bar = document.getElementById('resumeBar');
+    if (!bar) return;
+    var show = ds && ds.resumePhase && ds.currentRound && ds.currentQuestionIdx >= 0 && (ds.phase === 'waiting' || ds.phase === 'lobby');
+    bar.style.display = show ? '' : 'none';
+    if (show) bar.querySelector('button').textContent = '\u21A9 Volver a la pregunta ' + (ds.currentQuestionIdx + 1) + ' de «' + ds.currentRound.name + '»';
+}
+
 function refreshContent() {
     emit('director:refresh_content');
+    // Rondas añadidas o cambiadas en el backoffice: también en la barra lateral y el Home
+    fetch('/api/games/' + S.gameId).then(function(r) { return r.ok ? r.json() : null; }).then(function(g) {
+        if (!g) return;
+        S.game = g;
+        S.rounds = g.rounds || [];
+        document.getElementById('headerGameName').innerHTML = '<strong>' + esc(g.name) + '</strong>';
+        renderRounds();
+        render();
+    }).catch(function() {});
     var btn = document.getElementById('btnRefreshContent');
     btn.innerHTML = '&#9989;';
     setTimeout(function() { btn.innerHTML = '&#128259;'; }, 800);
@@ -3069,6 +3095,7 @@ function toast(msg) {
 // ═══════════════ Karaoke ═══════════════
 var _karaokeAssign = {};
 var _karaokeModalOpen = false;
+var _karaokeAwardSent = false; // reparto enviado, esperando confirmación del servidor
 var _karaokeModalSelected = null;
 
 function showKaraokeToast(msg) {
@@ -3411,7 +3438,8 @@ function renderKaraokeMain(panel, ds, c, colors, ks) {
     });
 
     // Modal de puntos
-    if (finished && !winnerColor && !_karaokeModalOpen) {
+    if (winnerColor || !finished) _karaokeAwardSent = false;
+    if (finished && !winnerColor && !_karaokeModalOpen && !_karaokeAwardSent) {
         _karaokeModalOpen = true;
         _karaokeModalSelected = null;
     }
@@ -3471,6 +3499,7 @@ function renderKaraokeModal(colors, ks, basePoints) {
     document.getElementById('karaokeModalConfirm').addEventListener('click', function() {
         if (!_karaokeModalSelected) return;
         emit('director:karaoke_award', { gameId: S.gameId, winnerColor: _karaokeModalSelected });
+        _karaokeAwardSent = true;
         _karaokeModalOpen = false;
         var ov = document.getElementById('karaokeModalOverlay');
         if (ov) ov.remove();
@@ -3478,16 +3507,28 @@ function renderKaraokeModal(colors, ks, basePoints) {
 }
 
 // Keyboard shortcuts
+var _NO_TIMER_TYPES = { pulsador: 1, imagen: 1, karaoke: 1, ruleta: 1, imagen_fija: 1, cancion: 1 };
 document.addEventListener('keydown', function(e) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.key === 'ArrowRight') handleNextQuestion();
-    if (e.key === 'ArrowLeft') emit('director:prev_question');
-    if (e.key === ' ') { e.preventDefault(); emit('director:start_timer'); }
-    if (e.key === 'r' || e.key === 'R') emit('director:reveal_answer');
-    if (e.key === 'b' || e.key === 'B') emit('director:open_buzzer');
+    // Ctrl+R / Cmd+R (recargar), Alt+…, tecla mantenida o foco en un control: no es un atajo
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    var t = e.target;
+    if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.tagName === 'BUTTON' || t.isContentEditable) return;
+    if (document.getElementById('karaokeModalOverlay')) return;
+    var ds = S.director;
+    if (!ds) return;
+    var inQuestion = ds.phase === 'question' || ds.phase === 'answer_revealed';
+    var type = ds.currentRound ? ds.currentRound.type : '';
+    if (e.key === 'ArrowRight' && inQuestion) handleNextQuestion();
+    if (e.key === 'ArrowLeft' && inQuestion) emit('director:prev_question');
+    if (e.key === ' ') {
+        e.preventDefault();
+        if (ds.phase === 'question' && !_NO_TIMER_TYPES[type]) emit('director:start_timer');
+    }
+    if ((e.key === 'r' || e.key === 'R') && ds.phase === 'question') emit('director:reveal_answer');
+    if ((e.key === 'b' || e.key === 'B') && ds.phase === 'question') emit('director:open_buzzer');
     if (e.key === 'Escape') {
-        var sbOverlay = document.getElementById('scoreboardOverlay');
-        if (sbOverlay.classList.contains('active')) { sbOverlay.classList.remove('active'); }
+        // El ranking se cierra también en el proyector
+        if (ds.scoreboardVisible) emit('director:toggle_scoreboard');
         else emit('director:close_buzzer');
     }
 });

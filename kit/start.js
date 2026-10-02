@@ -78,6 +78,19 @@ function waitReady(port, tries = 50) {
     });
 }
 
+// Si Windows tiene la WiFi como red "Pública", el firewall bloquea a los iPads aunque se
+// haya permitido Node.js en redes privadas. Se avisa (no bloquea el arranque).
+function warnIfPublicNetwork() {
+    exec('powershell -NoProfile -Command "(Get-NetConnectionProfile).NetworkCategory"', { timeout: 8000 }, (err, stdout) => {
+        if (err || !/Public/i.test(String(stdout))) return;
+        line('');
+        line('  ¡ATENCIÓN! Windows tiene esta red marcada como "Pública" y puede bloquear a los iPads.');
+        line('  Cámbiala a "Privada": Configuración > Red e Internet > Wi-Fi (o Ethernet) >');
+        line('  tu red > Tipo de perfil de red: Privada. Después vuelve a probar desde un iPad.');
+        line('');
+    });
+}
+
 async function main() {
     line('==================================================');
     line('   GameShow · Kit offline');
@@ -139,6 +152,8 @@ async function main() {
     line('  NO CIERRES ESTA VENTANA mientras dure el juego.');
     line('==================================================');
     line('');
+
+    warnIfPublicNetwork();
 
     const url = `http://${main ? main.ip : 'localhost'}:${port}/kit/`;
     if (!process.env.GAMESHOW_NO_BROWSER) exec(`start "" "${url}"`);

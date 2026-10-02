@@ -43,7 +43,10 @@
             stallTimer = setTimeout(function() { ctrl.abort(); }, STALL_MS);
         }
         arm();
-        return fetch(file.url, { cache: 'no-store', signal: ctrl.signal }).then(function(res) {
+        // Con Cache Storage guardamos nosotros la copia ('no-store'). Sin ella (kit por http://IP)
+        // se deja en la caché HTTP del navegador ('no-cache': revalida, y si no ha cambiado
+        // responde al instante), así el juego y las recargas no vuelven a descargarlo todo.
+        return fetch(file.url, { cache: hasCache ? 'no-store' : 'no-cache', signal: ctrl.signal }).then(function(res) {
             if (!res.ok) { var e = new Error('El servidor respondió ' + res.status); e.fatal = res.status === 404; throw e; }
             var type = res.headers.get('Content-Type') || '';
             if (!res.body || !res.body.getReader) return res.blob().then(function(b) { onBytes(b.size); return b; });
@@ -232,9 +235,28 @@
         var manifest = null;
         var lastFailed = [];
 
+        var autoTimer = null;
         function finish(result) {
+            clearTimeout(autoTimer);
             ov.remove();
             if (opts.onDone) opts.onDone(result);
+            if (opts.autoContinueMs && (result.failed.length || result.missing.length || !manifest)) showCornerNote(result);
+        }
+
+        // Con opts.autoContinueMs (proyector), los avisos se cierran solos y queda una nota pequeña
+        function armAutoContinue() {
+            if (!opts.autoContinueMs) return;
+            clearTimeout(autoTimer);
+            autoTimer = setTimeout(function() { finish(result(true)); }, opts.autoContinueMs);
+            sub.textContent += ' · se continúa sola en ' + Math.round(opts.autoContinueMs / 1000) + ' s';
+        }
+
+        function showCornerNote(r) {
+            var n = r.failed.length + r.missing.length;
+            var note = el('div', null, '&#9888;&#65039; ' + (n ? n + ' archivo' + (n > 1 ? 's' : '') + ' sin descargar' : 'Precarga incompleta') + ' · ver coordinador');
+            note.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99998;background:rgba(0,0,0,.75);color:#facc15;font:600 13px -apple-system,Segoe UI,Roboto,sans-serif;padding:8px 12px;border-radius:8px;border:1px solid rgba(250,204,21,.4);';
+            document.body.appendChild(note);
+            setTimeout(function() { note.remove(); }, 15000);
         }
 
         function result(skipped) {
@@ -266,6 +288,7 @@
             retry.style.display = lastFailed.length || !manifest ? '' : 'none';
             btns.style.display = 'flex';
             cur.textContent = '';
+            armAutoContinue();
         }
 
         function onProgress(s) {
@@ -313,10 +336,12 @@
                 err.style.display = 'block';
                 retry.style.display = '';
                 btns.style.display = 'flex';
+                armAutoContinue();
             });
         }
 
         retry.onclick = function() {
+            clearTimeout(autoTimer);
             if (!manifest) { load(); return; }
             var again = {};
             lastFailed.forEach(function(f) { again[f.url] = true; });

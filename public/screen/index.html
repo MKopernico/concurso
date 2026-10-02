@@ -828,13 +828,14 @@ function onSync(data) {
     renderPremioOverlay();
     renderPremioGanadorOverlay();
 
-    // Recover video state on reconnect
-    if (data.videoState) {
+    // Estado del vídeo (reconexión): solo cuando cambia la orden del coordinador
+    if (data.videoState && data.videoState.ts !== _lastVideoTs) {
+        _lastVideoTs = data.videoState.ts;
         setTimeout(function() {
             var vid = document.getElementById('ifVideo');
             if (!vid) return;
             if (data.videoState.action === 'play') {
-                if (_ifUserGesture) vid.play().catch(function() {});
+                if (_ifUserGesture && !vid.ended) vid.play().catch(function() {});
             } else if (data.videoState.action === 'pause') {
                 vid.pause();
             }
@@ -885,6 +886,7 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
     if (phaseChanged || newQuestion) {
         var vid = document.getElementById('ifVideo');
         if (vid) { vid.pause(); vid.removeAttribute('src'); vid.load(); }
+        _imagenFijaPrevQId = ''; // el vídeo se ha vaciado: volver a montarlo si se relanza la pregunta
     }
 
     document.getElementById('roundLabel').textContent = ps.roundName || '';
@@ -1069,6 +1071,8 @@ function renderMultiOptions(c, optionsJustRevealed, stmtEl) {
     var container = document.getElementById('qOptions');
     if (!opts.length || (ps && !ps.optionsRevealed)) {
         container.style.display = 'none';
+        container.innerHTML = ''; // si no, al revelar saldrían las opciones de la pregunta anterior
+        container.dataset.revealKey = '';
         return;
     }
     container.style.display = 'grid';
@@ -1080,6 +1084,7 @@ function renderMultiOptions(c, optionsJustRevealed, stmtEl) {
     container.innerHTML = opts.map(function(o, i) {
         return '<div class="q-opt"><span class="opt-letter">' + letters[i] + '</span>' + esc(o) + '</div>';
     }).join('');
+    container.dataset.revealKey = '';
 
     // Animate: stagger options in (statement stays fixed at top)
     if (optionsJustRevealed) {
@@ -1358,6 +1363,7 @@ function updateImageAnswer(visible, answerText) {
 
 // ═══════════════ IMAGEN FIJA SCREEN ═══════════════
 var _imagenFijaPrevQId = '';
+var _lastVideoTs = null;
 var _ifUserGesture = false;
 
 document.addEventListener('click', function() { _ifUserGesture = true; }, { once: true });
@@ -1746,12 +1752,13 @@ function renderRevealedInPlace() {
         var correct = c.correct;
         var correctIndices = Array.isArray(correct) ? correct : (typeof correct === 'number' ? [correct] : []);
         var container = document.getElementById('qOptions');
-        // Ensure options are shown (they may already be from question phase)
-        if (!container.children.length) {
+        // Siempre a partir de las opciones de ESTA pregunta (una vez por pregunta)
+        if (container.dataset.revealKey !== ps.questionKey || !container.children.length) {
             var letters = ['A', 'B', 'C', 'D', 'E', 'F'];
             container.innerHTML = opts.map(function(o, i) {
                 return '<div class="q-opt"><span class="opt-letter">' + letters[i] + '</span>' + esc(o) + '</div>';
             }).join('');
+            container.dataset.revealKey = ps.questionKey;
         }
         container.style.display = 'grid';
         // Apply correct/dimmed classes with transition
@@ -1792,7 +1799,7 @@ function renderRevealedInPlace() {
         for (var t = 0; t < rows * cols; t++) allTiles.push(t);
         updateImageTiles(allTiles);
         // Show answer overlay if present
-        if (c.answer) updateImageAnswer(true);
+        if (c.answer) updateImageAnswer(true, c.answer);
     } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen_fija') {
         // Same reveal pattern as precio/50x15: white text, dark base + green tint, green border/glow
         var stmtEl = document.getElementById('qStatement');
@@ -1812,6 +1819,23 @@ function renderRevealedInPlace() {
         document.getElementById('cancionScreenWrap').style.display = 'none';
     } else if (type === 'identidad') {
         renderIdentidadReveal();
+    } else if (type === 'ruleta') {
+        // El panel se queda en pantalla con la frase completa
+        var rc = document.getElementById('ruletaScreenPanel');
+        if (rc && rc.dataset.solvedKey !== ps.questionKey) {
+            rc.dataset.solvedKey = ps.questionKey;
+            rc.style.display = 'block';
+            var gtR = ps.gameTheme || {}, rtR = ps.roundTheme || {}, ttR = ps.typeTheme || {};
+            RoulettePanel.render(rc, {
+                phrase: c.phrase || '', hint: c.hint || '',
+                revealedLetters: ps.rouletteRevealed || [], solved: true,
+                logo: rtR.logo || ttR.logo || gtR.logo || null,
+                size: 'large', panelVisible: true,
+                background: rtR.background || ttR.background || null
+            });
+        }
+    } else if (type === 'karaoke') {
+        // Nada que revelar: la pantalla de karaoke ya muestra el ganador
     } else {
         // For other types, fall back to legacy revealed phase
         renderRevealed();
@@ -1869,7 +1893,7 @@ function renderTeamResultsOverlay() {
             + '</div>';
     });
 
-    document.getElementById('teamResultsCards').innerHTML = html;
+    setHtmlIfChanged(document.getElementById('teamResultsCards'), html);
     overlay.classList.add('active');
 }
 
@@ -2016,7 +2040,7 @@ function renderScoreboard(targetId) {
             '<div class="sb-score">' + r.score + '</div></div>';
     }).join('');
 
-    document.getElementById(targetId || 'sbTable').innerHTML = html;
+    setHtmlIfChanged(document.getElementById(targetId || 'sbTable'), html);
 }
 
 // ═══════════════ MINI SCORES ═══════════════
@@ -2036,11 +2060,21 @@ function renderMiniScores() {
             '<span class="mc-name">' + esc(r.name) + '</span> <span class="mc-score">' + r.score + '</span></div>';
     }).join('');
 
-    document.getElementById('miniScores').innerHTML = html;
-    document.getElementById('miniScoresRev').innerHTML = html;
+    setHtmlIfChanged(document.getElementById('miniScores'), html);
+    setHtmlIfChanged(document.getElementById('miniScoresRev'), html);
 }
 
 // ═══════════════ UTILS ═══════════════
+// Sustituye el contenido solo si cambia (evita repetir animaciones de entrada en cada sync)
+function setHtmlIfChanged(el, html) {
+    if (!el) return false;
+    if (el._gsHtml === html && el.innerHTML === el._gsDom) return false; // mismo contenido y nadie lo ha tocado
+    el.innerHTML = html;
+    el._gsHtml = html;
+    el._gsDom = el.innerHTML;
+    return true;
+}
+
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
 function notify(msg) {
@@ -2062,7 +2096,11 @@ var GRADIENT_PRESETS = {
 };
 var currentTheme = {};
 
+var _bgKey = null;
 function paintBgLayer(resolved) {
+    var key = JSON.stringify(resolved || null);
+    if (key === _bgKey) return; // mismo fondo: no reiniciar animaciones
+    _bgKey = key;
     var bgLayer = document.getElementById('bgLayer');
     bgLayer.className = 'bg-layer';
     bgLayer.style.cssText = '';
@@ -2080,8 +2118,13 @@ function paintBgLayer(resolved) {
     }
 }
 
+var _themeKey = null;
 function applyTheme(theme) {
-    if (!theme || JSON.stringify(theme) === JSON.stringify(currentTheme)) return;
+    // Clave del tema TAL COMO LLEGA (resolveBackground lo modifica después y la comparación
+    // con currentTheme fallaba siempre: partículas y fondo se recreaban en cada sync)
+    var key = theme ? JSON.stringify(theme) : null;
+    if (!theme || key === _themeKey) return;
+    _themeKey = key;
     currentTheme = theme;
     var root = document.documentElement;
 
@@ -2196,9 +2239,11 @@ function renderScreenLobbyDefault() {
     document.getElementById('lobbyTitle').style.display = '';
     document.querySelector('.lobby-sub').style.display = '';
     var menuEl = document.getElementById('screenMenuContainer');
-    if (menuEl) menuEl.style.display = 'none';
-    // Reset bgLayer to game base background (clear any menu background)
-    currentTheme = {}; if (ps.gameTheme) applyTheme(ps.gameTheme);
+    var cameFromMenu = menuEl && menuEl.style.display !== 'none';
+    if (menuEl) { menuEl.style.display = 'none'; menuEl.dataset.sig = ''; }
+    // Volver al fondo base del juego solo si un menú lo había cambiado
+    if (cameFromMenu) _themeKey = null;
+    if (ps.gameTheme) applyTheme(ps.gameTheme);
 }
 
 function getScreenCategories() {
@@ -2255,6 +2300,8 @@ function renderScreenHomeMenu() {
         html += '</div>';
     });
     html += '</div></div>';
+    if (container.dataset.sig === html) return; // sin cambios: no repetir el fundido
+    container.dataset.sig = html;
     container.innerHTML = html;
 
     requestAnimationFrame(function() {
@@ -2303,6 +2350,8 @@ function renderScreenCategoryMenu() {
         html += '</div>';
     });
     html += '</div></div>';
+    if (container.dataset.sig === html) return; // sin cambios: no repetir el fundido
+    container.dataset.sig = html;
     container.innerHTML = html;
 
     requestAnimationFrame(function() {
@@ -2329,7 +2378,7 @@ var _preloadSummary = null;
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/screen/media-sw.js', { scope: '/screen/' }).catch(function() {});
 if (gameId && window.GSPreload) {
     GSPreload.showOverlay({
-        gameId: gameId, role: 'screen', title: 'Preparando la pantalla',
+        gameId: gameId, role: 'screen', title: 'Preparando la pantalla', autoContinueMs: 20000,
         onDone: function(result) {
             _preloadSummary = GSPreload.summary(result);
             if (socket && socket.connected) socket.emit('screen:preload_status', _preloadSummary);

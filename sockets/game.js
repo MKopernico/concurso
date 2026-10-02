@@ -106,6 +106,7 @@ function snapshotOf(state) {
         scores: ds.scores,
         completedRounds: ds.completedRounds,
         bonoLog: ds.bonoLog,
+        questionResults: ds.questionResults || {},
         bloqueoGlobal: !!state.bloqueoGlobal,
         teams: Object.fromEntries(state.equipos.map(e => [e.id, { bonos: e.bonos || [], bloqueado: !!e.bloqueado, descongelaEn: e.descongelaEn || 0 }])),
     });
@@ -123,6 +124,7 @@ function restoreSnapshot(s, json) {
     });
     s.director.completedRounds = Array.isArray(snap.completedRounds) ? snap.completedRounds : [];
     s.director.bonoLog = Array.isArray(snap.bonoLog) ? snap.bonoLog : [];
+    s.director.questionResults = (snap.questionResults && typeof snap.questionResults === 'object') ? snap.questionResults : {};
     s.bloqueoGlobal = !!snap.bloqueoGlobal;
     s._lastSnapshot = json;
 }
@@ -235,6 +237,59 @@ function stopTimer(state, gameId, io) {
     state.director.timer.running = false;
 }
 
+// Al pasar a 'Espera' u 'Home' con una pregunta en curso, se recuerda para poder volver
+function rememberResume(state) {
+    const ds = state.director;
+    if (ds.phase === 'question' || ds.phase === 'answer_revealed') ds.resumePhase = ds.phase;
+}
+
+// Pruebas sin temporizador (el coordinador las cierra a mano)
+const NO_TIMER_TYPES = new Set(['pulsador', 'imagen', 'karaoke', 'ruleta', 'imagen_fija', 'cancion']);
+function isNoTimerRound(ds) { return !!(ds.currentRound && NO_TIMER_TYPES.has(ds.currentRound.type)); }
+
+// Cierra la pregunta en curso: puntúa automáticamente según el tipo, revela y guarda el
+// resultado. Si la pregunta ya no está en fase 'question' no hace nada (nunca puntúa dos veces).
+function finalizeQuestion(state) {
+    const ds = state.director;
+    if (ds.phase !== 'question') return false;
+    const type = ds.currentRound && ds.currentRound.type;
+    if (type === 'multirespuesta') autoScoreMultirespuesta(state);
+    else if (type === 'precio') autoScorePrecio(state);
+    else if (type === 'identidad') {
+        // Las ordenaciones provisionales pasan a definitivas
+        for (const ans of Object.values(ds.answers)) {
+            if (!ans.submitted) { ans.submitted = true; ans.timerRemaining = ds.timer.remaining; }
+        }
+        autoScoreIdentidad(state);
+    } else if (type === 'boom') autoScoreBoom(state);
+    ds.phase = 'answer_revealed';
+    state.pulsadorActivo = false;
+    computeLastQuestionScores(state);
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (q) {
+        if (!ds.questionResults) ds.questionResults = {};
+        ds.questionResults[q.id] = { answers: ds.answers, lastQuestionScores: ds.lastQuestionScores, identidad: ds.identidad };
+    }
+    return true;
+}
+
+// Al volver a una pregunta ya puntuada (Anterior, relanzarla…) se muestra revelada con su
+// resultado: no se puede volver a responder ni sumar puntos otra vez.
+function restoreQuestionResult(state) {
+    const ds = state.director;
+    const q = ds.questions[ds.currentQuestionIdx];
+    const r = q && ds.questionResults && ds.questionResults[q.id];
+    if (!r) return false;
+    ds.answers = r.answers || {};
+    ds.lastQuestionScores = r.lastQuestionScores || {};
+    if (r.identidad) ds.identidad = r.identidad;
+    ds.optionsRevealed = true;
+    ds.timer.running = false;
+    ds.phase = 'answer_revealed';
+    state.pulsadorActivo = false;
+    return true;
+}
+
 // Arranca el temporizador de la pregunta. Siempre limpia el intervalo anterior: nunca puede
 // haber dos a la vez (un intervalo huérfano seguiría restando y puntuando por su cuenta).
 function startQuestionTimer(state, gameId, io) {
@@ -248,27 +303,7 @@ function startQuestionTimer(state, gameId, io) {
         if (ds.timer.remaining <= 0) {
             stopTimer(state, gameId, io);
             // Al agotarse el tiempo se puntúa y se revela automáticamente
-            if (ds.phase === 'question') {
-                if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
-                    autoScoreMultirespuesta(state);
-                } else if (ds.currentRound && ds.currentRound.type === 'precio') {
-                    autoScorePrecio(state);
-                } else if (ds.currentRound && ds.currentRound.type === 'identidad') {
-                    // Las ordenaciones provisionales pasan a definitivas
-                    for (const ans of Object.values(ds.answers)) {
-                        if (!ans.submitted) {
-                            ans.submitted = true;
-                            ans.timerRemaining = 0;
-                        }
-                    }
-                    autoScoreIdentidad(state);
-                } else if (ds.currentRound && ds.currentRound.type === 'boom') {
-                    autoScoreBoom(state);
-                }
-                ds.phase = 'answer_revealed';
-                state.pulsadorActivo = false;
-                computeLastQuestionScores(state);
-            }
+            finalizeQuestion(state);
             broadcastDirector(io, gameId, state);
         }
     }, 1000);
@@ -366,7 +401,7 @@ function autoScoreMultirespuesta(state) {
     const cfg = getQuestionConfig(state);
     for (const [teamId, ans] of Object.entries(ds.answers)) {
         const picked = Array.isArray(ans.answer) ? ans.answer : [ans.answer];
-        const ok = picked.length === correctSet.size && picked.every(a => correctSet.has(a));
+        const ok = picked.length >= 1 && picked.every(a => correctSet.has(a)); // vale cualquiera de las correctas
         if (!ds.scores[teamId]) ds.scores[teamId] = 0;
         if (ok) {
             const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
@@ -384,6 +419,36 @@ function shuffleArray(arr) {
         [a[i], a[j]] = [a[j], a[i]];
     }
     return a;
+}
+
+// Ruleta: las letras sin destapar se sustituyen (se conserva la forma: espacios y signos)
+function maskPhrase(phrase, revealed) {
+    const PUNCT = ',.!?¡¿:;—–-\'"()';
+    const rev = new Set(revealed.map(l => String(l).toUpperCase()));
+    return Array.from(phrase).map(ch => (ch === ' ' || PUNCT.includes(ch) || rev.has(ch.toUpperCase())) ? ch : '•').join('');
+}
+
+// Boom: orden barajado (estable durante la pregunta) en que se muestran los elementos
+function boomPerm(ds, n) {
+    const key = (ds.currentRoundId || '') + ':' + ds.currentQuestionIdx + ':' + (ds.questionEpoch || 0);
+    if (!ds._boomPerm || ds._boomPerm.key !== key || ds._boomPerm.perm.length !== n) {
+        ds._boomPerm = { key, perm: shuffleNotIdentical(Array.from({ length: n }, (_, i) => i)) };
+    }
+    return ds._boomPerm.perm;
+}
+
+// Traduce el orden que manda un iPad (índices de lo que ve) a índices reales del contenido.
+// Devuelve null si no es una lista válida.
+function toCanonicalOrder(ds, order) {
+    const type = ds.currentRound && ds.currentRound.type;
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (!q || !Array.isArray(order)) return null;
+    let map = null;
+    if (type === 'boom' && Array.isArray(q.content && q.content.items)) map = boomPerm(ds, q.content.items.length);
+    if (type === 'identidad' && ds.identidad && Array.isArray(ds.identidad.shuffledRight)) map = ds.identidad.shuffledRight;
+    if (!map) return order;
+    if (!order.every(k => Number.isInteger(k) && k >= 0 && k < map.length)) return null;
+    return order.map(k => map[k]);
 }
 
 function shuffleNotIdentical(arr) {
@@ -472,7 +537,7 @@ function computeLastQuestionScores(state) {
         if (roundType === 'multirespuesta' && c.correct !== undefined) {
             const correctSet = new Set(Array.isArray(c.correct) ? c.correct : [c.correct]);
             const picked = Array.isArray(ans.answer) ? ans.answer : [ans.answer];
-            entry.correct = picked.length === correctSet.size && picked.every(a => correctSet.has(a));
+            entry.correct = picked.length >= 1 && picked.every(a => correctSet.has(a));
             if (entry.correct) {
                 const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
                 entry.points = cfg.basePoints + bonus;
@@ -547,12 +612,25 @@ function resolveTypeTheme(state, roundType) {
     return (gt.types && gt.types[roundType]) || {};
 }
 
-function playerView(state) {
+// Vista para iPads y pantalla. forPlayers=true quita lo que delataría la solución en el
+// dispositivo de un equipo: frase de la ruleta (solo letras ya destapadas), imagen completa de
+// "Adivina la imagen" y orden de Boom/Identidad (los elementos viajan barajados y el servidor
+// traduce la respuesta). La pantalla recibe la vista completa para poder dibujar y animar.
+function playerView(state, forPlayers) {
     const ds = state.director;
     const curQ = ds.questions[ds.currentQuestionIdx];
     let question = null;
     if (curQ && (ds.phase === 'question' || ds.phase === 'answer_revealed')) {
         const c = { ...curQ.content };
+        const type = ds.currentRound && ds.currentRound.type;
+        if (ds.phase === 'question' && forPlayers) {
+            if (type === 'ruleta' && !ds.rouletteSolved && typeof c.phrase === 'string') c.phrase = maskPhrase(c.phrase, ds.rouletteRevealed || []);
+            if (type === 'imagen') { delete c.image; delete c.answer; }
+        }
+        if (ds.phase === 'question' && type === 'boom' && Array.isArray(c.items)) {
+            const perm = boomPerm(ds, c.items.length);
+            c.items = perm.map(i => c.items[i]);
+        }
         if (ds.phase === 'question') {
             if (ds.currentRound && ds.currentRound.type === 'multirespuesta' && !ds.optionsRevealed) {
                 delete c.options;
@@ -567,9 +645,13 @@ function playerView(state) {
                     if (!ds.optionsRevealed) {
                         c.pairs = c.pairs.map(p => ({ left: p.left }));
                     } else {
-                        c.rightsCanonical = c.pairs.map(p => p.right);
+                        // Las derechas viajan ya barajadas; el índice k que maneja el iPad
+                        // corresponde a shuffledRight[k] (el servidor lo traduce al recibir)
+                        const sh = (ds.identidad && ds.identidad.shuffledRight) || c.pairs.map((p, i) => i);
+                        const rights = c.pairs.map(p => p.right);
+                        c.rightsCanonical = sh.map(ci => rights[ci]);
                         c.pairs = c.pairs.map(p => ({ left: p.left }));
-                        c.rightShuffled = ds.identidad ? ds.identidad.shuffledRight : [];
+                        c.rightShuffled = sh.map((ci, k) => k);
                     }
                 }
             }
@@ -630,6 +712,8 @@ function playerView(state) {
         optionsRevealed: ds.optionsRevealed,
         completedRounds: ds.completedRounds,
         lastQuestionScores: ds.lastQuestionScores,
+        questionKey: (ds.currentRoundId || '') + ':' + ds.currentQuestionIdx + ':' + (ds.questionEpoch || 0), // cambia también al relanzar la misma pregunta
+        buzzerFailed: ds.buzzerFailed || [],
         showTeamResults: ds.showTeamResults,
         scoreboardVisible: ds.scoreboardVisible,
         qrVisible: ds.qrVisible,
@@ -659,7 +743,10 @@ function emitYourOrder(socket, state) {
     if (!(ds.currentRound && ds.currentRound.type === 'identidad')) return;
     const entry = ds.answers[socket.equipoId];
     if (!entry) return;
-    socket.emit('game:your_order', { order: entry.answer, submitted: !!entry.submitted });
+    let order = entry.answer;
+    const sh = ds.identidad && ds.identidad.shuffledRight;
+    if (ds.phase === 'question' && Array.isArray(sh) && Array.isArray(order)) order = order.map(ci => sh.indexOf(ci));
+    socket.emit('game:your_order', { order, submitted: !!entry.submitted });
 }
 
 function aplicarDescongelacionPorPregunta(state, io, gameId) {
@@ -690,10 +777,10 @@ function avanzarPregunta(state, io, gameId) {
     ds.answers = {};
     ds.revealedCells = [];
     ds.revealedLetters = [];
-    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
+    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
     ds.optionsRevealed = false;
     initIdentidadState(ds);
-    if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'karaoke')) {
+    if (isNoTimerRound(ds)) {
         ds.timer = { total: 0, remaining: 0, running: false };
     } else {
         const cfg = getQuestionConfig(state);
@@ -701,6 +788,8 @@ function avanzarPregunta(state, io, gameId) {
     }
     state.pulsadorActivo = false;
     state.colaPulsador = [];
+    // Pregunta ya puntuada: se muestra con su resultado, sin volver a responder ni puntuar
+    restoreQuestionResult(state);
     ds.premioGanadorVisible = false;
     ds.premioGanadorExtra = null;
     setPremioAnuncio(state);
@@ -777,7 +866,12 @@ function resolverPremioAsignado(state, data, io, gameId) {
 
 function broadcastDirector(io, gameId, state) {
     io.to(`directors:${gameId}`).emit('game:director_sync', publicView(state));
-    io.to(roomOf(gameId)).emit('game:player_sync', playerView(state));
+    io.to(roomOf(gameId)).except(`screens:${gameId}`).emit('game:player_sync', playerView(state, true));
+    io.to(`screens:${gameId}`).emit('game:player_sync', playerView(state, false));
+}
+
+function emitPlayerSync(socket, state) {
+    socket.emit('game:player_sync', playerView(state, !socket.isScreen));
 }
 
 function resolveGameId(requestedId) {
@@ -815,12 +909,14 @@ function attachSocketHandlers(io) {
         const gameId = resolveGameId(requested);
         const deviceId = socket.handshake.query && socket.handshake.query.deviceId;
         socket.gameId = gameId;
-        socket.join(roomOf(gameId));
 
         // Roles: staff = sesión de backoffice/coordinador (cookie); hasPass = el iPad tiene pase del juego.
         socket.isStaff = !!auth.sessionFromCookieHeader(socket.handshake.headers.cookie);
         const pass = socket.handshake.query && socket.handshake.query.pass;
         socket.hasPass = auth.verifyGamePass(gameId, pass);
+        // Solo reciben lo que pasa en el juego quienes tienen pase o sesión (la pantalla entra con screen:join).
+        // Una conexión anónima sin código ya no escucha la sala.
+        if (socket.hasPass || socket.isStaff) socket.join(roomOf(gameId));
 
         // Un dato mal formado no debe tumbar el servidor (el marcador vive en este proceso):
         // cada handler se ejecuta protegido y el error solo se registra.
@@ -896,7 +992,7 @@ function attachSocketHandlers(io) {
                     socket.equipoId = eq.id;
                     state._gameTheme = loadGameTheme(gameId);
                     socket.emit('login_success', { miEquipo: eq, equiposRivales: state.equipos });
-                    socket.emit('game:player_sync', playerView(state));
+                    emitPlayerSync(socket, state);
                     emitYourOrder(socket, state);
                     broadcastDirector(io, gameId, state);
                     return;
@@ -917,7 +1013,7 @@ function attachSocketHandlers(io) {
 
             state._gameTheme = loadGameTheme(gameId);
             socket.emit('login_success', { miEquipo: eq, equiposRivales: state.equipos });
-            socket.emit('game:player_sync', playerView(state));
+            emitPlayerSync(socket, state);
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
             broadcastDirector(io, gameId, state);
         });
@@ -950,7 +1046,7 @@ function attachSocketHandlers(io) {
 
             state._gameTheme = loadGameTheme(gameId);
             socket.emit('login_success', { miEquipo: eq, equiposRivales: state.equipos });
-            socket.emit('game:player_sync', playerView(state));
+            emitPlayerSync(socket, state);
             emitYourOrder(socket, state);
             broadcastDirector(io, gameId, state);
         });
@@ -1097,6 +1193,7 @@ function attachSocketHandlers(io) {
             const e = state.equipos.find(x => x.id === socket.equipoId);
             if (!e) return;
             if (!state.pulsadorActivo || state.bloqueoGlobal || e.bloqueado) return;
+            if ((state.director.buzzerFailed || []).includes(e.id)) return; // ya falló esta pregunta
             if (state.colaPulsador.find(p => p.id === e.id)) return;
             var elapsed = state.buzzerOpenedAt ? Date.now() - state.buzzerOpenedAt : 0;
             state.colaPulsador.push({ id: e.id, nombre: e.nombre, tiempo: Date.now(), elapsed: elapsed });
@@ -1128,7 +1225,10 @@ function attachSocketHandlers(io) {
             if (!socket.equipoId) return;
             const ds = state.director;
             if (ds.phase !== 'question') return;
-            if (!Array.isArray(data.order)) return;
+            if (!data || !Array.isArray(data.order)) return;
+            const order = toCanonicalOrder(ds, data.order);
+            if (!order) return;
+            data = { order };
             const existing = ds.answers[socket.equipoId];
             // For identidad: allow promoting provisional to definitive
             if (existing) {
@@ -1152,10 +1252,12 @@ function attachSocketHandlers(io) {
             if (ds.phase !== 'question') return;
             if (!ds.optionsRevealed) return;
             if (!(ds.currentRound && ds.currentRound.type === 'identidad')) return;
-            if (!Array.isArray(data.order)) return;
+            if (!data || !Array.isArray(data.order)) return;
+            const order = toCanonicalOrder(ds, data.order);
+            if (!order) return;
             const existing = ds.answers[socket.equipoId];
             if (existing && existing.submitted) return;
-            ds.answers[socket.equipoId] = { answer: data.order, timestamp: Date.now(), timerRemaining: ds.timer.remaining, submitted: false };
+            ds.answers[socket.equipoId] = { answer: order, timestamp: Date.now(), timerRemaining: ds.timer.remaining, submitted: false };
         });
 
         socket.on('usar_bono', (data) => {
@@ -1208,8 +1310,11 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('screen:join', () => {
+            socket.isScreen = true;
+            socket.join(roomOf(gameId));
+            socket.join(`screens:${gameId}`);
             state._gameTheme = loadGameTheme(gameId);
-            socket.emit('game:player_sync', playerView(state));
+            emitPlayerSync(socket, state);
         });
 
         // ═══════════════════════ PRECARGA (estado por dispositivo para el coordinador) ═══════════════════════
@@ -1303,7 +1408,7 @@ function attachSocketHandlers(io) {
             ds.currentQuestionIdx = -1;
             ds.phase = 'round_intro';
             ds.answers = {};
-            ds.karaoke = null;
+            ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
             state.pulsadorActivo = false;
@@ -1320,7 +1425,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
                 ds.optionsRevealed = false;
                 ds.lastQuestionScores = {};
                 ds.showTeamResults = false;
@@ -1329,7 +1434,7 @@ function attachSocketHandlers(io) {
                 ds.menuLevel = null;
                 ds.selectedCategory = null;
                 initIdentidadState(ds);
-                if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'karaoke')) {
+                if (isNoTimerRound(ds)) {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
                     const cfg = getQuestionConfig(state);
@@ -1337,6 +1442,8 @@ function attachSocketHandlers(io) {
                 }
                 state.pulsadorActivo = false;
                 state.colaPulsador = [];
+                // Pregunta ya puntuada: se muestra con su resultado, sin volver a responder ni puntuar
+                restoreQuestionResult(state);
                 setPremioAnuncio(state);
                 broadcastDirector(io, gameId, state);
             }
@@ -1353,7 +1460,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
@@ -1361,7 +1468,7 @@ function attachSocketHandlers(io) {
             ds.qrVisible = false;
             ds.premioGanadorVisible = false;
             initIdentidadState(ds);
-            if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'karaoke')) {
+            if (isNoTimerRound(ds)) {
                 ds.timer = { total: 0, remaining: 0, running: false };
             } else {
                 const cfg = getQuestionConfig(state);
@@ -1369,6 +1476,8 @@ function attachSocketHandlers(io) {
             }
             state.pulsadorActivo = false;
             state.colaPulsador = [];
+            // Pregunta ya puntuada: se muestra con su resultado, sin volver a responder ni puntuar
+            restoreQuestionResult(state);
             setPremioAnuncio(state);
             broadcastDirector(io, gameId, state);
         });
@@ -1396,10 +1505,10 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
                 ds.optionsRevealed = false;
                 initIdentidadState(ds);
-                if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen')) {
+                if (isNoTimerRound(ds)) {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
                     const cfg = getQuestionConfig(state);
@@ -1407,17 +1516,20 @@ function attachSocketHandlers(io) {
                 }
                 state.pulsadorActivo = false;
                 state.colaPulsador = [];
+                // Pregunta ya puntuada: se muestra con su resultado, sin volver a responder ni puntuar
+                restoreQuestionResult(state);
                 broadcastDirector(io, gameId, state);
             }
         });
 
         socket.on('director:start_timer', () => {
             const ds = state.director;
+            if (ds.phase !== 'question' || isNoTimerRound(ds)) return;
             clearPreCountdown(state);
             if (ds.timer.running || ds.timer.remaining <= 0) return;
             ds.timer.running = true;
-            // Auto-reveal options for multirespuesta/precio when timer starts
-            if (ds.currentRound && (ds.currentRound.type === 'multirespuesta' || ds.currentRound.type === 'precio')) {
+            // Al arrancar el tiempo se muestran las opciones/elementos a los equipos
+            if (ds.currentRound && ['multirespuesta', 'precio', 'boom', 'identidad'].includes(ds.currentRound.type)) {
                 ds.optionsRevealed = true;
             }
             startQuestionTimer(state, gameId, io);
@@ -1430,6 +1542,7 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:extend_timer', (data) => {
+            if (isNoTimerRound(state.director)) return;
             const secs = Math.max(1, Math.min(120, Number(data && data.seconds) || 10));
             state.director.timer.remaining += secs;
             state.director.timer.total += secs;
@@ -1437,28 +1550,10 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:reveal_answer', () => {
+            // Solo con una pregunta en curso (antes, una R a destiempo revelaba y puntuaba)
+            if (state.director.phase !== 'question') return;
             stopTimer(state, gameId, io);
-            const ds = state.director;
-            if (ds.phase === 'question') {
-                if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
-                    autoScoreMultirespuesta(state);
-                } else if (ds.currentRound && ds.currentRound.type === 'precio') {
-                    autoScorePrecio(state);
-                } else if (ds.currentRound && ds.currentRound.type === 'identidad') {
-                    for (const [tid, ans] of Object.entries(ds.answers)) {
-                        if (!ans.submitted) {
-                            ans.submitted = true;
-                            ans.timerRemaining = ds.timer.remaining;
-                        }
-                    }
-                    autoScoreIdentidad(state);
-                } else if (ds.currentRound && ds.currentRound.type === 'boom') {
-                    autoScoreBoom(state);
-                }
-            }
-            ds.phase = 'answer_revealed';
-            state.pulsadorActivo = false;
-            computeLastQuestionScores(state);
+            finalizeQuestion(state);
             broadcastDirector(io, gameId, state);
         });
 
@@ -1656,7 +1751,8 @@ function attachSocketHandlers(io) {
             state.colaPulsador.splice(idx, 1);
             io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             const cfg = getQuestionConfig(state);
-            const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ds.timer.remaining / ds.timer.total)) : 0;
+            // Bonus por rapidez solo en pruebas con temporizador (ruleta e imagen fija: puntos base)
+            const bonus = (!isNoTimerRound(ds) && ds.timer.total > 0) ? Math.floor(cfg.bonusMax * (ds.timer.remaining / ds.timer.total)) : 0;
             if (!ds.scores[data.teamId]) ds.scores[data.teamId] = 0;
             ds.scores[data.teamId] += cfg.basePoints + bonus;
             broadcastDirector(io, gameId, state);
@@ -1672,6 +1768,9 @@ function attachSocketHandlers(io) {
             }
             const idx = state.colaPulsador.findIndex(p => p.id === data.teamId);
             if (idx > -1) state.colaPulsador.splice(idx, 1);
+            // Un equipo que falla no puede volver a pulsar en esta pregunta
+            if (!ds.buzzerFailed) ds.buzzerFailed = [];
+            if (!ds.buzzerFailed.includes(data.teamId)) ds.buzzerFailed.push(data.teamId);
             io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             broadcastDirector(io, gameId, state);
         });
@@ -1713,9 +1812,19 @@ function attachSocketHandlers(io) {
             if (state.director.premioGanadorVisible) { state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; }
             broadcastDirector(io, gameId, state);
         });
-        socket.on('director:show_waiting', () => { stopTimer(state, gameId, io); state.director.phase = 'waiting'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_waiting', () => { rememberResume(state); stopTimer(state, gameId, io); state.director.phase = 'waiting'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; broadcastDirector(io, gameId, state); });
         socket.on('director:show_lobby', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = null; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; broadcastDirector(io, gameId, state); });
-        socket.on('director:show_home', () => { stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = 'home'; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:show_home', () => { rememberResume(state); stopTimer(state, gameId, io); state.director.phase = 'lobby'; state.director.menuLevel = 'home'; state.director.selectedCategory = null; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; broadcastDirector(io, gameId, state); });
+        // Volver a la pregunta que estaba en curso antes de 'Espera' o 'Home'
+        socket.on('director:resume_question', () => {
+            const ds = state.director;
+            if (!ds.resumePhase || !ds.currentRound || ds.currentQuestionIdx < 0 || !ds.questions[ds.currentQuestionIdx]) return;
+            ds.phase = ds.resumePhase;
+            ds.resumePhase = null;
+            ds.menuLevel = null;
+            ds.selectedCategory = null;
+            broadcastDirector(io, gameId, state);
+        });
         socket.on('director:select_category', (data) => { if (!data || !data.category) return; state.director.phase = 'lobby'; state.director.menuLevel = 'category'; state.director.selectedCategory = data.category; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; broadcastDirector(io, gameId, state); });
 
         socket.on('director:block_team', (data) => {
@@ -1819,7 +1928,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.phase = 'lobby';
             ds.menuLevel = 'home';
@@ -1843,17 +1952,25 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
+            ds.questionResults = {};
+            ds.premioAnuncioVisible = false; ds.premioGanadorVisible = false; ds.premioGanadorTeam = null; ds.premioGanadorTipo = null; ds.premioGanadorExtra = null;
             stopTimer(state, gameId, io);
             state.pulsadorActivo = false;
             state.colaPulsador = [];
-            // Keep teams connected — don't touch state.equipos
+            // Los equipos siguen conectados, pero sin bonos ni congelaciones de la partida anterior
+            state.bloqueoGlobal = false;
+            state.equipos.forEach(eq => {
+                eq.bonos = []; eq.bloqueado = false; eq.descongelaEn = 0;
+                if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
+            });
+            io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
             broadcastDirector(io, gameId, state);
         });
 
@@ -1878,13 +1995,16 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
+            ds.questionResults = {};
+            ds.premioAnuncioVisible = false; ds.premioGanadorVisible = false; ds.premioGanadorTeam = null; ds.premioGanadorTipo = null; ds.premioGanadorExtra = null;
+            state.bloqueoGlobal = false;
             // Clear teams from memory
             state.equipos = [];
             state.juegoIniciado = false;

@@ -850,8 +850,21 @@ function registerTeam() {
     socket.emit('player:register_team', { name: name, photo_url: S.photoUrl, deviceId: deviceId });
 }
 
+// Quita overlays (congelado, marcador, premios), panel de bonos y fondo del tema: si no,
+// tras un reset el hielo de "congelado" se queda encima y no deja tocar nada.
+function resetPlayerUI() {
+    ['blockedOverlay', 'playerScoreboardOverlay', 'playerPremioOverlay', 'playerPremioGanadorOverlay', 'playerPreOverlay'].forEach(function(id) {
+        var el = document.getElementById(id); if (el) el.classList.remove('active');
+    });
+    var bp = document.getElementById('bonusPanel'); if (bp) bp.style.display = 'none';
+    document.body.classList.remove('karaoke-active');
+    try { paintPlayBgLayer(null); } catch (e) {}
+    _pendingAnswers = {};
+}
+
 // El pase ya no vale (p.ej. cambiaron el código del juego): olvidarlo y volver a la lista.
 function passRejected() {
+    resetPlayerUI();
     if (S.gameId) clearPass(S.gameId);
     if (socket) { socket.disconnect(); socket = null; }
     localStorage.removeItem('gs_session');
@@ -894,6 +907,8 @@ function connectSocket(onReady) {
         goScreen('screen-game');
         renderMyTeamHeader();
         sendPreloadStatus();
+        // El sync de la pregunta llega justo después: entonces se envía lo pendiente
+        setTimeout(flushPendingAnswers, 300);
     });
 
     // ── Reconnect failed: no session, no team, or slot taken ──
@@ -908,13 +923,17 @@ function connectSocket(onReady) {
             loadGames();
             toast('La sesion ha terminado');
         } else if (reason === 'no_team') {
-            // Device not registered in this session — show register screen
-            if (document.getElementById('screen-games').classList.contains('active')) {
-                // We were trying to restore a saved session but game changed — show register
+            // Este iPad no tiene equipo en la partida (nunca lo tuvo, o lo borraron mientras
+            // estaba desconectado): al registro, nunca seguir "jugando" sin que cuente
+            var wasPlaying = !!S.myTeamId;
+            S.myTeamId = null; S.myTeam = null;
+            localStorage.removeItem('gs_session');
+            if (wasPlaying || !document.getElementById('screen-register').classList.contains('active')) {
+                resetPlayerUI();
                 prepareRegisterScreen();
                 goScreen('screen-register');
+                if (wasPlaying) toast('Tu equipo ya no está en la partida: vuelve a registrarte');
             }
-            // If already on register screen, do nothing — player can register
         } else if (reason === 'slot_taken') {
             toast('Este equipo ya esta conectado en otro dispositivo');
             localStorage.removeItem('gs_session');
@@ -930,6 +949,7 @@ function connectSocket(onReady) {
     });
 
     socket.on('team_removed', function() {
+        resetPlayerUI();
         S.myTeamId = null; S.myTeam = null;
         localStorage.removeItem('gs_session');
         toast('Tu equipo fue eliminado por el coordinador');
@@ -939,6 +959,7 @@ function connectSocket(onReady) {
 
     socket.on('game:reset_full', function() {
         // Full reset: clear all local state and go back to game selection
+        resetPlayerUI();
         S.myTeamId = null; S.myTeam = null; S.ps = null; S.gameId = null; S.game = null; S.photoUrl = null;
         S.selectedOptions = []; S.boomOrder = []; S.submitted = false;
         localStorage.removeItem('gs_session');
@@ -1017,7 +1038,28 @@ function connectSocket(onReady) {
     });
 }
 
-function emit(ev, data) { if (socket) socket.emit(ev, data || {}); }
+// Si el iPad está reconectando, una respuesta enviada se perdería (el servidor aún no sabe
+// de qué equipo es). Las respuestas se guardan y se mandan en cuanto se recupera el equipo;
+// las pulsaciones no (llegarían tarde y serían injustas).
+var _pendingAnswers = {};
+var _QUEUEABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:update_order': 1 };
+function emit(ev, data) {
+    if (socket && socket.connected && S.myTeamId) { socket.emit(ev, data || {}); return; }
+    if (_QUEUEABLE[ev]) {
+        _pendingAnswers[ev] = { data: data || {}, key: S.ps && S.ps.questionKey };
+        toast('Reconectando… tu respuesta se enviará al volver');
+    } else if (ev === 'pulsar_boton') {
+        toast('Sin conexión: espera a que vuelva');
+    }
+}
+function flushPendingAnswers() {
+    var pending = _pendingAnswers;
+    _pendingAnswers = {};
+    Object.keys(pending).forEach(function(ev) {
+        // Solo si sigue siendo la misma pregunta
+        if (S.ps && pending[ev].key === S.ps.questionKey && S.ps.phase === 'question') socket.emit(ev, pending[ev].data);
+    });
+}
 
 function renderMyTeamHeader() {
     if (!S.myTeam) return;
@@ -1093,9 +1135,10 @@ function renderPlayerPreCountdown(ps) {
 
 var lastQIdx = -1;
 function onPlayerSync(ps) {
-    // Reset answer state on new question
-    if (ps.questionIdx !== lastQIdx) {
-        S.selectedOptions = []; S.boomOrder = []; S.submitted = false; S._precioSubmittedValue = undefined; lastQIdx = ps.questionIdx;
+    // Reset answer state on new question (questionKey cambia también al relanzar la misma pregunta)
+    var qKey = ps.questionKey !== undefined ? ps.questionKey : ps.questionIdx;
+    if (qKey !== lastQIdx) {
+        S.selectedOptions = []; S.boomOrder = []; S.submitted = false; S._precioSubmittedValue = undefined; lastQIdx = qKey;
         S.identidadRight = []; S.identidad = { myOrder: null, mySubmitted: false };
         applyYourOrder();
         var _pi = document.getElementById('precioInput'); if (_pi) _pi.value = '';
@@ -1514,7 +1557,10 @@ function renderBuzzerStatus() {
         else { status.className = 'buzz-status'; status.textContent = 'Esperando apertura...'; }
     }
 }
-function doBuzz() { emit('pulsar_boton'); }
+function doBuzz() {
+    if (S.ps && (S.ps.buzzerFailed || []).indexOf(S.myTeamId) !== -1) { toast('Ya fallasteis esta pregunta'); return; }
+    emit('pulsar_boton');
+}
 
 // ── Precio ──
 function renderPrecio() {
@@ -1593,6 +1639,10 @@ function renderPrecioRevealed() {
     var isWinner = ps.precioWinner && ps.precioWinner.teamId === S.myTeamId;
     if (isWinner) {
         html += '<div class="precio-reveal-result win">&#127942; ¡HAS GANADO!</div>';
+    } else if (ps.lastQuestionScores && ps.lastQuestionScores[S.myTeamId] && !ps.lastQuestionScores[S.myTeamId].noAnswer) {
+        // Del servidor: correcto también si la página se recargó y se perdió el valor local
+        var mineP = ps.lastQuestionScores[S.myTeamId];
+        html += '<div class="precio-reveal-result lose">' + (mineP.passed ? '&#128200; Te pasaste' : '&#128201; Te quedaste corto') + '</div>';
     } else if (S.submitted) {
         var myVal = S._precioSubmittedValue;
         var passed = myVal > correctValue;
@@ -1800,7 +1850,10 @@ function renderIdentidad() {
 
         var lqs = ps.lastQuestionScores || {};
         var myScore = lqs[S.myTeamId];
-        if (!myScore || myScore.noAnswer || !S.identidadRight.length) {
+        // Orden real (índices del contenido) guardado por el servidor; durante la pregunta el iPad
+        // trabajaba con índices barajados
+        var myOrder = (myScore && Array.isArray(myScore.answer)) ? myScore.answer : S.identidadRight;
+        if (!myScore || myScore.noAnswer || !myOrder.length) {
             cols.style.display = 'none';
             centerMsg.querySelector('.id-msg-icon').textContent = '📺';
             centerMsg.querySelector('.id-msg-text').textContent = 'Mira la pantalla';
@@ -1816,7 +1869,7 @@ function renderIdentidad() {
         var revIdx = (ps.identidad && ps.identidad.revealIndex) || 0;
         var rc = c.rightsCanonical || [];
 
-        rightCol.innerHTML = S.identidadRight.map(function(idx, i) {
+        rightCol.innerHTML = myOrder.map(function(idx, i) {
             var cls = 'id-card submitted';
             if (i < revIdx) {
                 cls += (idx === i) ? ' id-correct' : ' id-wrong';
@@ -2182,11 +2235,15 @@ function renderRevealed() {
     document.getElementById('revealText').textContent = ans || '-';
 
     var resultEl = document.getElementById('revealResult');
-    if (S.submitted && c.correct !== undefined) {
+    var mine = ps.lastQuestionScores && S.myTeamId ? ps.lastQuestionScores[S.myTeamId] : null;
+    if (mine && !mine.noAnswer && (c.correct !== undefined || c.correct_order)) {
+        resultEl.textContent = mine.correct ? '✅ RESPUESTA CORRECTA' : '❌ RESPUESTA INCORRECTA';
+        resultEl.className = 'reveal-result ' + (mine.correct ? 'win' : 'lose');
+    } else if (S.submitted && c.correct !== undefined) {
         // Multirespuesta
         var correctSet = new Set(Array.isArray(c.correct) ? c.correct : [c.correct]);
         var picked = S.selectedOptions;
-        var ok = picked.length === correctSet.size && picked.every(function(a) { return correctSet.has(a); });
+        var ok = picked.length >= 1 && picked.every(function(a) { return correctSet.has(a); });
         resultEl.textContent = ok ? '✅ RESPUESTA CORRECTA' : '❌ RESPUESTA INCORRECTA';
         resultEl.className = 'reveal-result ' + (ok ? 'win' : 'lose');
     } else if (S.submitted && c.correct_order && S.boomOrder.length) {
