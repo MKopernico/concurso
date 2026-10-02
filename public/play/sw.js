@@ -4,7 +4,7 @@
 //   (shared/asset-preloader.js) en su propia caché; aquí solo se sirve desde ella.
 importScripts('/shared/media-sw-core.js');
 
-const CACHE_NAME = 'gameshow-play-v43';
+const CACHE_NAME = 'gameshow-play-v44';
 const SHELL = [
     '/play/',
     '/play/index.html',

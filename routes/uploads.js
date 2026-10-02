@@ -43,13 +43,22 @@ function uniqueName(dest, base, ext) {
     return base + '-' + n + ext;
 }
 
+// La extensión la decide el tipo del archivo, no su nombre: un "foto.html" declarado como
+// image/png se guarda como .png (y nunca se sirve como página desde nuestro dominio).
+const EXT_BY_MIME = {
+    'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp', 'image/svg+xml': '.svg',
+    'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/wav': '.wav', 'audio/ogg': '.ogg', 'audio/aac': '.aac', 'audio/mp4': '.m4a',
+    'video/mp4': '.mp4', 'video/webm': '.webm',
+};
+
 function makeStorage(subfolder) {
     const dest = path.join(UPLOADS_DIR, subfolder);
     if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
     return multer.diskStorage({
         destination: dest,
         filename: (req, file, cb) => {
-            const { base, ext } = sanitizeName(file.originalname);
+            const { base } = sanitizeName(file.originalname);
+            const ext = EXT_BY_MIME[file.mimetype] || '.bin';
             cb(null, uniqueName(dest, base, ext));
         }
     });
@@ -59,10 +68,24 @@ const imageUpload = multer({
     storage: makeStorage('images'),
     limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-        if (/^image\/(jpeg|png|gif|webp|svg\+xml)$/.test(file.mimetype)) cb(null, true);
-        else cb(new Error('Solo se admiten imágenes (jpg, png, gif, webp, svg)'));
+        // Desde los iPads (sin sesión) no se admite SVG: puede llevar código
+        const allowed = req.isStaff ? /^image\/(jpeg|png|gif|webp|svg\+xml)$/ : /^image\/(jpeg|png|gif|webp)$/;
+        if (allowed.test(file.mimetype)) cb(null, true);
+        else cb(new Error(req.isStaff ? 'Solo se admiten imágenes (jpg, png, gif, webp, svg)' : 'Solo se admiten fotos (jpg, png, gif, webp)'));
     }
 });
+
+// La subida de imágenes es la única abierta a los iPads (foto del equipo): exige el pase del
+// juego (cabeceras X-Game / X-Game-Pass) y tiene un límite de subidas por IP.
+const photoLimiter = auth.makeLimiter(40, 10 * 60 * 1000);
+function imageUploadAccess(req, res, next) {
+    if (auth.isStaffRequest(req, res)) { req.isStaff = true; return next(); }
+    const gameId = req.get('X-Game');
+    if (!gameId || !auth.verifyGamePass(gameId, req.get('X-Game-Pass'))) return res.status(403).json({ error: 'pase de juego no válido' });
+    if (photoLimiter.blocked(req.ip)) return res.status(429).json({ error: 'Demasiadas subidas. Espera unos minutos.' });
+    photoLimiter.fail(req.ip); // cuenta cada subida
+    next();
+}
 
 const audioUpload = multer({
     storage: makeStorage('audio'),
@@ -73,7 +96,7 @@ const audioUpload = multer({
     }
 });
 
-router.post('/upload/image', imageUpload.single('file'), (req, res) => {
+router.post('/upload/image', imageUploadAccess, imageUpload.single('file'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
     const result = { url: `/uploads/images/${req.file.filename}`, originalName: req.file.originalname };
     try {

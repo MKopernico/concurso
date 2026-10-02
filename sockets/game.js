@@ -7,6 +7,16 @@ const auth = require('../auth');
 
 const gameStates = new Map();
 
+// Crea un equipo en memoria. deviceId (identidad secreta del iPad) y socketId no son
+// enumerables: siguen accesibles en el servidor pero no viajan en ningún emit, así que
+// nadie puede copiarlos para suplantar a otro equipo.
+function team(obj) {
+    const { deviceId = null, socketId = null, ...rest } = obj;
+    Object.defineProperty(rest, 'deviceId', { value: deviceId, writable: true, enumerable: false, configurable: true });
+    Object.defineProperty(rest, 'socketId', { value: socketId, writable: true, enumerable: false, configurable: true });
+    return rest;
+}
+
 function createGameState() {
     return {
         juegoIniciado: false,
@@ -66,25 +76,97 @@ function getOrCreateState(gameId) {
         s._gameTheme = loadGameTheme(gameId);
         s._rounds = db.prepare('SELECT id, name, type, config FROM rounds WHERE game_id = ? ORDER BY sort_order, id').all(gameId);
         // Load teams from active session in DB
-        const session = db.prepare('SELECT id FROM sessions WHERE game_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(gameId);
+        const session = db.prepare('SELECT id, state FROM sessions WHERE game_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(gameId);
         if (session) {
             s._sessionId = session.id;
             const dbTeams = db.prepare('SELECT * FROM teams WHERE session_id = ?').all(session.id);
-            s.equipos = dbTeams.map(t => ({
+            s.equipos = dbTeams.map(t => team({
                 id: t.id, nombre: t.name, photo_url: t.photo_url,
                 ocupado: false, bonos: [], bloqueado: false, socketId: null, deviceId: t.device_id
             }));
             s.director.scores = {};
             s.equipos.forEach(e => { s.director.scores[e.id] = 0; });
             if (s.equipos.length > 0) s.juegoIniciado = true;
+            restoreSnapshot(s, session.state);
         }
+        s._gameId = gameId;
         gameStates.set(gameId, s);
     }
     return s;
 }
 
+// ───────────────── Persistencia del marcador ─────────────────
+// Puntos, bonos, congelaciones, rondas jugadas y log de bonos se guardan en sessions.state
+// (cada 2 s si han cambiado, y al apagar el servidor) para que un reinicio no los pierda.
+
+function snapshotOf(state) {
+    const ds = state.director;
+    return JSON.stringify({
+        v: 1,
+        scores: ds.scores,
+        completedRounds: ds.completedRounds,
+        bonoLog: ds.bonoLog,
+        bloqueoGlobal: !!state.bloqueoGlobal,
+        teams: Object.fromEntries(state.equipos.map(e => [e.id, { bonos: e.bonos || [], bloqueado: !!e.bloqueado, descongelaEn: e.descongelaEn || 0 }])),
+    });
+}
+
+function restoreSnapshot(s, json) {
+    if (!json) return;
+    let snap;
+    try { snap = JSON.parse(json); } catch { return; }
+    if (!snap || snap.v !== 1) return;
+    s.equipos.forEach(e => {
+        if (snap.scores && typeof snap.scores[e.id] === 'number') s.director.scores[e.id] = snap.scores[e.id];
+        const t = snap.teams && snap.teams[e.id];
+        if (t) { e.bonos = Array.isArray(t.bonos) ? t.bonos : []; e.bloqueado = !!t.bloqueado; e.descongelaEn = t.descongelaEn || 0; }
+    });
+    s.director.completedRounds = Array.isArray(snap.completedRounds) ? snap.completedRounds : [];
+    s.director.bonoLog = Array.isArray(snap.bonoLog) ? snap.bonoLog : [];
+    s.bloqueoGlobal = !!snap.bloqueoGlobal;
+    s._lastSnapshot = json;
+}
+
+function persistState(s) {
+    if (!s._sessionId) return;
+    const json = snapshotOf(s);
+    if (json === s._lastSnapshot) return;
+    try {
+        db.prepare('UPDATE sessions SET state = ? WHERE id = ? AND ended_at IS NULL').run(json, s._sessionId);
+        s._lastSnapshot = json;
+    } catch (e) { console.error('[persist]', e.message); }
+}
+
+function persistAll() { for (const s of gameStates.values()) persistState(s); }
+
+setInterval(persistAll, 2000).unref();
+['SIGTERM', 'SIGINT'].forEach(sig => process.once(sig, () => { persistAll(); process.exit(0); }));
+
+// Nueva partida en un juego ya cargado: se reinicia el estado EN SU SITIO (los sockets
+// conectados guardan una referencia a este objeto) y se avisa a todos los dispositivos.
+let _io = null;
+function resetGameForNewSession(gameId, sessionId) {
+    const s = gameStates.get(gameId);
+    if (!s) return; // nadie conectado: se cargará limpio al conectar
+    if (s.precioTimeoutHandle) clearTimeout(s.precioTimeoutHandle);
+    clearPreCountdown(s);
+    if (s._timerHandle) clearInterval(s._timerHandle);
+    const fresh = createGameState();
+    for (const k of Object.keys(s)) delete s[k];
+    Object.assign(s, fresh, {
+        _gameId: gameId,
+        _sessionId: sessionId,
+        _gameTheme: loadGameTheme(gameId),
+        _rounds: db.prepare('SELECT id, name, type, config FROM rounds WHERE game_id = ? ORDER BY sort_order, id').all(gameId),
+    });
+    if (_io) {
+        _io.to(roomOf(gameId)).emit('game:reset_full');
+        broadcastDirector(_io, gameId, s);
+    }
+}
+
 function publicView(state) {
-    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _preCountdownHandle, _gameTheme, _sessionId, _rounds, ...rest } = state;
+    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _preCountdownHandle, _gameTheme, _sessionId, _rounds, _lastSnapshot, _gameId, ...rest } = state;
     rest.gameTheme = _gameTheme || {};
     const ds = rest.director;
     if (ds && ds.answers) {
@@ -151,6 +233,46 @@ function stopTimer(state, gameId, io) {
     clearPreCountdown(state);
     if (state._timerHandle) { clearInterval(state._timerHandle); state._timerHandle = null; }
     state.director.timer.running = false;
+}
+
+// Arranca el temporizador de la pregunta. Siempre limpia el intervalo anterior: nunca puede
+// haber dos a la vez (un intervalo huérfano seguiría restando y puntuando por su cuenta).
+function startQuestionTimer(state, gameId, io) {
+    const ds = state.director;
+    if (state._timerHandle) { clearInterval(state._timerHandle); state._timerHandle = null; }
+    ds.timer.running = true;
+    const handle = setInterval(() => {
+        if (state._timerHandle !== handle) { clearInterval(handle); return; }
+        ds.timer.remaining = Math.max(0, ds.timer.remaining - 1);
+        io.to(roomOf(gameId)).emit('game:timer_tick', { remaining: ds.timer.remaining, total: ds.timer.total });
+        if (ds.timer.remaining <= 0) {
+            stopTimer(state, gameId, io);
+            // Al agotarse el tiempo se puntúa y se revela automáticamente
+            if (ds.phase === 'question') {
+                if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
+                    autoScoreMultirespuesta(state);
+                } else if (ds.currentRound && ds.currentRound.type === 'precio') {
+                    autoScorePrecio(state);
+                } else if (ds.currentRound && ds.currentRound.type === 'identidad') {
+                    // Las ordenaciones provisionales pasan a definitivas
+                    for (const ans of Object.values(ds.answers)) {
+                        if (!ans.submitted) {
+                            ans.submitted = true;
+                            ans.timerRemaining = 0;
+                        }
+                    }
+                    autoScoreIdentidad(state);
+                } else if (ds.currentRound && ds.currentRound.type === 'boom') {
+                    autoScoreBoom(state);
+                }
+                ds.phase = 'answer_revealed';
+                state.pulsadorActivo = false;
+                computeLastQuestionScores(state);
+            }
+            broadcastDirector(io, gameId, state);
+        }
+    }, 1000);
+    state._timerHandle = handle;
 }
 
 function computeKaraokeAutoCombo(karaokeState, configColors) {
@@ -568,7 +690,7 @@ function avanzarPregunta(state, io, gameId) {
     ds.answers = {};
     ds.revealedCells = [];
     ds.revealedLetters = [];
-    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
+    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
     ds.optionsRevealed = false;
     initIdentidadState(ds);
     if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'karaoke')) {
@@ -664,7 +786,30 @@ function resolveGameId(requestedId) {
     return row ? row.id : DEFAULT_GAME_ID;
 }
 
+// Foto de equipo: solo una imagen subida a la propia app (nada de URLs externas ni código)
+function safePhotoUrl(u) {
+    return typeof u === 'string' && /^\/uploads\/images\/[A-Za-z0-9._-]+$/.test(u) ? u : null;
+}
+
+// Órdenes del coordinador que llevan { at, round } (pregunta en la que estaba al pulsar)
+const POSITIONAL_EVENTS = new Set([
+    'director:next_question', 'director:next_with_premio', 'director:prev_question', 'director:finish_round',
+    'director:mark_correct', 'director:mark_wrong', 'director:karaoke_award',
+]);
+
+// La conexión nueva de un iPad se queda con su equipo: la anterior (si sigue abierta) se
+// desvincula y se cierra, para que no puedan pulsar dos conexiones del mismo equipo.
+function takeOverTeam(eq, socket) {
+    if (!eq.socketId || eq.socketId === socket.id || !_io) return;
+    const prev = _io.sockets.sockets.get(eq.socketId);
+    if (prev) {
+        prev.equipoId = null;
+        prev.disconnect(true);
+    }
+}
+
 function attachSocketHandlers(io) {
+    _io = io;
     io.on('connection', (socket) => {
         const requested = socket.handshake.query && socket.handshake.query.gameId;
         const gameId = resolveGameId(requested);
@@ -677,11 +822,24 @@ function attachSocketHandlers(io) {
         const pass = socket.handshake.query && socket.handshake.query.pass;
         socket.hasPass = auth.verifyGamePass(gameId, pass);
 
+        // Un dato mal formado no debe tumbar el servidor (el marcador vive en este proceso):
+        // cada handler se ejecuta protegido y el error solo se registra.
+        const _on = socket.on.bind(socket);
+        socket.on = (event, handler) => _on(event, (...args) => {
+            try { return handler(...args); }
+            catch (err) { console.error(`[socket ${event}]`, err && err.stack || err); }
+        });
+
         // Las órdenes de coordinador solo se aceptan de conexiones con sesión.
-        socket.use(([event], next) => {
+        socket.use(([event, data], next) => {
             if ((event.startsWith('director:') || event.startsWith('admin_')) && !socket.isStaff) {
                 socket.emit('auth_required');
                 return;
+            }
+            // Orden ligada a una pregunta que ya no es la actual (doble toque, reenvío): se ignora
+            if (POSITIONAL_EVENTS.has(event) && data && data.at !== undefined) {
+                const ds = getOrCreateState(gameId).director;
+                if (data.at !== ds.currentQuestionIdx || (data.round || null) !== (ds.currentRoundId || null)) return;
             }
             next();
         });
@@ -718,7 +876,7 @@ function attachSocketHandlers(io) {
             if (!session) { socket.emit('register_error', { error: 'No hay sesión activa' }); return; }
 
             const teamName = data.name.trim();
-            const photoUrl = data.photo_url || null;
+            const photoUrl = safePhotoUrl(data.photo_url);
             const devId = data.deviceId || deviceId || null;
 
             // Check if device already has a team
@@ -728,10 +886,11 @@ function attachSocketHandlers(io) {
                     // Reconnect to existing team
                     let eq = state.equipos.find(e => e.id === existingDb.id);
                     if (!eq) {
-                        eq = { id: existingDb.id, nombre: existingDb.name, photo_url: existingDb.photo_url, ocupado: false, bonos: [], bloqueado: false, socketId: null, deviceId: devId };
+                        eq = team({ id: existingDb.id, nombre: existingDb.name, photo_url: existingDb.photo_url, ocupado: false, bonos: [], bloqueado: false, socketId: null, deviceId: devId });
                         state.equipos.push(eq);
                         if (!state.director.scores[eq.id]) state.director.scores[eq.id] = 0;
                     }
+                    takeOverTeam(eq, socket);
                     eq.ocupado = true;
                     eq.socketId = socket.id;
                     socket.equipoId = eq.id;
@@ -750,7 +909,7 @@ function attachSocketHandlers(io) {
             db.prepare('INSERT INTO teams (id, session_id, name, photo_url, device_id) VALUES (?, ?, ?, ?, ?)')
                 .run(teamId, session.id, teamName, photoUrl, devId);
 
-            const eq = { id: teamId, nombre: teamName, photo_url: photoUrl, ocupado: true, bonos: [], bloqueado: false, socketId: socket.id, deviceId: devId };
+            const eq = team({ id: teamId, nombre: teamName, photo_url: photoUrl, ocupado: true, bonos: [], bloqueado: false, socketId: socket.id, deviceId: devId });
             state.equipos.push(eq);
             state.director.scores[teamId] = 0;
             state.juegoIniciado = true;
@@ -775,16 +934,15 @@ function attachSocketHandlers(io) {
 
             let eq = state.equipos.find(e => e.id === dbTeam.id);
             if (!eq) {
-                eq = { id: dbTeam.id, nombre: dbTeam.name, photo_url: dbTeam.photo_url, ocupado: false, bonos: [], bloqueado: false, socketId: null, deviceId: devId };
+                eq = team({ id: dbTeam.id, nombre: dbTeam.name, photo_url: dbTeam.photo_url, ocupado: false, bonos: [], bloqueado: false, socketId: null, deviceId: devId });
                 state.equipos.push(eq);
                 if (!state.director.scores[eq.id]) state.director.scores[eq.id] = 0;
             }
 
-            // Takeover: if previous socket is dead, allow
-            if (eq.ocupado && eq.socketId && eq.socketId !== socket.id) {
-                const prev = io.sockets.sockets.get(eq.socketId);
-                if (prev && prev.connected) { socket.emit('reconnect_failed', { reason: 'slot_taken' }); return; }
-            }
+            // Es el mismo iPad (mismo deviceId): al volver de un corte de WiFi o de bloquear la
+            // pantalla, el servidor aún puede creer viva la conexión anterior (hasta ~45 s).
+            // Se queda con el equipo la conexión nueva y se cierra la vieja.
+            takeOverTeam(eq, socket);
 
             eq.ocupado = true;
             eq.socketId = socket.id;
@@ -804,7 +962,7 @@ function attachSocketHandlers(io) {
             const total = Math.max(1, Math.min(20, Number(n) || 0));
             state.equipos = [];
             for (let i = 1; i <= total; i++) {
-                state.equipos.push({ id: `eq${i}`, nombre: `Equipo ${i}`, photo_url: null, ocupado: false, bonos: [], bloqueado: false });
+                state.equipos.push(team({ id: `eq${i}`, nombre: `Equipo ${i}`, photo_url: null, ocupado: false, bonos: [], bloqueado: false }));
             }
             state.juegoIniciado = true;
             state.colaPulsador = [];
@@ -1094,7 +1252,7 @@ function attachSocketHandlers(io) {
             state.director.scores = {};
             for (let i = 1; i <= count; i++) {
                 const id = `eq${i}`;
-                state.equipos.push({ id, nombre: `Equipo ${i}`, photo_url: null, ocupado: false, bonos: [], bloqueado: false });
+                state.equipos.push(team({ id, nombre: `Equipo ${i}`, photo_url: null, ocupado: false, bonos: [], bloqueado: false }));
                 state.director.scores[id] = 0;
             }
             state.juegoIniciado = true;
@@ -1116,7 +1274,7 @@ function attachSocketHandlers(io) {
             const eq = state.equipos.find(e => e.id === data.teamId);
             if (!eq) return;
             if (data.name) { eq.nombre = data.name.trim(); db.prepare('UPDATE teams SET name = ? WHERE id = ?').run(eq.nombre, eq.id); }
-            if (data.photo_url !== undefined) { eq.photo_url = data.photo_url || null; db.prepare('UPDATE teams SET photo_url = ? WHERE id = ?').run(eq.photo_url, eq.id); }
+            if (data.photo_url !== undefined) { eq.photo_url = safePhotoUrl(data.photo_url); db.prepare('UPDATE teams SET photo_url = ? WHERE id = ?').run(eq.photo_url, eq.id); }
             if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
             broadcastDirector(io, gameId, state);
         });
@@ -1145,6 +1303,7 @@ function attachSocketHandlers(io) {
             ds.currentQuestionIdx = -1;
             ds.phase = 'round_intro';
             ds.answers = {};
+            ds.karaoke = null;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
             state.pulsadorActivo = false;
@@ -1161,7 +1320,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
                 ds.optionsRevealed = false;
                 ds.lastQuestionScores = {};
                 ds.showTeamResults = false;
@@ -1194,7 +1353,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
@@ -1237,7 +1396,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
                 ds.optionsRevealed = false;
                 initIdentidadState(ds);
                 if (ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'imagen')) {
@@ -1261,36 +1420,7 @@ function attachSocketHandlers(io) {
             if (ds.currentRound && (ds.currentRound.type === 'multirespuesta' || ds.currentRound.type === 'precio')) {
                 ds.optionsRevealed = true;
             }
-            state._timerHandle = setInterval(() => {
-                ds.timer.remaining = Math.max(0, ds.timer.remaining - 1);
-                io.to(roomOf(gameId)).emit('game:timer_tick', { remaining: ds.timer.remaining, total: ds.timer.total });
-                if (ds.timer.remaining <= 0) {
-                    stopTimer(state, gameId, io);
-                    // Auto-reveal answer when timer expires
-                    if (ds.phase === 'question') {
-                        if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
-                            autoScoreMultirespuesta(state);
-                        } else if (ds.currentRound && ds.currentRound.type === 'precio') {
-                            autoScorePrecio(state);
-                        } else if (ds.currentRound && ds.currentRound.type === 'identidad') {
-                            // Promote provisional orders to definitive
-                            for (const [tid, ans] of Object.entries(ds.answers)) {
-                                if (!ans.submitted) {
-                                    ans.submitted = true;
-                                    ans.timerRemaining = 0;
-                                }
-                            }
-                            autoScoreIdentidad(state);
-                        } else if (ds.currentRound && ds.currentRound.type === 'boom') {
-                            autoScoreBoom(state);
-                        }
-                        ds.phase = 'answer_revealed';
-                        state.pulsadorActivo = false;
-                        computeLastQuestionScores(state);
-                    }
-                    broadcastDirector(io, gameId, state);
-                }
-            }, 1000);
+            startQuestionTimer(state, gameId, io);
             broadcastDirector(io, gameId, state);
         });
 
@@ -1520,6 +1650,11 @@ function attachSocketHandlers(io) {
         socket.on('director:mark_correct', (data) => {
             if (!data || !data.teamId) return;
             const ds = state.director;
+            // El acierto consume el turno del equipo en la cola: un segundo toque ya no suma
+            const idx = state.colaPulsador.findIndex(p => p.id === data.teamId);
+            if (idx === -1) return;
+            state.colaPulsador.splice(idx, 1);
+            io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             const cfg = getQuestionConfig(state);
             const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ds.timer.remaining / ds.timer.total)) : 0;
             if (!ds.scores[data.teamId]) ds.scores[data.teamId] = 0;
@@ -1598,8 +1733,10 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:block_all', () => {
+            // Congela a cada equipo (no un bloqueo global aparte): así descongelar uno a uno
+            // desde la barra de equipos funciona y nunca queda el pulsador muerto sin aviso.
             state.equipos.forEach(eq => { eq.bloqueado = true; if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); });
-            state.bloqueoGlobal = true;
+            state.bloqueoGlobal = false;
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
             broadcastDirector(io, gameId, state);
         });
@@ -1625,49 +1762,24 @@ function attachSocketHandlers(io) {
 
         socket.on('director:reveal_options', () => {
             const ds = state.director;
+            // Doble toque / dos coordinadores: solo la primera pulsación cuenta
+            if (ds.phase !== 'question' || ds.optionsRevealed || state._preCountdownHandle) return;
             ds.optionsRevealed = true;
-            // Start 5-second pre-countdown before timer auto-starts
+            // Cuenta atrás de 5 s antes de que arranque solo el temporizador
             ds.preCountdown = 5;
             broadcastDirector(io, gameId, state);
-            state._preCountdownHandle = setInterval(() => {
+            const handle = setInterval(() => {
+                if (state._preCountdownHandle !== handle) { clearInterval(handle); return; }
                 ds.preCountdown = Math.max(0, (ds.preCountdown || 0) - 1);
                 if (ds.preCountdown <= 0) {
                     clearPreCountdown(state);
-                    // Auto-start timer
-                    if (!ds.timer.running && ds.timer.remaining > 0) {
-                        ds.timer.running = true;
-                        state._timerHandle = setInterval(() => {
-                            ds.timer.remaining = Math.max(0, ds.timer.remaining - 1);
-                            io.to(roomOf(gameId)).emit('game:timer_tick', { remaining: ds.timer.remaining, total: ds.timer.total });
-                            if (ds.timer.remaining <= 0) {
-                                stopTimer(state, gameId, io);
-                                if (ds.phase === 'question') {
-                                    if (ds.currentRound && ds.currentRound.type === 'multirespuesta') {
-                                        autoScoreMultirespuesta(state);
-                                    } else if (ds.currentRound && ds.currentRound.type === 'precio') {
-                                        autoScorePrecio(state);
-                                    } else if (ds.currentRound && ds.currentRound.type === 'identidad') {
-                                        for (const [tid, ans] of Object.entries(ds.answers)) {
-                                            if (!ans.submitted) {
-                                                ans.submitted = true;
-                                                ans.timerRemaining = 0;
-                                            }
-                                        }
-                                        autoScoreIdentidad(state);
-                                    } else if (ds.currentRound && ds.currentRound.type === 'boom') {
-                                        autoScoreBoom(state);
-                                    }
-                                    ds.phase = 'answer_revealed';
-                                    state.pulsadorActivo = false;
-                                    computeLastQuestionScores(state);
-                                }
-                                broadcastDirector(io, gameId, state);
-                            }
-                        }, 1000);
+                    if (ds.phase === 'question' && !ds.timer.running && ds.timer.remaining > 0) {
+                        startQuestionTimer(state, gameId, io);
                     }
                 }
                 broadcastDirector(io, gameId, state);
             }, 1000);
+            state._preCountdownHandle = handle;
         });
 
         socket.on('director:toggle_team_results', () => {
@@ -1707,7 +1819,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
             ds.identidad = null;
             ds.phase = 'lobby';
             ds.menuLevel = 'home';
@@ -1731,7 +1843,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
             ds.identidad = null;
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
@@ -1766,7 +1878,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false };
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null;
             ds.identidad = null;
             ds.optionsRevealed = false;
             ds.lastQuestionScores = {};
@@ -1907,6 +2019,7 @@ function attachSocketHandlers(io) {
             const k = ds.karaoke;
             if (!k) { socket.emit('karaoke:error', { msg: 'Karaoke no iniciado' }); return; }
             if (!k.finished) { socket.emit('karaoke:error', { msg: 'La canción no ha terminado aún' }); return; }
+            if (k.winnerColor) { socket.emit('karaoke:error', { msg: 'Los puntos de esta canción ya se repartieron' }); return; }
             const q = ds.questions[ds.currentQuestionIdx];
             const configColors = (q && q.content && q.content.colors) || [];
             if (configColors.indexOf(data.winnerColor) === -1) {
@@ -1944,4 +2057,4 @@ function attachSocketHandlers(io) {
     });
 }
 
-module.exports = { attachSocketHandlers, gameStates };
+module.exports = { attachSocketHandlers, gameStates, resetGameForNewSession, persistAll };

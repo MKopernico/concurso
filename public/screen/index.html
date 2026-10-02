@@ -987,6 +987,9 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
 
     stmtEl.textContent = c.statement || '';
     stmtEl.style.border = ''; stmtEl.style.background = ''; stmtEl.style.borderColor = ''; stmtEl.style.backdropFilter = ''; stmtEl.style.animation = '';
+    // Algunos tipos (imagen, identidad, karaoke, canción, imagen fija) lo ocultan o le ponen brillo:
+    // se restablece aquí y cada tipo lo vuelve a ocultar después si lo necesita.
+    stmtEl.style.display = ''; stmtEl.style.boxShadow = '';
 
     // Animate statement entrance on new question
     if (newQuestion) {
@@ -2038,7 +2041,7 @@ function renderMiniScores() {
 }
 
 // ═══════════════ UTILS ═══════════════
-function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
 function notify(msg) {
     var el = document.getElementById('notif');

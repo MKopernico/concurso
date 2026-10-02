@@ -19,6 +19,15 @@ function parseJsonField(value, fallback = null) {
     try { return JSON.parse(value); } catch { return fallback; }
 }
 
+// Lista de posiciones de una celda de Excel ("1,3", "1;3", "1 3"…) → índices base 0 válidos.
+// En un Excel en español "1,3" se guarda como el NÚMERO 1,3 (1.3): también se acepta.
+// Cada posición es de una cifra (máximo 5 opciones), así que cualquier no-dígito separa.
+function parseIndexList(cell, max) {
+    if (cell === '' || cell === null || cell === undefined) return [];
+    const nums = String(cell).split(/\D+/).filter(Boolean).map(n => Number(n) - 1);
+    return [...new Set(nums)].filter(n => Number.isInteger(n) && n >= 0 && n < max);
+}
+
 // Hidrata un juego con sus rondas/preguntas en una sola estructura anidada (usado por GET /api/games/:id).
 function loadGameTree(gameId) {
     const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId);
@@ -654,8 +663,7 @@ function parseExcelSheet(rows, type) {
             case 'multirespuesta': {
                 const statement = String(r[1] || '').trim();
                 const options = [r[2], r[3], r[4], r[5], r[6]].map(o => String(o || '').trim()).filter(Boolean);
-                const correctStr = String(r[7] || '');
-                const correct = correctStr ? correctStr.split(/[,;]/).map(s => Number(s.trim()) - 1).filter(n => n >= 0 && n < options.length) : [];
+                const correct = parseIndexList(r[7], options.length);
                 if (!statement && options.length === 0) break; // truly empty
                 content = { statement: statement || undefined, options, correct, explanation: String(r[8] || '').trim() || undefined };
                 if (r[9]) qConfig.time = Number(r[9]) || undefined;
@@ -690,8 +698,7 @@ function parseExcelSheet(rows, type) {
             case 'boom': {
                 const statement = String(r[1] || '').trim();
                 const items = [r[2], r[3], r[4], r[5], r[6]].map(v => String(v || '').trim()).filter(Boolean);
-                const orderStr = String(r[7] || '');
-                const correct_order = orderStr ? orderStr.split(/[,;]/).map(s => Number(s.trim()) - 1).filter(n => n >= 0) : [];
+                const correct_order = parseIndexList(r[7], items.length);
                 if (!statement && items.length === 0) break;
                 content = { statement: statement || undefined, items, correct_order };
                 if (r[8]) qConfig.time = Number(r[8]) || undefined;
@@ -946,11 +953,15 @@ router.post('/games/:id/session', (req, res) => {
     if (!game) return res.status(404).json({ error: 'juego no encontrado' });
     if (game.status !== 'published') return res.status(400).json({ error: 'el juego debe estar publicado' });
 
-    // Close any existing open session for this game
-    db.prepare('UPDATE sessions SET ended_at = datetime(\'now\') WHERE game_id = ? AND ended_at IS NULL').run(req.params.id);
+    // Si ya hay una partida en marcha se reutiliza (reabrir el coordinador no debe dejar a los
+    // iPads sin equipo). Solo con { nueva: true } se cierra y se empieza otra desde cero.
+    const active = db.prepare('SELECT id FROM sessions WHERE game_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(req.params.id);
+    if (active && !(req.body && req.body.nueva)) return res.json({ sessionId: active.id, gameId: req.params.id, resumed: true });
 
+    db.prepare('UPDATE sessions SET ended_at = datetime(\'now\') WHERE game_id = ? AND ended_at IS NULL').run(req.params.id);
     const sessionId = newId('s');
     db.prepare('INSERT INTO sessions (id, game_id) VALUES (?, ?)').run(sessionId, req.params.id);
+    require('../sockets/game').resetGameForNewSession(req.params.id, sessionId);
     res.status(201).json({ sessionId, gameId: req.params.id });
 });
 

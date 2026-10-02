@@ -105,7 +105,7 @@ async function main() {
         line('');
         line(`El puerto ${port} ya está en uso: probablemente GameShow ya está abierto en otra ventana.`);
         line('Ciérrala o cambia PORT en datos\\ajustes.env.');
-        process.exitCode = 1;
+        process.exitCode = 2; // 2 = no reintentar (ver ARRANCAR.bat)
         return;
     }
 
@@ -147,5 +147,5 @@ async function main() {
 main().catch(err => {
     console.error('');
     console.error('Error al arrancar GameShow:', err.message);
-    process.exitCode = 1;
+    process.exitCode = 2; // 2 = no reintentar (ver ARRANCAR.bat)
 });

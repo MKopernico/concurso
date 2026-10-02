@@ -77,6 +77,11 @@ app.use(express.static(path.join(__dirname, 'public'))); // legacy `/` y assets 
 // Handlers de Socket.io (los listeners se enganchan al objeto io una sola vez al arrancar).
 attachSocketHandlers(io);
 
+// Durante un evento es peor caerse que seguir: un error inesperado (p. ej. en un temporizador)
+// se registra y el servidor sigue en marcha con el marcador intacto.
+process.on('uncaughtException', (err) => console.error('[uncaughtException]', err && err.stack || err));
+process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err && err.stack || err));
+
 // Arranque robusto: si el puerto está ocupado, abortar limpio (Render reintenta).
 const port = process.env.PORT || 3000;
 const listener = server.listen(port, '0.0.0.0', () => {

@@ -1074,7 +1074,15 @@ function connectSocket() {
     socket.on('karaoke:error', function(d) { showKaraokeToast(d.msg || 'Error en karaoke'); });
 }
 
-function emit(ev, data) { if (socket) socket.emit(ev, data || {}); }
+// Órdenes que dependen de la pregunta en curso: viajan con la pregunta que ve el coordinador,
+// y el servidor las descarta si ya no coincide (doble toque o reenvío tras reconectar).
+var _POSITIONAL = { 'director:next_question': 1, 'director:next_with_premio': 1, 'director:prev_question': 1, 'director:finish_round': 1, 'director:mark_correct': 1, 'director:mark_wrong': 1, 'director:karaoke_award': 1 };
+function emit(ev, data) {
+    if (!socket) return;
+    data = data || {};
+    if (_POSITIONAL[ev] && S.director) { data.at = S.director.currentQuestionIdx; data.round = S.director.currentRoundId; }
+    socket.emit(ev, data);
+}
 
 function onSync(state) {
     S.director = state.director;
@@ -2761,7 +2769,10 @@ document.getElementById('qpInput').addEventListener('keydown', function(e) {
 });
 
 function toggleBlock(teamId, isBlocked) { emit(isBlocked ? 'director:unblock_team' : 'director:block_team', { teamId: teamId }); }
-function toggleBlockAll() { emit(S.bloqueoGlobal ? 'director:unblock_all' : 'director:block_all'); }
+function toggleBlockAll() {
+    var allFrozen = S.equipos.length > 0 && S.equipos.every(function(e) { return e.bloqueado; });
+    emit(allFrozen ? 'director:unblock_all' : 'director:block_all');
+}
 
 // ── Bonus popover ──
 var _bpTeamId = null;
@@ -3048,7 +3059,7 @@ function refreshContent() {
 }
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
 
-function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function toast(msg) {
     var el = document.createElement('div'); el.className = 'toast-msg'; el.textContent = msg;
     document.getElementById('toast').appendChild(el);

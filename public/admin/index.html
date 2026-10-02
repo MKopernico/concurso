@@ -597,7 +597,7 @@ function updateBreadcrumb() {
     bc.innerHTML = parts.join(' ');
 }
 
-function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function esc(s) { if (!s) return ''; return String(s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
 // ─── Type display helpers ───
 const TYPE_LABELS = {
@@ -1924,11 +1924,29 @@ function populateThemeForm(form, theme) {
 
 // ─── Session management ───
 async function startSession(gameId) {
+    // Abrir la pestaña ya (los navegadores bloquean window.open tras esperas)
+    const win = window.open('about:blank', '_blank');
     try {
-        await api(`/games/${gameId}/session`, { method: 'POST' });
-        toast('Sesión iniciada');
-        window.open('/director/' + gameId, '_blank');
-    } catch (e) { toast('Error: ' + e.message); }
+        let nueva = false;
+        let active = null;
+        try { active = await api(`/games/${gameId}/session`); } catch (e) { /* 404: no hay partida */ }
+        if (active) {
+            const n = (active.teams || []).length;
+            if (!confirm(`Este juego ya tiene una partida en marcha (${n} equipo${n === 1 ? '' : 's'}).\n\nAceptar: CONTINUAR esa partida.\nCancelar: ver otras opciones.`)) {
+                if (!confirm('¿Empezar una partida NUEVA?\n\nSe borrarán los equipos y los puntos de la partida actual y los iPads volverán a la pantalla de inicio.')) {
+                    if (win) win.close();
+                    return;
+                }
+                nueva = true;
+            }
+        }
+        const r = await api(`/games/${gameId}/session`, { method: 'POST', body: { nueva } });
+        toast(r.resumed ? 'Continuando la partida en marcha' : 'Partida nueva iniciada');
+        if (win) win.location = '/director/' + gameId; else window.open('/director/' + gameId, '_blank');
+    } catch (e) {
+        if (win) win.close();
+        toast('Error: ' + e.message);
+    }
 }
 
 // ─────────────────── MEDIA LIBRARY ───────────────────
