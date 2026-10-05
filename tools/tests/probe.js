@@ -51,7 +51,7 @@ function gameInfo() {
             bonoLog: (ds.bonoLog || []).length,
             questionResults: Object.keys(ds.questionResults || {}).length,
             snapshotBytes: JSON.stringify({ scores: ds.scores, completedRounds: ds.completedRounds, bonoLog: ds.bonoLog, questionResults: ds.questionResults || {} }).length,
-            directorStateBytes: JSON.stringify(ds).length,
+            directorStateBytes: JSON.stringify({ ...ds, questionResults: undefined }).length, // lo que viaja al coordinador
             timers: {
                 question: !!s._timerHandle,
                 preCountdown: !!s._preCountdownHandle,

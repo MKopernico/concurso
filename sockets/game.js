@@ -173,7 +173,11 @@ function resetGameForNewSession(gameId, sessionId) {
 function publicView(state) {
     const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _preCountdownHandle, _gameTheme, _sessionId, _rounds, _lastSnapshot, _gameId, ...rest } = state;
     rest.gameTheme = _gameTheme || {};
-    const ds = rest.director;
+    // questionResults (respuestas de todas las preguntas ya jugadas) solo sirve al servidor para
+    // no volver a puntuar: crece ~3,5 KB por pregunta y no lo usa ninguna pantalla. Enviarlo en
+    // cada actualización hacía que, tras cientos de preguntas, todo fuera cada vez más lento.
+    const { questionResults, ...ds } = rest.director || {};
+    rest.director = ds;
     if (ds && ds.answers) {
         ds.answeredCount = Object.values(ds.answers).filter(a => a.submitted !== false).length;
     }
