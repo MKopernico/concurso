@@ -48,7 +48,10 @@ node tools/tests/test-lote1.js     # 26 comprobaciones (temporizador, persistenc
 node tools/tests/test-lote2.js     # 23 (reglas, fugas de solución, coordinador)
 node tools/tests/test-lote3.js     # 21 (backoffice, Excel, zip, sesiones)
 node tools/tests/load-test.js 50   # N iPads simulados: entrada, respuestas, pulsador, bonos, reconexión masiva
+node tools/tests/soak-test.js 15   # resistencia: partida larga (minutos) con los 10 tipos; memoria, temporizadores, latencias, marcador
+node tools/tests/chaos-test.js 10  # red caótica: cortes al azar, zombis, retraso; puntos, equipos y errores
 ```
+Las dos últimas usan `tools/tests/sim-common.js` (iPad y coordinador simulados) y `tools/tests/probe.js` (mide el servidor por dentro vía IPC); dejan el detalle en `tmp/pruebas/*.json`.
 Cada script arranca su propio servidor (puertos 3200-3400) con BD temporal; no tocan datos reales.
 Para ver cambios visuales: servidor de desarrollo con `.claude/launch.json` (puerto 3000) y el navegador integrado.
 La contraseña local de desarrollo está en `.env` (no se sube).
