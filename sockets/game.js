@@ -869,7 +869,21 @@ function resolverPremioAsignado(state, data, io, gameId) {
     return { extra: ds.premioGanadorExtra, team: ds.premioGanadorTeam, tipo: ds.premioGanadorTipo };
 }
 
+// Envío del estado a coordinador, pantallas e iPads, agrupado: si llegan muchas acciones a la
+// vez (50 equipos pulsando o respondiendo), en lugar de reenviar el estado completo a todos por
+// cada una, se envía como mucho una vez cada 50 ms (siempre con el estado más reciente).
+const BROADCAST_MS = 50;
+const _broadcasts = new Map(); // gameId → { last, timer }
 function broadcastDirector(io, gameId, state) {
+    let b = _broadcasts.get(gameId);
+    if (!b) { b = { last: 0, timer: null }; _broadcasts.set(gameId, b); }
+    if (b.timer) return; // ya hay un envío programado: llevará este cambio
+    const wait = BROADCAST_MS - (Date.now() - b.last);
+    if (wait <= 0) { b.last = Date.now(); broadcastNow(io, gameId, state); return; }
+    b.timer = setTimeout(() => { b.timer = null; b.last = Date.now(); broadcastNow(io, gameId, state); }, wait);
+}
+
+function broadcastNow(io, gameId, state) {
     io.to(`directors:${gameId}`).emit('game:director_sync', publicView(state));
     io.to(roomOf(gameId)).except(`screens:${gameId}`).emit('game:player_sync', playerView(state, true));
     io.to(`screens:${gameId}`).emit('game:player_sync', playerView(state, false));
