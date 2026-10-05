@@ -28,7 +28,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new SocketIOServer(server, { cors: { origin: '*' } });
 
-app.set('trust proxy', 1); // Render va detrás de proxy: req.secure/req.ip correctos
+// Render va detrás de proxy (req.secure/req.ip correctos). En el kit no hay proxy: confiar en
+// X-Forwarded-For permitiría saltarse los límites de intentos falseando esa cabecera.
+if (process.env.GAMESHOW_KIT !== '1') app.set('trust proxy', 1);
 app.use(express.json({ limit: '2mb' }));
 
 // API REST (CRUD de juegos/rondas/preguntas + uploads — spec §10.3).

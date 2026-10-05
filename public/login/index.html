@@ -30,8 +30,12 @@ button:disabled { opacity: .5; cursor: default; }
 </form>
 <script>
 var params = new URLSearchParams(location.search);
-var next = params.get('next') || '/admin/';
-if (next.charAt(0) !== '/' || next.charAt(1) === '/') next = '/admin/'; // solo rutas internas
+// Solo rutas de esta misma web (se resuelve la URL: '/\\otra.com' o tabuladores no cuelan)
+var next = '/admin/';
+try {
+    var u = new URL(params.get('next') || '/admin/', location.origin);
+    if (u.origin === location.origin) next = u.pathname + u.search;
+} catch (e) {}
 
 document.getElementById('form').addEventListener('submit', function(e) {
     e.preventDefault();

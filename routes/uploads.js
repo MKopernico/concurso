@@ -152,6 +152,17 @@ router.delete('/media/:type/:filename', (req, res) => {
     const safe = path.basename(filename);
     const filePath = path.join(UPLOADS_DIR, type, safe);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'archivo no encontrado' });
+    // ¿Lo usa algún juego o la playlist? Entonces hace falta confirmación (?force=1)
+    if (!req.query.force) {
+        const url = '/uploads/' + type + '/' + safe;
+        const inUse = [];
+        for (const g of db.prepare('SELECT id, name FROM games').all()) {
+            const urls = gameUploadUrls(g.id);
+            if (urls && [...urls].some(x => { try { return decodeURIComponent(x) === url; } catch { return x === url; } })) inUse.push('Juego «' + g.name + '»');
+        }
+        if (readPlaylist().some(x => { try { return decodeURIComponent(x) === url; } catch { return x === url; } })) inUse.push('Playlist de música por defecto');
+        if (inUse.length) return res.status(409).json({ error: 'El archivo está en uso', inUse });
+    }
     fs.unlinkSync(filePath);
     res.json({ ok: true });
 });

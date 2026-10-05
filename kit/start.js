@@ -43,7 +43,7 @@ function readSettings() {
     if (!fs.existsSync(SETTINGS)) return out;
     for (const l of fs.readFileSync(SETTINGS, 'utf8').split(/\r?\n/)) {
         const m = /^\s*([A-Z_]+)\s*=\s*(.*)\s*$/.exec(l);
-        if (m) out[m[1]] = m[2];
+        if (m) out[m[1]] = m[2].trim();
     }
     return out;
 }

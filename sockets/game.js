@@ -142,7 +142,10 @@ function persistState(s) {
 function persistAll() { for (const s of gameStates.values()) persistState(s); }
 
 setInterval(persistAll, 2000).unref();
-['SIGTERM', 'SIGINT'].forEach(sig => process.once(sig, () => { persistAll(); process.exit(0); }));
+// Al apagar (Render, Ctrl+C, cerrar la ventana del kit): guardar marcador y cerrar la BD limpia
+['SIGTERM', 'SIGINT', 'SIGHUP', 'SIGBREAK'].forEach(sig => {
+    try { process.once(sig, () => { persistAll(); require('../db').closeDb(); process.exit(0); }); } catch (e) { /* señal no disponible */ }
+});
 
 // Nueva partida en un juego ya cargado: se reinicia el estado EN SU SITIO (los sockets
 // conectados guardan una referencia a este objeto) y se avisa a todos los dispositivos.
@@ -779,6 +782,8 @@ function avanzarPregunta(state, io, gameId) {
     ds.revealedLetters = [];
     ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
     ds.optionsRevealed = false;
+    ds.lastQuestionScores = {};
+    ds.showTeamResults = false;
     initIdentidadState(ds);
     if (isNoTimerRound(ds)) {
         ds.timer = { total: 0, remaining: 0, running: false };
@@ -928,9 +933,11 @@ function attachSocketHandlers(io) {
 
         // Las órdenes de coordinador solo se aceptan de conexiones con sesión.
         socket.use(([event, data], next) => {
-            if ((event.startsWith('director:') || event.startsWith('admin_')) && !socket.isStaff) {
-                socket.emit('auth_required');
-                return;
+            if (event.startsWith('director:') || event.startsWith('admin_')) {
+                // Se vuelve a comprobar la cookie del handshake (época y caducidad): si se cambió
+                // la contraseña o caducó, el coordinador abre la conexión de nuevo con la cookie actual
+                if (socket.isStaff && !auth.sessionFromCookieHeader(socket.handshake.headers.cookie)) socket.isStaff = false;
+                if (!socket.isStaff) { socket.emit('auth_required'); return; }
             }
             // Orden ligada a una pregunta que ya no es la actual (doble toque, reenvío): se ignora
             if (POSITIONAL_EVENTS.has(event) && data && data.at !== undefined) {
@@ -1262,7 +1269,8 @@ function attachSocketHandlers(io) {
 
         socket.on('usar_bono', (data) => {
             const emisor = state.equipos.find(e => e.id === socket.equipoId);
-            if (!emisor || !emisor.bonos.includes(data.tipo)) return;
+            if (!data || !emisor || !emisor.bonos.includes(data.tipo)) return;
+            if (emisor.bloqueado) { socket.emit('notificacion_bono', { msg: 'Estáis congelados: no podéis usar bonos ahora' }); return; }
             let mensaje = '';
             let victima = null;
             if (data.tipo === 'lock_all') {
@@ -1389,9 +1397,16 @@ function attachSocketHandlers(io) {
             const idx = state.equipos.findIndex(e => e.id === data.teamId);
             if (idx < 0) return;
             const eq = state.equipos[idx];
-            if (eq.socketId) io.to(eq.socketId).emit('team_removed');
+            if (eq.socketId) {
+                io.to(eq.socketId).emit('team_removed');
+                const s = io.sockets.sockets.get(eq.socketId);
+                if (s) s.equipoId = null; // sus respuestas y pulsaciones ya no cuentan
+            }
             state.equipos.splice(idx, 1);
             delete state.director.scores[data.teamId];
+            delete state.director.answers[data.teamId];
+            state.colaPulsador = state.colaPulsador.filter(p => p.id !== data.teamId);
+            io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             db.prepare('DELETE FROM teams WHERE id = ?').run(data.teamId);
             broadcastDirector(io, gameId, state);
         });

@@ -12,6 +12,10 @@ const DEFAULT_GAME_ID = 'default';
 
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');     // mejor concurrencia lecturas/escrituras
+try { db.pragma('wal_checkpoint(TRUNCATE)'); } catch (e) { /* otra instancia abierta: no pasa nada */ }
+
+// Al cerrar, volcar el WAL al archivo principal: así una copia de la carpeta de datos queda completa
+function closeDb() { try { db.pragma('wal_checkpoint(TRUNCATE)'); db.close(); } catch (e) {} }
 db.pragma('foreign_keys = ON');
 
 // Aplicar esquema (idempotente: todas las CREATE llevan IF NOT EXISTS)
@@ -30,6 +34,7 @@ function ensureDefaultGame() {
 ensureDefaultGame();
 
 module.exports = {
+    closeDb,
     db,
     DEFAULT_GAME_ID,
 };

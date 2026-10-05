@@ -35,7 +35,18 @@ console.log('Kit offline → ' + DEST);
 fs.mkdirSync(DEST, { recursive: true });
 
 // 1. App (se reemplaza entera)
-if (fs.existsSync(APP)) fs.rmSync(APP, { recursive: true, force: true });
+// Si el kit está en marcha, Windows no deja tocar sus archivos: se comprueba moviendo la app
+// actual a un lado ANTES de borrar nada (si falla, el kit queda intacto).
+const OLD = APP + '.old';
+if (fs.existsSync(OLD)) fs.rmSync(OLD, { recursive: true, force: true });
+if (fs.existsSync(APP)) {
+    try { fs.renameSync(APP, OLD); }
+    catch (e) {
+        console.error('\nNo se puede actualizar: el kit parece estar en marcha (' + e.code + ').');
+        console.error('Cierra GameShow (la ventana negra del kit) y vuelve a ejecutar este script.');
+        process.exit(1);
+    }
+}
 for (const item of INCLUDE) {
     const src = path.join(REPO, item);
     if (!fs.existsSync(src)) { console.warn('  (no existe, se omite) ' + item); continue; }
@@ -48,7 +59,13 @@ console.log('  app/ copiada');
 
 // 2. Node portátil (el mismo que ejecuta este script)
 fs.mkdirSync(path.join(DEST, 'node'), { recursive: true });
-fs.copyFileSync(process.execPath, path.join(DEST, 'node', 'node.exe'));
+try { fs.copyFileSync(process.execPath, path.join(DEST, 'node', 'node.exe')); }
+catch (e) {
+    console.error('\nNo se puede copiar node.exe (' + e.code + '): ¿está el kit en marcha? Ciérralo y repite.');
+    if (fs.existsSync(OLD)) { fs.rmSync(APP, { recursive: true, force: true }); fs.renameSync(OLD, APP); console.error('Se ha dejado el kit como estaba.'); }
+    process.exit(1);
+}
+if (fs.existsSync(OLD)) fs.rmSync(OLD, { recursive: true, force: true });
 console.log('  node/node.exe ' + process.version);
 
 // 3. Lanzador e instrucciones

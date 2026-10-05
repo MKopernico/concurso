@@ -45,6 +45,8 @@ DÓNDE ESTÁN LOS DATOS
 ---------------------
 - datos\            juegos, imágenes, vídeos, audios y ajustes.
                     Copiando la carpeta entera del kit te llevas todo.
+                    Ciérralo antes (cierra la ventana negra): si lo copias con
+                    GameShow en marcha, lo último puede no quedar en la copia.
 - datos\ajustes.env contraseña maestra (ADMIN_PASSWORD) y puerto (PORT).
                     Si olvidas la contraseña, mírala aquí: siempre funciona.
 
@@ -55,6 +57,9 @@ SI ALGO NO VA
   otras direcciones que muestra la ventana negra.
 - "El puerto 3000 ya está en uso": GameShow ya está abierto en otra
   ventana. Ciérrala y vuelve a arrancar.
+- El modo "Entrada en vivo" (micrófono) del reproductor de música no
+  funciona en el kit: los navegadores solo permiten el micrófono en webs
+  seguras (https). La música desde archivos funciona con normalidad.
 - Firewall: si pulsaste "Cancelar" en el aviso de Windows, ve a
   Seguridad de Windows > Firewall > Permitir una aplicación, y activa
   Node.js en "Privada". Y comprueba que la red está como "Privada"

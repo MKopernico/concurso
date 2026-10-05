@@ -29,7 +29,7 @@
     function fetchManifest(gameId, role, pass) {
         var url = '/api/games/' + encodeURIComponent(gameId) + '/assets?role=' + role + (pass ? '&pass=' + encodeURIComponent(pass) : '');
         return fetch(url, { cache: 'no-store' }).then(function(r) {
-            if (!r.ok) throw new Error('lista ' + r.status);
+            if (!r.ok) { var e = new Error('lista ' + r.status); e.status = r.status; throw e; }
             return r.json();
         });
     }
@@ -329,7 +329,9 @@
                 manifest = m;
                 lastFailed = [];
                 start(m.files);
-            }).catch(function() {
+            }).catch(function(e) {
+                // El código del juego cambió: no es un problema de WiFi, hay que volver a meterlo
+                if (e && e.status === 403 && opts.onPassRejected) { clearTimeout(autoTimer); ov.remove(); opts.onPassRejected(); return; }
                 manifest = null;
                 sub.textContent = 'No se pudo obtener la lista de contenido';
                 err.innerHTML = '<h3>Sin conexión con el servidor</h3><div class="gsp-note">Comprueba la WiFi y vuelve a intentarlo.</div>';

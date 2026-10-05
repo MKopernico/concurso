@@ -1747,6 +1747,16 @@ function renderRevealedInPlace() {
     var c = ps.question.content || {};
     var type = ps.roundType;
 
+    // Al abrir o recargar la pantalla con la respuesta ya revelada no ha pasado por la fase de
+    // pregunta: el enunciado y la imagen se rellenan aquí (cada tipo los ajusta después)
+    if (type === 'multirespuesta' || type === 'boom' || type === 'precio') {
+        var st = document.getElementById('qStatement');
+        st.textContent = c.statement || ''; st.style.display = '';
+        var md = document.getElementById('qMedia');
+        if (ps.question.media_url && type !== 'precio') { if (md.getAttribute('src') !== ps.question.media_url) md.src = ps.question.media_url; md.style.display = ''; }
+        else if (type !== 'precio') md.style.display = 'none';
+    }
+
     if (type === 'multirespuesta') {
         var opts = c.options || [];
         var correct = c.correct;
@@ -1911,12 +1921,20 @@ function renderScoreboardOverlay() {
 
 // ═══════════════ QR OVERLAY (global) ═══════════════
 var _qrActive = false;
+// Si la pantalla se abrió como localhost (kit en el mismo PC), el QR debe llevar la IP de la red
+var _lanOrigin = null;
+if (/^(localhost|127\.)/.test(location.hostname)) {
+    fetch('/kit/info').then(function(r) { return r.ok ? r.json() : null; }).then(function(info) {
+        if (info && info.ips && info.ips.length) { _lanOrigin = 'http://' + info.ips[0] + ':' + info.port; _qrActive = false; if (ps) renderQrOverlay(); }
+    }).catch(function() {});
+}
+function qrOrigin() { return _lanOrigin || window.location.origin; }
 function renderQrOverlay() {
     if (!ps) return;
     var overlay = document.getElementById('qrOverlay');
     if (ps.qrVisible) {
         // El QR lleva al iPad directo a este juego, con el pase incluido (sin teclear el código)
-        var qrUrl = window.location.origin + '/play/?g=' + encodeURIComponent(gameId) + (ps.qrPass ? '&p=' + encodeURIComponent(ps.qrPass) : '');
+        var qrUrl = qrOrigin() + '/play/?g=' + encodeURIComponent(gameId) + (ps.qrPass ? '&p=' + encodeURIComponent(ps.qrPass) : '');
         if (_qrActive !== qrUrl) {
             var container = document.getElementById('qrCanvas');
             container.innerHTML = '';

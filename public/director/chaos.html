@@ -581,6 +581,9 @@
     async function initAudio() {
         if (!ctx.audio) ctx.audio = new (window.AudioContext || window.webkitAudioContext)();
         if (ctx.audio.state === 'suspended') await ctx.audio.resume();
+        // El circuito de efectos se crea una vez por contexto de audio (antes se creaba otro en
+        // cada canción sin liberar el anterior: más CPU y osciladores sonando por dentro)
+        if (ctx.nodes.input && ctx.nodes._audio === ctx.audio) return;
 
         ctx.nodes.userVolume = ctx.audio.createGain(); ctx.nodes.userVolume.gain.value = ui.mainVolume.value/100;
         ctx.nodes.compressor = ctx.audio.createDynamicsCompressor(); ctx.nodes.compressor.threshold.value = -10; ctx.nodes.compressor.ratio.value = 4;
@@ -617,6 +620,7 @@
         ctx.nodes.flangerDelay.connect(ctx.nodes.reverb).connect(ctx.nodes.reverbWet).connect(ctx.nodes.masterGain);
 
         ctx.nodes.masterGain.connect(ctx.nodes.userVolume).connect(ctx.nodes.compressor).connect(ctx.audio.destination);
+        ctx.nodes._audio = ctx.audio;
     }
 
     async function startPlay() {
@@ -642,9 +646,12 @@
             const el = new Audio(track.url);
             el.crossOrigin = 'anonymous';
             el.addEventListener('ended', () => { if(ctx.currentTrackIndex<ctx.playlist.length-1){ ctx.currentTrackIndex++; renderPlaylist(); startPlay(); } else setPlayState(false); });
-            await el.play();
+            // Conectar y aplicar los efectos ANTES de que suene (si no, el arranque suena limpio un instante)
             ctx.source = ctx.audio.createMediaElementSource(el); ctx.source.connect(ctx.nodes.input);
-            ctx.audioElement = el; setPlayState(true);
+            ctx.audioElement = el;
+            ui.masterSlider.value = 0; updateCardVisuals(); updateAudioEngine();
+            await el.play();
+            setPlayState(true);
         }
         ui.masterSlider.value = 0; updateCardVisuals(); updateAudioEngine();
     }
@@ -694,7 +701,10 @@
 
     // --- AUTOLOAD DEFAULT PLAYLIST ---
     fetch('/api/audio/default-playlist')
-        .then(r => r.json())
+        .then(r => {
+            if (r.status === 401) { ui.currentTrackDisplay.innerText = 'Sesión caducada: recarga el coordinador'; throw new Error('401'); }
+            return r.json();
+        })
         .then(data => {
             const urls = data.playlist || [];
             if (urls.length) {
@@ -717,9 +727,12 @@
         list.innerHTML = '<div style="padding:15px; text-align:center; color:#666;">Cargando...</div>';
         panel.classList.remove('hidden');
         fetch('/api/media/audio')
-            .then(r => r.json())
+            .then(r => {
+                if (r.status === 401) { list.innerHTML = '<div style="padding:15px; text-align:center; color:#facc15;">Sesión caducada: recarga el coordinador</div>'; throw new Error('401'); }
+                return r.json();
+            })
             .then(files => {
-                if (!files.length) {
+                if (!Array.isArray(files) || !files.length) {
                     list.innerHTML = '<div style="padding:15px; text-align:center; color:#666;">Sin audios en el servidor</div>';
                     return;
                 }

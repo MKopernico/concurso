@@ -789,6 +789,7 @@ function preloadGame(then) {
     if (!pass || !window.GSPreload) { then(); return; }
     GSPreload.showOverlay({
         gameId: S.gameId, role: 'play', pass: pass,
+        onPassRejected: passRejected,
         title: S.game && S.game.name ? S.game.name : 'Preparando el juego',
         onDone: function(result) {
             S.preloadSummary = GSPreload.summary(result);
@@ -846,8 +847,11 @@ function registerTeam() {
     var name = document.getElementById('teamNameInput').value.trim();
     if (!name) { toast('Escribe un nombre para tu equipo'); return; }
     if (!socket || !socket.connected) { toast('Conectando, espera un momento...'); return; }
-    document.getElementById('registerBtn').disabled = true;
+    var btn = document.getElementById('registerBtn');
+    btn.disabled = true;
     socket.emit('player:register_team', { name: name, photo_url: S.photoUrl, deviceId: deviceId });
+    // Si la respuesta se pierde en un corte, que el botón no se quede bloqueado
+    setTimeout(function() { if (!S.myTeamId) btn.disabled = false; }, 8000);
 }
 
 // Quita overlays (congelado, marcador, premios), panel de bonos y fondo del tema: si no,
@@ -892,6 +896,10 @@ function connectSocket(onReady) {
         else if (S.myTeamId) {
             // Re-connected after disconnect — auto-rejoin
             socket.emit('player:reconnect', { deviceId: deviceId });
+        } else if (document.getElementById('screen-register').classList.contains('active')) {
+            // Reconectado en la pantalla de registro: ¿el registro llegó a hacerse antes del corte?
+            socket.emit('player:reconnect', { deviceId: deviceId });
+            document.getElementById('registerBtn').disabled = false;
         }
     });
 

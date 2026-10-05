@@ -1243,7 +1243,7 @@ function renderLobby() {
             + '<div class="rc-questions">';
         for (var i = 0; i < qCount; i++) {
             var isCurrent = i === currentIdx;
-            html += '<div class="rc-q-btn' + (isCurrent ? ' current' : '') + '" onclick="emit(\'director:launch_question\',{idx:' + i + '})">' + (i + 1) + '</div>';
+            html += '<div class="rc-q-btn' + (isCurrent ? ' current' : '') + '" onclick="jumpToQuestion(' + i + ')">' + (i + 1) + '</div>';
         }
         html += '</div></div>';
         rcEl.innerHTML = html;
@@ -2955,7 +2955,7 @@ function openPremioGanadorSelector(premioTipo, modo) {
 
     var preselId = null;
     var roundType = ds.currentRound ? ds.currentRound.type : '';
-    if (_AUTO_TYPES[roundType] && ds.lastQuestionScores) {
+    if (_AUTO_TYPES[roundType] && ds.lastQuestionScores && ds.phase === 'answer_revealed') {
         var candidates = Object.entries(ds.lastQuestionScores)
             .filter(function(e) { return e[1].points > 0; })
             .sort(function(a, b) {
@@ -3058,6 +3058,16 @@ function resetRuleta() {
 // ── Navigation ──
 function openScreen() { window.open('/screen/' + S.gameId, '_blank'); }
 function openAdmin() { window.open('/admin', '_blank'); }
+// Saltar a otra pregunta desde la rejilla: si la actual tiene respuestas sin revelar, se avisa
+// (al cambiar se pierden; las ya reveladas quedan guardadas con su resultado)
+function jumpToQuestion(idx) {
+    var ds = S.director;
+    if (ds && ds.phase === 'question' && idx !== ds.currentQuestionIdx && (ds.answeredCount || 0) > 0) {
+        if (!confirm('La pregunta actual tiene respuestas de ' + ds.answeredCount + ' equipo(s) sin revelar.\nSi cambias de pregunta se perderán. ¿Cambiar igualmente?')) return;
+    }
+    emit('director:launch_question', { idx: idx });
+}
+
 // Barra "Volver a la pregunta": visible en Espera/Home si se dejó una pregunta a medias
 function renderResumeBar() {
     var ds = S.director;

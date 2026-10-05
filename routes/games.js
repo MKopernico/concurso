@@ -19,6 +19,22 @@ function parseJsonField(value, fallback = null) {
     try { return JSON.parse(value); } catch { return fallback; }
 }
 
+// Celdas de opciones → lista sin huecos + correspondencia columna → posición en la lista
+function compactColumns(cells) {
+    const list = [], colToIdx = {};
+    cells.forEach((v, col) => {
+        const t = String(v === undefined || v === null ? '' : v).trim();
+        if (t) { colToIdx[col] = list.length; list.push(t); }
+    });
+    return { list, colToIdx };
+}
+
+// Código de acceso: sin espacios; vacío = sin código
+function cleanCode(v) {
+    const s = String(v === undefined || v === null ? '' : v).trim();
+    return s || null;
+}
+
 // Lista de posiciones de una celda de Excel ("1,3", "1;3", "1 3"…) → índices base 0 válidos.
 // En un Excel en español "1,3" se guarda como el NÚMERO 1,3 (1.3): también se acepta.
 // Cada posición es de una cifra (máximo 5 opciones), así que cualquier no-dígito separa.
@@ -69,7 +85,7 @@ router.post('/games', (req, res) => {
         status || 'draft',
         note || null,
         theme ? JSON.stringify(theme) : null,
-        access_code || null
+        cleanCode(access_code)
     );
     res.status(201).json(loadGameTree(id));
 });
@@ -89,13 +105,14 @@ router.put('/games/:id', (req, res) => {
         const game = loadGameTree(req.params.id);
         const incompleteList = [];
         for (const round of (game.rounds || [])) {
-            for (const q of (round.questions || [])) {
+            (round.questions || []).forEach((q, qIdx) => {
                 const content = typeof q.content === 'string' ? parseJsonField(q.content, {}) : (q.content || {});
                 const v = QuestionValidation.isComplete(round.type, content);
                 if (!v.complete) {
-                    incompleteList.push({ round: round.name, question: q.sort_order + 1, type: round.type, missing: v.missing });
+                    // Número por posición (como en el backoffice), no por sort_order (puede tener huecos)
+                    incompleteList.push({ round: round.name, question: qIdx + 1, type: round.type, missing: v.missing });
                 }
-            }
+            });
         }
         if (incompleteList.length > 0) {
             return res.status(400).json({ error: 'incomplete_questions', incomplete: incompleteList });
@@ -104,22 +121,21 @@ router.put('/games/:id', (req, res) => {
 
     db.prepare(`
         UPDATE games SET
-            name        = COALESCE(?, name),
-            date        = COALESCE(?, date),
-            status      = COALESCE(?, status),
-            note        = COALESCE(?, note),
-            theme       = COALESCE(?, theme),
-            access_code = COALESCE(?, access_code)
+            name   = COALESCE(?, name),
+            status = COALESCE(?, status),
+            theme  = COALESCE(?, theme)
         WHERE id = ?
     `).run(
         name ?? null,
-        date ?? null,
         status ?? null,
-        note ?? null,
         theme !== undefined ? JSON.stringify(theme) : null,
-        access_code ?? null,
         req.params.id
     );
+    // Fecha, nota y código: si vienen en la petición se guardan tal cual (vacío = quitarlos)
+    const body = req.body || {};
+    if ('date' in body) db.prepare('UPDATE games SET date = ? WHERE id = ?').run(date || null, req.params.id);
+    if ('note' in body) db.prepare('UPDATE games SET note = ? WHERE id = ?').run(note || null, req.params.id);
+    if ('access_code' in body) db.prepare('UPDATE games SET access_code = ? WHERE id = ?').run(cleanCode(access_code), req.params.id);
     res.json(loadGameTree(req.params.id));
 });
 
@@ -441,6 +457,13 @@ router.put('/rounds/:id', (req, res) => {
     if (!existing) return res.status(404).json({ error: 'no encontrada' });
 
     const { name, type, sort_order, config } = req.body || {};
+    if (type) {
+        const cur = db.prepare('SELECT type FROM rounds WHERE id = ?').get(req.params.id);
+        const nQ = db.prepare('SELECT COUNT(*) AS n FROM questions WHERE round_id = ?').get(req.params.id).n;
+        if (cur && cur.type !== type && nQ > 0) {
+            return res.status(400).json({ error: 'No se puede cambiar el tipo de una ronda que ya tiene preguntas (serían incompatibles). Crea una ronda nueva o borra antes sus preguntas.' });
+        }
+    }
     db.prepare(`
         UPDATE rounds SET
             name       = COALESCE(?, name),
@@ -519,17 +542,17 @@ router.put('/questions/:id', (req, res) => {
     db.prepare(`
         UPDATE questions SET
             content    = COALESCE(?, content),
-            media_url  = COALESCE(?, media_url),
-            sort_order = COALESCE(?, sort_order),
-            config     = COALESCE(?, config)
+            sort_order = COALESCE(?, sort_order)
         WHERE id = ?
     `).run(
         content !== undefined ? (typeof content === 'string' ? content : JSON.stringify(content)) : null,
-        media_url ?? null,
         sort_order ?? null,
-        config !== undefined ? JSON.stringify(config) : null,
         req.params.id
     );
+    // Si vienen en la petición se guardan tal cual: así se puede quitar la imagen, el premio o los overrides
+    const body = req.body || {};
+    if ('media_url' in body) db.prepare('UPDATE questions SET media_url = ? WHERE id = ?').run(media_url || null, req.params.id);
+    if ('config' in body) db.prepare('UPDATE questions SET config = ? WHERE id = ?').run(config && Object.keys(config).length ? JSON.stringify(config) : null, req.params.id);
 
     const row = db.prepare('SELECT * FROM questions WHERE id = ?').get(req.params.id);
     row.content = parseJsonField(row.content, {});
@@ -581,6 +604,17 @@ const EXCEL_TYPE_DEFS = [
 
 const SHEET_TYPE_MAP = {};
 EXCEL_TYPE_DEFS.forEach(d => { SHEET_TYPE_MAP[d.sheet] = d.type; });
+
+// Tipo de ronda escrito a mano en la hoja Rondas → tipo interno (admite el nombre de la pestaña,
+// mayúsculas y acentos). null si no se reconoce.
+const VALID_ROUND_TYPES = new Set([...EXCEL_TYPE_DEFS.map(d => d.type), 'karaoke']);
+function normalizeRoundType(v) {
+    const plain = (s) => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
+    const t = plain(v);
+    if (VALID_ROUND_TYPES.has(t)) return t;
+    for (const [sheet, type] of Object.entries(SHEET_TYPE_MAP)) if (plain(sheet) === t) return type;
+    return null;
+}
 
 function parseIdentidadSheet(rows) {
     const rounds = {};
@@ -662,8 +696,9 @@ function parseExcelSheet(rows, type) {
         switch (type) {
             case 'multirespuesta': {
                 const statement = String(r[1] || '').trim();
-                const options = [r[2], r[3], r[4], r[5], r[6]].map(o => String(o || '').trim()).filter(Boolean);
-                const correct = parseIndexList(r[7], options.length);
+                const { list: options, colToIdx } = compactColumns([r[2], r[3], r[4], r[5], r[6]]);
+                // 'correctas' se refiere a las columnas opcion_1..5: se traduce a la lista sin huecos
+                const correct = parseIndexList(r[7], 5).map(col => colToIdx[col]).filter(i => i !== undefined);
                 if (!statement && options.length === 0) break; // truly empty
                 content = { statement: statement || undefined, options, correct, explanation: String(r[8] || '').trim() || undefined };
                 if (r[9]) qConfig.time = Number(r[9]) || undefined;
@@ -697,8 +732,10 @@ function parseExcelSheet(rows, type) {
             }
             case 'boom': {
                 const statement = String(r[1] || '').trim();
-                const items = [r[2], r[3], r[4], r[5], r[6]].map(v => String(v || '').trim()).filter(Boolean);
-                const correct_order = parseIndexList(r[7], items.length);
+                const { list: items, colToIdx } = compactColumns([r[2], r[3], r[4], r[5], r[6]]);
+                let correct_order = parseIndexList(r[7], 5).map(col => colToIdx[col]).filter(i => i !== undefined);
+                // Sin orden indicado: el orden en que están escritos los elementos
+                if (!correct_order.length) correct_order = items.map((_, i) => i);
                 if (!statement && items.length === 0) break;
                 content = { statement: statement || undefined, items, correct_order };
                 if (r[8]) qConfig.time = Number(r[8]) || undefined;
@@ -815,7 +852,9 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
         const cRows = XLSX.utils.sheet_to_json(wsC, { header: 1, defval: '' });
         const dataRows = cRows.slice(3); // skip title, empty, headers
         const theme = configRowsToTheme(dataRows);
-        db.prepare('UPDATE games SET theme = ? WHERE id = ?').run(theme ? JSON.stringify(theme) : null, req.params.id);
+        const prev = parseJsonField((db.prepare('SELECT theme FROM games WHERE id = ?').get(req.params.id) || {}).theme, {}) || {};
+        const merged = theme ? { ...prev, ...theme, types: { ...(prev.types || {}), ...(theme.types || {}) } } : prev;
+        db.prepare('UPDATE games SET theme = ? WHERE id = ?').run(Object.keys(merged).length ? JSON.stringify(merged) : null, req.params.id);
         console.log('[Excel Import] Hoja Configuración: tema actualizado');
     }
 
@@ -830,25 +869,32 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
             if (!row || row.every(c => c === '' || c === undefined || c === null)) continue;
             const name = String(row[0] || '').trim();
             if (!name) continue;
-            const type = String(row[1] || '').trim();
-            if (!type) continue;
+            const type = normalizeRoundType(row[1]);
+            if (!type) {
+                results.errors.push(`Ronda "${name}": tipo "${String(row[1] || '').trim()}" no reconocido. Ronda ignorada.`);
+                continue;
+            }
             const cfg = {};
-            if (row[2] !== '' && row[2] !== undefined) cfg.time = Number(row[2]) || 0;
-            if (row[3] !== '' && row[3] !== undefined) cfg.basePoints = Number(row[3]) || 100;
-            if (row[4] !== '' && row[4] !== undefined) cfg.bonusMax = Number(row[4]) || 50;
-            if (row[5] !== '' && row[5] !== undefined) cfg.penalty = Number(row[5]) || 0;
+            const num = (v, dflt) => (v === '' || v === undefined || v === null || !isFinite(Number(v))) ? dflt : Number(v);
+            if (row[2] !== '' && row[2] !== undefined) cfg.time = num(row[2], 30);
+            if (row[3] !== '' && row[3] !== undefined) cfg.basePoints = num(row[3], 100);
+            if (row[4] !== '' && row[4] !== undefined) cfg.bonusMax = num(row[4], 50);
+            if (row[5] !== '' && row[5] !== undefined) cfg.penalty = num(row[5], 0);
             const logo = String(row[6] || '').trim();
             if (logo) cfg.logo = logo;
             const bg = String(row[7] || '').trim();
             if (bg) cfg.background = bg;
-            roundDefs[name] = { type, config: cfg };
+            roundDefs[name] = { type, config: cfg, order: Object.keys(roundDefs).length };
         }
         console.log('[Excel Import] Hoja Rondas: ' + Object.keys(roundDefs).length + ' rondas definidas');
     }
 
     // Get max sort_order for existing rounds
     const maxSort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) as m FROM rounds WHERE game_id = ?').get(req.params.id);
-    let roundSortOrder = (maxSort ? maxSort.m : -1) + 1;
+    const sortBase = (maxSort ? maxSort.m : -1) + 1;
+    let extraSort = Object.keys(roundDefs).length;
+    // Con hoja Rondas, el orden de sus filas manda; lo demás va detrás
+    const sortFor = (roundName) => sortBase + (roundDefs[roundName] ? roundDefs[roundName].order : extraSort++);
 
     const insertRound = db.prepare('INSERT INTO rounds (id, game_id, name, type, config, sort_order) VALUES (?, ?, ?, ?, ?, ?)');
     const insertQuestion = db.prepare('INSERT INTO questions (id, round_id, content, config, sort_order) VALUES (?, ?, ?, ?, ?)');
@@ -904,7 +950,7 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
                     }
 
                     roundId = newId('r');
-                    insertRound.run(roundId, req.params.id, roundName, type, JSON.stringify(roundConfig), roundSortOrder++);
+                    insertRound.run(roundId, req.params.id, roundName, type, JSON.stringify(roundConfig), sortFor(roundName));
                     createdRounds[roundKey] = roundId;
                     results.rounds++;
                 }
@@ -922,7 +968,7 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
             for (const [name, def] of Object.entries(roundDefs)) {
                 if (!roundsWithQuestions.has(name)) {
                     const roundId = newId('r');
-                    insertRound.run(roundId, req.params.id, name, def.type, JSON.stringify(def.config), roundSortOrder++);
+                    insertRound.run(roundId, req.params.id, name, def.type, JSON.stringify(def.config), sortFor(name));
                     results.rounds++;
                 }
             }

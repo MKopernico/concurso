@@ -38,6 +38,15 @@
         if (!nonEmpty(c.statement)) missing.push('statement');
         var items = Array.isArray(c.items) ? c.items.filter(function (i) { return nonEmpty(i); }) : [];
         if (items.length < 2) missing.push('items');
+        // El orden correcto tiene que nombrar cada elemento una vez (si no, nadie puede acertar)
+        var n = Array.isArray(c.items) ? c.items.length : 0;
+        var ord = Array.isArray(c.correct_order) ? c.correct_order : [];
+        var seen = {};
+        var okOrder = ord.length === n && ord.every(function (v) {
+          if (typeof v !== 'number' || v % 1 !== 0 || v < 0 || v >= n || seen[v]) return false;
+          seen[v] = true; return true;
+        });
+        if (items.length >= 2 && !okOrder) missing.push('correct_order');
         break;
       }
       case 'ruleta': {
@@ -46,7 +55,7 @@
       }
       case 'imagen': {
         if (!nonEmpty(c.image)) missing.push('image');
-        if (!nonEmpty(c.answer)) missing.push('answer');
+        // La respuesta es opcional (el formulario lo indica así): solo se muestra si existe
         break;
       }
       case 'imagen_fija': {

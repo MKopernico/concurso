@@ -620,6 +620,8 @@ function typeBadge(t) {
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
+function numOr(v, dflt) { return v === '' || v === null || v === undefined || !isFinite(Number(v)) ? dflt : Number(v); }
+
 function openPasswordModal() {
     document.getElementById('form-password').reset();
     openModal('modal-password-overlay');
@@ -921,9 +923,9 @@ function openRoundModal(round = null) {
         form.type.value = round.type || 'multirespuesta';
         const cfg = round.config || {};
         form.cfg_time.value = cfg.time || 30;
-        form.cfg_basePoints.value = cfg.basePoints || 100;
-        form.cfg_bonusMax.value = cfg.bonusMax || 50;
-        form.cfg_penalty.value = cfg.penalty || 0;
+        form.cfg_basePoints.value = cfg.basePoints ?? 100;
+        form.cfg_bonusMax.value = cfg.bonusMax ?? 50;
+        form.cfg_penalty.value = cfg.penalty ?? 0;
         form.cfg_logo.value = cfg.logo || '';
         form.cfg_background.value = cfg.background || '';
         form.id.value = round.id;
@@ -942,9 +944,10 @@ async function saveRound(e) {
     const noTimer = form.type.value === 'pulsador' || form.type.value === 'imagen';
     const config = {
         time: noTimer ? 0 : (Number(form.cfg_time.value) || 30),
-        basePoints: Number(form.cfg_basePoints.value) || 100,
-        bonusMax: Number(form.cfg_bonusMax.value) || 50,
-        penalty: Number(form.cfg_penalty.value) || 0,
+        // 0 es un valor válido (p. ej. ronda sin bonus); solo el campo vacío toma el valor por defecto
+        basePoints: numOr(form.cfg_basePoints.value, 100),
+        bonusMax: numOr(form.cfg_bonusMax.value, 50),
+        penalty: numOr(form.cfg_penalty.value, 0),
         logo: form.cfg_logo.value.trim() || undefined,
         background: form.cfg_background.value.trim() || undefined,
     };
@@ -1171,8 +1174,8 @@ function openQuestionModal(question = null) {
         form.media_url.value = question.media_url || '';
         const cfg = question.config || {};
         if (cfg.time) form.q_time.value = cfg.time;
-        if (cfg.basePoints) form.q_basePoints.value = cfg.basePoints;
-        if (cfg.bonusMax) form.q_bonusMax.value = cfg.bonusMax;
+        if (cfg.basePoints != null) form.q_basePoints.value = cfg.basePoints;
+        if (cfg.bonusMax != null) form.q_bonusMax.value = cfg.bonusMax;
         if (cfg.premio) {
             form.q_premio_check.checked = true;
             form.q_premio_tipo.disabled = false;
@@ -1636,8 +1639,8 @@ async function saveQuestion(e) {
 
     const config = {};
     if (form.q_time.value) config.time = Number(form.q_time.value);
-    if (form.q_basePoints.value) config.basePoints = Number(form.q_basePoints.value);
-    if (form.q_bonusMax.value) config.bonusMax = Number(form.q_bonusMax.value);
+    if (form.q_basePoints.value !== '') config.basePoints = Number(form.q_basePoints.value);
+    if (form.q_bonusMax.value !== '') config.bonusMax = Number(form.q_bonusMax.value);
     if (form.q_premio_check.checked) {
         var premioTipo = form.q_premio_tipo.value;
         if (premioTipo === 'puntos') {
@@ -1659,7 +1662,7 @@ async function saveQuestion(e) {
     const data = {
         content,
         media_url: form.media_url.value || null,
-        config: Object.keys(config).length ? config : undefined
+        config // {} = sin overrides ni premio (antes no se enviaba y el servidor conservaba el anterior)
     };
 
     try {
@@ -1696,7 +1699,7 @@ function extractContent(type, form) {
         }
         case 'precio': {
             const img = val(form, 'c_image') || '/shared/placeholder-precio.svg';
-            if (img && !form.media_url.value) form.media_url.value = img;
+            form.media_url.value = img; // siempre la imagen actual (si no, se veía la primera que se guardó)
             return { statement: val(form, 'c_statement'), correct_value: Number(val(form, 'c_correct_value')), image: img };
         }
         case 'imagen': {
@@ -2021,13 +2024,31 @@ function formatSize(bytes) {
 }
 
 function copyMediaUrl(url) {
-    navigator.clipboard.writeText(url).then(() => toast('URL copiada'));
+    // navigator.clipboard solo existe con https; en el kit (http://IP) se usa la vía clásica
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(() => toast('URL copiada'), () => prompt('Copia la URL:', url));
+        return;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    ta.remove();
+    if (ok) toast('URL copiada'); else prompt('Copia la URL:', url);
 }
 
 async function deleteMedia(type, filename) {
     if (!confirm('¿Eliminar ' + filename + '?')) return;
     try {
-        await api(`/media/${type}/${filename}`, { method: 'DELETE' });
+        try {
+            await api(`/media/${type}/${filename}`, { method: 'DELETE' });
+        } catch (err) {
+            if (!(err.data && err.data.inUse)) throw err;
+            const list = err.data.inUse.map(n => '  · ' + n).join('\n');
+            if (!confirm('Este archivo lo usa:\n' + list + '\n\nSi lo borras, esas preguntas se quedarán sin él. ¿Borrarlo igualmente?')) return;
+            await api(`/media/${type}/${filename}?force=1`, { method: 'DELETE' });
+        }
         toast('Archivo eliminado');
         if (type === 'audio') {
             const url = `/uploads/audio/${filename}`;
@@ -2227,8 +2248,12 @@ async function loadPlaylist() {
     try {
         const data = await api('/audio/default-playlist');
         _playlistUrls = data.playlist || [];
-        // Auto-sanitize: remove URLs not in current library
-        const libUrls = new Set(mediaFiles.map(f => f.url));
+        // Quitar de la playlist audios que ya no existen. Se compara con la lista de AUDIO pedida
+        // aquí mismo (antes se usaba la pestaña cargada en ese momento y podía vaciarla entera).
+        let audioFiles;
+        try { audioFiles = await api('/media/audio'); } catch (e) { audioFiles = null; }
+        if (!Array.isArray(audioFiles)) { renderPlaylist(); return; }
+        const libUrls = new Set(audioFiles.map(f => f.url));
         const cleaned = _playlistUrls.filter(u => libUrls.has(u));
         if (cleaned.length !== _playlistUrls.length) {
             _playlistUrls = cleaned;

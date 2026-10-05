@@ -61,7 +61,21 @@ fetch('/kit/info').then(function(r) { return r.json(); }).then(function(info) {
     }
     var others = info.ips.filter(function(ip) { return ip !== location.hostname; });
     if (others.length && !local) {
-        document.getElementById('others').textContent = 'Si los iPads no conectan, prueba: ' + others.map(function(ip) { return 'http://' + ip + ':' + info.port + '/play/'; }).join(' · ');
+        // Este PC está en varias redes: un QR por cada una (los iPads deben usar la de su WiFi)
+        var box = document.getElementById('others');
+        box.innerHTML = '<p>Este ordenador está en varias redes. Si los iPads no conectan con el QR grande, usa el de su red:</p>';
+        others.forEach(function(ip) {
+            var url = 'http://' + ip + ':' + info.port + '/play/';
+            var item = document.createElement('div');
+            item.style.cssText = 'display:inline-block;margin:10px 14px 0 0;text-align:center;';
+            var q = document.createElement('div');
+            q.style.cssText = 'background:#fff;padding:8px;border-radius:8px;display:inline-block;';
+            item.appendChild(q);
+            var cap = document.createElement('div'); cap.textContent = url; cap.style.marginTop = '4px';
+            item.appendChild(cap);
+            box.appendChild(item);
+            new QRCode(q, { text: url, width: 110, height: 110, correctLevel: QRCode.CorrectLevel.M });
+        });
     }
 }).catch(function() {});
 </script>

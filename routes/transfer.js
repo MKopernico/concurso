@@ -110,18 +110,38 @@ async function readEntryText(zip, entry) {
 }
 
 // Extrae una entrada a un archivo temporal calculando su hash
+// Límites del .zip (llega de terceros: copias que se pasan entre coordinadores)
+const MAX_ENTRIES = 2000;
+const MAX_FILE_BYTES = 200 * 1024 * 1024;     // 200 MB por archivo
+const MAX_TOTAL_BYTES = 3 * 1024 * 1024 * 1024; // 3 GB en total
+const MAX_MANIFEST_BYTES = 20 * 1024 * 1024;  // game.json
+
+// Extrae una entrada a un archivo temporal calculando su hash. Si algo falla, el temporal se borra.
 async function extractToTemp(zip, entry) {
+    if (entry.uncompressedSize > MAX_FILE_BYTES) throw new Error('Un archivo del .zip supera el tamaño máximo (200 MB): ' + entry.fileName);
     const tmp = path.join(TMP_DIR, 'imp_' + crypto.randomBytes(6).toString('hex'));
     const hash = crypto.createHash('sha1');
     const s = await entryStream(zip, entry);
-    await new Promise((resolve, reject) => {
-        const out = fs.createWriteStream(tmp);
-        s.on('data', (c) => hash.update(c));
-        s.on('error', reject);
-        out.on('error', reject);
-        out.on('finish', resolve);
-        s.pipe(out);
-    });
+    const out = fs.createWriteStream(tmp);
+    try {
+        await new Promise((resolve, reject) => {
+            let bytes = 0;
+            s.on('data', (c) => {
+                bytes += c.length;
+                if (bytes > MAX_FILE_BYTES) { s.destroy(new Error('Archivo demasiado grande en el .zip: ' + entry.fileName)); return; }
+                hash.update(c);
+            });
+            s.on('error', reject);
+            out.on('error', reject);
+            out.on('finish', resolve);
+            s.pipe(out);
+        });
+    } catch (err) {
+        out.destroy();
+        await new Promise(r => out.close ? out.close(() => r()) : r());
+        fs.rmSync(tmp, { force: true });
+        throw err;
+    }
     return { tmp, sha1: hash.digest('hex') };
 }
 
@@ -145,8 +165,13 @@ async function importZip(zipPath) {
     const zip = await openZip(zipPath);
     try {
         const entries = await listEntries(zip);
+        if (entries.size > MAX_ENTRIES) throw new Error('El .zip tiene demasiados archivos');
+        let total = 0;
+        for (const en of entries.values()) total += en.uncompressedSize || 0;
+        if (total > MAX_TOTAL_BYTES) throw new Error('El contenido del .zip es demasiado grande');
         const manifestEntry = entries.get('game.json');
         if (!manifestEntry) throw new Error('El archivo no es una exportación de GameShow (falta game.json)');
+        if (manifestEntry.uncompressedSize > MAX_MANIFEST_BYTES) throw new Error('game.json demasiado grande');
         let m;
         try { m = JSON.parse(await readEntryText(zip, manifestEntry)); } catch { throw new Error('game.json no es válido'); }
         if (m.format !== FORMAT) throw new Error('El archivo no es una exportación de GameShow');
@@ -154,6 +179,8 @@ async function importZip(zipPath) {
         if (!m.game || !m.game.name || !Array.isArray(m.rounds)) throw new Error('game.json incompleto');
 
         const urlMap = {};   // url original → url nueva
+        const createdFiles = []; // copiados en esta importación (se retiran si falla antes de crear el juego)
+        try {
         const stats = { imported: 0, reused: 0, renamed: 0 };
         const missing = Array.isArray(m.missing) ? m.missing.slice() : [];
 
@@ -166,6 +193,7 @@ async function importZip(zipPath) {
             if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
 
             const { tmp, sha1 } = await extractToTemp(zip, entry);
+            createdFiles.push(tmp); // si algo falla antes de moverlo, también se borra
             const original = path.basename(match[2]);
             const existing = path.join(destDir, original);
             let finalName;
@@ -176,11 +204,13 @@ async function importZip(zipPath) {
             } else if (!fs.existsSync(existing) && /^[\w.\-]+$/.test(original)) {
                 finalName = original;       // nombre libre y seguro → se conserva tal cual
                 moveFile(tmp, existing);
+                createdFiles.push(existing);
                 stats.imported++;
             } else {
                 const { base, ext } = sanitizeName(original);
                 finalName = uniqueName(destDir, base, ext);
                 moveFile(tmp, path.join(destDir, finalName));
+                createdFiles.push(path.join(destDir, finalName));
                 stats.imported++;
                 if (fs.existsSync(existing)) stats.renamed++; // solo cuenta si chocaba con otro archivo
             }
@@ -216,6 +246,10 @@ async function importZip(zipPath) {
         insert();
 
         return { gameId, name: g.name, rounds: m.rounds.length, files: stats, missing };
+        } catch (err) {
+            createdFiles.forEach(f => { try { fs.rmSync(f, { force: true }); } catch {} });
+            throw err;
+        }
     } finally {
         zip.close();
     }
