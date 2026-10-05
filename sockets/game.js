@@ -306,6 +306,7 @@ function startQuestionTimer(state, gameId, io) {
     const handle = setInterval(() => {
         if (state._timerHandle !== handle) { clearInterval(handle); return; }
         ds.timer.remaining = Math.max(0, ds.timer.remaining - 1);
+        logTick(state);
         io.to(roomOf(gameId)).emit('game:timer_tick', { remaining: ds.timer.remaining, total: ds.timer.total });
         if (ds.timer.remaining <= 0) {
             stopTimer(state, gameId, io);
@@ -315,6 +316,35 @@ function startQuestionTimer(state, gameId, io) {
         }
     }, 1000);
     state._timerHandle = handle;
+}
+
+// ───────────── Respuestas reenviadas tras un corte ─────────────
+// Si una respuesta se perdió (o se pulsó sin conexión), el iPad la reenvía al volver indicando
+// hace cuánto se pulsó ("ago", ms). Se cuenta con el tiempo que quedaba en ese momento, no con el
+// de llegada, para no penalizar al equipo por el corte. Para que no se pueda abusar: como mucho
+// MAX_AGO_MS hacia atrás y nunca antes de que se mostraran las opciones.
+const MAX_AGO_MS = 10000;
+function logTick(state) {
+    const ds = state.director;
+    const epoch = ds.questionEpoch || 0;
+    if (!state._ticks || state._ticks.epoch !== epoch) state._ticks = { epoch, list: [] };
+    state._ticks.list.push({ t: Date.now(), r: ds.timer.remaining });
+    if (state._ticks.list.length > 40) state._ticks.list.shift();
+}
+function answerTiming(state, data) {
+    const ds = state.director;
+    const t = Date.now();
+    const ago = Math.min(MAX_AGO_MS, Math.max(0, Number(data && data.ago) || 0));
+    if (!ago) return { timestamp: t, timerRemaining: ds.timer.remaining };
+    const target = Math.max(t - ago, ds.optionsRevealedAt || t);
+    const ticks = (state._ticks && state._ticks.epoch === (ds.questionEpoch || 0)) ? state._ticks.list : [];
+    let remaining = ds.timer.remaining;
+    if (ticks.length) {
+        let found = null;
+        for (let k = ticks.length - 1; k >= 0; k--) if (ticks[k].t <= target) { found = ticks[k]; break; }
+        remaining = found ? found.r : ticks[0].r + 1;
+    }
+    return { timestamp: target, timerRemaining: Math.max(ds.timer.remaining, Math.min(ds.timer.total, remaining)) };
 }
 
 function computeKaraokeAutoCombo(karaokeState, configColors) {
@@ -785,7 +815,7 @@ function avanzarPregunta(state, io, gameId) {
     ds.revealedCells = [];
     ds.revealedLetters = [];
     ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
-    ds.optionsRevealed = false;
+    ds.optionsRevealed = false; ds.optionsRevealedAt = null;
     ds.lastQuestionScores = {};
     ds.showTeamResults = false;
     initIdentidadState(ds);
@@ -813,7 +843,7 @@ function finalizarRonda(state, io, gameId) {
     }
     stopTimer(state, gameId, io);
     ds.identidad = null;
-    ds.optionsRevealed = false;
+    ds.optionsRevealed = false; ds.optionsRevealedAt = null;
     ds.lastQuestionScores = {};
     ds.showTeamResults = false;
     ds.scoreboardVisible = false;
@@ -1231,7 +1261,7 @@ function attachSocketHandlers(io) {
             const ds = state.director;
             if (ds.phase !== 'question') return;
             if (ds.answers[socket.equipoId]) return;
-            ds.answers[socket.equipoId] = { answer: data.answer, timestamp: Date.now(), timerRemaining: ds.timer.remaining };
+            ds.answers[socket.equipoId] = { answer: data.answer, ...answerTiming(state, data) };
             broadcastDirector(io, gameId, state);
         });
 
@@ -1242,7 +1272,7 @@ function attachSocketHandlers(io) {
             if (ds.answers[socket.equipoId]) return;
             const val = Number(data && data.value);
             if (!isFinite(val)) return;
-            ds.answers[socket.equipoId] = { answer: val, timestamp: Date.now(), timerRemaining: ds.timer.remaining };
+            ds.answers[socket.equipoId] = { answer: val, ...answerTiming(state, data) };
             broadcastDirector(io, gameId, state);
         });
 
@@ -1253,20 +1283,21 @@ function attachSocketHandlers(io) {
             if (!data || !Array.isArray(data.order)) return;
             const order = toCanonicalOrder(ds, data.order);
             if (!order) return;
+            const timing = answerTiming(state, data);
             data = { order };
             const existing = ds.answers[socket.equipoId];
             // For identidad: allow promoting provisional to definitive
             if (existing) {
                 if (ds.currentRound && ds.currentRound.type === 'identidad' && !existing.submitted) {
                     existing.answer = data.order;
-                    existing.timestamp = Date.now();
-                    existing.timerRemaining = ds.timer.remaining;
+                    existing.timestamp = timing.timestamp;
+                    existing.timerRemaining = timing.timerRemaining;
                     existing.submitted = true;
                 } else {
                     return; // Already submitted (Boom or identidad definitive)
                 }
             } else {
-                ds.answers[socket.equipoId] = { answer: data.order, timestamp: Date.now(), timerRemaining: ds.timer.remaining, submitted: true };
+                ds.answers[socket.equipoId] = { answer: data.order, ...timing, submitted: true };
             }
             broadcastDirector(io, gameId, state);
         });
@@ -1459,7 +1490,7 @@ function attachSocketHandlers(io) {
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
                 ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
-                ds.optionsRevealed = false;
+                ds.optionsRevealed = false; ds.optionsRevealedAt = null;
                 ds.lastQuestionScores = {};
                 ds.showTeamResults = false;
                 ds.scoreboardVisible = false;
@@ -1494,7 +1525,7 @@ function attachSocketHandlers(io) {
             ds.revealedCells = [];
             ds.revealedLetters = [];
             ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
-            ds.optionsRevealed = false;
+            ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
@@ -1539,7 +1570,7 @@ function attachSocketHandlers(io) {
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
                 ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
-                ds.optionsRevealed = false;
+                ds.optionsRevealed = false; ds.optionsRevealedAt = null;
                 initIdentidadState(ds);
                 if (isNoTimerRound(ds)) {
                     ds.timer = { total: 0, remaining: 0, running: false };
@@ -1563,6 +1594,7 @@ function attachSocketHandlers(io) {
             ds.timer.running = true;
             // Al arrancar el tiempo se muestran las opciones/elementos a los equipos
             if (ds.currentRound && ['multirespuesta', 'precio', 'boom', 'identidad'].includes(ds.currentRound.type)) {
+                if (!ds.optionsRevealed) ds.optionsRevealedAt = Date.now();
                 ds.optionsRevealed = true;
             }
             startQuestionTimer(state, gameId, io);
@@ -1907,6 +1939,7 @@ function attachSocketHandlers(io) {
             // Doble toque / dos coordinadores: solo la primera pulsación cuenta
             if (ds.phase !== 'question' || ds.optionsRevealed || state._preCountdownHandle) return;
             ds.optionsRevealed = true;
+            ds.optionsRevealedAt = Date.now();
             // Cuenta atrás de 5 s antes de que arranque solo el temporizador
             ds.preCountdown = 5;
             broadcastDirector(io, gameId, state);
@@ -1987,7 +2020,7 @@ function attachSocketHandlers(io) {
             ds.revealedLetters = [];
             ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
-            ds.optionsRevealed = false;
+            ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
@@ -2030,7 +2063,7 @@ function attachSocketHandlers(io) {
             ds.revealedLetters = [];
             ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
-            ds.optionsRevealed = false;
+            ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;

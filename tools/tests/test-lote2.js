@@ -51,7 +51,7 @@ let d;
 
     const g = (await api('/games', { method: 'POST', body: { name: 'Test Lote2', status: 'published', access_code: '2468' } })).data;
     const mk = async (name, type, config, qs) => { const r = (await api(`/games/${g.id}/rounds`, { method: 'POST', body: { name, type, config } })).data; for (const c of qs) await api(`/rounds/${r.id}/questions`, { method: 'POST', body: { content: c } }); return r; };
-    const rMulti = await mk('Multi', 'multirespuesta', { time: 20, basePoints: 100, bonusMax: 0, penalty: 10 }, [{ statement: 'M1', options: ['a', 'b', 'c'], correct: [0, 2] }, { statement: 'M2', options: ['x', 'y'], correct: [1] }]);
+    const rMulti = await mk('Multi', 'multirespuesta', { time: 20, basePoints: 100, bonusMax: 0, penalty: 10 }, [{ statement: 'M1', options: ['a', 'b', 'c'], correct: [0, 2] }, { statement: 'M2', options: ['x', 'y'], correct: [1] }, { statement: 'M3', options: ['x', 'y'], correct: [0] }, { statement: 'M4', options: ['x', 'y'], correct: [0] }]);
     const rPul = await mk('Pulsa', 'pulsador', { basePoints: 100, bonusMax: 50, penalty: 0 }, [{ statement: 'P1', answer: 'x' }]);
     const rRul = await mk('Ruleta', 'ruleta', { basePoints: 100, bonusMax: 50 }, [{ phrase: 'LA CASA DE PAPEL', hint: 'serie' }]);
     const rBoom = await mk('Boom', 'boom', { time: 20, basePoints: 100, bonusMax: 0 }, [{ statement: 'Ordena', items: ['uno', 'dos', 'tres', 'cuatro'], correct_order: [0, 1, 2, 3] }]);
@@ -98,6 +98,23 @@ let d;
     check('Espera recuerda la pregunta', D().resumePhase === 'question', D().resumePhase);
     d.emit('director:resume_question'); await wait(300);
     check('Volver a la pregunta', D().phase === 'question' && D().currentQuestionIdx === 1, { phase: D().phase, idx: D().currentQuestionIdx });
+
+    // ── Respuesta reenviada tras un corte ("ago"): cuenta con el tiempo que quedaba al pulsarla
+    d.emit('director:launch_question', { idx: 2 }); await wait(300);
+    const optAt = Date.now();
+    d.emit('director:start_timer'); await wait(2300);
+    P[0].emit('player:submit_answer', { answer: 0, ago: 60000 }); P[1].emit('player:submit_answer', { answer: 0 }); await wait(300);
+    const a2 = D().answers;
+    check('reenvío: nunca cuenta como pulsada antes de mostrar las opciones', a2[T[0]].timerRemaining === 20 && a2[T[0]].timestamp >= optAt, { r: a2[T[0]].timerRemaining, antesDeOpciones: a2[T[0]].timestamp < optAt });
+    check('respuesta normal: tiempo restante al llegar', a2[T[1]].timerRemaining === 18, a2[T[1]].timerRemaining);
+    d.emit('director:launch_question', { idx: 3 }); await wait(300);
+    d.emit('director:start_timer'); await wait(12500);
+    const tSend = Date.now();
+    P[0].emit('player:submit_answer', { answer: 0, ago: 3000 }); P[1].emit('player:submit_answer', { answer: 0, ago: 60000 }); await wait(300);
+    const a3 = D().answers;
+    check('reenvío: cuenta con el tiempo que quedaba hace 3 s', a3[T[0]].timerRemaining === 11 && Math.abs(a3[T[0]].timestamp - (tSend - 3000)) < 150, { r: a3[T[0]].timerRemaining });
+    check('reenvío: como mucho 10 s hacia atrás', a3[T[1]].timerRemaining === 18 && Math.abs(a3[T[1]].timestamp - (tSend - 10000)) < 150, { r: a3[T[1]].timerRemaining });
+    d.emit('director:reveal_answer'); await wait(300);
 
     // ── Pulsador: Fallo sin rebote; tipos sin temporizador
     d.emit('director:launch_round', { roundId: rPul.id }); await wait(200);

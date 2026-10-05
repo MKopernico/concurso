@@ -47,7 +47,7 @@ let srv;
     check('se crean exactamente N equipos (ningún iPad duplicado al registrarse)', d.state.equipos.length === N, `${d.state.equipos.length} equipos`);
 
     // ── Verificación de respuestas y pulsaciones perdidas, pregunta a pregunta
-    const loss = { answers: { sent: 0, recorded: 0, cutJustAfter: 0, cutNear: 0, late: 0, queuedNotSent: 0, queuedFlushed: 0, unexplained: [] }, buzz: { sent: 0, inQueue: 0, cut: 0, late: 0, unexplained: [] }, phantom: [] };
+    const loss = { timing: { checked: 0, respected: 0, capped: 0, early: [], samples: [] }, answers: { sent: 0, recorded: 0, recovered: 0, cutJustAfter: 0, cutNear: 0, late: 0, queuedNotSent: 0, queuedFlushed: 0, unexplained: [] }, buzz: { sent: 0, inQueue: 0, cut: 0, late: 0, unexplained: [] }, phantom: [] };
     const near = (sock, at) => sock && sock._endedAt && sock._endedAt - at < 3000;
     function onClosed(info) {
         const byTeam = new Map(ipads.map(p => [p.firstTeamId, p]));
@@ -63,7 +63,23 @@ let srv;
                 if (l.result === 'queued') { if (l.flushed) loss.answers.queuedFlushed++; else { loss.answers.queuedNotSent++; continue; } }
                 if (!(l.result === 'sent' || l.flushed)) continue;
                 loss.answers.sent++;
-                if (got) { loss.answers.recorded++; continue; }
+                if (got) {
+                    loss.answers.recorded++;
+                    if (l.resent) loss.answers.recovered++;
+                    if ((l.resent || l.flushed) && l.pressAt) {
+                        // Reenviada o enviada al volver: debe contar con el momento en que se pulsó
+                        // (el servidor y la prueba comparten reloj). Más tarde solo si se aplicó el tope de 10 s.
+                        const ts = info.recorded[p.firstTeamId].timestamp;
+                        // El viaje del propio mensaje (retraso de red) cuenta, igual que en una respuesta normal
+                        const diff = ts - l.pressAt, transit = p.lag * 1.5 + 150;
+                        loss.timing.checked++;
+                        loss.timing.samples.push({ lag: p.lag, diff });
+                        if (diff >= -150 && diff <= transit) loss.timing.respected++;
+                        else if (diff > transit) loss.timing.capped++;
+                        else loss.timing.early.push({ ipad: p.i, key: info.key, diffMs: diff });
+                    }
+                    continue;
+                }
                 if (l.droppedRightAfter) loss.answers.cutJustAfter++;
                 else if (near(l.sock, l.sentAt)) loss.answers.cutNear++;
                 else if (l.sentAt + p.lag * 1.5 + 500 > info.closeAt) loss.answers.late++;
@@ -157,6 +173,8 @@ let srv;
     check('ningún equipo aparece dos veces en la cola del pulsador', ipads.every(p => !p.ev.dupQueue));
     check('ninguna respuesta "fantasma" (registrada sin que el iPad la enviara)', loss.phantom.length === 0, loss.phantom.slice(0, 3));
     check('no se pierde ninguna respuesta enviada con la conexión estable', loss.answers.unexplained.length === 0, loss.answers.unexplained.length ? loss.answers.unexplained.slice(0, 5) : undefined);
+    const TM = loss.timing;
+    check('las respuestas reenviadas cuentan con el momento en que se pulsaron (nunca antes)', TM.early.length === 0 && TM.checked > 0 && TM.respected >= TM.checked * 0.9, `${TM.respected}/${TM.checked} con su hora de pulsación (más el viaje del mensaje) · ${TM.capped} limitadas por el tope de 10 s${TM.early.length ? ' · ANTES de pulsar: ' + JSON.stringify(TM.early.slice(0, 3)) : ''}`);
     check('no se pierde ninguna pulsación enviada con la conexión estable', loss.buzz.unexplained.length === 0, loss.buzz.unexplained.length ? loss.buzz.unexplained.slice(0, 5) : undefined);
     check('el servidor no registró errores', sP.errors === 0 && srv.stderr.length === 0, sP.errors ? sP.errSamples.slice(0, 3) : (srv.stderr.length ? srv.stderr.slice(0, 3) : undefined));
     check('el coordinador no recibió avisos de error', d.errors.length === 0, d.errors.slice(0, 5));
@@ -165,7 +183,7 @@ let srv;
     const sum = (k) => ipads.reduce((a, p) => a + (p.ev[k] || 0), 0);
     const A = loss.answers, Bz = loss.buzz;
     console.log(`\nCortes provocados: ${sum('drops')} (limpios ${sum('drop_clean')}, caída de red ${sum('drop_drop')}, zombis ${sum('drop_zombie')}) · cortes de WiFi de media sala: ${massDrops} · cortes del coordinador: ${dirDrops}`);
-    console.log(`Reconexiones con éxito: ${sum('logins') - N} · respuestas guardadas sin conexión y enviadas al volver: ${A.queuedFlushed}`);
+    console.log(`Reconexiones con éxito: ${sum('logins') - N} · respuestas guardadas sin conexión y enviadas al volver: ${A.queuedFlushed} · perdidas en el corte y recuperadas por reenvío automático: ${A.recovered}`);
     console.log(`Respuestas enviadas: ${A.sent} · registradas ${A.recorded} · perdidas por cortarse justo al enviar ${A.cutJustAfter} · por un corte en los 3 s siguientes ${A.cutNear} · llegaron tarde ${A.late} · guardadas pero la pregunta cerró antes de volver ${A.queuedNotSent} · inexplicables ${A.unexplained.length}`);
     console.log(`Pulsaciones enviadas: ${Bz.sent} · en la cola ${Bz.inQueue} · perdidas por corte ${Bz.cut} · tarde ${Bz.late} · inexplicables ${Bz.unexplained.length}`);
     const lat = (arr, k) => fmtStats(stats(arr.flatMap(p => p.lat[k])));

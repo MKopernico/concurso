@@ -206,6 +206,7 @@ function makeDirector(srv, gameId) {
 // conexión y las manda al recuperar el equipo (si sigue la misma pregunta), las pulsaciones no.
 // Opcional: retraso artificial (lag, en ms, en ambos sentidos y respetando el orden) y caos.
 const QUEUEABLE = new Set(['player:submit_answer', 'player:submit_price', 'player:submit_order', 'player:update_order']);
+const RESENDABLE = new Set(['player:submit_answer', 'player:submit_price', 'player:submit_order']);
 const BUZZ_TYPES = new Set(['pulsador', 'ruleta', 'imagen', 'imagen_fija', 'cancion']);
 
 // Cola con retraso que conserva el orden (como TCP): nunca adelanta un mensaje a otro anterior
@@ -290,19 +291,28 @@ class Ipad {
         s._out(() => { if (this.sock === s && s.connected) s.emit(ev, data); else this.ev.lostInFlight++; });
         return true;
     }
-    // Como emit() de public/play
+    // Como emit() de public/play (incluido el reenvío automático con "ago")
     emit(ev, data) {
+        const entry = { data, key: this.ps && this.ps.questionKey, at: Date.now() };
+        if (RESENDABLE.has(ev)) this.lastAnswer = { ev, ...entry };
         if (this.canSend) { this.raw(ev, data); return 'sent'; }
-        if (QUEUEABLE.has(ev)) { this.pending[ev] = { data, key: this.ps && this.ps.questionKey }; return 'queued'; }
+        if (QUEUEABLE.has(ev)) { this.pending[ev] = entry; return 'queued'; }
         return 'dropped';
     }
     flush() {
         const p = this.pending; this.pending = {};
+        const sent = {};
+        const withAgo = (x) => ({ ...x.data, ago: Date.now() - x.at });
         for (const [ev, x] of Object.entries(p)) {
             if (this.ps && x.key === this.ps.questionKey && this.ps.phase === 'question') {
-                this.raw(ev, x.data); this.ev.flushed++;
+                this.raw(ev, withAgo(x)); this.ev.flushed++; sent[ev] = true;
                 const l = this.L(x.key); l.flushed = true; l.sentAt = Date.now(); l.sock = this.sock;
             }
+        }
+        const a = this.lastAnswer, ps = this.ps;
+        if (a && !sent[a.ev] && ps && this.teamId && a.key === ps.questionKey && ps.phase === 'question' && !(ps.answeredTeams || []).includes(this.teamId)) {
+            this.raw(a.ev, withAgo(a)); this.ev.resent = (this.ev.resent || 0) + 1;
+            const l = this.L(a.key); l.resent = true; l.sentAt = Date.now(); l.sock = this.sock;
         }
     }
     scheduleReconnect(a, b) {
@@ -407,7 +417,7 @@ class Ipad {
         if (this.chaos && chance(this.chaos.onAnswer || 0)) dropMode = chance(0.5) ? 'before' : 'after';
         if (dropMode === 'before') this.drop(pick(['clean', 'drop', 'zombie']));
         const r = this.emit(a.ev, a.data);
-        l.result = r; l.sentAt = Date.now(); l.sock = this.sock;
+        l.result = r; l.sentAt = l.pressAt = Date.now(); l.sock = this.sock;
         if (r === 'sent') this.awaitAns = { key, t0: now() };
         if (dropMode === 'after') { l.droppedRightAfter = true; this.drop(pick(['clean', 'drop', 'zombie'])); }
         else if (dropMode === 'before') l.droppedBefore = true;

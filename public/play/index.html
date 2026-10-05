@@ -864,6 +864,7 @@ function resetPlayerUI() {
     document.body.classList.remove('karaoke-active');
     try { paintPlayBgLayer(null); } catch (e) {}
     _pendingAnswers = {};
+    _lastAnswer = null;
 }
 
 // El pase ya no vale (p.ej. cambiaron el código del juego): olvidarlo y volver a la lista.
@@ -1049,12 +1050,25 @@ function connectSocket(onReady) {
 // Si el iPad está reconectando, una respuesta enviada se perdería (el servidor aún no sabe
 // de qué equipo es). Las respuestas se guardan y se mandan en cuanto se recupera el equipo;
 // las pulsaciones no (llegarían tarde y serían injustas).
+// Además se recuerda la última respuesta enviada: si la conexión se cortó justo al enviarla y al
+// volver el servidor no la tiene, se reenvía sola. Siempre va con "ago" (ms desde que se pulsó)
+// para que cuente con el tiempo que quedaba al pulsar, no con el de llegada.
 var _pendingAnswers = {};
+var _lastAnswer = null;
 var _QUEUEABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:update_order': 1 };
+var _RESENDABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1 };
+function _nowMs() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+function _withAgo(x) {
+    var d = {}; for (var k in x.data) d[k] = x.data[k];
+    d.ago = Math.max(0, Math.round(_nowMs() - x.at));
+    return d;
+}
 function emit(ev, data) {
+    var entry = { data: data || {}, key: S.ps && S.ps.questionKey, at: _nowMs() };
+    if (_RESENDABLE[ev]) _lastAnswer = { ev: ev, data: entry.data, key: entry.key, at: entry.at };
     if (socket && socket.connected && S.myTeamId) { socket.emit(ev, data || {}); return; }
     if (_QUEUEABLE[ev]) {
-        _pendingAnswers[ev] = { data: data || {}, key: S.ps && S.ps.questionKey };
+        _pendingAnswers[ev] = entry;
         toast('Reconectando… tu respuesta se enviará al volver');
     } else if (ev === 'pulsar_boton') {
         toast('Sin conexión: espera a que vuelva');
@@ -1063,10 +1077,17 @@ function emit(ev, data) {
 function flushPendingAnswers() {
     var pending = _pendingAnswers;
     _pendingAnswers = {};
+    var sent = {};
     Object.keys(pending).forEach(function(ev) {
         // Solo si sigue siendo la misma pregunta
-        if (S.ps && pending[ev].key === S.ps.questionKey && S.ps.phase === 'question') socket.emit(ev, pending[ev].data);
+        if (S.ps && pending[ev].key === S.ps.questionKey && S.ps.phase === 'question') { socket.emit(ev, _withAgo(pending[ev])); sent[ev] = 1; }
     });
+    // Respuesta enviada justo antes del corte que no llegó: reenviarla (el servidor ignora duplicados)
+    var a = _lastAnswer;
+    if (a && !sent[a.ev] && S.ps && S.myTeamId && a.key === S.ps.questionKey && S.ps.phase === 'question'
+        && !(S.ps.answeredTeams && S.ps.answeredTeams.indexOf(S.myTeamId) >= 0)) {
+        socket.emit(a.ev, _withAgo(a));
+    }
 }
 
 function renderMyTeamHeader() {
