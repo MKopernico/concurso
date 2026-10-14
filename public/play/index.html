@@ -19,6 +19,11 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
 
 .screen { display: none; flex: 1; flex-direction: column; overflow-y: auto; }
 .screen.active { display: flex; }
+.recover-box { width: 100%; max-width: 400px; margin: 14px auto 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.recover-link { font-size: 14px; font-weight: 600; color: var(--text2); background: none; padding: 8px; }
+.recover-link b { color: var(--accent); }
+.recover-form { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+#recoverCodeInput { text-transform: uppercase; letter-spacing: 4px; text-align: center; font-weight: 800; }
 
 button { cursor: pointer; font-family: inherit; font-size: 16px; font-weight: 700; border: none; border-radius: var(--radius); padding: 14px 24px; transition: .15s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; -webkit-appearance: none; }
 button:active { transform: scale(.96); }
@@ -529,6 +534,13 @@ body.karaoke-active .player-timer-bar { display: none !important; }
         </div>
         <button class="btn-accent" id="registerBtn" onclick="registerTeam()">Unirse al juego</button>
     </div>
+    <div class="recover-box">
+        <button class="btn-ghost recover-link" type="button" onclick="toggleRecover()">¿Vuestro equipo ya jugaba en otro iPad? <b>Recuperar</b></button>
+        <div class="recover-form" id="recoverForm" style="display:none">
+            <input type="text" id="recoverCodeInput" placeholder="Código del coordinador" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <button class="btn-accent" id="recoverBtn" type="button" onclick="recoverTeam()">Recuperar equipo</button>
+        </div>
+    </div>
     <button class="btn-ghost" onclick="goBack()" style="margin-top:8px; font-size:14px;">Volver</button>
 </div>
 
@@ -708,6 +720,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Entrada por QR: /play/?g=<gameId>&p=<pase>
     var qs = new URLSearchParams(location.search);
     var qrGame = qs.get('g');
+    // QR de recuperación del coordinador: además del juego trae el código del equipo
+    if (qs.get('r')) S.pendingRecover = String(qs.get('r')).toUpperCase();
     if (qrGame) {
         history.replaceState(null, '', '/play/');
         if (qs.get('p')) setPass(qrGame, qs.get('p'));
@@ -890,6 +904,20 @@ function uploadPhoto(input) {
     input.value = '';
 }
 
+function toggleRecover() {
+    var f = document.getElementById('recoverForm');
+    f.style.display = f.style.display === 'none' ? 'flex' : 'none';
+    if (f.style.display !== 'none') document.getElementById('recoverCodeInput').focus();
+}
+function recoverTeam(code) {
+    code = String(code || document.getElementById('recoverCodeInput').value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!code) { toast('Escribe el código que te da el coordinador'); return; }
+    if (!socket || !socket.connected) { S.pendingRecover = code; toast('Conectando, espera un momento...'); return; }
+    document.getElementById('recoverBtn').disabled = true;
+    socket.emit('player:recover_team', { code: code, deviceId: deviceId });
+    setTimeout(function() { document.getElementById('recoverBtn').disabled = false; }, 4000);
+}
+
 function registerTeam() {
     var name = document.getElementById('teamNameInput').value.trim();
     if (!name) { toast('Escribe un nombre para tu equipo'); return; }
@@ -955,11 +983,18 @@ function connectSocket(onReady) {
         if (S.myTeamId) document.getElementById('connBanner').classList.add('active');
     });
 
+    socket.on('recover_result', function(d) {
+        document.getElementById('recoverBtn').disabled = false;
+        if (d && d.ok) toast('¡Equipo recuperado! Seguís siendo ' + d.name);
+        else toast((d && d.error) || 'No se pudo recuperar el equipo');
+    });
+
     // ── Success: team joined ──
     socket.on('login_success', function(data) {
         S.myTeam = data.miEquipo;
         S.myTeamId = data.miEquipo.id;
         localStorage.setItem('gs_session', JSON.stringify({ gameId: S.gameId, teamId: S.myTeamId }));
+        if (S.pendingRecover) { var rc = S.pendingRecover; S.pendingRecover = null; recoverTeam(rc); }
         goScreen('screen-game');
         renderMyTeamHeader();
         sendPreloadStatus();
@@ -990,6 +1025,7 @@ function connectSocket(onReady) {
                 goScreen('screen-register');
                 if (wasPlaying) toast('Tu equipo ya no está en la partida: vuelve a registrarte');
             }
+            if (S.pendingRecover) { var rc = S.pendingRecover; S.pendingRecover = null; recoverTeam(rc); }
         } else if (reason === 'slot_taken') {
             toast('Este equipo ya esta conectado en otro dispositivo');
             localStorage.removeItem('gs_session');

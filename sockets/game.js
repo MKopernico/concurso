@@ -171,7 +171,7 @@ function resetGameForNewSession(gameId, sessionId) {
 }
 
 function publicView(state) {
-    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _preCountdownHandle, _gameTheme, _sessionId, _rounds, _lastSnapshot, _gameId, ...rest } = state;
+    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _preCountdownHandle, _gameTheme, _sessionId, _rounds, _lastSnapshot, _gameId, _recovery, ...rest } = state;
     rest.gameTheme = _gameTheme || {};
     // questionResults (respuestas de todas las preguntas ya jugadas) solo sirve al servidor para
     // no volver a puntuar: crece ~3,5 KB por pregunta y no lo usa ninguna pantalla. Enviarlo en
@@ -1169,6 +1169,40 @@ function attachSocketHandlers(io) {
             broadcastDirector(io, gameId, state);
         });
 
+        // ── Recuperar un equipo en otro iPad (código de un solo uso que da el coordinador) ──
+        socket.on('player:recover_team', (data) => {
+            const fail = (error) => socket.emit('recover_result', { ok: false, error });
+            if (!socket.hasPass) { fail('Código de acceso del juego no válido'); return; }
+            socket._recoverFails = socket._recoverFails || 0;
+            if (socket._recoverFails >= 8) { fail('Demasiados intentos. Recarga la página y pide un código nuevo.'); return; }
+            const code = String((data && data.code) || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const devId = (data && data.deviceId) || deviceId;
+            const rec = state._recovery && state._recovery[code];
+            if (!rec || rec.exp < Date.now()) { socket._recoverFails++; fail('Código no válido o caducado. Pide uno nuevo al coordinador.'); return; }
+            if (!devId) { fail('Este iPad no tiene identificador: recarga la página'); return; }
+            const session = db.prepare('SELECT id FROM sessions WHERE game_id = ? AND ended_at IS NULL LIMIT 1').get(gameId);
+            if (!session) { fail('No hay ninguna partida en marcha'); return; }
+            const eq = state.equipos.find(e => e.id === rec.teamId);
+            if (!eq) { fail('Ese equipo ya no está en la partida'); return; }
+            const own = db.prepare('SELECT id, name FROM teams WHERE session_id = ? AND device_id = ?').get(session.id, devId);
+            if (own && own.id !== eq.id) { fail('Este iPad ya es el equipo «' + own.name + '». Pide al coordinador que lo elimine y vuelve a intentarlo.'); return; }
+            delete state._recovery[code];
+            db.prepare('UPDATE teams SET device_id = ? WHERE id = ?').run(devId, eq.id);
+            eq.deviceId = devId;
+            takeOverTeam(eq, socket); // el iPad viejo, si sigue encendido, se desconecta
+            eq.ocupado = true;
+            eq.socketId = socket.id;
+            socket.equipoId = eq.id;
+            state._gameTheme = loadGameTheme(gameId);
+            socket.emit('recover_result', { ok: true, name: eq.nombre });
+            socket.emit('login_success', { miEquipo: eq, equiposRivales: state.equipos });
+            emitPlayerSync(socket, state);
+            emitYourOrder(socket, state);
+            logAction(state, { action: 'recovered', team: eq.nombre });
+            io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
+            broadcastDirector(io, gameId, state);
+        });
+
         // Device-based auto-reconnect
         socket.on('player:reconnect', (data) => {
             if (!socket.hasPass) { socket.emit('reconnect_failed', { reason: 'no_pass' }); return; }
@@ -1920,6 +1954,21 @@ function attachSocketHandlers(io) {
             ds.aclara.level = Math.max(0, Math.min(1, lvl)); ds.aclara.running = false;
             if (ds.aclara.level > 0) aclaraOpenBuzzer();
             broadcastDirector(io, gameId, state);
+        });
+
+        // Código para pasar un equipo a otro iPad: 6 caracteres, 10 minutos, un solo uso
+        socket.on('director:recovery_code', (data) => {
+            const eq = state.equipos.find(e => e.id === (data && data.teamId));
+            if (!eq) return;
+            if (!state._recovery) state._recovery = {};
+            const now = Date.now();
+            for (const [k, v] of Object.entries(state._recovery)) if (v.exp < now || v.teamId === eq.id) delete state._recovery[k];
+            const ALPH = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin 0/O ni 1/I para dictarlo sin dudas
+            let code;
+            do { code = Array.from(require('crypto').randomBytes(6)).map(b => ALPH[b % ALPH.length]).join(''); } while (state._recovery[code]);
+            state._recovery[code] = { teamId: eq.id, exp: now + 10 * 60 * 1000 };
+            const gRow = db.prepare('SELECT access_code FROM games WHERE id = ?').get(gameId);
+            socket.emit('director:recovery_code', { teamId: eq.id, team: eq.nombre, code, gameId, pass: auth.gamePass(gameId, gRow && gRow.access_code), minutes: 10 });
         });
 
         socket.on('director:get_log', () => {

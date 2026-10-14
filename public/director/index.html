@@ -66,6 +66,10 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .type-imagen_fija { background: #365314; color: #bef264; }
 .type-karaoke { background: #831843; color: #f9a8d4; }
 .type-aclara { background: #3b2f63; color: #c4b5fd; }
+.recover-box { display: flex; gap: 14px; align-items: center; margin-top: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); }
+.recover-qr { background: #fff; padding: 6px; border-radius: 8px; flex-shrink: 0; line-height: 0; }
+.recover-code { font-size: 28px; font-weight: 900; letter-spacing: 4px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.recover-help { font-size: 12px; color: var(--text2); line-height: 1.45; margin-top: 4px; }
 /* Imagen que se aclara: control de nitidez dentro del panel de pulsador */
 .aclara-ctrl { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .aclara-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -993,6 +997,17 @@ body.round-type-karaoke #headerTimer { display: none !important; }
             </div>
             <img id="editTeamPhotoPreview" style="display:none; width:60px; height:60px; border-radius:50%; object-fit:cover; margin-top:8px; border:1px solid var(--border);">
         </div>
+        <div class="field">
+            <label>¿Se le ha roto o apagado el iPad?</label>
+            <button class="btn-ghost btn-sm" type="button" onclick="requestRecovery()">&#128241; Pasar el equipo a otro iPad</button>
+            <div class="recover-box" id="recoverBox" style="display:none">
+                <div class="recover-qr" id="recoverQr"></div>
+                <div>
+                    <div class="recover-code" id="recoverCode"></div>
+                    <div class="recover-help" id="recoverHelp"></div>
+                </div>
+            </div>
+        </div>
         <div class="modal-footer">
             <button class="btn-ghost" onclick="closeEditTeamModal()">Cancelar</button>
             <button class="btn-accent" onclick="submitEditTeam()">Guardar</button>
@@ -1052,6 +1067,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
 <script src="/shared/aclara-fx.js"></script>
+<script src="/shared/qrcode.min.js"></script>
 <script>
 const S = {
     gameId: null, game: null, rounds: [],
@@ -1097,6 +1113,7 @@ function connectSocket() {
     socket.on('connect', () => socket.emit('director:join'));
     socket.on('game:director_sync', onSync);
     socket.on('director:log', onLogData);
+    socket.on('director:recovery_code', onRecoveryCode);
     socket.on('game:timer_tick', (d) => {
         if (S.director) { S.director.timer.remaining = d.remaining; S.director.timer.total = d.total; }
         renderTimer();
@@ -1458,8 +1475,24 @@ function openEditTeamModal(teamId) {
     var preview = document.getElementById('editTeamPhotoPreview');
     if (eq.photo_url) { preview.src = eq.photo_url; preview.style.display = ''; }
     else { preview.style.display = 'none'; }
+    document.getElementById('recoverBox').style.display = 'none';
     document.getElementById('editTeamModal').classList.add('active');
     document.getElementById('editTeamName').focus();
+}
+function requestRecovery() {
+    if (!editTeamId || !socket) return;
+    socket.emit('director:recovery_code', { teamId: editTeamId });
+}
+function onRecoveryCode(d) {
+    if (!d || d.teamId !== editTeamId) return;
+    var url = location.origin + '/play/?g=' + encodeURIComponent(d.gameId) + '&p=' + encodeURIComponent(d.pass) + '&r=' + d.code;
+    var qr = document.getElementById('recoverQr');
+    qr.innerHTML = '';
+    try { new QRCode(qr, { text: url, width: 128, height: 128, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {}
+    document.getElementById('recoverCode').textContent = d.code;
+    document.getElementById('recoverHelp').innerHTML = 'Escanea el QR con el iPad nuevo, o en su pantalla «Crea tu equipo» toca <b>«Recuperar»</b> y escribe el código. '
+        + 'Seguirá siendo <b>' + esc(d.team) + '</b> con sus puntos y bonos. Vale ' + d.minutes + ' minutos y una sola vez; el iPad viejo queda desconectado.';
+    document.getElementById('recoverBox').style.display = 'flex';
 }
 function closeEditTeamModal() { document.getElementById('editTeamModal').classList.remove('active'); editTeamId = null; }
 function submitEditTeam() {
@@ -3024,6 +3057,7 @@ function renderBonoLog() {
             case 'wrong': icon = '❌'; text = team + ' falló' + (e.pts ? ' ' + _blPts(e.pts) : ''); break;
             case 'scored': icon = '📊'; text = 'Pregunta puntuada: <b>' + e.hits + '</b> de ' + e.total + ' equipos acertaron' + (e.answered < e.total ? ' (' + (e.total - e.answered) + ' sin responder)' : ''); break;
             case 'karaoke': icon = '🎤'; text = 'Karaoke: ganó el color <b>' + esc(e.color) + '</b> ' + _blPts(e.pts) + ' a ' + (e.teams || []).map(esc).join(', '); break;
+            case 'recovered': icon = '📱'; text = team + ' pasó a otro iPad'; break;
             case 'team_removed': icon = '🗑️'; text = 'Equipo ' + team + ' eliminado' + (e.pts ? ' (tenía ' + e.pts + ' pts)' : ''); break;
             case 'freeze': icon = '❄️'; text = team + ' congelado por el coordinador'; break;
             case 'unfreeze': icon = '🔥'; text = team + ' descongelado'; break;
