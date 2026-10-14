@@ -479,7 +479,8 @@ function boomPerm(ds, n) {
 }
 
 // Traduce el orden que manda un iPad (índices de lo que ve) a índices reales del contenido.
-// Devuelve null si no es una lista válida.
+// Devuelve null si no es una lista válida. En Identidad un hueco puede ir vacío (null): el
+// equipo no colocó esa pareja y no puntúa. Ningún elemento puede repetirse.
 function toCanonicalOrder(ds, order) {
     const type = ds.currentRound && ds.currentRound.type;
     const q = ds.questions[ds.currentQuestionIdx];
@@ -488,8 +489,12 @@ function toCanonicalOrder(ds, order) {
     if (type === 'boom' && Array.isArray(q.content && q.content.items)) map = boomPerm(ds, q.content.items.length);
     if (type === 'identidad' && ds.identidad && Array.isArray(ds.identidad.shuffledRight)) map = ds.identidad.shuffledRight;
     if (!map) return order;
-    if (!order.every(k => Number.isInteger(k) && k >= 0 && k < map.length)) return null;
-    return order.map(k => map[k]);
+    const allowEmpty = type === 'identidad';
+    if (order.length > map.length) return null;
+    if (!order.every(k => (allowEmpty && k === null) || (Number.isInteger(k) && k >= 0 && k < map.length))) return null;
+    const used = order.filter(k => k !== null);
+    if (new Set(used).size !== used.length) return null;
+    return order.map(k => (k === null ? null : map[k]));
 }
 
 function shuffleNotIdentical(arr) {
@@ -796,7 +801,7 @@ function emitYourOrder(socket, state) {
     if (!entry) return;
     let order = entry.answer;
     const sh = ds.identidad && ds.identidad.shuffledRight;
-    if (ds.phase === 'question' && Array.isArray(sh) && Array.isArray(order)) order = order.map(ci => sh.indexOf(ci));
+    if (ds.phase === 'question' && Array.isArray(sh) && Array.isArray(order)) order = order.map(ci => (ci === null ? null : sh.indexOf(ci)));
     socket.emit('game:your_order', { order, submitted: !!entry.submitted });
 }
 

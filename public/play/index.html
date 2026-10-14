@@ -146,51 +146,71 @@ input:focus { border-color: var(--accent); }
 .gp-boom { padding: 16px 16px 10px; gap: clamp(8px, 1.5vh, 16px); justify-content: flex-start; }
 .gp-boom .q-statement { font-size: 22px; font-weight: 600; line-height: 1.4; text-align: center;
     background: rgba(0,0,0,.6); border-radius: 16px; padding: 16px 20px; color: #fff; backdrop-filter: blur(6px); flex-shrink: 0; }
-.boom-list { display: flex; flex-direction: column; gap: clamp(6px, 1vh, 12px); flex: 1; min-height: 0; overflow: hidden; }
-.boom-item { background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.15); border-radius: 16px;
-    padding: 12px 16px; font-size: clamp(0.9rem, 2.5vh, 1.4rem); font-weight: 600; color: #fff;
-    display: flex; align-items: center; gap: 12px; flex: 1; min-height: 0;
-    backdrop-filter: blur(6px); transition: transform .15s, box-shadow .15s; touch-action: none; cursor: grab; user-select: none; }
-.boom-item.dragging { opacity: 0.3; }
-.boom-item .boom-grip { color: var(--text2); font-size: 18px; flex-shrink: 0; line-height: 1; }
-.boom-item .boom-num { color: var(--accent); font-weight: 800; width: 24px; text-align: center; flex-shrink: 0; }
-.boom-drop-indicator { height: 4px; background: var(--accent); border-radius: 2px; box-shadow: 0 0 10px rgba(0,212,255,.6); flex-shrink: 0; transition: opacity .1s; }
-#boomBtn { flex-shrink: 0; }
-.boom-item.submitted { opacity: .5; cursor: default; pointer-events: none; }
 
 /* ── Identidad ── */
 .gp-identidad { padding: clamp(4px, 0.8vh, 10px) clamp(6px, 1vw, 14px); gap: clamp(3px, 0.6vh, 8px); justify-content: flex-start; }
 .gp-identidad .id-statement { font-size: clamp(13px, 2.2vw, 20px); font-weight: 600; line-height: 1.25; text-align: center;
     background: rgba(0,0,0,.6); border-radius: 10px; padding: clamp(4px, 0.8vh, 12px) clamp(8px, 1.5vw, 16px); color: #fff; backdrop-filter: blur(6px); flex-shrink: 0; }
-.id-columns { display: flex; flex: 1; min-height: 0; gap: clamp(3px, 0.6vw, 8px); }
-.id-col { flex: 1; display: flex; flex-direction: column; gap: clamp(2px, 0.3vh, 4px); min-height: 0; overflow: hidden; }
-.id-card { flex: 1; min-height: 0; display: flex; align-items: center;
-    background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12); border-radius: clamp(4px, 0.8vw, 10px);
-    overflow: hidden; backdrop-filter: blur(4px); }
-.id-col-left .id-card { flex-direction: row; }
-.id-col-right .id-card { flex-direction: row-reverse; touch-action: none; cursor: grab; user-select: none; }
-.id-col-right .id-card.dragging { opacity: 0.25; }
-.id-col-right .id-card.submitted { opacity: .55; cursor: default; pointer-events: none; }
-.id-card-photo { height: 100%; aspect-ratio: 1/1; object-fit: contain; flex-shrink: 0; background: rgba(0,0,0,.25); display: block; }
-.id-card-text { flex: 1; min-width: 0; padding: clamp(1px, 0.2vh, 4px) clamp(3px, 0.5vw, 8px);
-    font-size: clamp(0.5rem, min(3.5vh, 4vw), 2.2rem); font-weight: 600; line-height: 1.15; color: #fff;
-    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; word-break: break-word; }
-.id-col-left .id-card-text { text-align: right; }
-.id-col-right .id-card-text { text-align: left; }
-.id-drop-indicator { height: 3px; background: var(--accent); border-radius: 2px; box-shadow: 0 0 8px rgba(0,212,255,.5); flex-shrink: 0; }
 .id-center-msg { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
 .id-center-msg .id-msg-icon { font-size: clamp(36px, 8vw, 64px); }
 .id-center-msg .id-msg-text { font-size: clamp(14px, 3vw, 22px); font-weight: 600; color: var(--text2); }
-.id-col-placeholder { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text2);
-    font-size: clamp(13px, 2.5vw, 18px); text-align: center; font-weight: 600; }
-.id-bottom { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 0; }
-#idBtn { width: clamp(100px, 45%, 260px); padding: clamp(6px, 1vh, 14px);
-    font-size: clamp(13px, 2.2vw, 18px); font-weight: bold; text-align: center;
-    background: var(--accent); color: #000; border: none; border-radius: 8px; cursor: pointer; }
-#idBtn:disabled { opacity: .4; }
-.id-submitted-msg { font-size: clamp(11px, 1.8vw, 15px); color: var(--success); font-weight: 600; padding: 2px 0; }
-.id-col-right .id-card.id-correct { border-color: var(--success); background: linear-gradient(rgba(34,197,94,.30),rgba(34,197,94,.30)),rgba(0,0,0,.60); box-shadow: 0 0 20px rgba(34,197,94,.3); opacity: 1; }
-.id-col-right .id-card.id-wrong { border-color: var(--danger); background: linear-gradient(rgba(239,68,68,.25),rgba(239,68,68,.25)),rgba(0,0,0,.60); box-shadow: 0 0 20px rgba(239,68,68,.3); opacity: 1; }
+/* ── Huecos (Boom e Identidad): se arrastra cada tarjeta a su hueco, o se toca la tarjeta y
+   después el hueco. El alto de fila (--rowH) lo ajusta hzFit() para que todo quepa sin scroll. ── */
+.hz { --rowH: 64px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.hz-board { display: grid; gap: 12px; align-items: start; }
+.hz-board.boom { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.hz-board.ident { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.hz-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.hz-title { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: #c8c8d8; text-align: center; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.9); }
+.hz-pairs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: stretch; }
+.hz-pairs.two { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.hz-pairs.two > :nth-child(4n + 3) { margin-left: 8px; } /* separa las dos parejas de cada fila */
+.hz-pool { background: rgba(0,0,0,.45); border: 2px dashed rgba(255,255,255,.2); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 8px;
+    min-height: var(--rowH); backdrop-filter: blur(4px); transition: border-color .15s, background .15s; }
+.hz-board.ident .hz-pool { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 165px), 1fr)); }
+.hz-pool.over { border-color: var(--accent); background: rgba(0,212,255,.1); }
+.hz-pool-empty { color: var(--text2); font-size: 14px; text-align: center; margin: auto; padding: 6px; grid-column: 1 / -1; }
+.hz-card, .hz-left { height: var(--rowH); padding: 5px 10px 5px 6px; border-radius: 12px; box-sizing: border-box; min-width: 0;
+    display: flex; align-items: center; gap: 8px; font-size: clamp(14px, calc(var(--rowH) * .28), 21px); font-weight: 700; color: #fff; overflow: hidden; }
+.hz-card { background: rgba(30,30,46,.95); border: 2px solid rgba(255,255,255,.16); touch-action: none; cursor: grab;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: border-color .15s, box-shadow .15s, opacity .15s; }
+.hz-left { background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.12); backdrop-filter: blur(4px); }
+.hz-card.nopic, .hz-left.nopic { padding-left: 12px; }
+.hz-pic { height: calc(var(--rowH) - 14px); aspect-ratio: 1; border-radius: 8px; object-fit: cover; flex-shrink: 0; display: block; pointer-events: none; background: rgba(0,0,0,.25); }
+.hz-pairs.two .hz-pic, .hz-board.ident .hz-pool .hz-pic { height: auto; width: min(calc(var(--rowH) - 14px), 42%); } /* deja sitio al texto en tarjetas estrechas */
+.hz-card.only-pic, .hz-left.only-pic { justify-content: center; padding: 4px; }
+.hz-card.only-pic .hz-pic, .hz-left.only-pic .hz-pic { height: calc(var(--rowH) - 12px); width: auto; max-width: 100%; }
+.hz-pairs.two .hz-left, .hz-pairs.two .hz-card, .hz-board.ident .hz-pool .hz-card { font-size: clamp(13px, calc(var(--rowH) * .22), 18px); }
+.hz.tall .hz-pairs.two .hz-left:not(.nopic):not(.only-pic) { flex-direction: column; justify-content: center; gap: 4px; padding: 6px; text-align: center; }
+.hz.tall .hz-pairs.two .hz-left:not(.nopic):not(.only-pic) .hz-pic { width: auto; height: calc(var(--rowH) * .58); max-width: 100%; }
+.hz-txt { min-width: 0; line-height: 1.15; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.hz-card.nopic .hz-txt, .hz-left.nopic .hz-txt { -webkit-line-clamp: 3; }
+.hz-grip { color: var(--text2); font-size: 16px; line-height: 1; flex-shrink: 0; }
+.hz-card.selected { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0,212,255,.25); }
+.hz-card.lifted { opacity: .22; }
+.hz-card.locked { cursor: default; touch-action: auto; }
+.hz-ghost { position: fixed; z-index: 300; pointer-events: none; margin: 0; transform: translate(-50%, -50%) scale(1.06) rotate(-1.5deg);
+    box-shadow: 0 16px 44px rgba(0,0,0,.65); border-color: var(--accent); }
+.hz-slot { min-height: var(--rowH); border-radius: 12px; border: 2px dashed rgba(255,255,255,.28); background: rgba(0,0,0,.4); display: flex; flex-direction: column;
+    box-sizing: border-box; min-width: 0; transition: border-color .15s, background .15s; }
+.hz-slot-row { display: flex; flex: 1; min-width: 0; align-items: stretch; }
+.hz-num { width: 36px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 900; color: var(--accent); font-size: 19px; }
+.hz-fill { flex: 1; min-width: 0; display: flex; }
+.hz-fill .hz-card { flex: 1; border-color: transparent; height: auto; min-height: calc(var(--rowH) - 4px); }
+.hz-fill .hz-card.selected { border-color: var(--accent); }
+.hz-ph { color: var(--text2); font-size: 13px; align-self: center; padding-left: 12px; }
+.hz-slot.over { border-color: var(--accent); background: rgba(0,212,255,.12); }
+.hz-slot.ok { border: 2px solid var(--success); background: rgba(34,197,94,.2); }
+.hz-slot.bad { border: 2px solid var(--danger); background: rgba(239,68,68,.2); }
+.hz-fix { font-size: 12px; font-weight: 700; color: #fca5a5; padding: 0 10px 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.hz-slot.just { animation: hzPop .45s ease; }
+@keyframes hzPop { 0% { transform: scale(1); } 40% { transform: scale(1.04); } 100% { transform: scale(1); } }
+.hz-foot { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; padding-top: 4px; }
+.hz-status { font-size: 15px; font-weight: 700; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.9); min-height: 18px; text-align: center; }
+.hz-status.ok { color: var(--success); }
+.hz-send { width: clamp(160px, 45%, 320px); padding: 14px; font-size: 19px; font-weight: 800; background: var(--accent); color: #000; border-radius: 12px; }
+.hz-send:disabled { opacity: .35; }
+@media (prefers-reduced-motion: reduce) { .hz-slot.just { animation: none; } }
 
 .gp-scoreboard { padding: 20px; gap: 14px; }
 .gp-scoreboard h2 { font-size: 22px; color: var(--gold); text-align: center; }
@@ -568,23 +588,22 @@ body.karaoke-active .player-timer-bar { display: none !important; }
         </div>
         <div class="gphase gp-boom" id="gp-boom">
             <div class="q-statement" id="boomStatement">-</div>
-            <div class="boom-list" id="boomList"></div>
-            <div class="q-submitted" id="boomSubmitted" style="display:none">Respuesta enviada</div>
-            <button id="boomBtn" onclick="submitBoom()" style="display:none; width:80%; max-width:400px; margin:10px auto; padding:18px; font-size:22px; font-weight:bold; text-align:center; background:#00d4ff; color:#000; border:none; border-radius:12px; cursor:pointer;">Enviar</button>
+            <div class="hz" id="boomHz"></div>
+            <div class="hz-foot" id="boomFoot">
+                <div class="hz-status" id="boomStatus"></div>
+                <button class="hz-send" id="boomBtn" onclick="submitBoom()" style="display:none">Enviar</button>
+            </div>
         </div>
         <div class="gphase gp-identidad" id="gp-identidad">
             <div class="id-statement" id="idStatement"></div>
-            <div class="id-columns" id="idColumns">
-                <div class="id-col id-col-left" id="idColLeft"></div>
-                <div class="id-col id-col-right" id="idColRight"></div>
-            </div>
+            <div class="hz" id="idHz"></div>
             <div class="id-center-msg" id="idCenterMsg" style="display:none">
                 <div class="id-msg-icon"></div>
                 <div class="id-msg-text"></div>
             </div>
-            <div class="id-bottom" id="idBottom">
-                <div class="id-submitted-msg" id="idSubmittedMsg" style="display:none">✓ Respuesta enviada</div>
-                <button id="idBtn" onclick="submitIdentidad()" style="display:none">Enviar</button>
+            <div class="hz-foot" id="idFoot">
+                <div class="hz-status" id="idStatus"></div>
+                <button class="hz-send" id="idBtn" onclick="submitIdentidad()" style="display:none">Enviar</button>
             </div>
         </div>
         <div class="gphase gp-karaoke" id="gp-karaoke">
@@ -666,9 +685,9 @@ body.karaoke-active .player-timer-bar { display: none !important; }
 // ═══════════════ State ═══════════════
 var S = {
     gameId: null, game: null, myTeamId: null, myTeam: null,
-    ps: null, selectedOptions: [], boomOrder: [], submitted: false,
+    ps: null, selectedOptions: [], submitted: false,
     photoUrl: null,
-    identidadRight: [], identidad: { myOrder: null, mySubmitted: false },
+    identidad: { myOrder: null, mySubmitted: false },
 };
 var socket = null;
 var deviceId = localStorage.getItem('gs_deviceId') || (function() {
@@ -998,7 +1017,7 @@ function connectSocket(onReady) {
         // Full reset: clear all local state and go back to game selection
         resetPlayerUI();
         S.myTeamId = null; S.myTeam = null; S.ps = null; S.gameId = null; S.game = null; S.photoUrl = null;
-        S.selectedOptions = []; S.boomOrder = []; S.submitted = false;
+        S.selectedOptions = []; S.submitted = false;
         localStorage.removeItem('gs_session');
         localStorage.removeItem('gs_deviceId');
         // Regenerate deviceId for fresh identity
@@ -1070,6 +1089,7 @@ function connectSocket(onReady) {
         _yourOrderPending = { order: d.order, submitted: !!d.submitted };
         if (S.ps && S.ps.roundType === 'identidad') {
             applyYourOrder();
+            HZ.key = null; // recoloca las tarjetas como las tenía guardadas el servidor
             renderIdentidad();
         }
     });
@@ -1195,18 +1215,11 @@ function onPlayerSync(ps) {
     // Reset answer state on new question (questionKey cambia también al relanzar la misma pregunta)
     var qKey = ps.questionKey !== undefined ? ps.questionKey : ps.questionIdx;
     if (qKey !== lastQIdx) {
-        S.selectedOptions = []; S.boomOrder = []; S.submitted = false; S._precioSubmittedValue = undefined; lastQIdx = qKey;
-        S.identidadRight = []; S.identidad = { myOrder: null, mySubmitted: false };
+        S.selectedOptions = []; S.submitted = false; S._precioSubmittedValue = undefined; lastQIdx = qKey;
+        S.identidad = { myOrder: null, mySubmitted: false };
         applyYourOrder();
         var _pi = document.getElementById('precioInput'); if (_pi) _pi.value = '';
-        if (_boomDragState.dragging) {
-            if (_boomIndicator && _boomIndicator.parentNode) _boomIndicator.parentNode.removeChild(_boomIndicator);
-            _boomDragState.dragging = false; _boomDragState.dragIdx = -1; _boomDragState.dropIdx = -1;
-        }
-        if (_identidadDragState.dragging) {
-            if (_identidadIndicator && _identidadIndicator.parentNode) _identidadIndicator.parentNode.removeChild(_identidadIndicator);
-            _identidadDragState.dragging = false; _identidadDragState.dragIdx = -1; _identidadDragState.dropIdx = -1;
-        }
+        hzCancelDrag();
     }
 
     S.ps = ps;
@@ -1735,359 +1748,322 @@ function renderPrecioRevealed() {
 }
 
 // ── Boom (drag & drop ordering) ──
+// ── Huecos: Boom e Identidad ──
+// Cada tarjeta tiene un índice k (posición en la lista barajada que manda el servidor). HZ.slots[i]
+// es la tarjeta del hueco i (o null) y HZ.pool las que quedan por colocar. Al servidor se le manda
+// HZ.slots tal cual: él traduce k a la posición real (toCanonicalOrder).
+var HZ = { key: null, type: null, n: 0, pool: [], slots: [], selected: null, drag: null, pairCols: 1, fitKey: null, just: undefined };
+
+function hzEnsure(type, n, initial) {
+    var key = (S.ps.questionKey !== undefined ? S.ps.questionKey : S.ps.questionIdx) + '|' + type + '|' + n;
+    if (HZ.key === key) return;
+    HZ.key = key; HZ.type = type; HZ.n = n; HZ.selected = null; HZ.fitKey = null; HZ.pairCols = 1;
+    HZ.slots = []; HZ.pool = [];
+    for (var i = 0; i < n; i++) HZ.slots.push(null);
+    if (Array.isArray(initial)) initial.forEach(function(k, i) {
+        if (i < n && Number.isInteger(k) && k >= 0 && k < n && HZ.slots.indexOf(k) < 0) HZ.slots[i] = k;
+    });
+    for (var k = 0; k < n; k++) if (HZ.slots.indexOf(k) < 0) HZ.pool.push(k);
+}
+function hzWhere(k) { var i = HZ.slots.indexOf(k); return i >= 0 ? i : 'pool'; }
+function hzLocked() {
+    if (!S.ps || S.ps.phase !== 'question') return true;
+    if (S.submitted || (HZ.type === 'identidad' && S.identidad.mySubmitted)) return true;
+    return !!(S.ps.preCountdown && S.ps.preCountdown > 0);
+}
+function hzChanged(justSlot) {
+    HZ.selected = null; HZ.just = justSlot;
+    if (HZ.type === 'identidad') emit('player:update_order', { order: HZ.slots.slice() }); // provisional: cuenta si se acaba el tiempo
+    hzRerender();
+}
+function hzPlace(k, slotIdx) {
+    var from = hzWhere(k);
+    if (from === slotIdx) { HZ.selected = null; hzRerender(); return; }
+    var occupant = HZ.slots[slotIdx];
+    HZ.slots[slotIdx] = k;
+    if (from === 'pool') { HZ.pool.splice(HZ.pool.indexOf(k), 1); if (occupant !== null) HZ.pool.push(occupant); }
+    else HZ.slots[from] = occupant; // intercambio entre huecos
+    hzChanged(slotIdx);
+}
+function hzToPool(k) {
+    var from = hzWhere(k);
+    if (from === 'pool') { HZ.selected = null; hzRerender(); return; }
+    HZ.slots[from] = null; HZ.pool.push(k);
+    hzChanged();
+}
+function hzRerender() { if (HZ.type === 'boom') renderBoom(); else if (HZ.type === 'identidad') renderIdentidad(); }
+
+function hzItemHtml(item, cls, attrs, grip) {
+    item = item || {};
+    var hasPic = !!item.image, hasTxt = item.text !== undefined && item.text !== null && String(item.text) !== '';
+    cls += hasPic ? (hasTxt ? '' : ' only-pic') : ' nopic';
+    return '<div class="' + cls + '"' + (attrs || '') + '>'
+        + (grip && !hasPic ? '<span class="hz-grip" aria-hidden="true">⠿</span>' : '')
+        + (hasPic ? '<img class="hz-pic" src="' + esc(item.image) + '" alt="" draggable="false">' : '')
+        + (hasTxt ? '<span class="hz-txt">' + esc(item.text) + '</span>' : (hasPic ? '' : '<span class="hz-txt">-</span>'))
+        + '</div>';
+}
+function hzCardHtml(k, itemOf, locked) {
+    return hzItemHtml(itemOf(k), 'hz-card' + (HZ.selected === k ? ' selected' : '') + (locked ? ' locked' : ''), ' data-k="' + k + '"', !locked);
+}
+// reveal: { idx: hasta qué hueco se ha revelado, correct(i), fix(i) } solo al mostrar la solución
+function hzSlotHtml(i, numbered, itemOf, locked, reveal) {
+    var k = HZ.slots[i], cls = 'hz-slot', fix = '';
+    if (reveal && i < reveal.idx) {
+        var ok = reveal.correct(i);
+        cls += ok ? ' ok' : ' bad';
+        if (!ok && reveal.fix) fix = '<div class="hz-fix">' + reveal.fix(i) + '</div>';
+    }
+    if (HZ.just === i) cls += ' just';
+    return '<div class="' + cls + '" data-hzslot="' + i + '"><div class="hz-slot-row">'
+        + (numbered ? '<span class="hz-num">' + (i + 1) + '</span>' : '')
+        + '<div class="hz-fill">' + (k === null || k === undefined ? '<span class="hz-ph">' + (reveal ? 'Sin colocar' : 'Suelta aquí') + '</span>' : hzCardHtml(k, itemOf, locked)) + '</div></div>' + fix + '</div>';
+}
+function hzPoolHtml(itemOf, locked) {
+    return '<div class="hz-pool" data-hzpool="1">' + (HZ.pool.length ? HZ.pool.map(function(k) { return hzCardHtml(k, itemOf, locked); }).join('') : '<div class="hz-pool-empty">Todas colocadas</div>') + '</div>';
+}
+function hzStatus(el, btn, locked, sentMsg) {
+    var missing = HZ.slots.filter(function(v) { return v === null; }).length;
+    if (sentMsg) { el.textContent = sentMsg; el.className = 'hz-status ok'; btn.style.display = 'none'; return; }
+    btn.style.display = 'block';
+    btn.disabled = locked || missing > 0;
+    el.className = 'hz-status';
+    el.textContent = missing > 0 ? 'Faltan ' + missing + ' por colocar · arrastra o toca y elige hueco' : 'Todo colocado. Puedes cambiar lo que quieras antes de enviar.';
+}
+
+// Si una palabra no cabe en su tarjeta se reduce la letra de esa tarjeta (hasta 11 px) en vez de partirla
+function hzShrinkTexts(root) {
+    root.querySelectorAll('.hz-txt').forEach(function(t) {
+        t.style.fontSize = '';
+        var size = parseFloat(getComputedStyle(t).fontSize);
+        while (size > 11 && (t.scrollWidth > t.clientWidth + 1 || t.scrollHeight > t.clientHeight + 1)) { size -= 1; t.style.fontSize = size + 'px'; }
+    });
+}
+// Alto de fila: el mayor (48-130 px) con el que el tablero cabe en su hueco (encima de «Enviar»). En Identidad se
+// prueba también con dos parejas por fila y se queda la opción con tarjetas más grandes.
+function hzFit(phaseEl, hzEl, paint, canTwo) {
+    function best() {
+        var h = 130;
+        hzEl.style.setProperty('--rowH', h + 'px');
+        while (h > 48 && (hzEl.scrollHeight > hzEl.clientHeight + 1 || phaseEl.scrollHeight > phaseEl.clientHeight + 1)) { h -= 4; hzEl.style.setProperty('--rowH', h + 'px'); }
+        return h;
+    }
+    hzEl.classList.remove('tall');
+    HZ.pairCols = 1; paint();
+    var h = best();
+    if (canTwo && hzEl.clientWidth >= 680) {
+        HZ.pairCols = 2; paint();
+        var h2 = best();
+        if (h2 <= h + 8) { HZ.pairCols = 1; paint(); h = best(); } else h = h2;
+    }
+    // Tarjetas altas y estrechas (dos parejas por fila en vertical): foto encima y texto debajo
+    if (HZ.pairCols === 2 && h >= 110) hzEl.classList.add('tall');
+}
+// Solo se reconstruye el tablero si cambia algo (el estado llega cada segundo con el temporizador)
+function hzSetHtml(el, html) {
+    if (el._hzHtml === html) return;
+    el.innerHTML = html; el._hzHtml = html; el._hzDirty = true;
+}
+// Medir obliga al navegador a recalcular estilos; se hace en el siguiente fotograma, cuando la fase
+// ya está visible (medir mientras se oculta y se vuelve a mostrar reiniciaría su fundido cada segundo).
+function hzAfterPaint(phaseEl, hzEl, paint, canTwo, fitKey) {
+    HZ.just = undefined;
+    cancelAnimationFrame(HZ.raf);
+    HZ.raf = requestAnimationFrame(function() {
+        if (!phaseEl.clientHeight || !hzEl.clientHeight) { HZ.fitKey = null; return; }
+        if (HZ.fitKey !== fitKey) { HZ.fitKey = fitKey; hzFit(phaseEl, hzEl, paint, canTwo); }
+        if (hzEl._hzDirty) { hzEl._hzDirty = false; hzShrinkTexts(hzEl); }
+    });
+}
+var _hzResizeT = null;
+window.addEventListener('resize', function() {
+    clearTimeout(_hzResizeT);
+    _hzResizeT = setTimeout(function() { if (HZ.type) { HZ.fitKey = null; hzRerender(); } }, 150);
+});
+
+// ── Arrastre con el dedo (Pointer Events: iPad y ratón) y toque + toque ──
+function hzTargetAt(x, y) {
+    var el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    var s = el.closest('[data-hzslot]'); if (s) return { slot: +s.dataset.hzslot, el: s };
+    var p = el.closest('[data-hzpool]'); if (p) return { pool: true, el: p };
+    return null;
+}
+function hzClearOver() { document.querySelectorAll('.hz-slot.over, .hz-pool.over').forEach(function(e) { e.classList.remove('over'); }); }
+function hzCancelDrag() {
+    var d = HZ.drag; HZ.drag = null;
+    if (d && d.ghost) d.ghost.remove();
+    hzClearOver();
+}
+document.addEventListener('pointerdown', function(e) {
+    var chip = e.target.closest && e.target.closest('.hz-card[data-k]');
+    if (!chip || HZ.drag || hzLocked()) return;
+    e.preventDefault();
+    try { chip.setPointerCapture(e.pointerId); } catch (err) {}
+    HZ.drag = { k: +chip.dataset.k, chip: chip, x0: e.clientX, y0: e.clientY, started: false, pid: e.pointerId, ghost: null };
+});
+document.addEventListener('pointermove', function(e) {
+    var d = HZ.drag;
+    if (!d || e.pointerId !== d.pid) return;
+    if (!d.started) {
+        if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 8) return;
+        d.started = true;
+        var g = d.chip.cloneNode(true);
+        g.classList.add('hz-ghost'); g.classList.remove('selected');
+        g.style.width = Math.min(d.chip.offsetWidth, 340) + 'px';
+        g.style.height = d.chip.offsetHeight + 'px';
+        document.body.appendChild(g);
+        d.ghost = g;
+        d.chip.classList.add('lifted');
+        HZ.selected = null;
+        document.querySelectorAll('.hz-card.selected').forEach(function(c) { c.classList.remove('selected'); });
+    }
+    d.ghost.style.left = e.clientX + 'px';
+    d.ghost.style.top = e.clientY + 'px';
+    var t = hzTargetAt(e.clientX, e.clientY);
+    hzClearOver();
+    if (t) t.el.classList.add('over');
+});
+function hzEndDrag(e, cancelled) {
+    var d = HZ.drag;
+    if (!d || e.pointerId !== d.pid) return;
+    hzCancelDrag();
+    if (hzLocked()) { hzRerender(); return; }
+    if (!d.started) { if (!cancelled) hzTap(d.k, d.chip); return; }
+    var t = cancelled ? null : hzTargetAt(e.clientX, e.clientY);
+    if (t && t.slot !== undefined) hzPlace(d.k, t.slot);
+    else if (t && t.pool) hzToPool(d.k);
+    else hzRerender(); // fuera de sitio: vuelve a donde estaba
+}
+document.addEventListener('pointerup', function(e) { hzEndDrag(e, false); });
+document.addEventListener('pointercancel', function(e) { hzEndDrag(e, true); });
+function hzTap(k, chipEl) {
+    var inSlot = chipEl.closest('[data-hzslot]');
+    if (HZ.selected !== null && HZ.selected !== k && inSlot) { hzPlace(HZ.selected, +inSlot.dataset.hzslot); return; }
+    if (HZ.selected !== null && HZ.selected !== k && chipEl.closest('[data-hzpool]') && hzWhere(HZ.selected) !== 'pool') { hzToPool(HZ.selected); return; }
+    HZ.selected = HZ.selected === k ? null : k;
+    hzRerender();
+}
+document.addEventListener('click', function(e) {
+    if (HZ.selected === null || hzLocked() || !e.target.closest || e.target.closest('.hz-card')) return;
+    var s = e.target.closest('[data-hzslot]');
+    if (s) { hzPlace(HZ.selected, +s.dataset.hzslot); return; }
+    if (e.target.closest('[data-hzpool]')) hzToPool(HZ.selected);
+});
+
+// ── Boom: opciones a la izquierda, huecos numerados a la derecha ──
 function renderBoom() {
-    var ps = S.ps, q = ps.question; if (!q) return;
+    var ps = S.ps, q = ps && ps.question; if (!q) return;
     var c = q.content || {};
     document.getElementById('boomStatement').textContent = c.statement || '-';
-    document.getElementById('boomSubmitted').style.display = S.submitted ? 'block' : 'none';
-
-    var list = document.getElementById('boomList');
-    var sb = document.getElementById('boomBtn');
-
-    // Hide items until optionsRevealed (same as multirespuesta)
+    var hzEl = document.getElementById('boomHz');
+    var btn = document.getElementById('boomBtn'), status = document.getElementById('boomStatus');
     if (!ps.optionsRevealed || !c.items || !c.items.length) {
-        list.innerHTML = '';
-        sb.style.display = 'none';
-        return;
+        hzSetHtml(hzEl, ''); btn.style.display = 'none'; status.textContent = ''; return;
     }
-    sb.style.display = 'block';
-    if (S.submitted) { sb.disabled = true; return; }
-    var duringPre = !!(ps.preCountdown && ps.preCountdown > 0);
-    sb.disabled = duringPre;
-
-    // Initialize shuffled order once
-    if (!S.boomOrder.length && c.items) {
-        S.boomOrder = c.items.map(function(item, i) { return { text: item, origIdx: i }; });
-        for (var i = S.boomOrder.length - 1; i > 0; i--) {
-            var j = Math.floor(Math.random() * (i + 1));
-            var tmp = S.boomOrder[i]; S.boomOrder[i] = S.boomOrder[j]; S.boomOrder[j] = tmp;
-        }
+    hzEnsure('boom', c.items.length, null);
+    var locked = hzLocked();
+    function itemOf(k) { return { text: c.items[k] }; }
+    function paint() {
+        hzSetHtml(hzEl, '<div class="hz-board boom">'
+            + '<div class="hz-col"><div class="hz-title">Opciones</div>' + hzPoolHtml(itemOf, locked) + '</div>'
+            + '<div class="hz-col"><div class="hz-title">Tu orden</div>' + HZ.slots.map(function(_, i) { return hzSlotHtml(i, true, itemOf, locked, null); }).join('') + '</div>'
+            + '</div>');
     }
-    boomRenderItems(list);
-    if (!duringPre && !S.submitted) boomInitDrag(list);
+    paint();
+    hzStatus(status, btn, locked, S.submitted ? '✓ Respuesta enviada' : null);
+    hzAfterPaint(document.getElementById('gp-boom'), hzEl, paint, false, HZ.key);
 }
-
-function boomRenderItems(list) {
-    list.innerHTML = S.boomOrder.map(function(item, i) {
-        return '<div class="boom-item" data-idx="' + i + '">'
-            + '<span class="boom-grip">⠿</span>'
-            + '<span class="boom-num">' + (i + 1) + '</span>'
-            + '<span>' + esc(item.text) + '</span></div>';
-    }).join('');
-}
-
-var _boomDragState = { inited: false, dragging: false, dragIdx: -1, dropIdx: -1 };
-var _boomIndicator = null;
-
-function boomInitDrag(list) {
-    if (_boomDragState.inited) return;
-    _boomDragState.inited = true;
-
-    _boomIndicator = document.createElement('div');
-    _boomIndicator.className = 'boom-drop-indicator';
-
-    function getDropIdx(y) {
-        var items = list.querySelectorAll('.boom-item');
-        for (var i = 0; i < items.length; i++) {
-            var r = items[i].getBoundingClientRect();
-            if (y < r.top + r.height / 2) return i;
-        }
-        return items.length;
-    }
-
-    function showIndicator(idx) {
-        if (_boomIndicator.parentNode) _boomIndicator.parentNode.removeChild(_boomIndicator);
-        if (idx === _boomDragState.dragIdx || idx === _boomDragState.dragIdx + 1) { _boomDragState.dropIdx = -1; return; }
-        _boomDragState.dropIdx = idx;
-        var items = list.querySelectorAll('.boom-item');
-        if (idx < items.length) {
-            list.insertBefore(_boomIndicator, items[idx]);
-        } else {
-            list.appendChild(_boomIndicator);
-        }
-    }
-
-    function cleanupDrag() {
-        document.removeEventListener('touchmove', onMove);
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('touchend', onEnd);
-        document.removeEventListener('mouseup', onEnd);
-        if (_boomIndicator.parentNode) _boomIndicator.parentNode.removeChild(_boomIndicator);
-        var dragging = list.querySelector('.boom-item.dragging');
-        if (dragging) dragging.classList.remove('dragging');
-        _boomDragState.dragging = false;
-        _boomDragState.dragIdx = -1;
-        _boomDragState.dropIdx = -1;
-    }
-
-    function onStart(e) {
-        if (S.submitted || _boomDragState.dragging) return;
-        var el = e.target.closest('.boom-item');
-        if (!el) return;
-        e.preventDefault();
-        _boomDragState.dragging = true;
-        _boomDragState.dragIdx = parseInt(el.dataset.idx);
-        el.classList.add('dragging');
-        document.addEventListener('touchmove', onMove, { passive: false });
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('touchend', onEnd);
-        document.addEventListener('mouseup', onEnd);
-    }
-
-    function onMove(e) {
-        if (!_boomDragState.dragging) return;
-        e.preventDefault();
-        var y = (e.touches ? e.touches[0] : e).clientY;
-        showIndicator(getDropIdx(y));
-    }
-
-    function onEnd() {
-        if (!_boomDragState.dragging) return;
-        var dragIdx = _boomDragState.dragIdx;
-        var dropIdx = _boomDragState.dropIdx;
-        cleanupDrag();
-        if (dropIdx >= 0 && dropIdx !== dragIdx && dropIdx !== dragIdx + 1) {
-            var target = dropIdx > dragIdx ? dropIdx - 1 : dropIdx;
-            var moved = S.boomOrder.splice(dragIdx, 1)[0];
-            S.boomOrder.splice(target, 0, moved);
-        }
-        boomRenderItems(list);
-    }
-
-    list.addEventListener('touchstart', onStart, { passive: false });
-    list.addEventListener('mousedown', onStart);
-}
-
 function submitBoom() {
-    if (S.submitted) return;
-    if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return;
-    if (!S.boomOrder.length) {
-        var sb = document.getElementById('boomBtn');
-        sb.style.animation = 'none'; sb.offsetHeight;
-        sb.style.animation = 'shake .4s ease';
-        return;
-    }
-    emit('player:submit_order', { order: S.boomOrder.map(function(item) { return item.origIdx; }) });
+    if (S.submitted || hzLocked() || HZ.type !== 'boom') return;
+    if (HZ.slots.some(function(v) { return v === null; })) return;
+    emit('player:submit_order', { order: HZ.slots.slice() });
     S.submitted = true;
-    var sb = document.getElementById('boomBtn');
-    sb.disabled = true;
-    document.querySelectorAll('#boomList .boom-item').forEach(function(el) { el.classList.add('submitted'); });
-    document.getElementById('boomSubmitted').style.display = 'block';
+    renderBoom();
 }
 
-// ── Identidad ──
-var _identidadDragState = { inited: false, dragging: false, dragIdx: -1, dropIdx: -1 };
-var _identidadIndicator = null;
+// ── Identidad: parejas arriba (enunciado + hueco) y respuestas debajo ──
 var _yourOrderPending = null;
-
 function applyYourOrder() {
     if (!_yourOrderPending) return;
-    S.identidad.myOrder = _yourOrderPending.order;
+    S.identidad.myOrder = Array.isArray(_yourOrderPending.order) ? _yourOrderPending.order : null;
     S.identidad.mySubmitted = _yourOrderPending.submitted;
-    S.identidadRight = Array.isArray(_yourOrderPending.order) ? _yourOrderPending.order.slice() : [];
     _yourOrderPending = null;
 }
-
-function idCardInner(item) {
-    if (!item) return '';
-    var html = '';
-    if (item.image) html += '<img class="id-card-photo" src="' + esc(item.image) + '" alt="" draggable="false">';
-    if (item.text) html += '<div class="id-card-text">' + esc(item.text) + '</div>';
-    if (!item.image && !item.text) html += '<div class="id-card-text">-</div>';
-    return html;
-}
-
-function identidadRenderRight(col) {
-    var rc = ((S.ps && S.ps.question && S.ps.question.content) || {}).rightsCanonical || [];
-    col.innerHTML = S.identidadRight.map(function(idx, i) {
-        var cls = 'id-card';
-        if (S.submitted || S.identidad.mySubmitted) cls += ' submitted';
-        return '<div class="' + cls + '" data-idx="' + i + '">' + idCardInner(rc[idx]) + '</div>';
-    }).join('');
-}
-
 function renderIdentidad() {
     var ps = S.ps; if (!ps) return;
-    var q = ps.question;
-    var c = (q && q.content) || {};
+    var c = (ps.question && ps.question.content) || {};
     var pairs = c.pairs || [];
-
-    var stmt = document.getElementById('idStatement');
-    var cols = document.getElementById('idColumns');
-    var leftCol = document.getElementById('idColLeft');
-    var rightCol = document.getElementById('idColRight');
+    var n = pairs.length;
+    var hzEl = document.getElementById('idHz');
     var centerMsg = document.getElementById('idCenterMsg');
-    var btn = document.getElementById('idBtn');
-    var submittedMsg = document.getElementById('idSubmittedMsg');
+    var btn = document.getElementById('idBtn'), status = document.getElementById('idStatus');
+    var phaseEl = document.getElementById('gp-identidad');
+    document.getElementById('idStatement').textContent = c.statement || '';
+    var rc = c.rightsCanonical || [];
+    function itemOf(k) { return rc[k]; }
+    function leftHtml(i) { return hzItemHtml(pairs[i].left, 'hz-left', '', false); }
+    function pairsHtml(reveal, locked) {
+        var two = HZ.pairCols === 2;
+        var head = '<div class="hz-title">' + (reveal ? 'Pregunta' : '') + '</div><div class="hz-title">' + (reveal ? 'Vuestra respuesta' : 'Tu respuesta') + '</div>';
+        var html = head + (two ? head : '');
+        for (var i = 0; i < n; i++) html += leftHtml(i) + hzSlotHtml(i, false, itemOf, locked, reveal);
+        return '<div class="hz-pairs' + (two ? ' two' : '') + '">' + html + '</div>';
+    }
 
-    stmt.textContent = c.statement || '';
-
-    // answer_revealed: show own order with green/red gated by revealIndex
+    // Respuesta revelada: vuestras parejas en verde o rojo según el coordinador las va destapando
     if (ps.phase === 'answer_revealed') {
-        btn.style.display = 'none';
-        submittedMsg.style.display = 'none';
-        centerMsg.style.display = 'none';
-
-        var lqs = ps.lastQuestionScores || {};
-        var myScore = lqs[S.myTeamId];
-        // Orden real (índices del contenido) guardado por el servidor; durante la pregunta el iPad
-        // trabajaba con índices barajados
-        var myOrder = (myScore && Array.isArray(myScore.answer)) ? myScore.answer : S.identidadRight;
-        if (!myScore || myScore.noAnswer || !myOrder.length) {
-            cols.style.display = 'none';
+        btn.style.display = 'none'; status.textContent = '';
+        var myScore = (ps.lastQuestionScores || {})[S.myTeamId];
+        var myOrder = (myScore && Array.isArray(myScore.answer)) ? myScore.answer : null; // índices reales
+        if (!myScore || myScore.noAnswer || !myOrder || !myOrder.some(function(v) { return v !== null; })) {
+            hzSetHtml(hzEl, ''); hzEl.style.display = 'none';
             centerMsg.querySelector('.id-msg-icon').textContent = '📺';
             centerMsg.querySelector('.id-msg-text').textContent = 'Mira la pantalla';
             centerMsg.style.display = 'flex';
             return;
         }
-
-        cols.style.display = 'flex';
-        leftCol.innerHTML = pairs.map(function(p) {
-            return '<div class="id-card">' + idCardInner(p.left) + '</div>';
-        }).join('');
-
+        centerMsg.style.display = 'none'; hzEl.style.display = '';
+        var rkey = (ps.questionKey !== undefined ? ps.questionKey : ps.questionIdx) + '|rev';
+        if (HZ.key !== rkey) { HZ.key = rkey; HZ.type = 'identidad'; HZ.n = n; HZ.selected = null; HZ.fitKey = null; HZ.pairCols = 1; HZ.pool = []; }
+        HZ.slots = myOrder.slice(0, n);
+        while (HZ.slots.length < n) HZ.slots.push(null);
         var revIdx = (ps.identidad && ps.identidad.revealIndex) || 0;
-        var rc = c.rightsCanonical || [];
-
-        rightCol.innerHTML = myOrder.map(function(idx, i) {
-            var cls = 'id-card submitted';
-            if (i < revIdx) {
-                cls += (idx === i) ? ' id-correct' : ' id-wrong';
-            }
-            return '<div class="' + cls + '">' + idCardInner(rc[idx]) + '</div>';
-        }).join('');
+        var reveal = { idx: revIdx, correct: function(i) { return HZ.slots[i] === i; },
+                       fix: function(i) { var r = rc[i] || {}; return 'Era: ' + esc(r.text || (r.image ? 'otra imagen' : '-')); } };
+        var paintRev = function() { hzSetHtml(hzEl, '<div class="hz-board ident">' + pairsHtml(reveal, true) + '</div>'); };
+        paintRev();
+        if (revIdx >= n && myScore.totalPairs) { status.textContent = myScore.correctCount + ' de ' + myScore.totalPairs + ' parejas correctas'; status.className = 'hz-status' + (myScore.correct ? ' ok' : ''); }
+        hzAfterPaint(phaseEl, hzEl, paintRev, true, rkey);
         return;
     }
 
-    centerMsg.style.display = 'none';
-    cols.style.display = 'flex';
-
-    leftCol.innerHTML = pairs.map(function(p) {
-        return '<div class="id-card">' + idCardInner(p.left) + '</div>';
-    }).join('');
-
-    if (!ps.optionsRevealed || !c.rightShuffled) {
-        rightCol.innerHTML = '';
-        btn.style.display = 'none';
-        submittedMsg.style.display = 'none';
+    centerMsg.style.display = 'none'; hzEl.style.display = '';
+    if (!ps.optionsRevealed || !c.rightShuffled || !n) {
+        // Antes de abrir las opciones solo se ven los enunciados de la izquierda
+        HZ.key = null; HZ.type = null;
+        hzSetHtml(hzEl, '<div class="hz-board ident"><div class="hz-pairs">' + pairs.map(function(p, i) { return leftHtml(i) + '<div class="hz-slot"><div class="hz-slot-row"><span class="hz-ph">…</span></div></div>'; }).join('') + '</div></div>');
+        hzEl.style.setProperty('--rowH', '64px');
+        btn.style.display = 'none'; status.textContent = '';
         return;
     }
-
-    if (!S.identidadRight.length) {
-        if (S.identidad.myOrder && S.identidad.myOrder.length) {
-            S.identidadRight = S.identidad.myOrder.slice();
-        } else {
-            S.identidadRight = c.rightShuffled.slice();
-        }
-    }
-
-    identidadRenderRight(rightCol);
-
-    if (S.submitted || S.identidad.mySubmitted) {
-        btn.style.display = 'none';
-        submittedMsg.style.display = 'block';
-        return;
-    }
-
-    submittedMsg.style.display = 'none';
-
-    var duringPre = !!(ps.preCountdown && ps.preCountdown > 0);
-    btn.style.display = 'block';
-    btn.disabled = duringPre;
-
-    if (!duringPre) identidadInitDrag(rightCol);
+    hzEnsure('identidad', n, S.identidad.myOrder);
+    var locked = hzLocked();
+    var paint = function() {
+        hzSetHtml(hzEl, '<div class="hz-board ident">' + pairsHtml(null, locked)
+            + '<div class="hz-col"><div class="hz-title">Respuestas</div>' + hzPoolHtml(itemOf, locked) + '</div></div>');
+    };
+    paint();
+    hzStatus(status, btn, locked, (S.submitted || S.identidad.mySubmitted) ? '✓ Respuesta enviada' : null);
+    hzAfterPaint(phaseEl, hzEl, paint, true, HZ.key);
 }
-
-function identidadInitDrag(list) {
-    if (_identidadDragState.inited) return;
-    _identidadDragState.inited = true;
-
-    _identidadIndicator = document.createElement('div');
-    _identidadIndicator.className = 'id-drop-indicator';
-
-    function getDropIdx(y) {
-        var items = list.querySelectorAll('.id-card');
-        for (var i = 0; i < items.length; i++) {
-            var r = items[i].getBoundingClientRect();
-            if (y < r.top + r.height / 2) return i;
-        }
-        return items.length;
-    }
-
-    function showIndicator(idx) {
-        if (_identidadIndicator.parentNode) _identidadIndicator.parentNode.removeChild(_identidadIndicator);
-        if (idx === _identidadDragState.dragIdx || idx === _identidadDragState.dragIdx + 1) { _identidadDragState.dropIdx = -1; return; }
-        _identidadDragState.dropIdx = idx;
-        var items = list.querySelectorAll('.id-card');
-        if (idx < items.length) {
-            list.insertBefore(_identidadIndicator, items[idx]);
-        } else {
-            list.appendChild(_identidadIndicator);
-        }
-    }
-
-    function cleanupDrag() {
-        document.removeEventListener('touchmove', onMove);
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('touchend', onEnd);
-        document.removeEventListener('mouseup', onEnd);
-        if (_identidadIndicator.parentNode) _identidadIndicator.parentNode.removeChild(_identidadIndicator);
-        var dragging = list.querySelector('.id-card.dragging');
-        if (dragging) dragging.classList.remove('dragging');
-        _identidadDragState.dragging = false;
-        _identidadDragState.dragIdx = -1;
-        _identidadDragState.dropIdx = -1;
-    }
-
-    function onStart(e) {
-        if (S.submitted || S.identidad.mySubmitted || _identidadDragState.dragging) return;
-        var el = e.target.closest('.id-card');
-        if (!el) return;
-        e.preventDefault();
-        _identidadDragState.dragging = true;
-        _identidadDragState.dragIdx = parseInt(el.dataset.idx);
-        el.classList.add('dragging');
-        document.addEventListener('touchmove', onMove, { passive: false });
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('touchend', onEnd);
-        document.addEventListener('mouseup', onEnd);
-    }
-
-    function onMove(e) {
-        if (!_identidadDragState.dragging) return;
-        e.preventDefault();
-        var y = (e.touches ? e.touches[0] : e).clientY;
-        showIndicator(getDropIdx(y));
-    }
-
-    function onEnd() {
-        if (!_identidadDragState.dragging) return;
-        var dragIdx = _identidadDragState.dragIdx;
-        var dropIdx = _identidadDragState.dropIdx;
-        cleanupDrag();
-        if (dropIdx >= 0 && dropIdx !== dragIdx && dropIdx !== dragIdx + 1) {
-            var target = dropIdx > dragIdx ? dropIdx - 1 : dropIdx;
-            var moved = S.identidadRight.splice(dragIdx, 1)[0];
-            S.identidadRight.splice(target, 0, moved);
-            emit('player:update_order', { order: S.identidadRight });
-        }
-        identidadRenderRight(list);
-    }
-
-    list.addEventListener('touchstart', onStart, { passive: false });
-    list.addEventListener('mousedown', onStart);
-}
-
 function submitIdentidad() {
-    if (S.submitted || S.identidad.mySubmitted) return;
-    if (S.ps && S.ps.preCountdown && S.ps.preCountdown > 0) return;
-    if (!S.identidadRight.length) return;
-    emit('player:submit_order', { order: S.identidadRight });
+    if (hzLocked() || HZ.type !== 'identidad') return;
+    if (HZ.slots.some(function(v) { return v === null; })) return;
+    emit('player:submit_order', { order: HZ.slots.slice() });
     S.submitted = true;
     S.identidad.mySubmitted = true;
-    document.getElementById('idBtn').style.display = 'none';
-    document.getElementById('idSubmittedMsg').style.display = 'block';
-    document.querySelectorAll('#idColRight .id-card').forEach(function(el) { el.classList.add('submitted'); });
+    renderIdentidad();
 }
 
 // ── Menu (mirrors director navigation) ──

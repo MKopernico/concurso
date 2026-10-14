@@ -30,6 +30,7 @@ El usuario no programa: Claude programa, prueba y **pregunta siempre antes de su
 - Pulsador: quien falla no puede volver a pulsar en esa pregunta (`ds.buzzerFailed`).
 - Ruleta, imagen fija y demás tipos sin temporizador (`NO_TIMER_TYPES`): el acierto suma solo puntos base.
 - Multirespuesta con varias correctas: vale cualquiera.
+- Boom e Identidad en el iPad: arrastrar a huecos (componente `HZ` en `play/index.html`, tamaño con `hzFit`). En Identidad el orden puede llevar huecos vacíos (`null`): no puntúan; `toCanonicalOrder` rechaza repetidos.
 - Volver a una pregunta ya puntuada la muestra revelada (`ds.questionResults`, `restoreQuestionResult`) y no se vuelve a puntuar.
 - "▶ Jugar" con partida en marcha la continúa; partida nueva solo explícita (`resetGameForNewSession` reinicia el estado **en su sitio**: los sockets guardan referencia al objeto).
 
@@ -49,6 +50,7 @@ node tools/tests/test-lote2.js     # 23 (reglas, fugas de solución, coordinador
 node tools/tests/test-lote3.js     # 21 (backoffice, Excel, zip, sesiones)
 node tools/tests/test-loteA-ensayo.js  # 10 (arreglos del ensayo: acierto cierra pulsador, empate Precio, descongelar)
 node tools/tests/test-loteB-ensayo.js  # 8 (resultado en iPads: ganador/puntos del pulsador, respuesta propia, volver a la pregunta)
+node tools/tests/test-loteC-huecos.js  # 8 (Identidad con huecos: vacíos, repetidos, reconexión, puntuación parcial)
 node tools/tests/load-test.js 50   # N iPads simulados: entrada, respuestas, pulsador, bonos, reconexión masiva
 node tools/tests/soak-test.js 15   # resistencia: partida larga (minutos) con los 10 tipos; memoria, temporizadores, latencias, marcador
 node tools/tests/chaos-test.js 10  # red caótica: cortes al azar, zombis, retraso; puntos, equipos y errores
