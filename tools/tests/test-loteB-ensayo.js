@@ -89,7 +89,7 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     P[0].emit('player:submit_order', { order: myOrder }); await wait(300);
     d.emit('director:reveal_answer'); await wait(500);
     const lb = P[0].sync.lastQuestionScores[T[0]];
-    check('Boom: orden propio comparable con la solución', lb.correct === true && JSON.stringify(lb.answer) === JSON.stringify(P[0].sync.question.content.correct_order), lb);
+    check('Boom: orden propio comparable con la solución', lb.correct === true && JSON.stringify(lb.answer) === '[0,1,2]' /* orden real del contenido; el iPad lo recibe por pasos */, lb);
     [d, ...P].forEach(s => s.close());
     server.kill();
     const failed = results.filter(x => !x).length;

@@ -114,6 +114,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; flex-shrink: 0; }
 .boom-items .boom-item.correct { border-color: var(--green); background: linear-gradient(rgba(34,197,94,.30),rgba(34,197,94,.30)),rgba(0,0,0,.60); box-shadow: 0 0 20px rgba(34,197,94,.3); }
 .boom-items .boom-item.correct .boom-num { background: var(--green); color: #fff; }
+.boom-items .boom-item.pending { opacity: .45; justify-content: flex-start; color: var(--text2, #9aa); }
+.boom-items .boom-arrow.pending { opacity: .3; }
+.boom-items .boom-item.just { animation: boomStepIn .5s ease; }
+@keyframes boomStepIn { 0% { transform: scale(.92); opacity: .3; } 60% { transform: scale(1.04); opacity: 1; } 100% { transform: scale(1); } }
 .boom-items .boom-arrow { text-align: center; font-size: 24px; color: var(--green); line-height: 1; }
 
 /* ═══════════════ ANSWER REVEALED ═══════════════ */
@@ -791,8 +795,8 @@ function connect() {
 
     // Identidad pair reveal
     socket.on('game:pair_revealed', function(d) {
-        if (!ps || ps.roundType !== 'identidad') return;
-        _identidadAnimateIdx = d.index;
+        if (!ps || (ps.roundType !== 'identidad' && ps.roundType !== 'boom')) return;
+        if (ps.roundType === 'identidad') _identidadAnimateIdx = d.index;
         sfxCorrect();
     });
 
@@ -1777,7 +1781,8 @@ function renderRevealed() {
     } else if (type === 'boom') {
         var order = c.correct_order || [];
         var items = c.items || [];
-        document.getElementById('revAnswer').textContent = order.map(function(i) { return items[i] || i; }).join(' → ') || c.answer || '';
+        var stepR = typeof ps.boomStep === 'number' ? ps.boomStep : order.length;
+        document.getElementById('revAnswer').textContent = order.map(function(i, pos) { return pos < stepR ? (items[i] || i) : '?'; }).join(' → ') || c.answer || '';
     } else {
         document.getElementById('revAnswer').textContent = c.answer || '';
     }
@@ -1831,13 +1836,15 @@ function renderRevealedInPlace() {
         var order = c.correct_order || [];
         var container = document.getElementById('boomItems');
         container.style.display = 'flex';
-        // Re-render in correct order with arrows between items
+        // Orden correcto con flechas; se destapa posición a posición (ps.boomStep) con «Ir revelando»
+        var step = typeof ps.boomStep === 'number' ? ps.boomStep : order.length;
         var html = '';
         order.forEach(function(origIdx, pos) {
-            if (pos > 0) html += '<div class="boom-arrow">↓</div>';
-            html += '<div class="boom-item correct"><span class="boom-num">' + (pos + 1) + '</span>' + esc(items[origIdx] || '') + '</div>';
+            if (pos > 0) html += '<div class="boom-arrow' + (pos < step ? '' : ' pending') + '">↓</div>';
+            if (pos < step) html += '<div class="boom-item correct' + (pos === step - 1 ? ' just' : '') + '"><span class="boom-num">' + (pos + 1) + '</span>' + esc(items[origIdx] || '') + '</div>';
+            else html += '<div class="boom-item pending"><span class="boom-num">' + (pos + 1) + '</span>?</div>';
         });
-        container.innerHTML = html;
+        if (container.dataset.html !== html) { container.innerHTML = html; container.dataset.html = html; }
     } else if (type === 'precio') {
         renderPrecioRevealScreen();
     } else if (type === 'imagen') {

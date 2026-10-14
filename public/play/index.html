@@ -2304,10 +2304,19 @@ function renderRevealed() {
             res = mine.correct ? { cls: 'win', html: '✅ ¡ACERTASTE!' + pts(mine.points) } : { cls: 'lose', html: '❌ FALLASTE' + pts(mine.points) };
         } else mineHtml = '<span class="rm-none">No respondiste</span>';
     } else if (type === 'boom' && c.items && c.correct_order) {
-        textEl.innerHTML = '<ol class="reveal-order">' + c.correct_order.map(function(i) { return '<li>' + esc(c.items[i]) + '</li>'; }).join('') + '</ol>';
+        // Se revela por pasos: al iPad solo le llegan las posiciones ya destapadas (c.correct_order)
+        var nB = c.items.length, co = c.correct_order;
+        var stepB = typeof ps.boomStep === 'number' ? Math.min(ps.boomStep, co.length) : co.length;
+        var allShown = stepB >= nB;
+        var rows = '';
+        for (var bi = 0; bi < nB; bi++) rows += bi < stepB ? '<li>' + esc(c.items[co[bi]]) + '</li>' : '<li class="rm-none">?</li>';
+        textEl.innerHTML = '<ol class="reveal-order">' + rows + '</ol>';
         if (answered && Array.isArray(mine.answer)) {
-            mineHtml = '<ol class="reveal-order">' + mine.answer.map(function(i, k) { return '<li class="' + (c.correct_order[k] === i ? 'rm-ok' : 'rm-bad') + '">' + esc(c.items[i]) + '</li>'; }).join('') + '</ol>';
-            res = mine.correct ? { cls: 'win', html: '✅ ¡ORDEN PERFECTO!' + pts(mine.points) } : { cls: 'lose', html: '❌ ORDEN INCORRECTO' + pts(mine.points) };
+            mineHtml = '<ol class="reveal-order">' + mine.answer.map(function(i, k) {
+                return '<li class="' + (k < stepB ? (co[k] === i ? 'rm-ok' : 'rm-bad') : '') + '">' + esc(c.items[i]) + '</li>';
+            }).join('') + '</ol>';
+            if (allShown) res = mine.correct ? { cls: 'win', html: '✅ ¡ORDEN PERFECTO!' + pts(mine.points) } : { cls: 'lose', html: '❌ ORDEN INCORRECTO' + pts(mine.points) };
+            else res = { cls: 'info', html: '👀 Revelando el orden… ' + stepB + ' de ' + nB };
         } else mineHtml = '<span class="rm-none">No respondiste</span>';
     } else {
         // Pruebas de pulsador (pulsador, canción, imagen, imagen fija, ruleta): no hay respuesta

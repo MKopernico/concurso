@@ -30,7 +30,7 @@ El usuario no programa: Claude programa, prueba y **pregunta siempre antes de su
 - Pulsador: quien falla no puede volver a pulsar en esa pregunta (`ds.buzzerFailed`).
 - Ruleta, imagen fija y demás tipos sin temporizador (`NO_TIMER_TYPES`): el acierto suma solo puntos base.
 - Multirespuesta con varias correctas: vale cualquiera.
-- Boom e Identidad en el iPad: arrastrar a huecos (componente `HZ` en `play/index.html`, tamaño con `hzFit`). En Identidad el orden puede llevar huecos vacíos (`null`): no puntúan; `toCanonicalOrder` rechaza repetidos.
+- Boom e Identidad en el iPad: arrastrar a huecos (componente `HZ` en `play/index.html`, tamaño con `hzFit`). En Identidad el orden puede llevar huecos vacíos (`null`): no puntúan; `toCanonicalOrder` rechaza repetidos. Boom se revela por pasos (`ds.boomStep`, mismo botón que Identidad: `director:reveal_next_pair`); a los iPads solo les llega lo destapado del orden.
 - Volver a una pregunta ya puntuada la muestra revelada (`ds.questionResults`, `restoreQuestionResult`) y no se vuelve a puntuar.
 - "▶ Jugar" con partida en marcha la continúa; partida nueva solo explícita (`resetGameForNewSession` reinicia el estado **en su sitio**: los sockets guardan referencia al objeto).
 

@@ -1,7 +1,7 @@
 // Ejecutar desde la carpeta del proyecto:  node tools/tests/test-loteC-huecos.js
 // Arranca su propio servidor con una base de datos temporal (no toca tus datos).
 // Lote C: huecos en Identidad. Un hueco puede quedar vacío (null) y no puntúa; no se puede
-// repetir una tarjeta; al reconectar el iPad recupera dónde las tenía.
+// repetir una tarjeta; al reconectar el iPad recupera dónde las tenía. Boom se revela por pasos.
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -37,6 +37,7 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     const g = (await api('/games', { method: 'POST', body: { name: 'LoteC', status: 'published' } })).data;
     const mk = async (name, type, config, qs) => { const r = (await api(`/games/${g.id}/rounds`, { method: 'POST', body: { name, type, config } })).data; for (const c of qs) await api(`/rounds/${r.id}/questions`, { method: 'POST', body: { content: c } }); return r; };
     const rId = await mk('Parejas', 'identidad', { time: 60, basePoints: 100, bonusMax: 0 }, [{ statement: 'Une', pairs: [0, 1, 2, 3].map(i => ({ left: { text: 'L' + i }, right: { text: 'R' + i } })) }]);
+    const rBoom = await mk('Boom', 'boom', { time: 60, basePoints: 100, bonusMax: 0 }, [{ statement: 'Ordena', items: ['a', 'b', 'c'], correct_order: [0, 1, 2] }, { statement: 'Otra', items: ['x', 'y'], correct_order: [0, 1] }]);
     await api(`/games/${g.id}/session`, { method: 'POST', body: {} });
 
     const d = io(B, { query: { gameId: g.id }, transports: ['websocket'], extraHeaders: { cookie } });
@@ -82,6 +83,25 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     check('Su respuesta revelada conserva el hueco vacío', Array.isArray(l[T[0]].answer) && l[T[0]].answer[2] === null && l[T[0]].answer[3] === 2, l[T[0]].answer);
     check('El envío completo suma todo', l[T[1]].correct === true && l[T[1]].correctCount === 4, l[T[1]]);
     check('Quien no colocó nada no puntúa', l[T[2]].noAnswer === true || l[T[2]].points === 0, l[T[2]]);
+    // ── Boom revelado por pasos
+    d.emit('director:launch_round', { roundId: rBoom.id }); await wait(200);
+    d.emit('director:launch_question', { idx: 0 }); await wait(200);
+    d.emit('director:reveal_options'); await wait(400);
+    const shownB = P[0].sync.question.content.items;
+    P[0].emit('player:submit_order', { order: ['a', 'b', 'c'].map(x => shownB.indexOf(x)) }); await wait(250);
+    d.emit('director:reveal_answer'); await wait(500);
+    check('Boom: al acabar empieza sin nada revelado y el iPad no recibe el orden', P[0].sync.boomStep === 0 && P[0].sync.question.content.correct_order.length === 0, { step: P[0].sync.boomStep, co: P[0].sync.question.content.correct_order });
+    d.emit('director:reveal_next_pair'); await wait(300);
+    check('Boom: «Ir revelando» destapa la primera posición', P[0].sync.boomStep === 1 && JSON.stringify(P[0].sync.question.content.correct_order) === '[0]');
+    d.emit('director:reveal_next_pair'); d.emit('director:reveal_next_pair'); await wait(300);
+    d.emit('director:reveal_next_pair'); await wait(300);
+    check('Boom: se detiene al llegar al final', P[0].sync.boomStep === 3 && P[0].sync.question.content.correct_order.length === 3);
+    check('Boom: los puntos se suman al acabar (una vez)', d.state.director.scores[T[0]] === 150, d.state.director.scores[T[0]]);
+    cmd('director:next_question'); await wait(300);
+    check('Boom: la siguiente pregunta vuelve a ocultar', P[0].sync.boomStep === null && P[0].sync.phase === 'question');
+    cmd('director:prev_question'); await wait(400);
+    check('Boom: volver a una ya puntuada la muestra completa', P[0].sync.phase === 'answer_revealed' && P[0].sync.boomStep === 3 && P[0].sync.question.content.correct_order.length === 3, { ph: P[0].sync.phase, st: P[0].sync.boomStep });
+
     [d, ...P].forEach(s => s.close());
     server.kill();
     const failed = results.filter(x => !x).length;

@@ -2360,9 +2360,11 @@ function renderAnswerRevealed() {
     // Identidad: "Ir revelando" controls (calcado de Adivina la imagen tile counter)
     var idRevPanel = document.getElementById('identidadRevealPanel');
     if (idRevPanel) {
-        if (roundType === 'identidad' && ds.identidad) {
-            var totalPairs = c.pairs ? c.pairs.length : 0;
-            var revIdx = ds.identidad.revealIndex || 0;
+        var boomSteps = roundType === 'boom' && ds.phase === 'answer_revealed' && typeof ds.boomStep === 'number';
+        if ((roundType === 'identidad' && ds.identidad) || boomSteps) {
+            // Identidad: parejas una a una · Boom: posiciones del orden una a una
+            var totalPairs = boomSteps ? (c.items ? c.items.length : 0) : (c.pairs ? c.pairs.length : 0);
+            var revIdx = boomSteps ? ds.boomStep : (ds.identidad.revealIndex || 0);
             idRevPanel.style.display = '';
             document.getElementById('identidadRevealCount').textContent = revIdx + ' / ' + totalPairs + ' reveladas';
             var btnRevPair = document.getElementById('btnRevealNextPair');
