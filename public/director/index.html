@@ -651,7 +651,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                             <span class="buzzer-first-name" id="puFirstName"></span>
                             <button class="btn-success" id="puBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="puBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
-                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
+                            <button class="btn-ghost btn-sm btn-block-all" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
                         </div>
                     </div>
                 </div>
@@ -719,7 +719,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                             <span class="buzzer-first-name" id="ruFirstName"></span>
                             <button class="btn-success" id="ruBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="ruBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
-                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
+                            <button class="btn-ghost btn-sm btn-block-all" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
                         </div>
                     </div>
                 </div>
@@ -758,7 +758,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                             <span class="buzzer-first-name" id="imgFirstName"></span>
                             <button class="btn-success" id="imgBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="imgBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
-                            <button class="btn-ghost btn-sm" id="imgBtnBlockAll" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
+                            <button class="btn-ghost btn-sm btn-block-all" id="imgBtnBlockAll" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
                         </div>
                     </div>
                 </div>
@@ -794,7 +794,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                             <span class="buzzer-first-name" id="ifFirstName"></span>
                             <button class="btn-success" id="ifBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="ifBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
-                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
+                            <button class="btn-ghost btn-sm btn-block-all" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
                         </div>
                     </div>
                 </div>
@@ -821,7 +821,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                             <span class="buzzer-first-name" id="cnFirstName"></span>
                             <button class="btn-success" id="cnBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="cnBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
-                            <button class="btn-ghost btn-sm" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
+                            <button class="btn-ghost btn-sm btn-block-all" onclick="toggleBlockAll()">&#10052; Congelar a todos</button>
                         </div>
                     </div>
                 </div>
@@ -915,6 +915,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
         <span class="bb-title">&#127942; Equipos &amp; puntos</span>
         <span class="bb-count" id="bbTeamCount"></span>
         <span class="bb-count bb-preload-info" id="bbPreloadInfo"></span>
+        <button class="btn-ghost btn-sm" id="bbUnfreezeAll" style="display:none" onclick="event.stopPropagation(); emit('director:unblock_all')">&#128275; Descongelar a todos</button>
     </div>
     <div class="bb-teams-row" id="bbTeamsRow"></div>
     <div class="bb-teams-expanded" id="bbTeamsExpanded"></div>
@@ -2652,6 +2653,7 @@ function renderPreloadInfo() {
 
 function renderTeams() {
     renderPreloadInfo();
+    renderBlockAllButtons();
     var rowEl = document.getElementById('bbTeamsRow');
     var expEl = document.getElementById('bbTeamsExpanded');
     var countEl = document.getElementById('bbTeamCount');
@@ -2776,9 +2778,17 @@ document.getElementById('qpInput').addEventListener('keydown', function(e) {
 });
 
 function toggleBlock(teamId, isBlocked) { emit(isBlocked ? 'director:unblock_team' : 'director:block_team', { teamId: teamId }); }
-function toggleBlockAll() {
-    var allFrozen = S.equipos.length > 0 && S.equipos.every(function(e) { return e.bloqueado; });
-    emit(allFrozen ? 'director:unblock_all' : 'director:block_all');
+// Si hay algún equipo congelado (p. ej. tras un «congelar a todos» de un equipo, que no se congela a
+// sí mismo), el botón descongela a todos; si no hay ninguno, congela a todos.
+function anyFrozen() { return S.equipos.some(function(e) { return e.bloqueado; }); }
+function toggleBlockAll() { emit(anyFrozen() ? 'director:unblock_all' : 'director:block_all'); }
+function renderBlockAllButtons() {
+    var frozen = anyFrozen();
+    document.querySelectorAll('.btn-block-all').forEach(function(b) {
+        b.innerHTML = frozen ? '&#128275; Descongelar a todos' : '&#10052; Congelar a todos';
+    });
+    var bb = document.getElementById('bbUnfreezeAll');
+    if (bb) bb.style.display = frozen ? '' : 'none';
 }
 
 // ── Bonus popover ──

@@ -100,6 +100,8 @@ input:focus { border-color: var(--accent); }
 .gp-buzzer .q-statement { font-size: 28px; font-weight: 600; line-height: 1.4; text-align: center; max-width: 500px; padding: 16px 24px 0; flex-shrink: 0; }
 .buzz-btn-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; width: 100%; gap: 12px; }
 .buzz-btn { width: min(60vmin, 60vw, 60vh, 400px); height: min(60vmin, 60vw, 60vh, 400px); border-radius: 50%; font-size: clamp(3rem, 15vmin, 10rem); font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: 6px solid var(--danger); background: radial-gradient(circle, #dc2626 0%, #991b1b 100%); color: #fff; box-shadow: 0 8px 30px rgba(220,38,38,.4); flex-shrink: 0; }
+/* Sin gestos del sistema en el botón: el doble toque de iOS desplazaba la pantalla y lo dejaba cortado */
+.buzz-btn { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .buzz-btn:active:not(:disabled) { transform: scale(.92); box-shadow: 0 4px 15px rgba(220,38,38,.6); }
 .buzz-btn:disabled { background: var(--surface); border-color: var(--border); color: var(--text2); box-shadow: none; }
 /* Pulsador-specific button states */
@@ -218,7 +220,8 @@ input:focus { border-color: var(--accent); }
 .player-pre-overlay.active { opacity: 1; }
 
 /* ── Background layer (same as /screen) ── */
-.play-bg-layer { position: fixed; inset: 0; z-index: 0; pointer-events: none; transition: opacity .5s ease; }
+/* z-index -1: el fondo va SIEMPRE por detrás del contenido (con 0 tapaba las pantallas sin capa propia, p. ej. el registro) */
+.play-bg-layer { position: fixed; inset: 0; z-index: -1; pointer-events: none; transition: opacity .5s ease; }
 .play-bg-layer.bg-gradient-anim { animation: bgShift 12s ease-in-out infinite; background-size: 300% 300%; }
 @keyframes bgShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 .play-bg-layer.bg-image-cover { background-size: cover; background-position: center; }
@@ -527,7 +530,7 @@ body.karaoke-active .player-timer-bar { display: none !important; }
             <div class="q-statement" id="buzzerStatement" style="display:none">-</div>
             <div id="playerImgGrid" style="display:none"></div>
             <div class="buzz-btn-wrapper">
-                <button class="buzz-btn" id="buzzBtn" onclick="doBuzz()">PULSAR</button>
+                <button class="buzz-btn" id="buzzBtn" type="button">PULSAR</button>
                 <div class="buzz-status" id="buzzStatus">Esperando apertura...</div>
             </div>
         </div>
@@ -1586,6 +1589,24 @@ function renderBuzzerStatus() {
         else { status.className = 'buzz-status'; status.textContent = 'Esperando apertura...'; }
     }
 }
+// El pulsador se activa al apoyar el dedo (más rápido que el clic, que espera a levantarlo, y sin
+// el doble toque de iOS). Tras pulsar se recoloca la pantalla por si algo la hubiera desplazado.
+(function() {
+    var btn = document.getElementById('buzzBtn');
+    if (!btn) return;
+    function resetScroll(el) { while (el) { if (el.scrollTop) el.scrollTop = 0; el = el.parentElement; } window.scrollTo(0, 0); }
+    btn.addEventListener('pointerdown', function(e) {
+        e.preventDefault();
+        if (!btn.disabled) doBuzz();
+        setTimeout(function() { resetScroll(btn); }, 50);
+    });
+    ['dblclick', 'contextmenu', 'gesturestart'].forEach(function(ev) {
+        btn.addEventListener(ev, function(e) { e.preventDefault(); });
+    });
+    // Teclado (accesibilidad): Enter/Espacio sobre el botón
+    btn.addEventListener('keydown', function(e) { if ((e.key === 'Enter' || e.key === ' ') && !btn.disabled) { e.preventDefault(); doBuzz(); } });
+})();
+
 function doBuzz() {
     if (S.ps && (S.ps.buzzerFailed || []).indexOf(S.myTeamId) !== -1) { toast('Ya fallasteis esta pregunta'); return; }
     emit('pulsar_boton');
@@ -1671,7 +1692,12 @@ function renderPrecioRevealed() {
     } else if (ps.lastQuestionScores && ps.lastQuestionScores[S.myTeamId] && !ps.lastQuestionScores[S.myTeamId].noAnswer) {
         // Del servidor: correcto también si la página se recargó y se perdió el valor local
         var mineP = ps.lastQuestionScores[S.myTeamId];
-        html += '<div class="precio-reveal-result lose">' + (mineP.passed ? '&#128200; Te pasaste' : '&#128201; Te quedaste corto') + '</div>';
+        if (mineP.sameAsWinner) {
+            var quien = mineP.winnerName ? 'el equipo ' + esc(mineP.winnerName) : 'otro equipo';
+            html += '<div class="precio-reveal-result lose">' + (mineP.exact ? '&#127919; ¡Has clavado el precio!' : '&#129309; Misma respuesta que el ganador') + '<br><span style="font-size:.75em;font-weight:600">pero ' + quien + ' fue más rápido</span></div>';
+        } else {
+            html += '<div class="precio-reveal-result lose">' + (mineP.passed ? '&#128200; Te pasaste' : '&#128201; Te quedaste corto') + '</div>';
+        }
     } else if (S.submitted) {
         var myVal = S._precioSubmittedValue;
         var passed = myVal > correctValue;
@@ -2196,7 +2222,7 @@ function renderPremioGanadorOverlay() {
         var extra = ps.premioGanadorExtra || {};
         elP.style.display = 'none'; elA.style.display = 'none'; elA.classList.remove('no-img');
         if (tipo === 'puntos') {
-            elP.textContent = '➕ +' + (extra.cantidad || 0) + ' puntos';
+            elP.textContent = '➕ ' + (extra.cantidad || 0) + ' puntos';
             elP.style.display = '';
         } else if (tipo === 'anuncio') {
             if (extra.imagenUrl) { elImg.src = extra.imagenUrl; elImg.style.display = ''; }
@@ -2229,7 +2255,7 @@ function renderScoreboardOverlay() {
         var isMe = t.id === S.myTeamId;
         return '<tr class="' + (isMe ? 'sb-me' : '') + '">'
             + '<td class="sb-rank">' + (i === 0 ? '&#127942;' : i + 1) + '</td>'
-            + '<td>' + esc(t.nombre) + (isMe ? ' (tu)' : '') + '</td>'
+            + '<td>' + esc(t.nombre) + (isMe ? ' (tú)' : '') + '</td>'
             + '<td class="sb-score">' + t.score + '</td></tr>';
     }).join('');
 }
@@ -2244,7 +2270,7 @@ function renderScoreboard() {
         var isMe = t.id === S.myTeamId;
         return '<tr class="' + (isMe ? 'sb-me' : '') + '">'
             + '<td class="sb-rank">' + (i === 0 ? '&#127942;' : i + 1) + '</td>'
-            + '<td>' + esc(t.nombre) + (isMe ? ' (tu)' : '') + '</td>'
+            + '<td>' + esc(t.nombre) + (isMe ? ' (tú)' : '') + '</td>'
             + '<td class="sb-score">' + t.score + '</td></tr>';
     }).join('');
 }

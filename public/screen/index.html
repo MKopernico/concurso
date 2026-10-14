@@ -329,6 +329,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .screen-menu-item .smi-label { font-size: 20px; font-weight: 700; color: var(--text); text-shadow: 0 2px 8px rgba(0,0,0,.6); }
 .screen-menu-item .smi-sub { font-size: 14px; color: var(--text2); text-shadow: 0 1px 4px rgba(0,0,0,.5); }
 .screen-menu-item.completed { opacity: .35; }
+/* Ajuste automático (fitScreenMenu): columnas y tamaño calculados para que quepan todas las casillas */
+.screen-menu-grid.fit { display: grid; grid-template-columns: repeat(var(--cols), var(--cell)); gap: var(--gap); max-width: none; justify-content: center; }
+.screen-menu-grid.fit .screen-menu-item { width: var(--cell) !important; height: var(--cell); padding: calc(var(--cell) * .06); }
+.screen-menu-grid.fit .screen-menu-item img { max-height: calc(var(--cell) * .88) !important; max-width: 100%; }
+.screen-menu-grid.fit .screen-menu-item > div { font-size: calc(var(--cell) * .3) !important; }
 .screen-menu-item.completed .smi-label { text-decoration: line-through; color: var(--text2); }
 @keyframes menu-item-in { from { opacity: 0; transform: translateY(30px) scale(.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .screen-menu-item:nth-child(1) { animation-delay: 0s; }
@@ -2016,7 +2021,7 @@ function renderPremioGanadorOverlay() {
         var extra = ps.premioGanadorExtra || {};
         elP.style.display = 'none'; elA.style.display = 'none'; elA.classList.remove('no-img');
         if (tipo === 'puntos') {
-            elP.textContent = '➕ +' + (extra.cantidad || 0) + ' puntos';
+            elP.textContent = '➕ ' + (extra.cantidad || 0) + ' puntos';
             elP.style.display = '';
         } else if (tipo === 'anuncio') {
             if (extra.imagenUrl) { elImg.src = extra.imagenUrl; elImg.style.display = ''; }
@@ -2282,6 +2287,38 @@ function applyMenuResolvedBackground(menuBg) {
 
 var _screenMenuLevel = null; // track for transitions
 
+// Coloca las casillas del menú (categorías o rondas) en la rejilla que las hace lo más grandes
+// posible sin que ninguna se salga de la pantalla, sea cual sea su número. El logo se reduce
+// cuando hay muchas casillas.
+function fitScreenMenu() {
+    var c = document.getElementById('screenMenuContainer');
+    if (!c || c.style.display === 'none') return;
+    var grid = c.querySelector('.screen-menu-grid');
+    if (!grid || !grid.children.length) return;
+    var n = grid.children.length;
+    var area = document.getElementById('phase-lobby').getBoundingClientRect();
+    var W = area.width - 80, H = area.height - 80; // padding de .screen-menu
+    var logo = c.querySelector('.screen-menu-logo');
+    if (logo && logo.style.display !== 'none') {
+        var lh = Math.round(Math.min(240, H * (n > 6 ? 0.18 : 0.26)));
+        logo.style.maxHeight = lh + 'px';
+        logo.style.marginBottom = Math.round(lh * 0.15) + 'px';
+        H -= lh * 1.15;
+    }
+    var gap = Math.max(12, Math.min(40, Math.round(Math.min(W, H) * 0.03)));
+    var best = { cell: 0, cols: 1 };
+    for (var cols = 1; cols <= n; cols++) {
+        var rows = Math.ceil(n / cols);
+        var cell = Math.min((W - gap * (cols - 1)) / cols, (H - gap * (rows - 1)) / rows);
+        if (cell > best.cell) best = { cell: cell, cols: cols };
+    }
+    grid.classList.add('fit');
+    grid.style.setProperty('--cols', best.cols);
+    grid.style.setProperty('--cell', Math.floor(Math.max(40, Math.min(best.cell, 320))) + 'px');
+    grid.style.setProperty('--gap', gap + 'px');
+}
+window.addEventListener('resize', fitScreenMenu);
+
 function renderScreenHomeMenu() {
     var gt = ps.gameTheme || {};
     var cats = getScreenCategories();
@@ -2318,9 +2355,10 @@ function renderScreenHomeMenu() {
         html += '</div>';
     });
     html += '</div></div>';
-    if (container.dataset.sig === html) return; // sin cambios: no repetir el fundido
+    if (container.dataset.sig === html) { fitScreenMenu(); return; } // sin cambios: no repetir el fundido
     container.dataset.sig = html;
     container.innerHTML = html;
+    fitScreenMenu();
 
     requestAnimationFrame(function() {
         var menu = container.querySelector('.screen-menu');
@@ -2368,9 +2406,10 @@ function renderScreenCategoryMenu() {
         html += '</div>';
     });
     html += '</div></div>';
-    if (container.dataset.sig === html) return; // sin cambios: no repetir el fundido
+    if (container.dataset.sig === html) { fitScreenMenu(); return; } // sin cambios: no repetir el fundido
     container.dataset.sig = html;
     container.innerHTML = html;
+    fitScreenMenu();
 
     requestAnimationFrame(function() {
         var menu = container.querySelector('.screen-menu');

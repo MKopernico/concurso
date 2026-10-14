@@ -280,7 +280,7 @@ function renderScoreboardHTML(equipos, scores, opts) {
             var isMe = r.id === opts.myTeamId;
             return '<tr class="' + (isMe ? 'sb-me' : '') + '">'
                 + '<td class="sb-rank">' + (i < 3 ? trophies[i] : (i + 1)) + '</td>'
-                + '<td>' + _esc(r.name) + (isMe ? ' (tu)' : '') + '</td>'
+                + '<td>' + _esc(r.name) + (isMe ? ' (tú)' : '') + '</td>'
                 + '<td class="sb-score">' + r.score + '</td></tr>';
         }).join('');
     } else { // director
