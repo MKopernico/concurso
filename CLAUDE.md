@@ -47,6 +47,8 @@ El usuario no programa: Claude programa, prueba y **pregunta siempre antes de su
 node tools/tests/test-lote1.js     # 26 comprobaciones (temporizador, persistencia, reconexión, seguridad…)
 node tools/tests/test-lote2.js     # 23 (reglas, fugas de solución, coordinador)
 node tools/tests/test-lote3.js     # 21 (backoffice, Excel, zip, sesiones)
+node tools/tests/test-loteA-ensayo.js  # 10 (arreglos del ensayo: acierto cierra pulsador, empate Precio, descongelar)
+node tools/tests/test-loteB-ensayo.js  # 8 (resultado en iPads: ganador/puntos del pulsador, respuesta propia, volver a la pregunta)
 node tools/tests/load-test.js 50   # N iPads simulados: entrada, respuestas, pulsador, bonos, reconexión masiva
 node tools/tests/soak-test.js 15   # resistencia: partida larga (minutos) con los 10 tipos; memoria, temporizadores, latencias, marcador
 node tools/tests/chaos-test.js 10  # red caótica: cortes al azar, zombis, retraso; puntos, equipos y errores

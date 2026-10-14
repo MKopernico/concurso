@@ -3267,6 +3267,8 @@ function renderKaraokeAssign(panel, ds, c, colors) {
 
     html += '<div class="karaoke-assign-title">Karaoke — Asignación de equipos</div>';
     html += '<div class="karaoke-assign-sub">' + colors.length + ' colores: ' + colors.join(', ') + '</div>';
+    if (teams.length > colors.length) html += '<div class="karaoke-assign-sub">Hay más equipos que colores: varios equipos comparten color y cantan juntos.</div>';
+    html += '<button class="btn btn-sm" id="karaokeAutoBtn" style="align-self:center">🎲 Repartir automáticamente</button>';
     html += '<div class="karaoke-color-counts" id="karaokeColorCounts"></div>';
 
     teams.forEach(function(t) {
@@ -3291,6 +3293,15 @@ function renderKaraokeAssign(panel, ds, c, colors) {
             _karaokeAssign[sel.dataset.teamId] = sel.value;
             updateKaraokeAssignState(colors);
         });
+    });
+
+    // Reparto equilibrado: equipos en orden aleatorio, uno a cada color por turnos
+    document.getElementById('karaokeAutoBtn').addEventListener('click', function() {
+        var ids = teams.map(function(t) { return t.id; });
+        for (var i = ids.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var tmp = ids[i]; ids[i] = ids[j]; ids[j] = tmp; }
+        ids.forEach(function(id, k) { _karaokeAssign[id] = colors[k % colors.length]; });
+        panel.querySelectorAll('.karaoke-assign-select').forEach(function(sel) { sel.value = _karaokeAssign[sel.dataset.teamId] || ''; });
+        updateKaraokeAssignState(colors);
     });
 
     document.getElementById('karaokeStartBtn').addEventListener('click', function() {

@@ -175,7 +175,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 
 /* Scoreboard overlay (global, z-index above everything) */
 #scoreboardOverlay { z-index: 80; }
-#scoreboardOverlay .sb-overlay-inner { width: 90%; max-width: 900px; max-height: 80vh; overflow-y: auto; }
+#scoreboardOverlay .sb-overlay-inner { width: 90%; max-width: 900px; max-height: 80vh; overflow-y: hidden; }
 
 /* QR overlay */
 .gs-qr-overlay { position: fixed; inset: 0; z-index: 85; background: rgba(0,0,0,.6); opacity: 0; pointer-events: none; transition: opacity .4s ease; display: flex; align-items: center; justify-content: center; }
@@ -205,10 +205,13 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .gs-premio-bono { font-size: clamp(24px, 3vw, 42px); color: #fff; display: flex; align-items: center; justify-content: center; gap: 16px; }
 .gs-premio-bono-icon { font-size: 1.4em; }
 .gs-premio-puntos { font-size: clamp(28px,4vw,52px); font-weight: 900; color: #ffd700; margin-top: 16px; text-shadow: 0 0 20px rgba(255,215,0,.6), 0 0 40px rgba(255,215,0,.3); }
-.gs-premio-anuncio { position: relative; display: flex; align-items: center; justify-content: center; margin-top: 20px; }
-.gs-premio-anuncio img { max-width: 70vw; max-height: 60vh; border-radius: 16px; display: block; }
-.gs-premio-anuncio-text { position: absolute; left: 0; right: 0; bottom: 0; padding: 24px; font-size: clamp(24px,3.5vw,44px); font-weight: 900; color: #fff; text-align: center; background: linear-gradient(to top, rgba(0,0,0,.85), transparent); border-radius: 0 0 16px 16px; }
-.gs-premio-anuncio.no-img .gs-premio-anuncio-text { position: static; background: none; padding: 0; font-size: clamp(28px,4vw,52px); color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,.6), 0 0 40px rgba(255,215,0,.3); }
+/* Premio de anuncio: imagen arriba y texto debajo, en columna centrada (vale con solo uno de los dos) */
+.gs-premio-anuncio { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(14px, 2.5vh, 28px); margin-top: 20px; max-width: min(1100px, 88vw); margin-inline: auto; }
+.gs-premio-anuncio img { max-width: min(70vw, 900px); max-height: 52vh; border-radius: 16px; display: block; object-fit: contain; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+.gs-premio-anuncio-text { font-size: clamp(26px, 3.6vw, 48px); font-weight: 900; line-height: 1.2; color: #fff; text-align: center; overflow-wrap: anywhere; white-space: pre-line; text-shadow: 0 2px 12px rgba(0,0,0,.7); }
+.gs-premio-anuncio-text:empty { display: none; }
+.gs-premio-anuncio.no-img .gs-premio-anuncio-text { font-size: clamp(30px, 4.4vw, 60px); color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,.5), 0 2px 12px rgba(0,0,0,.6); }
+.gs-premio-card { max-width: 100vw; box-sizing: border-box; }
 
 /* ═══════════════ WAITING ═══════════════ */
 #phase-waiting { background: transparent; }
@@ -291,7 +294,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     background: rgba(10,10,26,.85); backdrop-filter: blur(10px);
     opacity: 0; transform: scale(.95); transition: opacity .5s ease, transform .5s ease; pointer-events: none; }
 .team-results-overlay.active { opacity: 1; transform: scale(1); pointer-events: auto; }
-.tr-container { width: 90%; max-width: 900px; max-height: 80vh; overflow-y: auto; }
+.tr-container { width: 90%; max-width: 900px; max-height: 80vh; overflow-y: hidden; }
+/* Listas largas en el proyector: sin barra de scroll; se desplazan solas (autoScrollLists) */
+.tr-container, #scoreboardOverlay .sb-overlay-inner { scrollbar-width: none; }
+.tr-container::-webkit-scrollbar, #scoreboardOverlay .sb-overlay-inner::-webkit-scrollbar { display: none; }
 .tr-title { font-size: 32px; font-weight: 800; text-transform: uppercase; letter-spacing: 3px;
     color: var(--cyan); margin-bottom: 30px; text-align: center; text-shadow: var(--glow-cyan); }
 .tr-card { display: flex; align-items: center; gap: 20px; padding: 18px 28px; border-radius: 14px; margin-bottom: 12px;
@@ -471,19 +477,23 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 /* ═══════════════ KARAOKE — SCREEN ═══════════════ */
 #karaokeScreenWrap { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; }
 .karaoke-screen-bg { position: absolute; inset: 0; z-index: 0; }
-.karaoke-screen-bg.kb-grid-1 { display: block; }
-.karaoke-screen-bg.kb-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
-.karaoke-screen-bg.kb-grid-4 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+/* Fondo según los colores que cantan: uno = pantalla entera, dos = mitades, tres = tercios, cuatro = cuartos */
+.karaoke-screen-bg { display: grid; }
+.karaoke-screen-bg.kb-n1 { grid-template-columns: 1fr; }
+.karaoke-screen-bg.kb-n2 { grid-template-columns: 1fr 1fr; }
+.karaoke-screen-bg.kb-n3 { grid-template-columns: 1fr 1fr 1fr; }
+.karaoke-screen-bg.kb-n4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
 .karaoke-screen-zone { transition: opacity 300ms ease, filter 300ms ease; }
 .karaoke-screen-zone--active { opacity: 1; filter: none; }
 .karaoke-screen-zone--muted { opacity: 1; filter: grayscale(80%) brightness(0.3); }
-.karaoke-screen-lyrics { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: clamp(12px, 2vh, 24px); max-width: 85vw; }
-.karaoke-screen-overlay { background: rgba(0,0,0,0.55); border-radius: 16px; padding: clamp(24px, 4vh, 48px) clamp(32px, 5vw, 64px); display: flex; flex-direction: column; align-items: center; gap: clamp(8px, 1.5vh, 20px); }
-.karaoke-screen-current { font-size: clamp(3rem, 6vw, 6rem); font-weight: 800; color: #fff; text-align: center; white-space: pre-line; line-height: 1.2; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
-.karaoke-screen-next { font-size: clamp(1.8rem, 3.5vw, 3.5rem); font-weight: 600; color: rgba(255,255,255,0.5); text-align: center; white-space: pre-line; line-height: 1.2; }
-.karaoke-screen-pre { font-size: clamp(3rem, 6vw, 6rem); font-weight: 800; color: #fff; text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
-.karaoke-screen-fin { font-size: clamp(6rem, 12vw, 14rem); font-weight: 900; color: #fff; text-align: center; text-shadow: 0 4px 16px rgba(0,0,0,.6); line-height: 1; }
-.karaoke-screen-winner { font-size: clamp(2rem, 4vw, 4rem); font-weight: 700; color: #fff; text-align: center; display: flex; align-items: center; justify-content: center; gap: 12px; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+/* Letra sin caja: ventana con márgenes, texto ajustado al espacio (fitKaraokeLyrics) y contorno oscuro para leerse sobre cualquier color */
+.karaoke-screen-lyrics { position: absolute; z-index: 1; inset: 7vh 6vw; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3vh; }
+.karaoke-screen-current, .karaoke-screen-next { width: 100%; text-align: center; white-space: pre-line; overflow: hidden; flex-shrink: 0; }
+.karaoke-screen-current { font-size: 64px; font-weight: 900; line-height: 1.15; color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 10px rgba(0,0,0,.85), 0 4px 22px rgba(0,0,0,.6); }
+.karaoke-screen-next { font-size: 32px; font-weight: 800; line-height: 1.15; color: #dcdcdc; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 10px rgba(0,0,0,.9); }
+.karaoke-screen-pre { font-size: clamp(3rem, 7vw, 7rem); font-weight: 900; color: #fff; text-align: center; text-shadow: 0 0 3px #000, 0 0 12px rgba(0,0,0,.8); }
+.karaoke-screen-fin { font-size: clamp(6rem, 14vw, 16rem); font-weight: 900; color: #fff; text-align: center; text-shadow: 0 0 4px #000, 0 6px 26px rgba(0,0,0,.7); line-height: 1; }
+.karaoke-screen-winner { font-size: clamp(2rem, 4.5vw, 4.5rem); font-weight: 800; color: #fff; text-align: center; display: flex; align-items: center; justify-content: center; gap: 12px; text-shadow: 0 0 3px #000, 0 2px 12px rgba(0,0,0,.7); }
 .karaoke-screen-winner-dot { width: clamp(24px, 4vw, 48px); height: clamp(24px, 4vw, 48px); border-radius: 50%; display: inline-block; flex-shrink: 0; border: 3px solid rgba(255,255,255,.5); }
 #phase-question.karaoke-mode { padding: 0; }
 #phase-question.karaoke-mode .q-statement { display: none; }
@@ -1618,37 +1628,33 @@ function renderKaraokeScreen(c, q) {
     var finished = ks ? ks.finished : false;
     var winnerColor = ks ? ks.winnerColor : null;
 
-    var bgHtml = renderKaraokeBackground(colors, numColors, activeCombo, finished);
+    var bgHtml = renderKaraokeBackground(colors, numColors, activeCombo, finished, winnerColor);
     var lyricsHtml = renderKaraokeLyrics(blocks, blockIdx, activeCombo, finished, winnerColor, colors);
 
-    wrap.innerHTML = bgHtml + lyricsHtml;
+    var html = bgHtml + lyricsHtml;
+    if (wrap._kHtml !== html) { wrap.innerHTML = html; wrap._kHtml = html; }
+    fitKaraokeLyrics();
 }
 
-function renderKaraokeBackground(colors, numColors, activeCombo, finished) {
+function renderKaraokeBackground(colors, numColors, activeCombo, finished, winnerColor) {
     var hex = window.KARAOKE_COLOR_HEX || {};
-    var gridClass = 'kb-grid-' + (numColors <= 1 ? '1' : numColors <= 2 ? '2' : '4');
-    var html = '<div class="karaoke-screen-bg ' + gridClass + '">';
-
-    for (var i = 0; i < numColors; i++) {
-        var col = colors[i] || 'rojo';
-        var colHex = hex[col] || '#888';
-        var isActive = false;
-        if (finished) {
-            isActive = true;
-        } else if (activeCombo && activeCombo.length > 0) {
-            isActive = activeCombo.indexOf(col) >= 0;
-        }
-        var modClass = isActive ? 'karaoke-screen-zone--active' : 'karaoke-screen-zone--muted';
-        html += '<div class="karaoke-screen-zone ' + modClass + '" style="background:' + colHex + ';"></div>';
-    }
-
-    html += '</div>';
-    return html;
+    // Qué colores se pintan: los que cantan ahora; al terminar, el ganador; antes de empezar,
+    // todos los de la canción apagados.
+    var list, muted = false;
+    if (finished) list = winnerColor ? [winnerColor] : colors.slice(0, numColors);
+    else if (activeCombo && activeCombo.length) list = activeCombo.slice(0, 4);
+    else { list = colors.slice(0, numColors); muted = true; }
+    if (!list.length) list = ['rojo'];
+    var html = '<div class="karaoke-screen-bg kb-n' + list.length + '">';
+    list.forEach(function(col) {
+        html += '<div class="karaoke-screen-zone ' + (muted ? 'karaoke-screen-zone--muted' : 'karaoke-screen-zone--active') + '" style="background:' + (hex[col] || '#888') + ';"></div>';
+    });
+    return html + '</div>';
 }
 
 function renderKaraokeLyrics(blocks, blockIdx, activeCombo, finished, winnerColor, colors) {
     var hex = window.KARAOKE_COLOR_HEX || {};
-    var html = '<div class="karaoke-screen-lyrics"><div class="karaoke-screen-overlay">';
+    var html = '<div class="karaoke-screen-lyrics">';
 
     if (finished) {
         html += '<div class="karaoke-screen-fin">FIN</div>';
@@ -1669,9 +1675,43 @@ function renderKaraokeLyrics(blocks, blockIdx, activeCombo, finished, winnerColo
         }
     }
 
-    html += '</div></div>';
+    html += '</div>';
     return html;
 }
+
+// Ajusta la letra al hueco: la estrofa actual lo más grande posible (hasta ~70 % del alto si hay
+// siguiente) y la siguiente más pequeña debajo. Búsqueda binaria del tamaño de letra.
+function fitKaraokeLyrics() {
+    var box = document.querySelector('#karaokeScreenWrap .karaoke-screen-lyrics');
+    if (!box || !box.offsetParent) return;
+    var cur = box.querySelector('.karaoke-screen-current');
+    var next = box.querySelector('.karaoke-screen-next');
+    if (!cur) return;
+    var W = box.clientWidth, H = box.clientHeight;
+    var gap = parseFloat(getComputedStyle(box).rowGap) || 0;
+    function search(el, maxH, maxPx) {
+        var lo = 16, hi = Math.max(17, maxPx + 1);
+        while (hi - lo > 1) {
+            var mid = (lo + hi) >> 1;
+            el.style.fontSize = mid + 'px';
+            if (el.scrollHeight <= maxH && el.scrollWidth <= W) lo = mid; else hi = mid;
+        }
+        el.style.fontSize = lo + 'px';
+        return lo;
+    }
+    // Primero respetando los saltos de línea de la letra (sin partir versos); si así queda
+    // demasiado pequeña (versos muy largos), se deja que los versos se partan.
+    function fit(el, maxH, maxPx) {
+        el.style.whiteSpace = 'pre';
+        var size = search(el, maxH, maxPx);
+        if (size < Math.min(maxPx * 0.45, H * 0.075)) { el.style.whiteSpace = 'pre-line'; size = search(el, maxH, maxPx); }
+        return size;
+    }
+    var curH = next ? (H - gap) * 0.7 : H;
+    var size = fit(cur, curH, Math.round(H * 0.3));
+    if (next) fit(next, H - gap - Math.min(curH, cur.scrollHeight), Math.round(size * 0.5));
+}
+window.addEventListener('resize', function() { fitKaraokeLyrics(); });
 
 // ═══════════════ TIMER ═══════════════
 function renderTimer() {
@@ -2089,6 +2129,35 @@ function renderMiniScores() {
 
 // ═══════════════ UTILS ═══════════════
 // Sustituye el contenido solo si cambia (evita repetir animaciones de entrada en cada sync)
+// Desplazamiento automático de las listas del proyector (resultados por equipo y marcador):
+// si todo cabe no se mueve; si no, espera 2,5 s, baja despacio hasta el final, espera y vuelve
+// a subir, en bucle. Así se ven todos los equipos sin barras de scroll.
+(function() {
+    var SPEED = 40;    // píxeles por segundo
+    var PAUSE = 2500;  // ms quieto arriba y abajo
+    var lists = ['.tr-container', '#scoreboardOverlay .sb-overlay-inner'];
+    var st = new Map(); // elemento → { dir, waitUntil, pos }
+    var last = performance.now();
+    function visible(el) { return el.offsetParent !== null && el.closest('.active') !== null; }
+    function tick(t) {
+        var dt = Math.min(100, t - last); last = t;
+        lists.forEach(function(sel) {
+            var el = document.querySelector(sel);
+            if (!el) return;
+            var max = el.scrollHeight - el.clientHeight;
+            var s = st.get(el);
+            if (!visible(el) || max <= 4) { if (s) { el.scrollTop = 0; st.delete(el); } return; }
+            if (!s) { s = { dir: 1, waitUntil: t + PAUSE, pos: 0 }; st.set(el, s); el.scrollTop = 0; }
+            if (t < s.waitUntil) return;
+            s.pos = Math.max(0, Math.min(max, s.pos + s.dir * SPEED * dt / 1000));
+            el.scrollTop = s.pos;
+            if ((s.dir > 0 && s.pos >= max) || (s.dir < 0 && s.pos <= 0)) { s.dir = -s.dir; s.waitUntil = t + PAUSE; }
+        });
+        requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick); // no es decorativo: es la única forma de ver a todos los equipos
+})();
+
 function setHtmlIfChanged(el, html) {
     if (!el) return false;
     if (el._gsHtml === html && el.innerHTML === el._gsDom) return false; // mismo contenido y nadie lo ha tocado

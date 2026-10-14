@@ -204,6 +204,16 @@ input:focus { border-color: var(--accent); }
 .reveal-card { background: rgba(0,0,0,.6); border: 2px solid var(--success); border-radius: 16px; padding: 20px; text-align: center; width: 100%; backdrop-filter: blur(6px); }
 .reveal-card h3 { color: var(--success); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
 .reveal-card .reveal-text { font-size: 22px; font-weight: 700; color: #fff; }
+.reveal-mine-card { background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.25); border-radius: 16px; padding: 16px 20px; text-align: center; width: 100%; backdrop-filter: blur(6px); }
+.reveal-mine-card h3 { color: var(--text2); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.reveal-mine { font-size: 20px; font-weight: 700; color: #fff; }
+.reveal-mine .rm-ok { color: #4ade80; } .reveal-mine .rm-bad { color: #f87171; } .reveal-mine .rm-none { color: var(--text2); font-weight: 600; }
+.reveal-order { display: inline-block; text-align: left; margin: 0; padding-left: 1.6em; }
+.reveal-order li { margin: 2px 0; }
+.reveal-points { font-size: 18px; font-weight: 700; margin-top: 6px; opacity: .9; }
+.reveal-sub { font-size: 17px; font-weight: 600; margin-top: 6px; opacity: .9; }
+.reveal-result.info { color: #fff; background: rgba(59,130,246,.3); border: 2px solid #3b82f6; }
+.reveal-result:empty { display: none; }
 .reveal-result { font-size: 28px; font-weight: 800; text-align: center; padding: 20px 24px; border-radius: 16px; width: 100%; backdrop-filter: blur(6px); }
 .reveal-result.win { color: #fff; background: rgba(34,197,94,.35); border: 2px solid #22c55e; }
 .reveal-result.lose { color: #fff; background: rgba(239,68,68,.3); border: 2px solid #ef4444; }
@@ -254,6 +264,11 @@ input:focus { border-color: var(--accent); }
 .karaoke-play-zone { min-height: 0; min-width: 0; transition: opacity 300ms ease, filter 300ms ease; }
 .karaoke-play-zone--active { opacity: 1; filter: none; }
 .karaoke-play-zone--muted { opacity: 1; filter: grayscale(80%) brightness(0.3); }
+/* Marco del color del equipo durante toda la prueba */
+.karaoke-play-frame { position: absolute; inset: 0; z-index: 2; pointer-events: none; border: 18px solid var(--kcol); box-shadow: inset 0 0 0 3px rgba(255,255,255,.55), inset 0 0 40px rgba(0,0,0,.45); }
+.karaoke-play-tag { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 3; padding: 10px 22px; border-radius: 999px; background: var(--kcol); color: #fff; font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; text-shadow: 0 1px 4px rgba(0,0,0,.6); box-shadow: 0 4px 18px rgba(0,0,0,.5); border: 3px solid rgba(255,255,255,.7); }
+.karaoke-play-tag.singing { animation: kpPulse 1s ease-in-out infinite; }
+@keyframes kpPulse { 0%,100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.08); } }
 .karaoke-play-logo { position: relative; z-index: 1; max-width: 40vw; max-height: 30vh; object-fit: contain; filter: drop-shadow(0 4px 16px rgba(0,0,0,.6)); }
 body.karaoke-active .game-top,
 body.karaoke-active .player-timer-bar { display: none !important; }
@@ -263,7 +278,10 @@ body.karaoke-active .player-timer-bar { display: none !important; }
 .gphase.active { opacity: 1; pointer-events: auto; }
 
 /* Full-viewport overlays (must come AFTER .gphase to override position: absolute) */
-.gp-revealed { position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(10,10,16,.85); z-index: 60; }
+.gp-revealed { position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(10,10,16,.85); z-index: 60; overflow-y: auto; justify-content: flex-start; box-sizing: border-box; }
+/* Centrado vertical que no corta por arriba si el contenido (p. ej. un Boom largo) no cabe */
+.gp-revealed::before, .gp-revealed::after { content: ''; flex: 1 0 0; }
+.gp-revealed > * { max-width: 560px; flex-shrink: 0; }
 .gp-round-end { position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(10,10,16,.85); z-index: 60; }
 
 /* ── Scoreboard overlay (synced from server) ── */
@@ -309,10 +327,13 @@ body.karaoke-active .player-timer-bar { display: none !important; }
 .player-premio-bono { font-size: 20px; color: #fff; display: flex; align-items: center; gap: 10px; }
 .player-premio-bono-icon { font-size: 1.4em; }
 .player-premio-puntos { font-size: 30px; font-weight: 900; color: #ffd700; margin-top: 12px; text-shadow: 0 0 16px rgba(255,215,0,.6), 0 0 32px rgba(255,215,0,.3); }
-.player-premio-anuncio { position: relative; display: flex; align-items: center; justify-content: center; margin-top: 16px; }
-.player-premio-anuncio img { max-width: 88vw; max-height: 60vh; border-radius: 12px; display: block; }
-.player-premio-anuncio-text { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px; font-size: 22px; font-weight: 900; color: #fff; text-align: center; background: linear-gradient(to top, rgba(0,0,0,.85), transparent); border-radius: 0 0 12px 12px; }
-.player-premio-anuncio.no-img .player-premio-anuncio-text { position: static; background: none; padding: 0; font-size: 28px; color: #ffd700; text-shadow: 0 0 16px rgba(255,215,0,.6), 0 0 32px rgba(255,215,0,.3); }
+/* Premio de anuncio: imagen arriba y texto debajo, en columna centrada (vale con solo uno de los dos) */
+.player-premio-content { padding: 20px; box-sizing: border-box; max-width: 100vw; }
+.player-premio-anuncio { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; width: 100%; max-width: 640px; }
+.player-premio-anuncio img { max-width: 100%; max-height: 45vh; border-radius: 12px; display: block; object-fit: contain; }
+.player-premio-anuncio-text { font-size: clamp(20px, 5vw, 30px); font-weight: 900; line-height: 1.25; color: #fff; text-align: center; overflow-wrap: anywhere; white-space: pre-line; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
+.player-premio-anuncio-text:empty { display: none; }
+.player-premio-anuncio.no-img .player-premio-anuncio-text { font-size: clamp(24px, 6vw, 36px); color: #ffd700; text-shadow: 0 0 16px rgba(255,215,0,.5), 0 2px 10px rgba(0,0,0,.6); }
 
 /* ── Round intro ── */
 .gp-round-intro { align-items: center; justify-content: center; gap: 20px; text-align: center; padding: 24px; }
@@ -577,6 +598,10 @@ body.karaoke-active .player-timer-bar { display: none !important; }
             <div class="reveal-card">
                 <h3>Respuesta correcta</h3>
                 <div class="reveal-text" id="revealText">-</div>
+            </div>
+            <div class="reveal-mine-card" id="revealMineCard" style="display:none;">
+                <h3>Tu respuesta</h3>
+                <div class="reveal-mine" id="revealMine"></div>
             </div>
             <div class="reveal-result" id="revealResult"></div>
         </div>
@@ -2279,35 +2304,50 @@ function renderScoreboard() {
 function renderRevealed() {
     var ps = S.ps; if (!ps || !ps.question) return;
     var c = ps.question.content || {};
-    var ans = '';
+    var type = ps.roundType;
     var letters = 'ABCDEFGHIJKLMNOP';
-    if (c.correct !== undefined && c.options) {
-        var indices = Array.isArray(c.correct) ? c.correct : [c.correct];
-        ans = indices.map(function(i) { return letters[i] + ' — ' + c.options[i]; }).join(', ');
-    } else if (c.answer !== undefined) ans = String(c.answer);
-    else if (c.correct_value !== undefined) ans = String(c.correct_value);
-    else if (c.correct_order && c.items) ans = c.correct_order.map(function(i) { return c.items[i]; }).join(' → ');
-    document.getElementById('revealText').textContent = ans || '-';
-
+    var me = S.myTeamId;
+    var mine = ps.lastQuestionScores && me ? ps.lastQuestionScores[me] : null;
+    var answered = !!(mine && !mine.noAnswer);
+    var textEl = document.getElementById('revealText');
+    var mineCard = document.getElementById('revealMineCard');
+    var mineEl = document.getElementById('revealMine');
     var resultEl = document.getElementById('revealResult');
-    var mine = ps.lastQuestionScores && S.myTeamId ? ps.lastQuestionScores[S.myTeamId] : null;
-    if (mine && !mine.noAnswer && (c.correct !== undefined || c.correct_order)) {
-        resultEl.textContent = mine.correct ? '✅ RESPUESTA CORRECTA' : '❌ RESPUESTA INCORRECTA';
-        resultEl.className = 'reveal-result ' + (mine.correct ? 'win' : 'lose');
-    } else if (S.submitted && c.correct !== undefined) {
-        // Multirespuesta
-        var correctSet = new Set(Array.isArray(c.correct) ? c.correct : [c.correct]);
-        var picked = S.selectedOptions;
-        var ok = picked.length >= 1 && picked.every(function(a) { return correctSet.has(a); });
-        resultEl.textContent = ok ? '✅ RESPUESTA CORRECTA' : '❌ RESPUESTA INCORRECTA';
-        resultEl.className = 'reveal-result ' + (ok ? 'win' : 'lose');
-    } else if (S.submitted && c.correct_order && S.boomOrder.length) {
-        // Boom
-        var playerOrder = S.boomOrder.map(function(item) { return item.origIdx; });
-        var ok = c.correct_order.length === playerOrder.length && c.correct_order.every(function(v, i) { return v === playerOrder[i]; });
-        resultEl.textContent = ok ? '✅ RESPUESTA CORRECTA' : '❌ RESPUESTA INCORRECTA';
-        resultEl.className = 'reveal-result ' + (ok ? 'win' : 'lose');
-    } else { resultEl.textContent = ''; resultEl.className = 'reveal-result'; }
+    var mineHtml = null;           // null = no se muestra «Tu respuesta» (pruebas de pulsador)
+    var res = null;                // { cls: 'win'|'lose'|'info', html }
+    function opt(i) { return '<b>' + (letters[i] || '?') + '</b> — ' + esc(c.options[i]); }
+    function pts(n) { return n ? '<div class="reveal-points">' + (n > 0 ? '+' : '') + n + ' puntos</div>' : ''; }
+    function teamName(id) { var t = (ps.equipos || []).find(function(e) { return e.id === id; }); return t ? t.nombre : 'otro equipo'; }
+
+    if (type === 'multirespuesta' && c.options && c.correct !== undefined) {
+        var corr = Array.isArray(c.correct) ? c.correct : [c.correct];
+        textEl.innerHTML = corr.map(opt).join('<br>');
+        if (answered) {
+            var picked = Array.isArray(mine.answer) ? mine.answer : [mine.answer];
+            mineHtml = picked.map(function(i) { return '<span class="' + (corr.indexOf(i) >= 0 ? 'rm-ok' : 'rm-bad') + '">' + opt(i) + '</span>'; }).join('<br>');
+            res = mine.correct ? { cls: 'win', html: '✅ ¡ACERTASTE!' + pts(mine.points) } : { cls: 'lose', html: '❌ FALLASTE' + pts(mine.points) };
+        } else mineHtml = '<span class="rm-none">No respondiste</span>';
+    } else if (type === 'boom' && c.items && c.correct_order) {
+        textEl.innerHTML = '<ol class="reveal-order">' + c.correct_order.map(function(i) { return '<li>' + esc(c.items[i]) + '</li>'; }).join('') + '</ol>';
+        if (answered && Array.isArray(mine.answer)) {
+            mineHtml = '<ol class="reveal-order">' + mine.answer.map(function(i, k) { return '<li class="' + (c.correct_order[k] === i ? 'rm-ok' : 'rm-bad') + '">' + esc(c.items[i]) + '</li>'; }).join('') + '</ol>';
+            res = mine.correct ? { cls: 'win', html: '✅ ¡ORDEN PERFECTO!' + pts(mine.points) } : { cls: 'lose', html: '❌ ORDEN INCORRECTO' + pts(mine.points) };
+        } else mineHtml = '<span class="rm-none">No respondiste</span>';
+    } else {
+        // Pruebas de pulsador (pulsador, canción, imagen, imagen fija, ruleta): no hay respuesta
+        // escrita; se dice quién acertó y si este equipo falló.
+        var ans = (c.answer !== undefined && c.answer !== null && String(c.answer).trim() !== '') ? c.answer : (c.phrase || '');
+        textEl.textContent = ans || '-';
+        var w = ps.buzzerWinner;
+        var failed = (ps.buzzerFailed || []).indexOf(me) >= 0;
+        if (w && w === me) res = { cls: 'win', html: '✅ ¡ACERTASTE!' + pts(ps.buzzerPoints) };
+        else if (failed) res = { cls: 'lose', html: '❌ FALLASTE' + (w ? '<div class="reveal-sub">Acertó el equipo ' + esc(teamName(w)) + '</div>' : '') };
+        else if (w) res = { cls: 'info', html: '🔔 Acertó el equipo ' + esc(teamName(w)) };
+    }
+    if (mineHtml !== null) { mineEl.innerHTML = mineHtml; mineCard.style.display = ''; }
+    else { mineEl.innerHTML = ''; mineCard.style.display = 'none'; }
+    if (res) { resultEl.innerHTML = res.html; resultEl.className = 'reveal-result ' + res.cls; }
+    else { resultEl.innerHTML = ''; resultEl.className = 'reveal-result'; }
 }
 
 // ── Karaoke play ──
@@ -2329,7 +2369,21 @@ function renderKaraokePlay() {
     var logoSrc = (ps.roundTheme && ps.roundTheme.logo) || (ps.typeTheme && ps.typeTheme.logo) || (ps.gameTheme && ps.gameTheme.logo) || null;
     var logoHtml = logoSrc ? '<img class="karaoke-play-logo" src="' + esc(logoSrc) + '" onerror="this.style.display=\'none\'">' : '';
 
-    wrap.innerHTML = bgHtml + logoHtml;
+    // Color de este equipo (varios equipos pueden compartir color y cantan juntos)
+    var myCol = null;
+    var tbc = ks && ks.teamsByColor;
+    if (tbc && S.myTeamId) Object.keys(tbc).forEach(function(col) { if ((tbc[col] || []).indexOf(S.myTeamId) >= 0) myCol = col; });
+    var frameHtml = '';
+    if (myCol) {
+        var myHex = (window.KARAOKE_COLOR_HEX || {})[myCol] || '#888';
+        var singing = !finished && activeCombo && blockIdx >= 0 && activeCombo.indexOf(myCol) >= 0;
+        var label = finished ? (ks.winnerColor === myCol ? '🏆 ¡Ganó vuestro color!' : 'Color ' + myCol)
+                  : singing ? '🎤 ¡Cantáis! · ' + myCol : 'Vuestro color: ' + myCol;
+        frameHtml = '<div class="karaoke-play-frame" style="--kcol:' + myHex + '"></div>'
+                  + '<div class="karaoke-play-tag' + (singing ? ' singing' : '') + '" style="--kcol:' + myHex + '">' + esc(label) + '</div>';
+    }
+    var html = bgHtml + logoHtml + frameHtml;
+    if (wrap._kHtml !== html) { wrap.innerHTML = html; wrap._kHtml = html; }
 }
 
 function renderKaraokePlayBackground(colors, numColors, activeCombo, finished, blockIdx) {
