@@ -220,6 +220,8 @@ function contentToRow(typeDef, roundName, question) {
         }
         case 'cancion':
             return [roundName, c.statement || '', c.answer || '', c.image || '', c.audio || '', c.initial_chaos ?? 100, c.preset || 'default', qCfg.basePoints || ''];
+        case 'aclara':
+            return [roundName, c.statement || '', c.image || '', c.answer || '', c.effect === 'blur' ? 'desenfoque' : 'pixelado', c.mode === 'manual' ? 'a mano' : 'sola', c.duration || 30, qCfg.basePoints || ''];
         case 'identidad': {
             const pairs = Array.isArray(c.pairs) ? c.pairs : [];
             if (pairs.length === 0) return [[roundName, c.statement || '', '', '', '', '', c.explanation || '', qCfg.basePoints || '', qCfg.time || '']];
@@ -235,7 +237,7 @@ function contentToRow(typeDef, roundName, question) {
 }
 
 // ── Shared instruction rows for template & export ──
-const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'identidad'];
+const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'identidad', 'aclara'];
 
 function buildInstructionRows() {
     const rows = [
@@ -284,6 +286,7 @@ function buildInstructionRows() {
     rows.push(['  Ruleta: "pista" es la categoría/pista mostrada al público. "frase" se revela letra a letra.']);
     rows.push(['  Imagen: solo enunciado + respuesta + ruta imagen. La cuadrícula se ajusta en el admin.']);
     rows.push(['  Imagen Fija: usar columna "imagen" O "video" (no ambas). "pulsador": "no" para desactivar.']);
+    rows.push(['  Imagen se aclara: "efecto" pixelado o desenfoque; "modo" sola (se aclara en los "segundos" indicados) o a mano.']);
     rows.push(['    "autoplay" y "loop": "si"/"no" (solo aplican con vídeo).']);
     rows.push(['  Cancion: caos_inicial (0-100, defecto 100), preset (defecto "default").']);
     rows.push(['  Identidad: una fila por pareja. La 1ª fila lleva enunciado, explicación y config; las siguientes dejan enunciado vacío.']);
@@ -600,6 +603,7 @@ const EXCEL_TYPE_DEFS = [
     { sheet: 'Imagen Fija',    type: 'imagen_fija',     columns: ['ronda', 'enunciado', 'imagen', 'video', 'respuesta', 'pulsador', 'autoplay', 'loop', 'tiempo', 'puntos_base'] },
     { sheet: 'Cancion',        type: 'cancion',         columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'audio', 'caos_inicial', 'preset', 'puntos_base'] },
     { sheet: 'Identidad',      type: 'identidad',       columns: ['ronda', 'enunciado', 'izq_imagen', 'izq_texto', 'der_imagen', 'der_texto', 'explicacion', 'puntos_base', 'tiempo'] },
+    { sheet: 'Imagen se aclara', type: 'aclara',        columns: ['ronda', 'enunciado', 'imagen', 'respuesta', 'efecto', 'modo', 'segundos', 'puntos_base'] },
 ];
 
 const SHEET_TYPE_MAP = {};
@@ -791,6 +795,25 @@ function parseExcelSheet(rows, type) {
                 };
                 if (r[4]) qConfig.basePoints = Number(r[4]) || undefined;
                 if (String(r[5] || '').trim()) rounds[roundName].config.background = String(r[5]).trim();
+                break;
+            }
+            case 'aclara': {
+                const statement = String(r[1] || '').trim();
+                const image = String(r[2] || '').trim();
+                const answer = String(r[3] || '').trim();
+                if (!statement && !image && !answer) break;
+                const ef = String(r[4] || '').trim().toLowerCase();
+                const mo = String(r[5] || '').trim().toLowerCase();
+                content = {
+                    statement: statement || undefined,
+                    image: image || undefined,
+                    answer: answer || undefined,
+                    effect: /desenf|blur/.test(ef) ? 'blur' : 'pixel',
+                    mode: /mano|manual/.test(mo) ? 'manual' : 'auto',
+                    duration: Math.max(5, Math.min(600, Number(r[6]) || 30)),
+                };
+                if (r[7]) qConfig.basePoints = Number(r[7]) || undefined;
+                if (String(r[8] || '').trim()) rounds[roundName].config.background = String(r[8]).trim();
                 break;
             }
             case 'cancion': {

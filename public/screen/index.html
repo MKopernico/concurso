@@ -282,6 +282,15 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     opacity: 0; transition: opacity 1s ease; }
 #imagenAnswerOverlay .img-answer-card.visible { opacity: 1; }
 #phase-question.imagen-mode { padding: 0; }
+/* Imagen que se aclara: la imagen ocupa la pantalla; la respuesta aparece abajo al revelar */
+#aclaraScreenWrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 2%; box-sizing: border-box; overflow: hidden; }
+#aclaraCanvas { width: 100%; height: 100%; display: block; }
+/* La cola del pulsador va encima de la imagen, arriba */
+#phase-question.aclara-mode #buzzerQueue { position: absolute; top: 3%; left: 0; right: 0; z-index: 20; margin: 0; pointer-events: none; }
+.aclara-answer { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); max-width: 80%; padding: 16px 36px; border-radius: 18px; text-align: center;
+    font-size: clamp(1.6rem, 3.4vw, 3.2rem); font-weight: 900; color: #fff; background: linear-gradient(rgba(34,197,94,.35),rgba(34,197,94,.35)), rgba(0,0,0,.7);
+    border: 2px solid var(--green); box-shadow: 0 0 30px rgba(34,197,94,.35); opacity: 0; transition: opacity .5s; pointer-events: none; }
+.aclara-answer.visible { opacity: 1; animation: reveal-pop .6s cubic-bezier(.34,1.56,.64,1); }
 
 /* ═══════════════ LETTER PANEL (RULETA) ═══════════════ */
 .letter-panel { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 40px; max-width: 1000px; }
@@ -548,6 +557,10 @@ body.karaoke-screen-active .round-logo { display: none !important; }
             <div id="imagenScreenGrid"></div>
             <div id="imagenAnswerOverlay"><div class="img-answer-card" id="imagenAnswerCard"></div></div>
         </div>
+        <div id="aclaraScreenWrap" style="display:none">
+            <canvas id="aclaraCanvas"></canvas>
+            <div class="aclara-answer" id="aclaraAnswer"></div>
+        </div>
         <div id="imagenFijaWrap" style="display:none"></div>
         <div id="cancionScreenWrap" style="display:none"></div>
         <div id="identidadScreenWrap" style="display:none"></div>
@@ -648,6 +661,7 @@ body.karaoke-screen-active .round-logo { display: none !important; }
 <script src="/socket.io/socket.io.js"></script>
 <script src="/shared/asset-preloader.js"></script>
 <script src="/shared/karaoke-colors.js"></script>
+<script src="/shared/aclara-fx.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
 <script>
@@ -956,15 +970,15 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         showPhase('question');
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
-        document.getElementById('phase-question').classList.toggle('imagen-mode', type === 'imagen');
+        document.getElementById('phase-question').classList.toggle('imagen-mode', type === 'imagen' || type === 'aclara');
         renderRevealedInPlace();
         renderTeamResultsOverlay();
     } else if (phase === 'question') {
         showPhase('question');
-        var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'karaoke';
+        var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'karaoke' || type === 'aclara';
         timerStrip.style.display = hideTimer ? 'none' : '';
         timerBig.style.display = (hideTimer || type === 'identidad') ? 'none' : '';
-        document.getElementById('roundLogo').style.display = (type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'identidad') ? 'none' : '';
+        document.getElementById('roundLogo').style.display = (type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'identidad' || type === 'aclara') ? 'none' : '';
         renderQuestion(type, newQuestion, optionsJustRevealed);
     } else if (phase === 'round_end') {
         showPhase('round-end');
@@ -1024,7 +1038,8 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     else { media.style.display = 'none'; }
 
     // Toggle fullscreen mode for imagen
-    document.getElementById('phase-question').classList.toggle('imagen-mode', type === 'imagen');
+    document.getElementById('phase-question').classList.toggle('imagen-mode', type === 'imagen' || type === 'aclara');
+    document.getElementById('phase-question').classList.toggle('aclara-mode', type === 'aclara');
     document.getElementById('phase-question').classList.toggle('identidad-mode', type === 'identidad');
     _imagenState.built = type === 'imagen' ? _imagenState.built : false;
 
@@ -1034,6 +1049,8 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     document.getElementById('priceAnswers').style.display = 'none';
     document.getElementById('boomItems').style.display = 'none';
     document.getElementById('imagenScreenWrap').style.display = 'none';
+    document.getElementById('aclaraScreenWrap').style.display = 'none';
+    if (_aclaraPlayer && type !== 'aclara') _aclaraPlayer.stop();
     document.getElementById('imagenFijaWrap').style.display = 'none';
     document.getElementById('cancionScreenWrap').style.display = 'none';
     document.getElementById('letterPanel').style.display = 'none';
@@ -1058,6 +1075,12 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
         stmtEl.style.display = 'none';
         document.getElementById('qMedia').style.display = 'none';
         renderImageScreen(c, q);
+        renderBuzzerQueue();
+        document.getElementById('buzzerQueue').style.display = 'flex';
+    } else if (type === 'aclara') {
+        stmtEl.style.display = 'none';
+        document.getElementById('qMedia').style.display = 'none';
+        renderAclaraScreen(c, q, false);
         renderBuzzerQueue();
         document.getElementById('buzzerQueue').style.display = 'flex';
     } else if (type === 'ruleta') {
@@ -1112,6 +1135,18 @@ function renderMultiOptions(c, optionsJustRevealed, stmtEl) {
 }
 
 var lastBuzzerCount = 0;
+// ═══════════════ IMAGEN QUE SE ACLARA ═══════════════
+var _aclaraPlayer = null;
+function renderAclaraScreen(c, q, revealed) {
+    document.getElementById('aclaraScreenWrap').style.display = 'flex';
+    if (!_aclaraPlayer) _aclaraPlayer = new AclaraFX.Player(document.getElementById('aclaraCanvas'));
+    var st = revealed ? { level: 1, running: false } : (ps.aclara || { level: 0, running: false });
+    _aclaraPlayer.set(c.image || null, c.effect, st);
+    var ans = document.getElementById('aclaraAnswer');
+    ans.textContent = c.answer || '';
+    ans.classList.toggle('visible', !!(revealed && c.answer));
+}
+
 function renderBuzzerQueue() {
     if (!ps) return;
     var cola = ps.colaPulsador || [];
@@ -1847,6 +1882,13 @@ function renderRevealedInPlace() {
         if (container.dataset.html !== html) { container.innerHTML = html; container.dataset.html = html; }
     } else if (type === 'precio') {
         renderPrecioRevealScreen();
+    } else if (type === 'aclara') {
+        // La imagen queda nítida con la respuesta encima
+        document.getElementById('buzzerQueue').style.display = 'none';
+        document.getElementById('qStatement').style.display = 'none';
+        document.getElementById('qMedia').style.display = 'none';
+        document.getElementById('roundLogo').style.display = 'none';
+        renderAclaraScreen(c, ps.question, true);
     } else if (type === 'imagen') {
         // Keep the image grid visible, hide buzzer queue, show answer via overlay
         document.getElementById('imagenScreenWrap').style.display = 'flex';
@@ -2326,7 +2368,7 @@ document.addEventListener('click', function(e) {
 var TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
     imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara'
 };
 
 function renderScreenLobbyDefault() {

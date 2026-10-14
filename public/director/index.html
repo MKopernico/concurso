@@ -65,6 +65,16 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .type-ruleta { background: #1e3a5f; color: #7dd3fc; }
 .type-imagen_fija { background: #365314; color: #bef264; }
 .type-karaoke { background: #831843; color: #f9a8d4; }
+.type-aclara { background: #3b2f63; color: #c4b5fd; }
+/* Imagen que se aclara: control de nitidez dentro del panel de pulsador */
+.aclara-ctrl { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.aclara-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.aclara-cap { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); margin-bottom: 3px; }
+.aclara-previews canvas, .aclara-previews img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #0b0b12; border-radius: 8px; border: 1px solid var(--border); display: block; }
+.aclara-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.aclara-info { font-size: 13px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.aclara-info b { color: var(--accent); }
+#acSlider { width: 100%; accent-color: var(--accent); }
 
 /* Main area */
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
@@ -637,6 +647,18 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                             <div class="answer-label">Respuesta</div>
                             <div class="answer-value" id="puAnswerText"></div>
                         </div>
+                        <div class="aclara-ctrl" id="aclaraCtrl" style="display:none">
+                            <div class="aclara-previews">
+                                <div><div class="aclara-cap">Lo que ve la sala</div><canvas id="acDirCanvas"></canvas></div>
+                                <div><div class="aclara-cap">Imagen real</div><img id="acDirImg" alt=""></div>
+                            </div>
+                            <div class="aclara-row">
+                                <button class="btn-accent btn-sm" id="acBtnPlay" onclick="emit('director:aclara_play')">&#9654; Aclarar</button>
+                                <button class="btn-ghost btn-sm" id="acBtnPause" onclick="emit('director:aclara_pause')">&#9208; Pausa</button>
+                                <span class="aclara-info" id="acInfo"></span>
+                            </div>
+                            <input type="range" id="acSlider" min="0" max="100" step="1" value="0" aria-label="Nitidez de la imagen">
+                        </div>
                         <div class="imagen-btn-row">
                             <button class="btn-ghost btn-sm" id="btnPuToggleAnswer" onclick="togglePuAnswer()">&#128065; Mostrar respuesta</button>
                             <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
@@ -1029,6 +1051,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 <script src="/shared/karaoke-colors.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
+<script src="/shared/aclara-fx.js"></script>
 <script>
 const S = {
     gameId: null, game: null, rounds: [],
@@ -1277,7 +1300,7 @@ function renderLobby() {
 const TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio justo',
     imagen: 'Adivina imagen', cancion: 'Adivina cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen fija'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen fija', aclara: 'Imagen que se aclara'
 };
 
 function getCategories() {
@@ -1508,7 +1531,9 @@ function renderQuestionPulsador() {
     document.querySelector('.question-nav').style.display = '';
 
     // Statement
-    document.getElementById('puStatement').textContent = c.statement || 'Sin enunciado';
+    var isAclara = ds.currentRound && ds.currentRound.type === 'aclara';
+    document.getElementById('puStatement').textContent = c.statement || (isAclara ? '¿Qué es esta imagen?' : 'Sin enunciado');
+    renderAclaraCtrl(isAclara ? q : null);
 
     // Hints
     var hintsEl = document.getElementById('puHints');
@@ -1532,6 +1557,56 @@ function renderQuestionPulsador() {
         if (_puAnswerVisible) overlay.classList.add('active');
         else overlay.classList.remove('active');
     }
+}
+
+// ── Imagen que se aclara: vista previa, ▶/⏸ y barra de nitidez ──
+var _acPlayer = null, _acSliding = false, _acSendT = 0, _acPending = null;
+function aclaraBasePoints(q) {
+    var ds = S.director, rc = {};
+    try { rc = typeof ds.currentRound.config === 'string' ? JSON.parse(ds.currentRound.config || '{}') : (ds.currentRound.config || {}); } catch (e) {}
+    var qc = (q && q.config) || {};
+    return qc.basePoints != null ? qc.basePoints : (rc.basePoints != null ? rc.basePoints : 100);
+}
+// Igual que el servidor (aclaraPoints): de todos los puntos a un 20 %, redondeado a 5
+function aclaraPts(base, level) { return Math.round(Math.max(base * 0.2, base * (1 - Math.max(0, Math.min(1, level)))) / 5) * 5; }
+function renderAclaraCtrl(q) {
+    var box = document.getElementById('aclaraCtrl');
+    if (!q) { box.style.display = 'none'; if (_acPlayer) _acPlayer.stop(); return; }
+    var ds = S.director, c = q.content || {};
+    box.style.display = '';
+    document.getElementById('puHints').style.display = 'none';
+    var img = document.getElementById('acDirImg');
+    if (img.getAttribute('src') !== (c.image || '')) img.setAttribute('src', c.image || '');
+    if (!_acPlayer) {
+        _acPlayer = new AclaraFX.Player(document.getElementById('acDirCanvas'));
+        var slider = document.getElementById('acSlider');
+        slider.addEventListener('input', function() {
+            _acSliding = true;
+            _acPending = slider.value / 100;
+            var now = Date.now();
+            if (now - _acSendT > 120) { _acSendT = now; emit('director:aclara_set', { level: _acPending }); _acPending = null; }
+        });
+        slider.addEventListener('change', function() {
+            _acSliding = false;
+            emit('director:aclara_set', { level: slider.value / 100 }); _acPending = null;
+        });
+    }
+    _acPlayer.onLevel = function(lvl) {
+        var base = aclaraBasePoints(q);
+        if (!_acSliding) document.getElementById('acSlider').value = Math.round(lvl * 100);
+        document.getElementById('acInfo').innerHTML = 'Nitidez <b>' + Math.round(lvl * 100) + ' %</b> · acierto ahora: <b>' + aclaraPts(base, lvl) + ' pts</b>';
+    };
+    var revealed = ds.phase === 'answer_revealed';
+    var st = revealed ? { level: 1, running: false } : (ds.aclara || { level: 0, running: false });
+    _acPlayer.set(c.image || null, c.effect, st);
+    var manual = c.mode === 'manual';
+    var playBtn = document.getElementById('acBtnPlay'), pauseBtn = document.getElementById('acBtnPause');
+    playBtn.style.display = manual ? 'none' : '';
+    pauseBtn.style.display = manual ? 'none' : '';
+    playBtn.disabled = revealed || !!st.running || st.level >= 1;
+    playBtn.innerHTML = (st.level > 0 && st.level < 1) ? '&#9654; Seguir aclarando' : '&#9654; Aclarar';
+    pauseBtn.disabled = revealed || !st.running;
+    document.getElementById('acSlider').disabled = revealed;
 }
 
 var _precioPrevLogo = undefined;
@@ -2019,8 +2094,8 @@ function renderQuestion() {
         return;
     }
 
-    // Pulsador type: dedicated layout
-    if (roundType === 'pulsador') {
+    // Pulsador type (e Imagen que se aclara, que usa el mismo panel): dedicated layout
+    if (roundType === 'pulsador' || roundType === 'aclara') {
         document.getElementById('karaokeDirectorPanel').style.display = 'none';
         document.getElementById('precioDirectorPanel').style.display = 'none';
         document.getElementById('ruletaDirectorPanel').style.display = 'none';
@@ -2484,7 +2559,7 @@ function renderTimer() {
     const ds = S.director;
     const el = document.getElementById('timerDisplay');
     if (!ds || !ds.timer) { el.textContent = '--:--'; el.className = 'timer-display stopped'; return; }
-    var noTimer = ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'ruleta' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'imagen_fija');
+    var noTimer = ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'ruleta' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'imagen_fija' || ds.currentRound.type === 'aclara');
     if (noTimer) {
         el.textContent = '--:--'; el.className = 'timer-display stopped';
         document.getElementById('btnStartTimer').disabled = true;
@@ -2532,6 +2607,7 @@ function _renderBuzzerInto(alertId, queueId, firstNameId, btnCorrectId, btnWrong
         } else {
             queueEl.innerHTML = S.colaPulsador.map(function(p, i) {
                 var timeStr = p.elapsed !== undefined ? (p.elapsed / 1000).toFixed(3) + 's' : '';
+                if (typeof p.pts === 'number') timeStr += ' · ' + p.pts + ' pts';
                 return '<div class="pq-item">'
                     + '<span class="pq-pos">' + (i + 1) + 'º</span>'
                     + '<span class="pq-name">' + esc(p.nombre) + '</span>'
@@ -3593,7 +3669,7 @@ function renderKaraokeModal(colors, ks, basePoints) {
 }
 
 // Keyboard shortcuts
-var _NO_TIMER_TYPES = { pulsador: 1, imagen: 1, karaoke: 1, ruleta: 1, imagen_fija: 1, cancion: 1 };
+var _NO_TIMER_TYPES = { pulsador: 1, imagen: 1, karaoke: 1, ruleta: 1, imagen_fija: 1, cancion: 1, aclara: 1 };
 document.addEventListener('keydown', function(e) {
     // Ctrl+R / Cmd+R (recargar), Alt+…, tecla mantenida o foco en un control: no es un atajo
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;

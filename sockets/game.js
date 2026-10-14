@@ -183,6 +183,7 @@ function publicView(state) {
     const log = Array.isArray(bonoLog) ? bonoLog : [];
     ds.logCount = typeof ds.logCount === 'number' ? ds.logCount : log.length;
     ds.bonoLog = log.slice(-5);
+    if (ds.aclara) ds.aclara = aclaraView(state.director); // nitidez calculada ahora (el reloj del iPad puede ir distinto)
     if (ds && ds.answers) {
         ds.answeredCount = Object.values(ds.answers).filter(a => a.submitted !== false).length;
     }
@@ -227,6 +228,45 @@ function getQuestionConfig(state) {
     };
 }
 
+// ── Imagen que se aclara ──
+// ds.aclara = { level (0-1 al empezar el tramo actual), running, since (ms), rate (nitidez por segundo) }.
+// La nitidez avanza sola en modo automático; al pulsar alguien se congela y un fallo la reanuda.
+function initAclaraState(ds) {
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (ds.currentRound && ds.currentRound.type === 'aclara' && q) {
+        const dur = Math.max(5, Math.min(600, Number(q.content && q.content.duration) || 30));
+        ds.aclara = { level: 0, running: false, since: 0, rate: 1 / dur };
+    } else {
+        ds.aclara = null;
+    }
+}
+function aclaraLevel(ds) {
+    const a = ds.aclara;
+    if (!a) return 0;
+    if (!a.running) return Math.min(1, a.level);
+    return Math.min(1, a.level + (Date.now() - a.since) / 1000 * a.rate);
+}
+function aclaraPause(ds) {
+    const a = ds.aclara;
+    if (!a) return;
+    a.level = aclaraLevel(ds); a.running = false;
+}
+function aclaraMode(ds) {
+    const q = ds.questions[ds.currentQuestionIdx];
+    return (q && q.content && q.content.mode === 'manual') ? 'manual' : 'auto';
+}
+// Puntos según lo nítida que estaba al pulsar: todos con la imagen irreconocible, un 20 % con
+// la imagen casi nítida. Redondeado a 5.
+function aclaraPoints(basePoints, level) {
+    const pts = Math.max(basePoints * 0.2, basePoints * (1 - Math.max(0, Math.min(1, level))));
+    return Math.round(pts / 5) * 5;
+}
+function aclaraView(ds) {
+    if (!ds.aclara) return null;
+    const lvl = aclaraLevel(ds);
+    return { level: lvl, running: ds.aclara.running && lvl < 1, rate: ds.aclara.rate };
+}
+
 function initIdentidadState(ds) {
     const q = ds.questions[ds.currentQuestionIdx];
     if (ds.currentRound && ds.currentRound.type === 'identidad' && q && q.content && q.content.pairs) {
@@ -256,7 +296,7 @@ function rememberResume(state) {
 }
 
 // Pruebas sin temporizador (el coordinador las cierra a mano)
-const NO_TIMER_TYPES = new Set(['pulsador', 'imagen', 'karaoke', 'ruleta', 'imagen_fija', 'cancion']);
+const NO_TIMER_TYPES = new Set(['pulsador', 'imagen', 'karaoke', 'ruleta', 'imagen_fija', 'cancion', 'aclara']);
 // Registro de acciones del coordinador y de los bonos (ds.bonoLog, se guarda con la partida).
 // Cada entrada lleva la hora y en qué ronda/pregunta ocurrió; se conservan las 1000 últimas.
 const LOG_MAX = 1000;
@@ -294,6 +334,7 @@ function finalizeQuestion(state) {
     }
     ds.phase = 'answer_revealed';
     state.pulsadorActivo = false;
+    if (ds.aclara) { ds.aclara.level = 1; ds.aclara.running = false; }
     computeLastQuestionScores(state);
     if (['multirespuesta', 'precio', 'boom', 'identidad'].includes(type)) {
         const lqs = Object.values(ds.lastQuestionScores || {});
@@ -321,6 +362,7 @@ function restoreQuestionResult(state) {
     ds.buzzerWinner = r.buzzerWinner || null;
     ds.buzzerPoints = r.buzzerPoints || 0;
     ds.buzzerFailed = r.buzzerFailed || [];
+    if (ds.currentRound && ds.currentRound.type === 'aclara') ds.aclara = { level: 1, running: false, since: 0, rate: 1 / 30 };
     // Boom ya puntuado: se vuelve a ver con el orden completo
     ds.boomStep = (ds.currentRound && ds.currentRound.type === 'boom' && q.content && Array.isArray(q.content.items)) ? q.content.items.length : null;
     ds.optionsRevealed = true;
@@ -708,7 +750,7 @@ function playerView(state, forPlayers) {
         const type = ds.currentRound && ds.currentRound.type;
         if (ds.phase === 'question' && forPlayers) {
             if (type === 'ruleta' && !ds.rouletteSolved && typeof c.phrase === 'string') c.phrase = maskPhrase(c.phrase, ds.rouletteRevealed || []);
-            if (type === 'imagen') { delete c.image; delete c.answer; }
+            if (type === 'imagen' || type === 'aclara') { delete c.image; delete c.answer; }
         }
         if (ds.phase === 'question' && type === 'boom' && Array.isArray(c.items)) {
             const perm = boomPerm(ds, c.items.length);
@@ -823,6 +865,7 @@ function playerView(state, forPlayers) {
         videoState: ds.videoState || null,
         identidad: ds.identidad ? { revealIndex: ds.identidad.revealIndex } : null,
         boomStep: typeof ds.boomStep === 'number' ? ds.boomStep : null, // posiciones de Boom ya reveladas
+        aclara: aclaraView(ds), // nitidez actual de «Imagen que se aclara» (el cliente la anima desde aquí)
         karaoke: ds.karaoke ? { blocks: ds.karaoke.blocks, blockIdx: ds.karaoke.blockIdx, activeCombo: ds.karaoke.activeCombo, finished: ds.karaoke.finished, winnerColor: ds.karaoke.winnerColor, teamsByColor: ds.karaoke.teamsByColor } : null,
     };
 }
@@ -867,11 +910,11 @@ function avanzarPregunta(state, io, gameId) {
     ds.answers = {};
     ds.revealedCells = [];
     ds.revealedLetters = [];
-    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
     ds.optionsRevealed = false; ds.optionsRevealedAt = null;
     ds.lastQuestionScores = {};
     ds.showTeamResults = false;
-    initIdentidadState(ds);
+    initIdentidadState(ds); initAclaraState(ds);
     if (isNoTimerRound(ds)) {
         ds.timer = { total: 0, remaining: 0, running: false };
     } else {
@@ -1306,7 +1349,13 @@ function attachSocketHandlers(io) {
             if ((state.director.buzzerFailed || []).includes(e.id)) return; // ya falló esta pregunta
             if (state.colaPulsador.find(p => p.id === e.id)) return;
             var elapsed = state.buzzerOpenedAt ? Date.now() - state.buzzerOpenedAt : 0;
-            state.colaPulsador.push({ id: e.id, nombre: e.nombre, tiempo: Date.now(), elapsed: elapsed });
+            const entry = { id: e.id, nombre: e.nombre, tiempo: Date.now(), elapsed: elapsed };
+            if (state.director.aclara && state.director.phase === 'question') {
+                aclaraPause(state.director); // la imagen se congela mientras alguien responde
+                entry.level = state.director.aclara.level;
+                entry.pts = aclaraPoints(getQuestionConfig(state).basePoints, entry.level);
+            }
+            state.colaPulsador.push(entry);
             io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             broadcastDirector(io, gameId, state);
         });
@@ -1528,7 +1577,7 @@ function attachSocketHandlers(io) {
             ds.phase = 'round_intro';
             logAction(state, { action: 'round', name: round.name });
             ds.answers = {};
-            ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
             state.pulsadorActivo = false;
@@ -1545,7 +1594,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
                 ds.optionsRevealed = false; ds.optionsRevealedAt = null;
                 ds.lastQuestionScores = {};
                 ds.showTeamResults = false;
@@ -1553,7 +1602,7 @@ function attachSocketHandlers(io) {
                 ds.qrVisible = false;
                 ds.menuLevel = null;
                 ds.selectedCategory = null;
-                initIdentidadState(ds);
+                initIdentidadState(ds); initAclaraState(ds);
                 if (isNoTimerRound(ds)) {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
@@ -1580,14 +1629,14 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
             ds.premioGanadorVisible = false;
-            initIdentidadState(ds);
+            initIdentidadState(ds); initAclaraState(ds);
             if (isNoTimerRound(ds)) {
                 ds.timer = { total: 0, remaining: 0, running: false };
             } else {
@@ -1625,9 +1674,9 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
                 ds.optionsRevealed = false; ds.optionsRevealedAt = null;
-                initIdentidadState(ds);
+                initIdentidadState(ds); initAclaraState(ds);
                 if (isNoTimerRound(ds)) {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
@@ -1841,6 +1890,38 @@ function attachSocketHandlers(io) {
 
         // ═══════════════════════ IDENTIDAD REVEAL ═══════════════════════
 
+        // ── Imagen que se aclara: empezar/seguir, pausar y nitidez a mano ──
+        const aclaraOpenBuzzer = () => {
+            if (state.pulsadorActivo) return;
+            state.pulsadorActivo = true;
+            state.colaPulsador = [];
+            state.buzzerOpenedAt = Date.now();
+            io.to(roomOf(gameId)).emit('estado_pulsador_cambio', { activo: true, cola: [] });
+        };
+        socket.on('director:aclara_play', () => {
+            const ds = state.director;
+            if (!ds.aclara || ds.phase !== 'question' || ds.aclara.running) return;
+            const lvl = aclaraLevel(ds);
+            if (lvl >= 1) return;
+            ds.aclara.level = lvl; ds.aclara.running = true; ds.aclara.since = Date.now();
+            aclaraOpenBuzzer();
+            broadcastDirector(io, gameId, state);
+        });
+        socket.on('director:aclara_pause', () => {
+            const ds = state.director;
+            if (!ds.aclara || !ds.aclara.running) return;
+            aclaraPause(ds);
+            broadcastDirector(io, gameId, state);
+        });
+        socket.on('director:aclara_set', (data) => {
+            const ds = state.director;
+            const lvl = Number(data && data.level);
+            if (!ds.aclara || ds.phase !== 'question' || !isFinite(lvl)) return;
+            ds.aclara.level = Math.max(0, Math.min(1, lvl)); ds.aclara.running = false;
+            if (ds.aclara.level > 0) aclaraOpenBuzzer();
+            broadcastDirector(io, gameId, state);
+        });
+
         socket.on('director:get_log', () => {
             socket.emit('director:log', { log: state.director.bonoLog || [], count: state.director.logCount || 0 });
         });
@@ -1883,19 +1964,22 @@ function attachSocketHandlers(io) {
             // El acierto consume el turno del equipo en la cola: un segundo toque ya no suma
             const idx = state.colaPulsador.findIndex(p => p.id === data.teamId);
             if (idx === -1) return;
+            const qEntry = state.colaPulsador[idx];
             state.colaPulsador.splice(idx, 1);
             io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             const cfg = getQuestionConfig(state);
             // Bonus por rapidez solo en pruebas con temporizador (ruleta e imagen fija: puntos base)
             const bonus = (!isNoTimerRound(ds) && ds.timer.total > 0) ? Math.floor(cfg.bonusMax * (ds.timer.remaining / ds.timer.total)) : 0;
+            // Imagen que se aclara: vale según lo nítida que estaba cuando pulsó
+            const won = (ds.aclara && typeof qEntry.pts === 'number') ? qEntry.pts : cfg.basePoints + bonus;
             if (!ds.scores[data.teamId]) ds.scores[data.teamId] = 0;
-            ds.scores[data.teamId] += cfg.basePoints + bonus;
+            ds.scores[data.teamId] += won;
             // Con un acierto la pregunta está resuelta: se cierra el pulsador, se vacía la cola (si
             // no, el siguiente aparecería como «primero» y con turno) y se revela la respuesta.
             // El coordinador pasa a la siguiente cuando quiera.
             ds.buzzerWinner = data.teamId;
-            ds.buzzerPoints = cfg.basePoints + bonus;
-            logAction(state, { action: 'correct', team: teamName(state, data.teamId), pts: cfg.basePoints + bonus });
+            ds.buzzerPoints = won;
+            logAction(state, { action: 'correct', team: teamName(state, data.teamId), pts: won });
             state.pulsadorActivo = false;
             state.colaPulsador = [];
             io.to(roomOf(gameId)).emit('estado_pulsador_cambio', { activo: false, cola: [] });
@@ -1919,6 +2003,9 @@ function attachSocketHandlers(io) {
             // Un equipo que falla no puede volver a pulsar en esta pregunta
             if (!ds.buzzerFailed) ds.buzzerFailed = [];
             if (!ds.buzzerFailed.includes(data.teamId)) ds.buzzerFailed.push(data.teamId);
+            if (ds.aclara && ds.phase === 'question' && !state.colaPulsador.length && aclaraMode(ds) === 'auto' && aclaraLevel(ds) < 1) {
+                ds.aclara.running = true; ds.aclara.since = Date.now();
+            }
             io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             broadcastDirector(io, gameId, state);
         });
@@ -2080,7 +2167,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.phase = 'lobby';
             ds.menuLevel = 'home';
@@ -2105,7 +2192,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
@@ -2150,7 +2237,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};

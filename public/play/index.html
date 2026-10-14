@@ -1454,7 +1454,7 @@ function renderGamePhase() {
         }
     } else if (phase === 'question') {
         document.body.classList.toggle('karaoke-active', type === 'karaoke');
-        timerBar.style.display = (type === 'pulsador' || type === 'karaoke') ? 'none' : 'flex';
+        timerBar.style.display = (type === 'pulsador' || type === 'karaoke' || type === 'aclara') ? 'none' : 'flex';
         if (type === 'multirespuesta') {
             renderMulti(); document.getElementById('gp-multi').classList.add('active');
             // Show submit button (disabled during precountdown, enabled after)
@@ -1462,7 +1462,7 @@ function renderGamePhase() {
             _sb.style.display = 'block';
             var _pre = !!(S.ps && S.ps.preCountdown && S.ps.preCountdown > 0);
             _sb.disabled = _pre || S.submitted;
-        } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen' || type === 'imagen_fija' || type === 'ruleta') {
+        } else if (type === 'pulsador' || type === 'cancion' || type === 'imagen' || type === 'imagen_fija' || type === 'ruleta' || type === 'aclara') {
             if (type === 'ruleta') timerBar.style.display = 'none';
             var ifNoBuzzer = type === 'imagen_fija' && S.ps && S.ps.question && !S.ps.question.content.buzzer_enabled;
             if (ifNoBuzzer) {
@@ -1565,7 +1565,7 @@ function submitMulti() {
 function renderBuzzer() {
     var ps = S.ps, q = ps.question; if (!q) return;
     var c = q.content || {};
-    var isPulsadorLike = ps.roundType === 'pulsador' || ps.roundType === 'ruleta' || ps.roundType === 'imagen' || ps.roundType === 'imagen_fija';
+    var isPulsadorLike = ps.roundType === 'pulsador' || ps.roundType === 'ruleta' || ps.roundType === 'imagen' || ps.roundType === 'imagen_fija' || ps.roundType === 'aclara';
     var stmtEl = document.getElementById('buzzerStatement');
     if (isPulsadorLike) {
         stmtEl.style.display = 'none';
@@ -1581,7 +1581,7 @@ function renderBuzzerStatus() {
     var ps = S.ps; if (!ps) return;
     var btn = document.getElementById('buzzBtn');
     var status = document.getElementById('buzzStatus');
-    var isPulsadorLike = ps.roundType === 'pulsador' || ps.roundType === 'ruleta' || ps.roundType === 'imagen' || ps.roundType === 'imagen_fija';
+    var isPulsadorLike = ps.roundType === 'pulsador' || ps.roundType === 'ruleta' || ps.roundType === 'imagen' || ps.roundType === 'imagen_fija' || ps.roundType === 'aclara';
     var myEntry = ps.colaPulsador && ps.colaPulsador.find(function(p) { return p.id === S.myTeamId; });
     var hasBuzzed = !!myEntry;
     var myPos = hasBuzzed ? ps.colaPulsador.indexOf(myEntry) + 1 : 0;
@@ -2070,7 +2070,7 @@ function submitIdentidad() {
 var PLAY_TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
     imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara'
 };
 
 var _playMenuLevel = null;

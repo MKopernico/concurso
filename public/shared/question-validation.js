@@ -58,6 +58,11 @@
         // La respuesta es opcional (el formulario lo indica así): solo se muestra si existe
         break;
       }
+      case 'aclara': {
+        if (!nonEmpty(c.image)) missing.push('image');
+        if (!nonEmpty(c.answer)) missing.push('answer');
+        break;
+      }
       case 'imagen_fija': {
         if (!nonEmpty(c.image) && !nonEmpty(c.video)) missing.push('image_or_video');
         break;

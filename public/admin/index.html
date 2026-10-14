@@ -93,6 +93,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .type-imagen_fija { background: #365314; color: #bef264; }
 .type-identidad { background: #4a1942; color: #f0abfc; }
 .type-karaoke { background: #7c3aed; color: #e9d5ff; }
+.type-aclara { background: #3b2f63; color: #c4b5fd; }
 
 /* Sortable highlight */
 .sort-handle { cursor: grab; color: var(--text2); user-select: none; font-size: 18px; }
@@ -169,6 +170,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .picker-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
 </style>
 <script src="/shared/question-validation.js"></script>
+<script src="/shared/aclara-fx.js"></script>
 <script src="/shared/staff-session.js"></script>
 </head>
 <body>
@@ -386,6 +388,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                     <option value="pulsador">Pulsador rápido</option>
                     <option value="precio">Precio justo</option>
                     <option value="imagen">Adivina la imagen</option>
+                    <option value="aclara">Imagen que se aclara</option>
                     <option value="cancion">Adivina la canción</option>
                     <option value="boom">Boom (ordenar)</option>
                     <option value="ruleta">Ruleta de la suerte</option>
@@ -604,7 +607,7 @@ const TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador rápido', precio: 'Precio justo',
     imagen: 'Adivina imagen', cancion: 'Adivina canción', boom: 'Boom (ordenar)',
     ruleta: 'Ruleta de la suerte', imagen_fija: 'Imagen fija', identidad: 'Identidad',
-    karaoke: 'Karaoke'
+    karaoke: 'Karaoke', aclara: 'Imagen que se aclara'
 };
 
 function statusBadge(s) {
@@ -1200,6 +1203,7 @@ function buildFieldsForType(type, c) {
         case 'pulsador':       return fieldsPulsador(c);
         case 'precio':         return fieldsPrecio(c);
         case 'imagen':         return fieldsImagen(c);
+        case 'aclara':         return fieldsAclara(c);
         case 'cancion':        return fieldsCancion(c);
         case 'boom':           return fieldsBoom(c);
         case 'ruleta':         return fieldsRuleta(c);
@@ -1315,6 +1319,75 @@ function fieldsImagen(c) {
         </div>
         <div class="field"><label>Respuesta a mostrar (opcional)</label><input name="c_answer" value="${esc(c.answer || '')}" placeholder="Texto que se muestra al revelar (ej: Avatar)"></div>
     `;
+}
+
+// ── Imagen que se aclara ──
+function fieldsAclara(c) {
+    setTimeout(() => {
+        // Sin temporizador propio: el ritmo lo marca la duración de abajo
+        const timeOverride = document.querySelector('[name="q_time"]');
+        if (timeOverride) { timeOverride.disabled = true; timeOverride.closest('.field').style.opacity = '.4'; timeOverride.closest('.field').title = 'No aplica: se usa «Segundos hasta verse nítida»'; }
+        const modeSel = document.querySelector('[name="c_mode"]');
+        const sync = () => { const f = document.getElementById('aclara-dur-field'); if (f) f.style.opacity = modeSel.value === 'manual' ? '.4' : ''; };
+        if (modeSel) { modeSel.addEventListener('change', sync); sync(); }
+        ['c_effect'].forEach(n => { const el = document.querySelector('[name="' + n + '"]'); if (el) el.addEventListener('change', aclaraAdminPreview); });
+        const sl = document.getElementById('aclara-prev-slider');
+        if (sl) sl.addEventListener('input', aclaraAdminPreview);
+        // La imagen puede cambiar al subirla o elegirla de la biblioteca: se vigila mientras el formulario está abierto
+        let last = null;
+        const iv = setInterval(() => {
+            const canvas = document.getElementById('aclara-prev-canvas');
+            if (!canvas) { clearInterval(iv); return; }
+            const v = (document.querySelector('[name="c_image"]') || {}).value || '';
+            if (v !== last) { last = v; aclaraAdminPreview(); }
+        }, 500);
+    }, 0);
+    const effect = c.effect === 'blur' ? 'blur' : 'pixel';
+    const mode = c.mode === 'manual' ? 'manual' : 'auto';
+    return `
+        <div class="field"><label>Enunciado (opcional)</label><input name="c_statement" value="${esc(c.statement || '')}" placeholder="¿Qué es esta imagen?"></div>
+        <div class="field"><label>Imagen</label>
+            <div class="upload-row">
+                <input name="c_image" value="${esc(c.image || '')}" required placeholder="Sube una imagen o elige de la biblioteca">
+                <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_image')"></label>
+                ${libBtn('c_image','images')}
+            </div>
+        </div>
+        <div class="field-row-3">
+            <div class="field"><label>Efecto</label><select name="c_effect">
+                <option value="pixel" ${effect === 'pixel' ? 'selected' : ''}>Pixelado</option>
+                <option value="blur" ${effect === 'blur' ? 'selected' : ''}>Desenfoque</option>
+            </select></div>
+            <div class="field"><label>Cómo se aclara</label><select name="c_mode">
+                <option value="auto" ${mode === 'auto' ? 'selected' : ''}>Sola, con el tiempo</option>
+                <option value="manual" ${mode === 'manual' ? 'selected' : ''}>A mano (barra del coordinador)</option>
+            </select></div>
+            <div class="field" id="aclara-dur-field"><label>Segundos hasta verse nítida</label><input type="number" name="c_duration" value="${Number(c.duration) || 30}" min="5" max="600"></div>
+        </div>
+        <div class="field"><label>Vista previa (mueve la barra para ver cómo se aclara)</label>
+            <input type="range" id="aclara-prev-slider" min="0" max="100" value="25" style="width:100%; max-width:320px">
+            <canvas id="aclara-prev-canvas" style="display:block; width:320px; max-width:100%; height:200px; margin-top:6px; border-radius:8px; border:1px solid var(--border); background:#1a1a2e;"></canvas>
+        </div>
+        <div class="field"><label>Respuesta</label><input name="c_answer" value="${esc(c.answer || '')}" placeholder="Lo que tienen que acertar (se muestra al revelar)"></div>
+        <div style="font-size:12px; color:var(--text2); margin-bottom:12px;">Puntos: quien acierta con la imagen irreconocible se lleva todos los puntos base; cuanto más nítida esté al pulsar, menos (mínimo un 20 %). Al pulsar alguien, la imagen se para; si falla, sigue aclarándose.</div>
+    `;
+}
+var _aclaraPrevImg = null, _aclaraPrevSrc = null;
+function aclaraAdminPreview() {
+    const canvas = document.getElementById('aclara-prev-canvas');
+    if (!canvas || !window.AclaraFX) return;
+    const src = (document.querySelector('[name="c_image"]') || {}).value || '';
+    const effect = (document.querySelector('[name="c_effect"]') || {}).value || 'pixel';
+    const level = (Number((document.getElementById('aclara-prev-slider') || {}).value) || 0) / 100;
+    if (!src) { const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+    if (src !== _aclaraPrevSrc) {
+        _aclaraPrevSrc = src; _aclaraPrevImg = null;
+        const im = new Image();
+        im.onload = () => { if (_aclaraPrevSrc === src) { _aclaraPrevImg = im; aclaraAdminPreview(); } };
+        im.src = src;
+        return;
+    }
+    if (_aclaraPrevImg) AclaraFX.draw(canvas, _aclaraPrevImg, effect, level);
 }
 
 function uploadImagenFile(fileInput) {
@@ -1732,6 +1805,15 @@ function extractContent(type, form) {
             });
             return { statement: val(form, 'c_statement'), pairs, explanation: val(form, 'c_explanation') || undefined };
         }
+        case 'aclara':
+            return {
+                statement: val(form, 'c_statement') || undefined,
+                image: val(form, 'c_image'),
+                answer: val(form, 'c_answer') || undefined,
+                effect: val(form, 'c_effect') === 'blur' ? 'blur' : 'pixel',
+                mode: val(form, 'c_mode') === 'manual' ? 'manual' : 'auto',
+                duration: Math.max(5, Math.min(600, Number(val(form, 'c_duration')) || 30))
+            };
         case 'imagen_fija': {
             const ifMode = val(form, 'c_if_media_mode');
             const r = { buzzer_enabled: val(form, 'c_buzzer_enabled') === 'true' };
