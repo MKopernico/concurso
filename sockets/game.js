@@ -176,8 +176,13 @@ function publicView(state) {
     // questionResults (respuestas de todas las preguntas ya jugadas) solo sirve al servidor para
     // no volver a puntuar: crece ~3,5 KB por pregunta y no lo usa ninguna pantalla. Enviarlo en
     // cada actualización hacía que, tras cientos de preguntas, todo fuera cada vez más lento.
-    const { questionResults, ...ds } = rest.director || {};
+    // El registro tampoco viaja entero en cada actualización (puede tener cientos de entradas):
+    // solo el contador y las 5 últimas; el panel lo pide completo con 'director:get_log'.
+    const { questionResults, bonoLog, ...ds } = rest.director || {};
     rest.director = ds;
+    const log = Array.isArray(bonoLog) ? bonoLog : [];
+    ds.logCount = typeof ds.logCount === 'number' ? ds.logCount : log.length;
+    ds.bonoLog = log.slice(-5);
     if (ds && ds.answers) {
         ds.answeredCount = Object.values(ds.answers).filter(a => a.submitted !== false).length;
     }
@@ -252,6 +257,21 @@ function rememberResume(state) {
 
 // Pruebas sin temporizador (el coordinador las cierra a mano)
 const NO_TIMER_TYPES = new Set(['pulsador', 'imagen', 'karaoke', 'ruleta', 'imagen_fija', 'cancion']);
+// Registro de acciones del coordinador y de los bonos (ds.bonoLog, se guarda con la partida).
+// Cada entrada lleva la hora y en qué ronda/pregunta ocurrió; se conservan las 1000 últimas.
+const LOG_MAX = 1000;
+function logAction(state, entry) {
+    const ds = state.director;
+    if (!Array.isArray(ds.bonoLog)) ds.bonoLog = [];
+    if (typeof ds.logCount !== 'number') ds.logCount = ds.bonoLog.length;
+    ds.logCount++; // total de entradas (para el aviso de «no vistas» del coordinador)
+    entry.ts = Date.now();
+    if (ds.currentRound && entry.action !== 'reset') entry.ctx = ds.currentRound.name + (ds.currentQuestionIdx >= 0 ? ' · P' + (ds.currentQuestionIdx + 1) : '');
+    ds.bonoLog.push(entry);
+    if (ds.bonoLog.length > LOG_MAX) ds.bonoLog.splice(0, ds.bonoLog.length - LOG_MAX);
+}
+function teamName(state, id) { const e = state.equipos.find(x => x.id === id); return e ? e.nombre : '?'; }
+
 function isNoTimerRound(ds) { return !!(ds.currentRound && NO_TIMER_TYPES.has(ds.currentRound.type)); }
 
 // Cierra la pregunta en curso: puntúa automáticamente según el tipo, revela y guarda el
@@ -275,6 +295,10 @@ function finalizeQuestion(state) {
     ds.phase = 'answer_revealed';
     state.pulsadorActivo = false;
     computeLastQuestionScores(state);
+    if (['multirespuesta', 'precio', 'boom', 'identidad'].includes(type)) {
+        const lqs = Object.values(ds.lastQuestionScores || {});
+        logAction(state, { action: 'scored', hits: lqs.filter(r => r.correct).length, answered: lqs.filter(r => !r.noAnswer).length, total: lqs.length });
+    }
     const q = ds.questions[ds.currentQuestionIdx];
     if (q) {
         if (!ds.questionResults) ds.questionResults = {};
@@ -919,7 +943,7 @@ function resolverPremioAsignado(state, data, io, gameId) {
             const logEntry = { action: 'awarded', team: eq.nombre, bono: tipo, ts: Date.now() };
             if (tipo === 'puntos') logEntry.cantidad = Number(premioCfg && premioCfg.cantidad) || 0;
             if (tipo === 'anuncio') logEntry.texto = (premioCfg && premioCfg.texto) || null;
-            ds.bonoLog.push(logEntry);
+            logAction(state, logEntry);
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
         }
     } else {
@@ -927,7 +951,7 @@ function resolverPremioAsignado(state, data, io, gameId) {
         ds.premioGanadorTipo = null;
         ds.premioGanadorExtra = null;
         const premioTipo = data && data.premioTipo;
-        if (premioTipo) ds.bonoLog.push({ action: 'awarded', team: null, bono: premioTipo, ts: Date.now() });
+        if (premioTipo) logAction(state, { action: 'awarded', team: null, bono: premioTipo });
     }
     return { extra: ds.premioGanadorExtra, team: ds.premioGanadorTeam, tipo: ds.premioGanadorTipo };
 }
@@ -1185,11 +1209,12 @@ function attachSocketHandlers(io) {
         socket.on('admin_gestionar_bono', (data) => {
             const eq = state.equipos.find(e => e.id === data.equipoId);
             if (!eq) return;
-            if (data.accion === 'add') eq.bonos.push(data.tipo);
+            if (data.accion === 'add') { eq.bonos.push(data.tipo); logAction(state, { action: 'bono_add', team: eq.nombre, bono: data.tipo }); }
             else if (data.accion === 'remove') {
                 const idx = eq.bonos.indexOf(data.tipo);
-                if (idx > -1) eq.bonos.splice(idx, 1);
+                if (idx > -1) { eq.bonos.splice(idx, 1); logAction(state, { action: 'bono_remove', team: eq.nombre, bono: data.tipo }); }
             }
+            broadcastDirector(io, gameId, state);
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
             if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
         });
@@ -1198,6 +1223,7 @@ function attachSocketHandlers(io) {
             const eq = state.equipos.find(e => e.id === data.equipoId);
             if (!eq) return;
             eq.bloqueado = data.bloqueado;
+            logAction(state, { action: data.bloqueado ? 'freeze' : 'unfreeze', team: eq.nombre });
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
             if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq);
         });
@@ -1376,10 +1402,9 @@ function attachSocketHandlers(io) {
             }
             const idx = emisor.bonos.indexOf(data.tipo);
             if (idx > -1) emisor.bonos.splice(idx, 1);
-            state.director.bonoLog.push({
+            logAction(state, {
                 action: 'used', team: emisor.nombre, bono: data.tipo,
-                target: data.tipo === 'freeze' ? (victima && victima.nombre) : null,
-                ts: Date.now()
+                target: data.tipo === 'freeze' ? (victima && victima.nombre) : null
             });
             socket.emit('update_mi_equipo', emisor);
             io.to(roomOf(gameId)).emit('notificacion_bono', { msg: mensaje });
@@ -1475,6 +1500,7 @@ function attachSocketHandlers(io) {
             const idx = state.equipos.findIndex(e => e.id === data.teamId);
             if (idx < 0) return;
             const eq = state.equipos[idx];
+            logAction(state, { action: 'team_removed', team: eq.nombre, pts: state.director.scores[data.teamId] || 0 });
             if (eq.socketId) {
                 io.to(eq.socketId).emit('team_removed');
                 const s = io.sockets.sockets.get(eq.socketId);
@@ -1500,6 +1526,7 @@ function attachSocketHandlers(io) {
             ds.questions = loadRoundQuestions(round.id);
             ds.currentQuestionIdx = -1;
             ds.phase = 'round_intro';
+            logAction(state, { action: 'round', name: round.name });
             ds.answers = {};
             ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.scoreboardVisible = false;
@@ -1814,6 +1841,10 @@ function attachSocketHandlers(io) {
 
         // ═══════════════════════ IDENTIDAD REVEAL ═══════════════════════
 
+        socket.on('director:get_log', () => {
+            socket.emit('director:log', { log: state.director.bonoLog || [], count: state.director.logCount || 0 });
+        });
+
         socket.on('director:reveal_next_pair', () => {
             const ds = state.director;
             // Boom: siguiente posición del orden correcto
@@ -1864,6 +1895,7 @@ function attachSocketHandlers(io) {
             // El coordinador pasa a la siguiente cuando quiera.
             ds.buzzerWinner = data.teamId;
             ds.buzzerPoints = cfg.basePoints + bonus;
+            logAction(state, { action: 'correct', team: teamName(state, data.teamId), pts: cfg.basePoints + bonus });
             state.pulsadorActivo = false;
             state.colaPulsador = [];
             io.to(roomOf(gameId)).emit('estado_pulsador_cambio', { activo: false, cola: [] });
@@ -1883,6 +1915,7 @@ function attachSocketHandlers(io) {
             }
             const idx = state.colaPulsador.findIndex(p => p.id === data.teamId);
             if (idx > -1) state.colaPulsador.splice(idx, 1);
+            logAction(state, { action: 'wrong', team: teamName(state, data.teamId), pts: cfg.penalty > 0 ? -cfg.penalty : 0 });
             // Un equipo que falla no puede volver a pulsar en esta pregunta
             if (!ds.buzzerFailed) ds.buzzerFailed = [];
             if (!ds.buzzerFailed.includes(data.teamId)) ds.buzzerFailed.push(data.teamId);
@@ -1897,6 +1930,7 @@ function attachSocketHandlers(io) {
             const ds = state.director;
             if (!ds.scores[data.teamId]) ds.scores[data.teamId] = 0;
             ds.scores[data.teamId] += pts;
+            if (pts !== 0) logAction(state, { action: 'points', team: teamName(state, data.teamId), pts });
             broadcastDirector(io, gameId, state);
         });
 
@@ -1945,14 +1979,14 @@ function attachSocketHandlers(io) {
         socket.on('director:block_team', (data) => {
             if (!data || !data.teamId) return;
             const eq = state.equipos.find(e => e.id === data.teamId);
-            if (eq) { eq.bloqueado = true; eq.descongelaEn = (state.director.phase === 'question') ? 1 : 2; io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos); if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); }
+            if (eq) { eq.bloqueado = true; eq.descongelaEn = (state.director.phase === 'question') ? 1 : 2; io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos); if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); logAction(state, { action: 'freeze', team: eq.nombre }); }
             broadcastDirector(io, gameId, state);
         });
 
         socket.on('director:unblock_team', (data) => {
             if (!data || !data.teamId) return;
             const eq = state.equipos.find(e => e.id === data.teamId);
-            if (eq) { eq.bloqueado = false; eq.descongelaEn = 0; io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos); if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); }
+            if (eq) { eq.bloqueado = false; eq.descongelaEn = 0; io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos); if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); logAction(state, { action: 'unfreeze', team: eq.nombre }); }
             broadcastDirector(io, gameId, state);
         });
 
@@ -1961,6 +1995,7 @@ function attachSocketHandlers(io) {
             // desde la barra de equipos funciona y nunca queda el pulsador muerto sin aviso.
             state.equipos.forEach(eq => { eq.bloqueado = true; if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); });
             state.bloqueoGlobal = false;
+            logAction(state, { action: 'freeze_all' });
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
             broadcastDirector(io, gameId, state);
         });
@@ -1968,6 +2003,7 @@ function attachSocketHandlers(io) {
         socket.on('director:unblock_all', () => {
             state.equipos.forEach(eq => { eq.bloqueado = false; if (eq.socketId) io.to(eq.socketId).emit('update_mi_equipo', eq); });
             state.bloqueoGlobal = false;
+            logAction(state, { action: 'unfreeze_all' });
             io.to(roomOf(gameId)).emit('actualizar_admin_equipos', state.equipos);
             broadcastDirector(io, gameId, state);
         });
@@ -2058,7 +2094,8 @@ function attachSocketHandlers(io) {
             Object.keys(ds.scores).forEach(k => { ds.scores[k] = 0; });
             // Reset completed rounds
             ds.completedRounds = [];
-            ds.bonoLog = [];
+            ds.bonoLog = []; ds.logCount = 0;
+            logAction(state, { action: 'reset', what: 'session' });
             // Reset round/question state
             ds.currentRoundId = null;
             ds.currentRound = null;
@@ -2100,8 +2137,10 @@ function attachSocketHandlers(io) {
             // Reset all director state
             ds.scores = {};
             ds.completedRounds = [];
-            ds.bonoLog = [];
+            ds.bonoLog = []; ds.logCount = 0;
             ds.currentRoundId = null;
+            ds.currentRound = null; // (antes de registrar: el reinicio no pertenece a ninguna ronda)
+            logAction(state, { action: 'reset', what: 'full' });
             ds.currentRound = null;
             ds.questions = [];
             ds.currentQuestionIdx = -1;
@@ -2272,6 +2311,7 @@ function attachSocketHandlers(io) {
                 if (!ds.scores[teamId]) ds.scores[teamId] = 0;
                 ds.scores[teamId] += pointsPerTeam;
             }
+            logAction(state, { action: 'karaoke', color: data.winnerColor, teams: winnerTeams.map(t => teamName(state, t)), pts: pointsPerTeam });
             broadcastDirector(io, gameId, state);
         });
 

@@ -40,6 +40,7 @@ El usuario no programa: Claude programa, prueba y **pregunta siempre antes de su
 - Handlers de socket envueltos en try/catch + `uncaughtException` registrado: un dato malformado no tumba el proceso. El kit se reinicia solo (`ARRANCAR.bat`, código 2 = no reintentar).
 - Órdenes del coordinador ligadas a pregunta llevan `{at, round}` y se descartan si ya no coinciden (doble toque).
 - `broadcastDirector` agrupa envíos (máx. uno cada 50 ms): imprescindible con muchos iPads.
+- Registro (`logAction` → `ds.bonoLog`, 1000 entradas máx.): al coordinador solo le llegan `logCount` y las 5 últimas; el panel pide el completo con `director:get_log`.
 - Reconexión del mismo iPad: `takeOverTeam` cierra la conexión vieja (antes daba `slot_taken`).
 
 ## Probar (obligatorio tras tocar lógica)
@@ -50,7 +51,8 @@ node tools/tests/test-lote2.js     # 23 (reglas, fugas de solución, coordinador
 node tools/tests/test-lote3.js     # 21 (backoffice, Excel, zip, sesiones)
 node tools/tests/test-loteA-ensayo.js  # 10 (arreglos del ensayo: acierto cierra pulsador, empate Precio, descongelar)
 node tools/tests/test-loteB-ensayo.js  # 8 (resultado en iPads: ganador/puntos del pulsador, respuesta propia, volver a la pregunta)
-node tools/tests/test-loteC-huecos.js  # 8 (Identidad con huecos: vacíos, repetidos, reconexión, puntuación parcial)
+node tools/tests/test-loteC-huecos.js  # 14 (huecos en Identidad: vacíos, repetidos, reconexión; Boom revelado por pasos)
+node tools/tests/test-loteD-registro.js # 11 (registro del coordinador: puntos, aciertos, bonos, congelaciones, reinicios)
 node tools/tests/load-test.js 50   # N iPads simulados: entrada, respuestas, pulsador, bonos, reconexión masiva
 node tools/tests/soak-test.js 15   # resistencia: partida larga (minutos) con los 10 tipos; memoria, temporizadores, latencias, marcador
 node tools/tests/chaos-test.js 10  # red caótica: cortes al azar, zombis, retraso; puntos, equipos y errores

@@ -225,7 +225,13 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .bp-popover .bp-cancel:hover { color: var(--text); }
 
 /* Bono log panel */
-.bl-panel { display: none; position: fixed; z-index: 260; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.5); width: 320px; max-height: 400px; overflow-y: auto; }
+.bl-panel { display: none; position: fixed; z-index: 260; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.5); width: min(380px, calc(100vw - 16px)); max-height: min(520px, 75vh); overflow-y: auto; }
+.bl-panel .bl-filters { display: flex; gap: 4px; flex-wrap: wrap; }
+.bl-panel .bl-filters button { font-family: inherit; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: none; color: var(--text2); cursor: pointer; }
+.bl-panel .bl-filters button.on { background: var(--surface2); color: var(--text); border-color: var(--accent); }
+.bl-panel .bl-ctx { display: block; font-size: 10px; color: var(--text2); }
+.bl-panel .bl-entry.bl-round { background: var(--surface2); border-radius: 6px; padding: 4px 6px; border-bottom: none; }
+.bl-panel .bl-pos { color: var(--success); font-weight: 800; } .bl-panel .bl-neg { color: var(--danger); font-weight: 800; }
 .bl-panel.active { display: flex; flex-direction: column; gap: 6px; }
 .bl-panel .bl-header { display: flex; justify-content: space-between; align-items: center; }
 .bl-panel .bl-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); }
@@ -567,7 +573,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
         <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_premio_anuncio')" title="Anuncio de premio en pantalla"><span>&#127873;</span><span class="hdr-label">Bono</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_premio_ganador')" title="Anuncio de ganador del bono"><span>&#127941;</span><span class="hdr-label">Ganador bono</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_qr')" title="QR acceso jugadores en pantalla"><span>&#128241;</span><span class="hdr-label">QR</span></button>
-        <button class="btn-ghost hdr-btn" id="btnBonoLog" onclick="toggleBonoLog(this)" title="Log de bonos"><span>&#128203;</span><span class="hdr-label">Log</span></button>
+        <button class="btn-ghost hdr-btn" id="btnBonoLog" onclick="toggleBonoLog(this)" title="Registro de puntos, bonos y congelaciones"><span>&#128203;</span><span class="hdr-label">Registro</span></button>
         <button class="btn-accent hdr-btn" onclick="openScreen()" title="Abrir pantalla proyector"><span>&#128250;</span><span class="hdr-label">Pantalla</span></button>
         <button class="btn-danger hdr-btn" onclick="resetSession()" title="Reset puntos (los equipos siguen)"><span>&#128260;</span><span class="hdr-label">Reset pts</span></button>
         <button class="btn-danger hdr-btn" onclick="resetFull()" title="Borrar todo (borra equipos y puntos)"><span>&#128465;</span><span class="hdr-label">Borrar todo</span></button>
@@ -1007,8 +1013,11 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 
 <div class="bl-panel" id="blPanel">
     <div class="bl-header">
-        <span class="bl-label">Log de bonos</span>
+        <span class="bl-label">Registro</span>
         <button class="bl-cancel" onclick="closeBonoLog()">Cerrar</button>
+    </div>
+    <div class="bl-filters" id="blFilters">
+        <button data-f="all" class="on">Todo</button><button data-f="pts">Puntos</button><button data-f="bono">Bonos</button><button data-f="frz">Congelaciones</button>
     </div>
     <div id="blBody"></div>
 </div>
@@ -1064,6 +1073,7 @@ function connectSocket() {
     GSStaff.watchSocket(socket);
     socket.on('connect', () => socket.emit('director:join'));
     socket.on('game:director_sync', onSync);
+    socket.on('director:log', onLogData);
     socket.on('game:timer_tick', (d) => {
         if (S.director) { S.director.timer.remaining = d.remaining; S.director.timer.total = d.total; }
         renderTimer();
@@ -1097,7 +1107,7 @@ function onSync(state) {
     S.bloqueoGlobal = state.bloqueoGlobal;
     render();
     updateBonoLogBadge();
-    if (document.getElementById('blPanel').classList.contains('active')) renderBonoLog();
+    if (document.getElementById('blPanel').classList.contains('active') && S.director && S.director.logCount !== _blFetched) requestLog();
 }
 
 // ═══════════════ Render ═══════════════
@@ -2864,12 +2874,26 @@ var _blSeen = 0;
 var _bonoIcons = { freeze: '❄️', lock_all: '🔒', double: '✖️2', shield: '🛡️', puntos: '➕', anuncio: '🎁' };
 var _bonoNames = { freeze: 'Congelar', lock_all: 'Bloqueo total', double: 'Puntos x2', shield: 'Escudo', puntos: 'Puntos extra', anuncio: 'Premio sorpresa' };
 
+// El registro completo se pide al servidor solo con el panel abierto (no viaja en cada actualización)
+var _blFull = null, _blFetched = -1, _blReqT = null;
+function requestLog() {
+    if (_blReqT) return;
+    _blReqT = setTimeout(function() { _blReqT = null; }, 300);
+    _blFetched = S.director ? S.director.logCount : -1;
+    if (socket) socket.emit('director:get_log');
+}
+function onLogData(d) {
+    _blFull = (d && d.log) || [];
+    _blSeen = (d && d.count) || _blFull.length;
+    updateBonoLogBadge();
+    if (document.getElementById('blPanel').classList.contains('active')) renderBonoLog();
+}
 function toggleBonoLog(btnEl) {
     var panel = document.getElementById('blPanel');
     if (panel.classList.contains('active')) { closeBonoLog(); return; }
     renderBonoLog();
-    var log = (S.director && S.director.bonoLog) || [];
-    _blSeen = log.length;
+    requestLog();
+    _blSeen = (S.director && S.director.logCount) || 0;
     updateBonoLogBadge();
     var rect = btnEl.getBoundingClientRect();
     panel.classList.add('active');
@@ -2885,36 +2909,65 @@ function closeBonoLog() {
     document.getElementById('blPanel').classList.remove('active');
 }
 
+// Qué filtro incluye cada tipo de entrada del registro
+var _blFilter = 'all';
+var _blKind = { awarded: 'bono', used: 'bono', bono_add: 'bono', bono_remove: 'bono', points: 'pts', correct: 'pts', wrong: 'pts', scored: 'pts', karaoke: 'pts', team_removed: 'pts',
+                freeze: 'frz', unfreeze: 'frz', freeze_all: 'frz', unfreeze_all: 'frz' };
+document.getElementById('blFilters').addEventListener('click', function(e) {
+    var b = e.target.closest('button[data-f]'); if (!b) return;
+    _blFilter = b.dataset.f;
+    this.querySelectorAll('button').forEach(function(x) { x.classList.toggle('on', x === b); });
+    renderBonoLog();
+});
+function _blPts(n) { n = Number(n) || 0; return '<span class="' + (n >= 0 ? 'bl-pos' : 'bl-neg') + '">' + (n > 0 ? '+' : '') + n + '</span>'; }
 function renderBonoLog() {
     var body = document.getElementById('blBody');
-    var log = (S.director && S.director.bonoLog) || [];
-    if (!log.length) { body.innerHTML = '<div class="bl-empty">Sin actividad de bonos</div>'; return; }
+    var log = _blFull || (S.director && S.director.bonoLog) || [];
     var html = '';
     for (var i = log.length - 1; i >= 0; i--) {
         var e = log[i];
-        var icon = e.action === 'awarded' ? '🎁' : (_bonoIcons[e.bono] || '⚡');
-        var text = '';
-        if (e.action === 'awarded') {
-            var detalle = '';
-            if (e.bono === 'puntos' && e.cantidad) detalle = ' (+' + e.cantidad + ' pts)';
-            if (e.bono === 'anuncio' && e.texto) { var t = e.texto.length > 30 ? e.texto.substring(0, 30) + '…' : e.texto; detalle = ' («' + esc(t) + '»)'; }
-            text = e.team ? ('<b>' + esc(e.team) + '</b> ganó <b>' + (_bonoNames[e.bono] || e.bono) + '</b>' + detalle)
-                         : ('Nadie ganó <b>' + (_bonoNames[e.bono] || e.bono) + '</b>' + detalle);
-        } else {
-            text = '<b>' + esc(e.team) + '</b> usó <b>' + (_bonoNames[e.bono] || e.bono) + '</b>';
-            if (e.target) text += ' contra <b>' + esc(e.target) + '</b>';
+        var kind = _blKind[e.action];
+        // Las marcas de ronda y los reinicios se ven siempre: dan contexto a lo filtrado
+        if (_blFilter !== 'all' && kind !== _blFilter && e.action !== 'round' && e.action !== 'reset') continue;
+        var icon = '•', text = '', cls = 'bl-entry';
+        var team = '<b>' + esc(e.team || '') + '</b>';
+        var bonoName = '<b>' + (_bonoNames[e.bono] || esc(e.bono || '')) + '</b>';
+        switch (e.action) {
+            case 'awarded':
+                icon = '🎁';
+                var detalle = '';
+                if (e.bono === 'puntos' && e.cantidad) detalle = ' (+' + e.cantidad + ' pts)';
+                if (e.bono === 'anuncio' && e.texto) { var tx = e.texto.length > 30 ? e.texto.substring(0, 30) + '…' : e.texto; detalle = ' («' + esc(tx) + '»)'; }
+                text = e.team ? (team + ' ganó ' + bonoName + detalle) : ('Nadie ganó ' + bonoName + detalle);
+                break;
+            case 'used': icon = _bonoIcons[e.bono] || '⚡'; text = team + ' usó ' + bonoName + (e.target ? ' contra <b>' + esc(e.target) + '</b>' : ''); break;
+            case 'bono_add': icon = '➕'; text = 'Bono ' + bonoName + ' dado a mano a ' + team; break;
+            case 'bono_remove': icon = '➖'; text = 'Bono ' + bonoName + ' quitado a mano a ' + team; break;
+            case 'points': icon = '✏️'; text = team + ' ' + _blPts(e.pts) + ' puntos (a mano)'; break;
+            case 'correct': icon = '✅'; text = team + ' acertó ' + _blPts(e.pts); break;
+            case 'wrong': icon = '❌'; text = team + ' falló' + (e.pts ? ' ' + _blPts(e.pts) : ''); break;
+            case 'scored': icon = '📊'; text = 'Pregunta puntuada: <b>' + e.hits + '</b> de ' + e.total + ' equipos acertaron' + (e.answered < e.total ? ' (' + (e.total - e.answered) + ' sin responder)' : ''); break;
+            case 'karaoke': icon = '🎤'; text = 'Karaoke: ganó el color <b>' + esc(e.color) + '</b> ' + _blPts(e.pts) + ' a ' + (e.teams || []).map(esc).join(', '); break;
+            case 'team_removed': icon = '🗑️'; text = 'Equipo ' + team + ' eliminado' + (e.pts ? ' (tenía ' + e.pts + ' pts)' : ''); break;
+            case 'freeze': icon = '❄️'; text = team + ' congelado por el coordinador'; break;
+            case 'unfreeze': icon = '🔥'; text = team + ' descongelado'; break;
+            case 'freeze_all': icon = '🧊'; text = 'Todos los equipos congelados'; break;
+            case 'unfreeze_all': icon = '🔓'; text = 'Todos los equipos descongelados'; break;
+            case 'round': icon = '▶️'; text = 'Ronda <b>' + esc(e.name) + '</b>'; cls += ' bl-round'; break;
+            case 'reset': icon = '🔄'; text = e.what === 'full' ? 'Partida reiniciada' : 'Puntuaciones reiniciadas'; cls += ' bl-round'; break;
+            default: text = esc(e.action);
         }
         var t = e.ts ? new Date(e.ts) : null;
-        var timeStr = t ? (('0'+t.getHours()).slice(-2) + ':' + ('0'+t.getMinutes()).slice(-2)) : '';
-        html += '<div class="bl-entry"><span class="bl-icon">' + icon + '</span><span class="bl-text">' + text + '</span><span class="bl-time">' + timeStr + '</span></div>';
+        var timeStr = t ? (('0'+t.getHours()).slice(-2) + ':' + ('0'+t.getMinutes()).slice(-2) + ':' + ('0'+t.getSeconds()).slice(-2)) : '';
+        var ctx = (e.ctx && e.action !== 'round') ? '<span class="bl-ctx">' + esc(e.ctx) + '</span>' : '';
+        html += '<div class="' + cls + '"><span class="bl-icon">' + icon + '</span><span class="bl-text">' + text + ctx + '</span><span class="bl-time">' + timeStr + '</span></div>';
     }
-    body.innerHTML = html;
+    body.innerHTML = html || '<div class="bl-empty">' + (log.length ? 'Nada de este tipo todavía' : 'Sin actividad todavía') + '</div>';
 }
 
 function updateBonoLogBadge() {
     var btn = document.getElementById('btnBonoLog');
-    var log = (S.director && S.director.bonoLog) || [];
-    var unseen = log.length - _blSeen;
+    var unseen = ((S.director && S.director.logCount) || 0) - _blSeen;
     var badge = btn.querySelector('.bl-badge');
     if (unseen > 0) {
         if (!badge) { badge = document.createElement('span'); badge.className = 'bl-badge'; btn.appendChild(badge); }
