@@ -112,11 +112,18 @@ input:focus { border-color: var(--accent); }
 /* ── Modo sin pantalla: escenario arriba y botones debajo ── */
 .stage { position: absolute; left: 0; right: 0; top: 0; height: var(--stageH, 60%); z-index: 3; padding: 6px 8px 0; box-sizing: border-box; }
 .stage iframe { width: 100%; height: 100%; border: 0; border-radius: 12px; background: #000; display: block; }
-/* Aviso de sonido (sonido en los iPads): flota encima del escenario sin mover nada; no recoge el
-   toque, que pasa al escenario y activa el sonido allí dentro */
-.stage-sound { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 4; pointer-events: none;
-    padding: 8px 16px; border-radius: 999px; border: 2px solid #fff; background: rgba(0,0,0,.78); color: #fff;
-    font-size: 15px; font-weight: 700; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
+/* Aviso de sonido (sonido en los iPads): grande y en el centro del escenario, imposible de no ver.
+   No mueve nada y no recoge el toque: el toque pasa al escenario y activa el sonido allí dentro.
+   Con un toque basta para toda la partida. */
+.stage-sound { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 4; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+    padding: clamp(14px, 3vh, 24px) clamp(18px, 4vw, 34px); border-radius: 22px; border: 3px solid #fff;
+    background: rgba(0,0,0,.82); color: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.6); max-width: calc(100% - 24px);
+    animation: stage-sound-pulse 1.6s ease-in-out infinite; }
+.stage-sound .ss-icon { font-size: clamp(40px, 9vh, 72px); line-height: 1; }
+.stage-sound .ss-text { font-size: clamp(17px, 3vh, 26px); font-weight: 800; line-height: 1.2; }
+@keyframes stage-sound-pulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.05); } }
+@media (prefers-reduced-motion: reduce) { .stage-sound { animation: none; } }
 .stage-sound[hidden] { display: none; }
 .game-area.has-stage .gphase { top: var(--stageH, 60%); }
 .game-area.has-stage .buzz-btn { width: min(30vh, 46vw, 300px); height: min(30vh, 46vw, 300px); font-size: clamp(1.8rem, 7vmin, 4.5rem); border-width: 5px; }
@@ -584,7 +591,7 @@ body.karaoke-active .player-timer-bar { display: none !important; }
     </div>
     <div class="game-area">
         <!-- Modo sin pantalla: lo que vería la sala (la vista de pantalla incrustada) encima de los botones -->
-        <div class="stage" id="stage" hidden><iframe id="stageFrame" title="Lo que se vería en la pantalla de sala" allow="autoplay; fullscreen"></iframe><div class="stage-sound" id="stageSound" hidden>🔊 Toca la pantalla para activar el sonido</div></div>
+        <div class="stage" id="stage" hidden><iframe id="stageFrame" title="Lo que se vería en la pantalla de sala" allow="autoplay; fullscreen"></iframe><div class="stage-sound" id="stageSound" hidden><span class="ss-icon" aria-hidden="true">🔊</span><span class="ss-text">Toca aquí para activar el sonido</span></div></div>
         <div class="gphase gp-waiting" id="gp-waiting">
             <img id="playerWaitingLogo" class="gs-waiting-logo" style="display:none; max-height:100px; max-width:200px; object-fit:contain;">
         </div>

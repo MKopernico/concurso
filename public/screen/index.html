@@ -724,17 +724,43 @@ function soundAllowed() {
 // Los navegadores no dejan sonar nada hasta el primer toque o clic en la página. Ese primer gesto,
 // donde sea, activa el sonido (y arranca el vídeo si estaba esperando a poder sonar).
 var _soundUnlocked = false;
+// Un único <video> para todas las preguntas: en iOS el permiso para sonar que da el primer toque se
+// queda en el elemento, así que reutilizándolo los vídeos siguientes suenan con el Play del
+// coordinador sin pedir más toques.
+var _ifVid = null;
+function ifVideoEl() {
+    if (!_ifVid) {
+        _ifVid = document.createElement('video');
+        _ifVid.id = 'ifVideo';
+        _ifVid.setAttribute('playsinline', ''); _ifVid.playsInline = true;
+        _ifVid.preload = 'auto';
+    }
+    return _ifVid;
+}
+// ¿Debe ir en silencio ahora? En el iPad, mientras nadie lo haya tocado, el vídeo va en silencio
+// (así arranca a la vez que en los demás); al primer toque, suena.
+function videoMuted() { return !soundAllowed() || (EMBED && !_soundUnlocked); }
+// Arranca el vídeo; si el navegador no le deja sonar, sigue en silencio y se vuelve a pedir el toque
+function playVideo(vid) {
+    var p = vid.play();
+    if (p && p.catch) p.catch(function() {
+        if (vid.muted) return;
+        vid.muted = true; vid.play().catch(function() {});
+        if (EMBED) { _soundUnlocked = false; applyMediaSound(); }
+    });
+}
 function unlockSound() {
     _ifUserGesture = true;
     if (_soundUnlocked || !soundAllowed()) return;
     _soundUnlocked = true;
     initAudioCtx(); try { if (audioCtx && audioCtx.resume) audioCtx.resume(); } catch (e) {}
-    var v = document.getElementById('ifVideo');
-    if (v) {
-        v.muted = false;
-        var tap = document.querySelector('.if-video-tap');
-        if (tap) { tap.remove(); v.play().catch(function() {}); }
-    }
+    var v = ifVideoEl();
+    var tap = document.querySelector('.if-video-tap');
+    if (tap) { tap.remove(); v.muted = false; playVideo(v); }
+    else if (!v.getAttribute('src') || (v.paused && v.currentTime < 0.1)) {
+        // Sin vídeo en marcha: se «bendice» el reproductor dentro del toque para que luego pueda sonar
+        try { v.load(); } catch (e) {}
+    } else v.muted = false; // ya estaba en marcha en silencio: ahora suena
     applyMediaSound();
 }
 window.gsUnlockSound = unlockSound; // el iPad lo llama al tocar cualquier parte de su pantalla
@@ -759,7 +785,7 @@ function applyMediaSound() {
     }
     var vid = document.getElementById('ifVideo');
     if (!vid) return;
-    var mute = !soundAllowed();
+    var mute = videoMuted();
     if (vid.muted !== mute) vid.muted = mute;
 }
 var socket = null;
@@ -853,10 +879,10 @@ function connect() {
     socket.on('game:video_command', function(d) {
         var vid = document.getElementById('ifVideo');
         if (!vid) return;
-        vid.muted = !soundAllowed();
+        vid.muted = videoMuted();
         if (d.action === 'play') {
             if (_ifUserGesture || vid.muted) {
-                vid.play().catch(function() {});
+                playVideo(vid);
             } else {
                 var wrap = document.getElementById('imagenFijaWrap');
                 if (wrap && !wrap.querySelector('.if-video-tap')) {
@@ -876,7 +902,7 @@ function connect() {
         } else if (d.action === 'restart') {
             vid.currentTime = 0;
             if (_ifUserGesture || vid.muted) {
-                vid.play().catch(function() {});
+                playVideo(vid);
             }
         }
     });
@@ -965,7 +991,7 @@ function onSync(data) {
             var vid = document.getElementById('ifVideo');
             if (!vid) return;
             if (data.videoState.action === 'play') {
-                if (_ifUserGesture && !vid.ended) vid.play().catch(function() {});
+                if ((_ifUserGesture || vid.muted) && !vid.ended) playVideo(vid);
             } else if (data.videoState.action === 'pause') {
                 vid.pause();
             }
@@ -1014,8 +1040,8 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
 
     // Stop any playing video when leaving imagen_fija (phase change or question change)
     if (phaseChanged || newQuestion) {
-        var vid = document.getElementById('ifVideo');
-        if (vid) { vid.pause(); vid.removeAttribute('src'); vid.load(); }
+        var vid = _ifVid; // el reproductor es siempre el mismo, esté o no en la página
+        if (vid && vid.getAttribute('src')) { vid.pause(); vid.removeAttribute('src'); vid.load(); }
         _imagenFijaPrevQId = ''; // el vídeo se ha vaciado: volver a montarlo si se relanza la pregunta
     }
 
@@ -1554,10 +1580,7 @@ function renderImagenFijaScreen(c, q) {
     html += '<div class="if-img-zone">';
 
     if (c.video) {
-        var attrs = 'playsinline';
-        if (c.loop) attrs += ' loop';
-        if (!soundAllowed()) attrs += ' muted'; // silenciado desde el principio: así iOS lo deja arrancar solo
-        html += '<video id="ifVideo" ' + attrs + ' src="' + esc(c.video) + '"></video>';
+        // el reproductor (siempre el mismo) se coloca debajo, al montar la pregunta
     } else {
         var imgUrl = c.image || q.media_url || '';
         if (imgUrl) html += '<img src="' + esc(imgUrl) + '" draggable="false">';
@@ -1567,11 +1590,14 @@ function renderImagenFijaScreen(c, q) {
     wrap.innerHTML = html;
 
     if (c.video) {
-        var vid = document.getElementById('ifVideo');
-        if (vid) vid.muted = !soundAllowed();
-        if (vid && c.autoplay) {
+        var vid = ifVideoEl();
+        vid.loop = !!c.loop;
+        vid.muted = videoMuted(); // en silencio desde el principio cuando toca: así iOS lo deja arrancar solo
+        if (vid.getAttribute('src') !== c.video) vid.src = c.video;
+        wrap.querySelector('.if-img-zone').appendChild(vid);
+        if (c.autoplay) {
             if (_ifUserGesture || vid.muted) {
-                vid.play().catch(function() {});
+                playVideo(vid);
             } else {
                 var tapBtn = document.createElement('button');
                 tapBtn.className = 'if-video-tap';
