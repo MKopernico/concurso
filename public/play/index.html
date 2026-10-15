@@ -113,7 +113,7 @@ input:focus { border-color: var(--accent); }
 .game-area.stage-full .stage iframe { border-radius: 0; }
 /* Karaoke sobre el escenario: solo el marco y el aviso del color del equipo */
 #karaokePlayWrap.over-stage { pointer-events: none; background: transparent; }
-#karaokePlayWrap.over-stage .karaoke-play-bg, #karaokePlayWrap.over-stage .karaoke-play-logo { display: none; }
+#karaokePlayWrap.over-stage .karaoke-play-logo { display: none; }
 .gp-buzzer .q-statement { font-size: 28px; font-weight: 600; line-height: 1.4; text-align: center; max-width: 500px; padding: 16px 24px 0; flex-shrink: 0; }
 .buzz-btn-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; width: 100%; gap: 12px; }
 .buzz-btn { width: min(60vmin, 60vw, 60vh, 400px); height: min(60vmin, 60vw, 60vh, 400px); border-radius: 50%; font-size: clamp(3rem, 15vmin, 10rem); font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: 6px solid var(--danger); background: radial-gradient(circle, #dc2626 0%, #991b1b 100%); color: #fff; box-shadow: 0 8px 30px rgba(220,38,38,.4); flex-shrink: 0; }
@@ -294,18 +294,8 @@ input:focus { border-color: var(--accent); }
 /* ── Karaoke play ── */
 .gp-karaoke { padding: 0; }
 #karaokePlayWrap { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; }
-.karaoke-play-bg { position: absolute; inset: 0; z-index: 0; }
-.karaoke-play-bg.kp-grid-1 { display: block; }
-.karaoke-play-bg.kp-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
-.karaoke-play-bg.kp-grid-4 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
-.karaoke-play-zone { min-height: 0; min-width: 0; transition: opacity 300ms ease, filter 300ms ease; }
-.karaoke-play-zone--active { opacity: 1; filter: none; }
-.karaoke-play-zone--muted { opacity: 1; filter: grayscale(80%) brightness(0.3); }
 /* Marco del color del equipo durante toda la prueba */
-.karaoke-play-frame { position: absolute; inset: 0; z-index: 2; pointer-events: none; border: 18px solid var(--kcol); box-shadow: inset 0 0 0 3px rgba(255,255,255,.55), inset 0 0 40px rgba(0,0,0,.45); }
-.karaoke-play-tag { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 3; padding: 10px 22px; border-radius: 999px; background: var(--kcol); color: #fff; font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; text-shadow: 0 1px 4px rgba(0,0,0,.6); box-shadow: 0 4px 18px rgba(0,0,0,.5); border: 3px solid rgba(255,255,255,.7); }
-.karaoke-play-tag.singing { animation: kpPulse 1s ease-in-out infinite; }
-@keyframes kpPulse { 0%,100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.08); } }
+.karaoke-play-frame { position: absolute; inset: 0; z-index: 2; pointer-events: none; border: 22px solid var(--kcol); box-shadow: inset 0 0 0 3px rgba(255,255,255,.55), inset 0 0 70px var(--kcol); }
 .karaoke-play-logo { position: relative; z-index: 1; max-width: 40vw; max-height: 30vh; object-fit: contain; filter: drop-shadow(0 4px 16px rgba(0,0,0,.6)); }
 body.karaoke-active .game-top,
 body.karaoke-active .player-timer-bar { display: none !important; }
@@ -2413,62 +2403,22 @@ function renderRevealed() {
 }
 
 // ── Karaoke play ──
+// Karaoke en el iPad: solo el marco del color que le ha tocado al equipo, encendido toda la prueba.
+// A propósito no dice cuándo le toca cantar: los equipos lo tienen que ver en la pantalla.
 function renderKaraokePlay() {
     var wrap = document.getElementById('karaokePlayWrap');
     var ps = S.ps;
-    var q = ps.question || {};
-    var c = q.content || {};
-    var colors = c.colors || [];
-    var numColors = c.numColors || colors.length;
     var ks = ps.karaoke || null;
-
-    var activeCombo = ks ? ks.activeCombo : null;
-    var finished = ks ? ks.finished : false;
-    var blockIdx = ks ? ks.blockIdx : -1;
-
-    var bgHtml = renderKaraokePlayBackground(colors, numColors, activeCombo, finished, blockIdx);
-
     var logoSrc = (ps.roundTheme && ps.roundTheme.logo) || (ps.typeTheme && ps.typeTheme.logo) || (ps.gameTheme && ps.gameTheme.logo) || null;
     var logoHtml = logoSrc ? '<img class="karaoke-play-logo" src="' + esc(logoSrc) + '" onerror="this.style.display=\'none\'">' : '';
-
     // Color de este equipo (varios equipos pueden compartir color y cantan juntos)
     var myCol = null;
     var tbc = ks && ks.teamsByColor;
     if (tbc && S.myTeamId) Object.keys(tbc).forEach(function(col) { if ((tbc[col] || []).indexOf(S.myTeamId) >= 0) myCol = col; });
-    var frameHtml = '';
-    if (myCol) {
-        var myHex = (window.KARAOKE_COLOR_HEX || {})[myCol] || '#888';
-        var singing = !finished && activeCombo && blockIdx >= 0 && activeCombo.indexOf(myCol) >= 0;
-        var label = finished ? (ks.winnerColor === myCol ? '🏆 ¡Ganó vuestro color!' : 'Color ' + myCol)
-                  : singing ? '🎤 ¡Cantáis! · ' + myCol : 'Vuestro color: ' + myCol;
-        frameHtml = '<div class="karaoke-play-frame" style="--kcol:' + myHex + '"></div>'
-                  + '<div class="karaoke-play-tag' + (singing ? ' singing' : '') + '" style="--kcol:' + myHex + '">' + esc(label) + '</div>';
-    }
-    var html = bgHtml + logoHtml + frameHtml;
+    var frameHtml = myCol ? '<div class="karaoke-play-frame" style="--kcol:' + ((window.KARAOKE_COLOR_HEX || {})[myCol] || '#888') + '"></div>' : '';
+    var html = logoHtml + frameHtml;
     if (wrap._kHtml !== html) { wrap.innerHTML = html; wrap._kHtml = html; }
     wrap.classList.toggle('over-stage', !!ps.noScreen);
-}
-
-function renderKaraokePlayBackground(colors, numColors, activeCombo, finished, blockIdx) {
-    var hex = window.KARAOKE_COLOR_HEX || {};
-    var gridClass = 'kp-grid-' + (numColors <= 1 ? '1' : numColors <= 2 ? '2' : '4');
-    var html = '<div class="karaoke-play-bg ' + gridClass + '">';
-
-    for (var i = 0; i < numColors; i++) {
-        var col = colors[i] || 'rojo';
-        var colHex = hex[col] || '#888';
-        var isActive = false;
-        if (finished) {
-            isActive = true;
-        } else if (activeCombo && activeCombo.length > 0 && blockIdx >= 0) {
-            isActive = activeCombo.indexOf(col) >= 0;
-        }
-        var modClass = isActive ? 'karaoke-play-zone--active' : 'karaoke-play-zone--muted';
-        html += '<div class="karaoke-play-zone ' + modClass + '" style="background:' + colHex + ';"></div>';
-    }
-
-    html += '</div>';
-    return html;
 }
 
 // ── Timer ──
