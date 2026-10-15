@@ -25,6 +25,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
 .header-actions .hdr-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px 4px; min-width: 0; flex: 1; border-radius: 8px; font-size: 20px; line-height: 1; white-space: nowrap; }
 .header-actions .hdr-btn .hdr-label { font-size: 10px; font-weight: 600; line-height: 1.1; }
 .header-actions .hdr-btn.btn-accent { font-size: 18px; }
+.header-actions .hdr-btn.no-screen-on { background: rgba(250,204,21,.15); border-color: #facc15; color: #facc15; }
 
 /* Buttons */
 button { cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; border: none; border-radius: 6px; padding: 8px 14px; transition: .15s; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
@@ -583,6 +584,8 @@ body.round-type-karaoke #headerTimer { display: none !important; }
         <button class="btn-ghost hdr-btn" onclick="emit('director:show_home')" title="Menu Home"><span>&#127968;</span><span class="hdr-label">Home</span></button>
         <button class="btn-ghost hdr-btn" onclick="toggleScoreboard()" title="Marcador"><span>&#127942;</span><span class="hdr-label">Ranking</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:show_waiting')" title="Espera"><span>&#9208;</span><span class="hdr-label">Espera</span></button>
+        <button class="btn-ghost hdr-btn" id="btnNoScreen" onclick="toggleNoScreen()" title="Modo sin pantalla: los iPads muestran también lo de la pantalla de sala"><span id="noScreenIcon">&#128250;</span><span class="hdr-label" id="noScreenLabel">Con pantalla</span></button>
+        <button class="btn-ghost hdr-btn" id="btnAudioOn" onclick="toggleAudioOn()" title="Dónde suenan los vídeos y efectos sin pantalla" style="display:none"><span>&#128266;</span><span class="hdr-label" id="audioOnLabel">Sonido: ordenador</span></button>
         <button class="btn-ghost hdr-btn" id="btnRefreshContent" onclick="refreshContent()" title="Aplicar cambios en caliente"><span>&#128259;</span><span class="hdr-label">Cargar</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_premio_anuncio')" title="Anuncio de premio en pantalla"><span>&#127873;</span><span class="hdr-label">Bono</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_premio_ganador')" title="Anuncio de ganador del bono"><span>&#127941;</span><span class="hdr-label">Ganador bono</span></button>
@@ -1146,6 +1149,7 @@ function onSync(state) {
     S.colaPulsador = state.colaPulsador || [];
     S.bloqueoGlobal = state.bloqueoGlobal;
     render();
+    renderNoScreen();
     updateBonoLogBadge();
     if (document.getElementById('blPanel').classList.contains('active') && S.director && S.director.logCount !== _blFetched) requestLog();
 }
@@ -1494,6 +1498,21 @@ function onRecoveryCode(d) {
         + 'Seguirá siendo <b>' + esc(d.team) + '</b> con sus puntos y bonos. Vale ' + d.minutes + ' minutos y una sola vez; el iPad viejo queda desconectado.';
     document.getElementById('recoverBox').style.display = 'flex';
 }
+// ── Modo sin pantalla ──
+function toggleNoScreen() { emit('director:set_no_screen', { on: !(S.director && S.director.noScreen) }); }
+function toggleAudioOn() { emit('director:set_audio', { where: (S.director && S.director.audioOn === 'ipads') ? 'sala' : 'ipads' }); }
+function renderNoScreen() {
+    var ds = S.director || {};
+    var on = !!ds.noScreen;
+    var b = document.getElementById('btnNoScreen');
+    b.classList.toggle('no-screen-on', on);
+    document.getElementById('noScreenIcon').innerHTML = on ? '&#128245;' : '&#128250;';
+    document.getElementById('noScreenLabel').textContent = on ? 'Sin pantalla' : 'Con pantalla';
+    var a = document.getElementById('btnAudioOn');
+    a.style.display = on ? '' : 'none';
+    document.getElementById('audioOnLabel').textContent = ds.audioOn === 'ipads' ? 'Sonido: iPads' : 'Sonido: ordenador';
+}
+
 function closeEditTeamModal() { document.getElementById('editTeamModal').classList.remove('active'); editTeamId = null; }
 function submitEditTeam() {
     if (!editTeamId) return;
@@ -3057,6 +3076,8 @@ function renderBonoLog() {
             case 'wrong': icon = '❌'; text = team + ' falló' + (e.pts ? ' ' + _blPts(e.pts) : ''); break;
             case 'scored': icon = '📊'; text = 'Pregunta puntuada: <b>' + e.hits + '</b> de ' + e.total + ' equipos acertaron' + (e.answered < e.total ? ' (' + (e.total - e.answered) + ' sin responder)' : ''); break;
             case 'karaoke': icon = '🎤'; text = 'Karaoke: ganó el color <b>' + esc(e.color) + '</b> ' + _blPts(e.pts) + ' a ' + (e.teams || []).map(esc).join(', '); break;
+            case 'no_screen': icon = e.on ? '📵' : '📺'; text = e.on ? 'Modo <b>sin pantalla</b> activado' : 'Vuelve la pantalla de sala'; break;
+            case 'audio': icon = '🔊'; text = 'El sonido pasa a ' + (e.where === 'ipads' ? '<b>los iPads</b>' : '<b>el ordenador</b>'); break;
             case 'recovered': icon = '📱'; text = team + ' pasó a otro iPad'; break;
             case 'team_removed': icon = '🗑️'; text = 'Equipo ' + team + ' eliminado' + (e.pts ? ' (tenía ' + e.pts + ' pts)' : ''); break;
             case 'freeze': icon = '❄️'; text = team + ' congelado por el coordinador'; break;

@@ -102,6 +102,18 @@ input:focus { border-color: var(--accent); }
     background: rgba(0,212,255,.2); border: 2px solid #00d4ff; border-radius: 16px; backdrop-filter: blur(6px); flex-shrink: 0; }
 
 .gp-buzzer { align-items: center; justify-content: flex-start; padding: 0; gap: 0; position: relative; }
+/* ── Modo sin pantalla: escenario arriba y botones debajo ── */
+.stage { position: absolute; left: 0; right: 0; top: 0; height: var(--stageH, 60%); z-index: 3; padding: 6px 8px 0; box-sizing: border-box; }
+.stage iframe { width: 100%; height: 100%; border: 0; border-radius: 12px; background: #000; display: block; }
+.game-area.has-stage .gphase { top: var(--stageH, 60%); }
+.game-area.has-stage .buzz-btn { width: min(30vh, 46vw, 300px); height: min(30vh, 46vw, 300px); font-size: clamp(1.8rem, 7vmin, 4.5rem); border-width: 5px; }
+.game-area.has-stage .gp-buzzer .q-statement { display: none; }
+.game-area.stage-full { --stageH: 100%; }
+.game-area.stage-full .stage { padding: 0; }
+.game-area.stage-full .stage iframe { border-radius: 0; }
+/* Karaoke sobre el escenario: solo el marco y el aviso del color del equipo */
+#karaokePlayWrap.over-stage { pointer-events: none; background: transparent; }
+#karaokePlayWrap.over-stage .karaoke-play-bg, #karaokePlayWrap.over-stage .karaoke-play-logo { display: none; }
 .gp-buzzer .q-statement { font-size: 28px; font-weight: 600; line-height: 1.4; text-align: center; max-width: 500px; padding: 16px 24px 0; flex-shrink: 0; }
 .buzz-btn-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; width: 100%; gap: 12px; }
 .buzz-btn { width: min(60vmin, 60vw, 60vh, 400px); height: min(60vmin, 60vw, 60vh, 400px); border-radius: 50%; font-size: clamp(3rem, 15vmin, 10rem); font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: 6px solid var(--danger); background: radial-gradient(circle, #dc2626 0%, #991b1b 100%); color: #fff; box-shadow: 0 8px 30px rgba(220,38,38,.4); flex-shrink: 0; }
@@ -563,6 +575,8 @@ body.karaoke-active .player-timer-bar { display: none !important; }
         <div class="my-score" id="myScore">0</div>
     </div>
     <div class="game-area">
+        <!-- Modo sin pantalla: lo que vería la sala (la vista de pantalla incrustada) encima de los botones -->
+        <div class="stage" id="stage" hidden><iframe id="stageFrame" title="Lo que se vería en la pantalla de sala" allow="autoplay; fullscreen"></iframe></div>
         <div class="gphase gp-waiting" id="gp-waiting">
             <img id="playerWaitingLogo" class="gs-waiting-logo" style="display:none; max-height:100px; max-width:200px; object-fit:contain;">
         </div>
@@ -940,6 +954,7 @@ function resetPlayerUI() {
     try { paintPlayBgLayer(null); } catch (e) {}
     _pendingAnswers = {};
     _lastAnswer = null;
+    try { updateStage(); } catch (e) {} // fuera del juego, el escenario se oculta (y se libera si ya no hay partida)
 }
 
 // El pase ya no vale (p.ej. cambiaron el código del juego): olvidarlo y volver a la lista.
@@ -1530,6 +1545,32 @@ function renderGamePhase() {
     _prevPlayerPhase = phase;
     _prevPlayerQIdx = ps.questionIdx;
     _prevPlayerOptsRevealed = ps.optionsRevealed;
+    updateStage();
+}
+
+// ── Modo sin pantalla: escenario ──
+// En las pruebas en las que el iPad no muestra el contenido (solo el pulsador), se ve encima la
+// vista de la pantalla de sala. Se carga en cuanto el modo está activo, para que esté lista.
+var STAGE_TYPES = { pulsador: 1, ruleta: 1, imagen: 1, imagen_fija: 1, cancion: 1, aclara: 1, karaoke: 1 };
+function updateStage() {
+    var ps = S.ps;
+    var area = document.querySelector('#screen-game .game-area');
+    var stage = document.getElementById('stage');
+    var frame = document.getElementById('stageFrame');
+    if (!area || !stage) return;
+    var mode = !!(ps && ps.noScreen && S.gameId);
+    if (mode) {
+        var want = '/screen/' + encodeURIComponent(S.gameId) + '?embed=1';
+        if (frame.dataset.src !== want) { frame.dataset.src = want; frame.src = want; }
+    } else if (frame.dataset.src) {
+        frame.dataset.src = ''; frame.src = 'about:blank'; // sin modo, se libera
+    }
+    var on = mode && ps.phase === 'question' && !!STAGE_TYPES[ps.roundType];
+    var c = (ps && ps.question && ps.question.content) || {};
+    var full = on && (ps.roundType === 'karaoke' || (ps.roundType === 'imagen_fija' && c.buzzer_enabled === false));
+    stage.hidden = !on;
+    area.classList.toggle('has-stage', on);
+    area.classList.toggle('stage-full', full);
 }
 
 // ── Multirespuesta ──
@@ -2405,6 +2446,7 @@ function renderKaraokePlay() {
     }
     var html = bgHtml + logoHtml + frameHtml;
     if (wrap._kHtml !== html) { wrap.innerHTML = html; wrap._kHtml = html; }
+    wrap.classList.toggle('over-stage', !!ps.noScreen);
 }
 
 function renderKaraokePlayBackground(colors, numColors, activeCombo, finished, blockIdx) {

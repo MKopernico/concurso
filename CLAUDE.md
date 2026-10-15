@@ -42,6 +42,7 @@ El usuario no programa: Claude programa, prueba y **pregunta siempre antes de su
 - `broadcastDirector` agrupa envíos (máx. uno cada 50 ms): imprescindible con muchos iPads.
 - Registro (`logAction` → `ds.bonoLog`, 1000 entradas máx.): al coordinador solo le llegan `logCount` y las 5 últimas; el panel pide el completo con `director:get_log`.
 - Reconexión del mismo iPad: `takeOverTeam` cierra la conexión vieja (antes daba `slot_taken`).
+- Sin pantalla (`ds.noScreen`, `ds.audioOn` sala|ipads; valor inicial en `theme.noScreen` / `theme.audio`): el iPad incrusta `/screen/<id>?embed=1` como escenario (`updateStage` en play) en los tipos sin contenido propio. La vista incrustada no precarga, no cuenta como pantalla y solo suena si `audioOn === 'ipads'` (`soundAllowed`).
 - Equipo a otro iPad: `director:recovery_code` (código en `state._recovery`, 10 min, un uso) → `player:recover_team` cambia el `device_id` del equipo. QR: `/play/?g=&p=&r=`.
 
 ## Probar (obligatorio tras tocar lógica)
@@ -56,6 +57,7 @@ node tools/tests/test-loteC-huecos.js  # 14 (huecos en Identidad: vacíos, repet
 node tools/tests/test-loteD-registro.js # 11 (registro del coordinador: puntos, aciertos, bonos, congelaciones, reinicios)
 node tools/tests/test-loteD-aclara.js   # 15 (Imagen que se aclara: avance, pausa al pulsar, fallo reanuda, puntos por nitidez, modo a mano, Excel)
 node tools/tests/test-loteD-recuperar.js # 10 (pasar un equipo a otro iPad con código de un solo uso)
+node tools/tests/test-loteE-sinpantalla.js # 9 (modo sin pantalla y dónde suena: backoffice, coordinador, vista incrustada)
 node tools/tests/load-test.js 50   # N iPads simulados: entrada, respuestas, pulsador, bonos, reconexión masiva
 node tools/tests/soak-test.js 15   # resistencia: partida larga (minutos) con los 10 tipos; memoria, temporizadores, latencias, marcador
 node tools/tests/chaos-test.js 10  # red caótica: cortes al azar, zombis, retraso; puntos, equipos y errores

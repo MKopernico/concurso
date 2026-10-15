@@ -294,6 +294,18 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 <div class="field"><label>Nota interna</label><input name="note" placeholder="Opcional"></div>
             </div>
 
+            <div class="section-label">Pantalla de sala</div>
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:8px 10px; border-radius:var(--radius); background:rgba(0,212,255,.05); border:1px solid var(--border); margin-bottom:10px">
+                <input type="checkbox" name="theme_no_screen" style="width:auto; accent-color:var(--accent)">
+                <span><strong>Este juego va sin pantalla</strong> <span style="font-size:12px; color:var(--text2)">(los iPads muestran también lo que se vería en el proyector; el coordinador lo puede cambiar en directo)</span></span>
+            </label>
+            <div class="field"><label>Sin pantalla, el sonido de vídeos y efectos sale de…</label>
+                <select name="theme_audio">
+                    <option value="sala">El ordenador (página «Pantalla» abierta con altavoces, aunque no haya proyector)</option>
+                    <option value="ipads">Cada iPad</option>
+                </select>
+            </div>
+
             <div class="section-label">Personalización visual</div>
             <div class="field"><label>Logo del juego</label>
                 <div class="upload-row">
@@ -1943,6 +1955,8 @@ function buildThemeFromForm(form) {
         else if (bgType === 'image') theme.backgroundImage = form.theme_bg_image.value.trim();
     }
     if (form.theme_bg_apply_all.checked) theme.backgroundApplyToAll = true;
+    if (form.theme_no_screen.checked) theme.noScreen = true;
+    if (form.theme_audio.value === 'ipads') theme.audio = 'ipads';
     // Home background
     const homeBg = form.theme_home_bg.value.trim();
     if (homeBg) theme.homeBackground = homeBg;
@@ -2002,6 +2016,8 @@ function populateThemeForm(form, theme) {
     }
     // Home background
     form.theme_home_bg.value = theme.homeBackground || '';
+    form.theme_no_screen.checked = !!theme.noScreen;
+    form.theme_audio.value = theme.audio === 'ipads' ? 'ipads' : 'sala';
     // Render per-type logo and background fields
     renderTypeLogos(theme.types || {});
     form.freeze_mode.value = theme.freezeMode || 'coordinador';

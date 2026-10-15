@@ -69,11 +69,20 @@ function createGameState() {
     };
 }
 
+// Modo sin pantalla y dónde suena: el backoffice da el valor de partida (tema del juego) y el
+// coordinador lo puede cambiar en directo (ds.noScreen / ds.audioOn).
+function applyScreenDefaults(s) {
+    const t = s._gameTheme || {};
+    s.director.noScreen = !!t.noScreen;
+    s.director.audioOn = t.audio === 'ipads' ? 'ipads' : 'sala';
+}
+
 function getOrCreateState(gameId) {
     let s = gameStates.get(gameId);
     if (!s) {
         s = createGameState();
         s._gameTheme = loadGameTheme(gameId);
+        applyScreenDefaults(s);
         s._rounds = db.prepare('SELECT id, name, type, config FROM rounds WHERE game_id = ? ORDER BY sort_order, id').all(gameId);
         // Load teams from active session in DB
         const session = db.prepare('SELECT id, state FROM sessions WHERE game_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(gameId);
@@ -108,6 +117,8 @@ function snapshotOf(state) {
         bonoLog: ds.bonoLog,
         questionResults: ds.questionResults || {},
         bloqueoGlobal: !!state.bloqueoGlobal,
+        noScreen: !!ds.noScreen,
+        audioOn: ds.audioOn || 'sala',
         teams: Object.fromEntries(state.equipos.map(e => [e.id, { bonos: e.bonos || [], bloqueado: !!e.bloqueado, descongelaEn: e.descongelaEn || 0 }])),
     });
 }
@@ -126,6 +137,8 @@ function restoreSnapshot(s, json) {
     s.director.bonoLog = Array.isArray(snap.bonoLog) ? snap.bonoLog : [];
     s.director.questionResults = (snap.questionResults && typeof snap.questionResults === 'object') ? snap.questionResults : {};
     s.bloqueoGlobal = !!snap.bloqueoGlobal;
+    if (typeof snap.noScreen === 'boolean') s.director.noScreen = snap.noScreen;
+    if (snap.audioOn === 'ipads' || snap.audioOn === 'sala') s.director.audioOn = snap.audioOn;
     s._lastSnapshot = json;
 }
 
@@ -164,6 +177,7 @@ function resetGameForNewSession(gameId, sessionId) {
         _gameTheme: loadGameTheme(gameId),
         _rounds: db.prepare('SELECT id, name, type, config FROM rounds WHERE game_id = ? ORDER BY sort_order, id').all(gameId),
     });
+    applyScreenDefaults(s);
     if (_io) {
         _io.to(roomOf(gameId)).emit('game:reset_full');
         broadcastDirector(_io, gameId, s);
@@ -866,6 +880,8 @@ function playerView(state, forPlayers) {
         identidad: ds.identidad ? { revealIndex: ds.identidad.revealIndex } : null,
         boomStep: typeof ds.boomStep === 'number' ? ds.boomStep : null, // posiciones de Boom ya reveladas
         aclara: aclaraView(ds), // nitidez actual de «Imagen que se aclara» (el cliente la anima desde aquí)
+        noScreen: !!ds.noScreen,          // modo sin pantalla: los iPads llevan el escenario
+        audioOn: ds.audioOn || 'sala',    // dónde suena (vídeo y efectos): 'sala' (ordenador) o 'ipads'
         karaoke: ds.karaoke ? { blocks: ds.karaoke.blocks, blockIdx: ds.karaoke.blockIdx, activeCombo: ds.karaoke.activeCombo, finished: ds.karaoke.finished, winnerColor: ds.karaoke.winnerColor, teamsByColor: ds.karaoke.teamsByColor } : null,
     };
 }
@@ -1503,8 +1519,9 @@ function attachSocketHandlers(io) {
             socket.emit('game:director_sync', publicView(state));
         });
 
-        socket.on('screen:join', () => {
+        socket.on('screen:join', (data) => {
             socket.isScreen = true;
+            socket.isEmbed = !!(data && data.embed); // escenario dentro de un iPad (modo sin pantalla)
             socket.join(roomOf(gameId));
             socket.join(`screens:${gameId}`);
             state._gameTheme = loadGameTheme(gameId);
@@ -1969,6 +1986,22 @@ function attachSocketHandlers(io) {
             state._recovery[code] = { teamId: eq.id, exp: now + 10 * 60 * 1000 };
             const gRow = db.prepare('SELECT access_code FROM games WHERE id = ?').get(gameId);
             socket.emit('director:recovery_code', { teamId: eq.id, team: eq.nombre, code, gameId, pass: auth.gamePass(gameId, gRow && gRow.access_code), minutes: 10 });
+        });
+
+        // ── Modo sin pantalla y sonido ──
+        socket.on('director:set_no_screen', (data) => {
+            const on = !!(data && data.on);
+            if (state.director.noScreen === on) return;
+            state.director.noScreen = on;
+            logAction(state, { action: 'no_screen', on });
+            broadcastDirector(io, gameId, state);
+        });
+        socket.on('director:set_audio', (data) => {
+            const where = data && data.where === 'ipads' ? 'ipads' : 'sala';
+            if (state.director.audioOn === where) return;
+            state.director.audioOn = where;
+            logAction(state, { action: 'audio', where });
+            broadcastDirector(io, gameId, state);
         });
 
         socket.on('director:get_log', () => {

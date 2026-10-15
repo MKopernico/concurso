@@ -439,6 +439,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 
 /* ═══════════════ PARTICLES ═══════════════ */
 .particles { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+/* Vista incrustada en el iPad (modo sin pantalla): sin botón de pantalla completa ni QR de entrada */
+html.embed #fsBtn, html.embed #qrOverlay, html.embed .conn-dot { display: none !important; }
+.embed-sound-hint { position: fixed; top: 10px; right: 10px; z-index: 9999; padding: 10px 16px; border-radius: 999px; border: 2px solid #fff; background: rgba(0,0,0,.75); color: #fff; font: 700 16px system-ui, sans-serif; cursor: pointer; }
 .particle { position: absolute; border-radius: 50%; opacity: 0; animation: particleFloat linear infinite; }
 @keyframes particleFloat {
     0% { opacity: 0; transform: translateY(100vh) scale(0); }
@@ -673,7 +676,42 @@ var GST = GameShowShared.Transitions;
 
 // ═══════════════ STATE ═══════════════
 var gameId = location.pathname.split('/').filter(Boolean)[1] || '';
+// Modo sin pantalla: cada iPad lleva esta misma vista incrustada como «escenario» (?embed=1).
+// Incrustada no precarga (ya lo hace el iPad), no pide pantalla completa, no lleva partículas,
+// no cuenta como «Pantalla» para el coordinador y solo suena si el sonido va en los iPads.
+var EMBED = /[?&]embed=1/.test(location.search);
+if (EMBED) document.documentElement.classList.add('embed');
 var ps = null;
+// ¿Debe sonar esta página? Con pantalla: solo la pantalla de verdad. Sin pantalla: la pantalla
+// del ordenador si el sonido va en el ordenador, o el escenario de cada iPad si va en los iPads.
+function soundAllowed() {
+    var ipads = !!(ps && ps.noScreen && ps.audioOn === 'ipads');
+    return EMBED ? ipads : !ipads;
+}
+var _embedGesture = false;
+function applyMediaSound() {
+    // En el iPad, el sonido no arranca hasta que alguien toca: aviso pequeño mientras haga falta
+    if (EMBED) {
+        var hint = document.getElementById('embedSoundHint');
+        var need = soundAllowed() && !_embedGesture;
+        if (need && !hint) {
+            hint = document.createElement('button');
+            hint.id = 'embedSoundHint'; hint.className = 'embed-sound-hint'; hint.type = 'button';
+            hint.textContent = '🔊 Toca para activar el sonido';
+            hint.onclick = function() {
+                _embedGesture = true; _ifUserGesture = true;
+                initAudioCtx(); try { if (audioCtx && audioCtx.resume) audioCtx.resume(); } catch (e) {}
+                var v = document.getElementById('ifVideo'); if (v) { v.muted = false; v.play().catch(function() {}); }
+                hint.remove();
+            };
+            document.body.appendChild(hint);
+        } else if (!need && hint) hint.remove();
+    }
+    var vid = document.getElementById('ifVideo');
+    if (!vid) return;
+    var mute = !soundAllowed();
+    if (vid.muted !== mute) vid.muted = mute;
+}
 var socket = null;
 var prevPhaseKey = 'lobby';
 var prevOptionsRevealed = false;
@@ -695,8 +733,8 @@ function connect() {
 
     socket.on('connect', function() {
         document.getElementById('connDot').classList.remove('disconnected');
-        socket.emit('screen:join');
-        if (_preloadSummary) socket.emit('screen:preload_status', _preloadSummary);
+        socket.emit('screen:join', { embed: EMBED });
+        if (_preloadSummary && !EMBED) socket.emit('screen:preload_status', _preloadSummary);
     });
 
     socket.on('disconnect', function() {
@@ -765,8 +803,9 @@ function connect() {
     socket.on('game:video_command', function(d) {
         var vid = document.getElementById('ifVideo');
         if (!vid) return;
+        vid.muted = !soundAllowed();
         if (d.action === 'play') {
-            if (_ifUserGesture) {
+            if (_ifUserGesture || vid.muted) {
                 vid.play().catch(function() {});
             } else {
                 var wrap = document.getElementById('imagenFijaWrap');
@@ -786,7 +825,7 @@ function connect() {
             vid.pause();
         } else if (d.action === 'restart') {
             vid.currentTime = 0;
-            if (_ifUserGesture) {
+            if (_ifUserGesture || vid.muted) {
                 vid.play().catch(function() {});
             }
         }
@@ -835,6 +874,7 @@ function connect() {
 
 // ═══════════════ SYNC HANDLER ═══════════════
 function onSync(data) {
+    setTimeout(applyMediaSound, 0);
     var prevPhase = ps ? ps.phase : 'lobby';
     var prevOptRevealed = ps ? ps.optionsRevealed : false;
     var prevQIdx = ps ? ps.questionIdx : -1;
@@ -1456,8 +1496,9 @@ function renderImagenFijaScreen(c, q) {
 
     if (c.video) {
         var vid = document.getElementById('ifVideo');
+        if (vid) vid.muted = !soundAllowed();
         if (vid && c.autoplay) {
-            if (_ifUserGesture) {
+            if (_ifUserGesture || vid.muted) {
                 vid.play().catch(function() {});
             } else {
                 var tapBtn = document.createElement('button');
@@ -2306,6 +2347,7 @@ function applyRoundTheme(roundTheme) {
 function createParticles(color) {
     var container = document.getElementById('particles');
     container.innerHTML = '';
+    if (EMBED) return; // en el iPad, sin partículas (ahorra batería)
     var c = color || '#00d4ff';
     for (var i = 0; i < 25; i++) {
         var p = document.createElement('div');
@@ -2325,6 +2367,7 @@ function initAudioCtx() {
     try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
 }
 function playTone(freq, duration, type, vol) {
+    if (!soundAllowed()) return;
     initAudioCtx();
     if (!audioCtx) return;
     var osc = audioCtx.createOscillator();
@@ -2359,7 +2402,7 @@ function toggleFullscreen() {
 // ═══════════════ INIT ═══════════════
 document.addEventListener('click', function(e) {
     initAudioCtx();
-    if (!document.fullscreenElement && e.target.id !== 'fsBtn') {
+    if (!EMBED && !document.fullscreenElement && e.target.id !== 'fsBtn') {
         document.documentElement.requestFullscreen().catch(function(){});
     }
 }, { once: true });
@@ -2550,8 +2593,8 @@ window.toggleFullscreen = toggleFullscreen;
 // La pantalla descarga y verifica imágenes y vídeos del juego al abrirse; el resultado
 // se envía al coordinador. El service worker sirve luego el contenido desde el PC.
 var _preloadSummary = null;
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/screen/media-sw.js', { scope: '/screen/' }).catch(function() {});
-if (gameId && window.GSPreload) {
+if (!EMBED && 'serviceWorker' in navigator) navigator.serviceWorker.register('/screen/media-sw.js', { scope: '/screen/' }).catch(function() {});
+if (gameId && window.GSPreload && !EMBED) {
     GSPreload.showOverlay({
         gameId: gameId, role: 'screen', title: 'Preparando la pantalla', autoContinueMs: 20000,
         onDone: function(result) {
