@@ -663,6 +663,7 @@ function autoScoreBoom(state) {
     }
 }
 
+const BUZZER_RESULT_TYPES = new Set(['pulsador', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'aclara']);
 function computeLastQuestionScores(state) {
     const ds = state.director;
     const q = ds.questions[ds.currentQuestionIdx];
@@ -748,6 +749,17 @@ function computeLastQuestionScores(state) {
             }
         }
         results[teamId] = entry;
+    }
+
+    // Pruebas de pulsador: no hay respuestas escritas, así que el resumen dice quién acertó al
+    // pulsar (con los puntos que se llevó) y quién falló
+    if (BUZZER_RESULT_TYPES.has(roundType)) {
+        for (const tid of (ds.buzzerFailed || [])) {
+            if (!results[tid]) results[tid] = { answer: 'Falló al pulsar', correct: false, points: cfg.penalty > 0 ? -cfg.penalty : 0, buzzer: true };
+        }
+        if (ds.buzzerWinner && !results[ds.buzzerWinner]) {
+            results[ds.buzzerWinner] = { answer: 'Acertó al pulsar', correct: true, points: ds.buzzerPoints || 0, buzzer: true };
+        }
     }
 
     // Mark teams that didn't answer
@@ -1953,13 +1965,15 @@ function attachSocketHandlers(io) {
             broadcastDirector(io, gameId, state);
         });
 
-        socket.on('director:image_toggle_answer', () => {
+        // Adivina la imagen e Imagen que se aclara: mostrar/ocultar la respuesta en la pantalla
+        // (con {visible} se fija; sin él, alterna)
+        socket.on('director:image_toggle_answer', (data) => {
             const ds = state.director;
             const q = ds.questions[ds.currentQuestionIdx];
             if (!q) return;
             const answer = (q.content && q.content.answer) || '';
             if (!answer) return;
-            ds.imagePuzzle.answerVisible = !ds.imagePuzzle.answerVisible;
+            ds.imagePuzzle.answerVisible = (data && typeof data.visible === 'boolean') ? data.visible : !ds.imagePuzzle.answerVisible;
             ds.imagePuzzle.answerText = ds.imagePuzzle.answerVisible ? answer : '';
             io.to(roomOf(gameId)).emit('game:image_answer_updated', { visible: ds.imagePuzzle.answerVisible, answer: answer });
             broadcastDirector(io, gameId, state);

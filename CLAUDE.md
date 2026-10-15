@@ -27,7 +27,7 @@ El usuario no programa: Claude programa, prueba y **pregunta siempre antes de su
 
 ## Reglas de juego decididas por el usuario
 
-- Pulsador: quien falla no puede volver a pulsar en esa pregunta (`ds.buzzerFailed`).
+- Pulsador: quien falla no puede volver a pulsar en esa pregunta (`ds.buzzerFailed`); su iPad muestra el botón gris con un aviso fijo. En las pruebas de pulsador `computeLastQuestionScores` apunta al ganador (con `buzzerPoints`) y a los que fallaron.
 - Ruleta, imagen fija y demás tipos sin temporizador (`NO_TIMER_TYPES`): el acierto suma solo puntos base.
 - Multirespuesta con varias correctas: vale cualquiera.
 - Boom e Identidad en el iPad: arrastrar a huecos (componente `HZ` en `play/index.html`, tamaño con `hzFit`). En Identidad el orden puede llevar huecos vacíos (`null`): no puntúan; `toCanonicalOrder` rechaza repetidos. «Imagen que se aclara» (tipo `aclara`): `ds.aclara` en servidor (nitidez calculada al enviar, el cliente la anima con `shared/aclara-fx.js`); puntos con `aclaraPoints`. Boom se revela por pasos (`ds.boomStep`, mismo botón que Identidad: `director:reveal_next_pair`); a los iPads solo les llega lo destapado del orden.
@@ -59,6 +59,7 @@ node tools/tests/test-loteD-registro.js # 11 (registro del coordinador: puntos, 
 node tools/tests/test-loteD-aclara.js   # 15 (Imagen que se aclara: avance, pausa al pulsar, fallo reanuda, puntos por nitidez, modo a mano, Excel)
 node tools/tests/test-loteD-recuperar.js # 10 (pasar un equipo a otro iPad con código de un solo uso)
 node tools/tests/test-loteE-sinpantalla.js # 9 (modo sin pantalla y dónde suena: backoffice, coordinador, vista incrustada)
+node tools/tests/test-loteF-informe.js  # 10 (resultados por equipo en pruebas de pulsador; «Mostrar respuesta» de Imagen que se aclara)
 node tools/tests/load-test.js 50   # N iPads simulados: entrada, respuestas, pulsador, bonos, reconexión masiva
 node tools/tests/soak-test.js 15   # resistencia: partida larga (minutos) con los 10 tipos; memoria, temporizadores, latencias, marcador
 node tools/tests/chaos-test.js 10  # red caótica: cortes al azar, zombis, retraso; puntos, equipos y errores
@@ -78,6 +79,8 @@ La contraseña local de desarrollo está en `.env` (no se sube).
 ## Trampas conocidas
 
 - **Versión del service worker de `/play`**: subir `CACHE_NAME` en `public/play/sw.js` cuando cambien `play/index.html` o archivos de su `SHELL` (incluido `shared/asset-preloader.js`).
+- **iOS y el doble toque**: `user-scalable=no` no basta y `touch-action` no se hereda (los contenedores con overflow lo cortan): va en `*`. Play además anula el segundo toque rápido, el pellizco y el arrastre de la página entera en el juego.
+- **Sombras y brillos recortados**: un contenedor con `overflow: hidden` corta el `text-shadow`/`box-shadow` de lo que toca su borde. Dar relleno al contenedor (y, si hace falta, margen negativo para no cambiar el ancho).
 - Muchos HTML usan **saltos de línea CRLF**: editar con la herramienta Edit o scripts que preserven CRLF. Las barras invertidas en heredocs de Bash se pierden: escribir los scripts a archivo.
 - En el kit se entra por `http://IP`: **sin service worker, Cache Storage, portapapeles ni micrófono**. La precarga usa entonces la caché HTTP (`cache: 'no-cache'`).
 - Windows marca las redes nuevas como "Pública" y el firewall bloquea a los iPads: el kit avisa al arrancar.

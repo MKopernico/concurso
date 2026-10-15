@@ -179,7 +179,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 
 /* Scoreboard overlay (global, z-index above everything) */
 #scoreboardOverlay { z-index: 80; }
-#scoreboardOverlay .sb-overlay-inner { width: 90%; max-width: 900px; max-height: 80vh; overflow-y: hidden; }
+#scoreboardOverlay .sb-overlay-inner { width: 90%; max-width: 980px; max-height: 86vh; overflow-y: hidden; box-sizing: border-box; padding: 36px 44px; }
 
 /* QR overlay */
 .gs-qr-overlay { position: fixed; inset: 0; z-index: 85; background: rgba(0,0,0,.6); opacity: 0; pointer-events: none; transition: opacity .4s ease; display: flex; align-items: center; justify-content: center; }
@@ -308,7 +308,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     background: rgba(10,10,26,.85); backdrop-filter: blur(10px);
     opacity: 0; transform: scale(.95); transition: opacity .5s ease, transform .5s ease; pointer-events: none; }
 .team-results-overlay.active { opacity: 1; transform: scale(1); pointer-events: auto; }
-.tr-container { width: 90%; max-width: 900px; max-height: 80vh; overflow-y: hidden; }
+.tr-container { width: 90%; max-width: 980px; max-height: 86vh; overflow-y: hidden; box-sizing: border-box; padding: 36px 44px; }
 /* Listas largas en el proyector: sin barra de scroll; se desplazan solas (autoScrollLists) */
 .tr-container, #scoreboardOverlay .sb-overlay-inner { scrollbar-width: none; }
 .tr-container::-webkit-scrollbar, #scoreboardOverlay .sb-overlay-inner::-webkit-scrollbar { display: none; }
@@ -518,7 +518,8 @@ html.embed .psq-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; 
 .karaoke-screen-zone--muted { opacity: 1; filter: grayscale(80%) brightness(0.3); }
 /* Letra sin caja: ventana con márgenes, texto ajustado al espacio (fitKaraokeLyrics) y contorno oscuro para leerse sobre cualquier color */
 .karaoke-screen-lyrics { position: absolute; z-index: 1; inset: 7vh 6vw; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3vh; }
-.karaoke-screen-current, .karaoke-screen-next { width: 100%; text-align: center; white-space: pre-line; overflow: hidden; flex-shrink: 0; }
+/* Las sombras del texto necesitan aire dentro de la caja (que recorta): el autoajuste ya cuenta este relleno */
+.karaoke-screen-current, .karaoke-screen-next { width: 100%; text-align: center; white-space: pre-line; overflow: hidden; flex-shrink: 0; box-sizing: border-box; padding: 14px 28px 26px; }
 .karaoke-screen-current { font-size: 64px; font-weight: 900; line-height: 1.15; color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 10px rgba(0,0,0,.85), 0 4px 22px rgba(0,0,0,.6); }
 .karaoke-screen-next { font-size: 32px; font-weight: 800; line-height: 1.15; color: #dcdcdc; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 10px rgba(0,0,0,.9); }
 .karaoke-screen-pre { font-size: clamp(3rem, 7vw, 7rem); font-weight: 900; color: #fff; text-align: center; text-shadow: 0 0 3px #000, 0 0 12px rgba(0,0,0,.8); }
@@ -892,6 +893,13 @@ function connect() {
         if (!ps.imagePuzzle) ps.imagePuzzle = {};
         ps.imagePuzzle.answerVisible = d.visible;
         if (d.answer) ps.imagePuzzle.answerText = d.answer;
+        if (ps.roundType === 'aclara') {
+            // Imagen que se aclara: «Mostrar respuesta» del coordinador la pone abajo, encima de la imagen
+            var aa = document.getElementById('aclaraAnswer');
+            if (d.answer) aa.textContent = d.answer;
+            aa.classList.toggle('visible', !!d.visible || ps.phase === 'answer_revealed');
+            return;
+        }
         updateImageAnswer(d.visible, d.answer);
     });
 
@@ -1233,8 +1241,11 @@ function renderAclaraScreen(c, q, revealed) {
     var st = revealed ? { level: 1, running: false } : (ps.aclara || { level: 0, running: false });
     _aclaraPlayer.set(c.image || null, c.effect, st);
     var ans = document.getElementById('aclaraAnswer');
-    ans.textContent = c.answer || '';
-    ans.classList.toggle('visible', !!(revealed && c.answer));
+    // Durante la pregunta la respuesta no viaja en el contenido: llega con «Mostrar respuesta»
+    var ip = ps.imagePuzzle || {};
+    var txt = c.answer || (ip.answerVisible ? ip.answerText : '') || '';
+    ans.textContent = txt;
+    ans.classList.toggle('visible', !!((revealed || ip.answerVisible) && txt));
 }
 
 function renderBuzzerQueue() {

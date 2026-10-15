@@ -10,7 +10,10 @@
 :root { --bg: #0a0a10; --surface: #14141e; --surface2: #1c1c2a; --border: #2a2a3a; --text: #e4e4e7; --text2: #8888a0; --accent: #00d4ff; --accent-dim: #0097b8; --danger: #ef4444; --success: #22c55e; --gold: #facc15; --orange: #f97316; --radius: 10px; --bb-h: 70px; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; overflow: hidden; }
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+/* Coordinador en tablet: sin zoom por doble toque (iOS ignora user-scalable=no y el touch-action
+   no se hereda, por eso va en cada elemento). Los paneles siguen pudiendo desplazarse. */
+* { touch-action: manipulation; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
 
 /* Header */
@@ -1555,6 +1558,9 @@ function togglePuAnswer() {
     var btn = document.getElementById('btnPuToggleAnswer');
     if (_puAnswerVisible) { overlay.classList.add('active'); btn.innerHTML = '&#128065; Ocultar respuesta'; }
     else { overlay.classList.remove('active'); btn.innerHTML = '&#128065; Mostrar respuesta'; }
+    // Imagen que se aclara: la respuesta también sale en la pantalla (como en Adivina la imagen)
+    var ds = S.director;
+    if (ds && ds.currentRound && ds.currentRound.type === 'aclara') emit('director:image_toggle_answer', { visible: _puAnswerVisible });
 }
 
 function renderQuestionPulsador() {

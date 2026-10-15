@@ -91,7 +91,9 @@ input:focus { border-color: var(--accent); }
 .gp-multi .q-statement { font-size: 22px; font-weight: 600; line-height: 1.4; text-align: center;
     background: rgba(0,0,0,.6); border-radius: 16px; padding: 16px 20px; color: #fff; backdrop-filter: blur(6px); flex-shrink: 0; }
 .gp-multi .q-media { max-width: 80%; max-height: 140px; border-radius: 8px; align-self: center; flex-shrink: 0; }
-.options-list { display: flex; flex-direction: column; gap: clamp(6px, 1vh, 12px); flex: 1; min-height: 0; overflow: hidden; }
+/* Aire para el brillo de la opción elegida (la lista recorta lo que se sale): el margen negativo
+   mantiene el ancho de siempre */
+.options-list { display: flex; flex-direction: column; gap: clamp(6px, 1vh, 12px); flex: 1; min-height: 0; overflow: hidden; padding: 10px 12px; margin: -10px -12px 0; }
 .option-btn { background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.15); border-radius: 16px; padding: 12px 20px; font-size: clamp(0.9rem, 2.5vh, 1.4rem); font-weight: 600; text-align: left; color: #fff; transition: .2s; backdrop-filter: blur(6px); flex: 1; min-height: 0; display: flex; align-items: center; }
 .option-btn.selected { border-color: #00d4ff; background: rgba(0,212,255,.25); box-shadow: 0 0 12px rgba(0,212,255,.3); }
 .option-btn.correct { border-color: #22c55e; background: rgba(34,197,94,.3); }
@@ -142,6 +144,11 @@ input:focus { border-color: var(--accent); }
 @keyframes bz-pulse { 0%,100% { box-shadow: 0 8px 30px rgba(34,197,94,.4); transform: scale(1); } 50% { box-shadow: 0 8px 50px rgba(34,197,94,.7); transform: scale(1.04); } }
 .buzz-status { font-size: 14px; color: var(--text2); text-align: center; }
 .buzz-status.buzzed { color: var(--gold); font-weight: 700; }
+/* Equipo que ya falló esta pregunta: pulsador gris y un aviso fijo (en vez de avisos repetidos) */
+.buzz-btn-wrapper { position: relative; }
+.buzz-status.failed { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; text-align: center;
+    color: #fff; font-weight: 700; font-size: clamp(15px, 2.4vh, 20px); background: rgba(0,0,0,.72); border: 2px solid rgba(239,68,68,.75);
+    border-radius: 14px; padding: 10px 18px; width: max-content; max-width: min(88%, 420px); line-height: 1.3; }
 #playerImgGrid { display: none !important; }
 .p-img-grid { position: relative; width: 260px; height: 260px; border-radius: 12px; overflow: hidden; margin: 12px auto; }
 .p-img-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -752,6 +759,22 @@ function clearPass(gameId) { var p = getPasses(); delete p[gameId]; localStorage
     ['gesturestart', 'gesturechange', 'dblclick'].forEach(function(ev) {
         document.addEventListener(ev, function(e) { e.preventDefault(); }, { passive: false });
     });
+    // En el juego, arrastrar el dedo donde no hay nada que desplazar no mueve la página entera
+    // (en iOS daba la sensación de que había «página por debajo»)
+    function scrollableUp(el) {
+        for (; el && el !== document.body; el = el.parentElement) {
+            var oy = getComputedStyle(el).overflowY;
+            if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 1) return true;
+        }
+        return false;
+    }
+    document.addEventListener('touchmove', function(e) {
+        var g = document.getElementById('screen-game');
+        if (!g || !g.classList.contains('active') || e.touches.length > 1) { if (e.touches.length > 1) e.preventDefault(); return; }
+        var t = e.target;
+        if (t && t.closest && t.closest('input, textarea, select, .hz-card')) return;
+        if (!scrollableUp(t)) e.preventDefault();
+    }, { passive: false });
     // Solo en el juego y sin teclado abierto (al escribir, iOS desplaza a propósito para enseñar el campo)
     window.addEventListener('scroll', function() {
         if (!(window.scrollX || window.scrollY)) return;
@@ -1718,8 +1741,17 @@ function renderBuzzerStatus() {
 
     if (isPulsadorLike) status.style.display = 'none';
     else status.style.display = '';
+    var failed = (ps.buzzerFailed || []).indexOf(S.myTeamId) !== -1;
 
-    if (isPulsadorLike && isBlocked) {
+    if (failed && !hasBuzzed) {
+        // Ya fallasteis: el botón no se puede pulsar y el aviso se queda fijo
+        btn.disabled = true;
+        btn.classList.add('bz-blocked');
+        btn.textContent = '';
+        status.style.display = '';
+        status.className = 'buzz-status failed';
+        status.textContent = 'Ya fallasteis: en esta pregunta no podéis volver a pulsar';
+    } else if (isPulsadorLike && isBlocked) {
         btn.disabled = true;
         btn.classList.add('bz-blocked');
         btn.textContent = '❄';
@@ -1768,7 +1800,7 @@ function renderBuzzerStatus() {
 })();
 
 function doBuzz() {
-    if (S.ps && (S.ps.buzzerFailed || []).indexOf(S.myTeamId) !== -1) { toast('Ya fallasteis esta pregunta'); return; }
+    if (S.ps && (S.ps.buzzerFailed || []).indexOf(S.myTeamId) !== -1) return; // el botón ya está gris con su aviso
     emit('pulsar_boton');
 }
 
@@ -1939,7 +1971,7 @@ function hzSlotHtml(i, numbered, itemOf, locked, reveal) {
     if (HZ.just === i) cls += ' just';
     return '<div class="' + cls + '" data-hzslot="' + i + '"><div class="hz-slot-row">'
         + (numbered ? '<span class="hz-num">' + (i + 1) + '</span>' : '')
-        + '<div class="hz-fill">' + (k === null || k === undefined ? '<span class="hz-ph">' + (reveal ? 'Sin colocar' : 'Suelta aquí') + '</span>' : hzCardHtml(k, itemOf, locked)) + '</div></div>' + fix + '</div>';
+        + '<div class="hz-fill">' + (k === null || k === undefined ? '<span class="hz-ph">' + (reveal ? (reveal.ph || 'Sin colocar') : 'Suelta aquí') + '</span>' : hzCardHtml(k, itemOf, locked)) + '</div></div>' + fix + '</div>';
 }
 function hzPoolHtml(itemOf, locked) {
     return '<div class="hz-pool" data-hzpool="1">' + (HZ.pool.length ? HZ.pool.map(function(k) { return hzCardHtml(k, itemOf, locked); }).join('') : '<div class="hz-pool-empty">Todas colocadas</div>') + '</div>';
@@ -2015,6 +2047,9 @@ function hzClearOver() { document.querySelectorAll('.hz-slot.over, .hz-pool.over
 function hzCancelDrag() {
     var d = HZ.drag; HZ.drag = null;
     if (d && d.ghost) d.ghost.remove();
+    // Si se suelta fuera de un hueco el tablero no cambia y no se repinta: la tarjeta tiene que
+    // dejar de verse «levantada» (gris) aquí, o parecería que ya no se puede tocar
+    if (d && d.chip) d.chip.classList.remove('lifted');
     hzClearOver();
 }
 document.addEventListener('pointerdown', function(e) {
@@ -2127,7 +2162,7 @@ function renderIdentidad() {
     function leftHtml(i) { return hzItemHtml(pairs[i].left, 'hz-left', '', false); }
     function pairsHtml(reveal, locked) {
         var two = HZ.pairCols === 2;
-        var head = '<div class="hz-title">' + (reveal ? 'Pregunta' : '') + '</div><div class="hz-title">' + (reveal ? 'Vuestra respuesta' : 'Tu respuesta') + '</div>';
+        var head = '<div class="hz-title">' + (reveal ? 'Pregunta' : '') + '</div><div class="hz-title">' + (reveal ? (reveal.title || 'Vuestra respuesta') : 'Tu respuesta') + '</div>';
         var html = head + (two ? head : '');
         for (var i = 0; i < n; i++) html += leftHtml(i) + hzSlotHtml(i, false, itemOf, locked, reveal);
         return '<div class="hz-pairs' + (two ? ' two' : '') + '">' + html + '</div>';
@@ -2138,24 +2173,27 @@ function renderIdentidad() {
         btn.style.display = 'none'; status.textContent = '';
         var myScore = (ps.lastQuestionScores || {})[S.myTeamId];
         var myOrder = (myScore && Array.isArray(myScore.answer)) ? myScore.answer : null; // índices reales
-        if (!myScore || myScore.noAnswer || !myOrder || !myOrder.some(function(v) { return v !== null; })) {
-            hzSetHtml(hzEl, ''); hzEl.style.display = 'none';
-            centerMsg.querySelector('.id-msg-icon').textContent = '📺';
-            centerMsg.querySelector('.id-msg-text').textContent = 'Mira la pantalla';
-            centerMsg.style.display = 'flex';
-            return;
-        }
+        // Sin respuesta: se ven las respuestas correctas colocándose a la vez que en la pantalla
+        var noAns = !myScore || myScore.noAnswer || !myOrder || !myOrder.some(function(v) { return v !== null; });
         centerMsg.style.display = 'none'; hzEl.style.display = '';
         var rkey = (ps.questionKey !== undefined ? ps.questionKey : ps.questionIdx) + '|rev';
         if (HZ.key !== rkey) { HZ.key = rkey; HZ.type = 'identidad'; HZ.n = n; HZ.selected = null; HZ.fitKey = null; HZ.pairCols = 1; HZ.pool = []; }
-        HZ.slots = myOrder.slice(0, n);
-        while (HZ.slots.length < n) HZ.slots.push(null);
         var revIdx = (ps.identidad && ps.identidad.revealIndex) || 0;
-        var reveal = { idx: revIdx, correct: function(i) { return HZ.slots[i] === i; },
+        var reveal;
+        if (noAns) {
+            HZ.slots = [];
+            for (var si = 0; si < n; si++) HZ.slots.push(si < revIdx ? si : null);
+            reveal = { idx: revIdx, correct: function() { return true; }, title: 'Respuesta correcta', ph: '…' };
+        } else {
+            HZ.slots = myOrder.slice(0, n);
+            while (HZ.slots.length < n) HZ.slots.push(null);
+            reveal = { idx: revIdx, correct: function(i) { return HZ.slots[i] === i; },
                        fix: function(i) { var r = rc[i] || {}; return 'Era: ' + esc(r.text || (r.image ? 'otra imagen' : '-')); } };
+        }
         var paintRev = function() { hzSetHtml(hzEl, '<div class="hz-board ident">' + pairsHtml(reveal, true) + '</div>'); };
         paintRev();
-        if (revIdx >= n && myScore.totalPairs) { status.textContent = myScore.correctCount + ' de ' + myScore.totalPairs + ' parejas correctas'; status.className = 'hz-status' + (myScore.correct ? ' ok' : ''); }
+        if (noAns) { status.textContent = 'No respondisteis: estas son las parejas correctas'; status.className = 'hz-status'; }
+        else if (revIdx >= n && myScore.totalPairs) { status.textContent = myScore.correctCount + ' de ' + myScore.totalPairs + ' parejas correctas'; status.className = 'hz-status' + (myScore.correct ? ' ok' : ''); }
         hzAfterPaint(phaseEl, hzEl, paintRev, true, rkey);
         return;
     }
