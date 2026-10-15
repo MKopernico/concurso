@@ -116,8 +116,16 @@
         var cellFromW = availW / (maxC * 1.08);
         var rowGap = Math.max(6, Math.round(availH * 0.015));
         var cellFromH = (availH - (numR - 1) * rowGap) / numR;
-        var cellSize = Math.max(30, Math.floor(Math.min(cellFromW, cellFromH)));
+        // Mínimo pequeño: en un escenario estrecho (móvil en vertical) es mejor letra chica que cortada
+        var cellSize = Math.max(14, Math.floor(Math.min(cellFromW, cellFromH)));
         gridFill.style.setProperty('--rp-cell', cellSize + 'px');
+    }
+    // Si cambia el tamaño (ventana, giro, escenario del iPad que aparece), el panel se reajusta
+    if (root.addEventListener && root.document) {
+        root.addEventListener('resize', function () {
+            var grids = root.document.querySelectorAll('.rp-grid-fill');
+            for (var i = 0; i < grids.length; i++) computeCellSize(grids[i]);
+        });
     }
 
     function isRevealed(ch, revealedLetters) {

@@ -379,6 +379,12 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 /* ── Imagen director panel ── */
 .imagen-layout { display: flex; gap: 20px; flex: 1; min-height: 0; }
 .imagen-left { flex: 2; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+/* Imagen fija: con la ventana baja (sin F11) la caja del vídeo se encogía y escondía los botones
+   sin dejar hacer scroll. Ahora nada se encoge (si no cabe, hay scroll), los controles van encima
+   del vídeo y el vídeo se limita al alto de la ventana. */
+#imagenFijaDirectorPanel .imagen-left > * { flex-shrink: 0; }
+.if-video-ctrls { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; justify-content: center; }
+.if-video-prev { max-width: 100%; max-height: min(240px, 30vh); object-fit: contain; border-radius: 10px; border: 2px solid var(--border); background: #1a1a2e; }
 .imagen-right { flex: 1; display: flex; flex-direction: column; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
 .imagen-right h4 { font-size: 12px; text-transform: uppercase; color: var(--text2); letter-spacing: .5px; margin-bottom: 8px; flex-shrink: 0; }
 .imagen-container { position: relative; border-radius: 10px; overflow: hidden; width: 100%; }
@@ -2067,12 +2073,12 @@ function renderQuestionImagenFija() {
     // Media preview (image or video)
     var container = document.getElementById('ifImageContainer');
     if (c.video) {
-        container.innerHTML = '<video src="' + esc(c.video) + '" muted playsinline style="max-width:100%;max-height:240px;object-fit:contain;border-radius:10px;border:2px solid var(--border);background:#1a1a2e;"></video>' +
-            '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">' +
+        container.innerHTML = '<div class="if-video-ctrls">' +
             '<button class="btn-success btn-sm" onclick="emit(\'director:video_command\',{action:\'play\'})">&#9654; Play</button>' +
             '<button class="btn-ghost btn-sm" onclick="emit(\'director:video_command\',{action:\'pause\'})">&#10074;&#10074; Pausa</button>' +
             '<button class="btn-ghost btn-sm" onclick="emit(\'director:video_command\',{action:\'restart\'})">&#8634; Reiniciar</button>' +
-            '</div>';
+            '</div>' +
+            '<video class="if-video-prev" src="' + esc(c.video) + '" muted playsinline></video>';
     } else {
         var imgSrc = c.image || q.media_url || '';
         if (imgSrc) {

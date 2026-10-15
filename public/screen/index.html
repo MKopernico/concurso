@@ -285,8 +285,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 /* Imagen que se aclara: la imagen ocupa la pantalla; la respuesta aparece abajo al revelar */
 #aclaraScreenWrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 2%; box-sizing: border-box; overflow: hidden; }
 #aclaraCanvas { width: 100%; height: 100%; display: block; }
-/* La cola del pulsador va encima de la imagen, arriba */
-#phase-question.aclara-mode #buzzerQueue { position: absolute; top: 3%; left: 0; right: 0; z-index: 20; margin: 0; pointer-events: none; }
+/* La cola del pulsador va encima de la imagen, arriba (Adivina la imagen, Imagen que se aclara,
+   Imagen fija y Canción: en todas el contenido ocupa la pantalla y la tapaba) */
+#phase-question.queue-over #buzzerQueue { position: absolute; top: 3%; left: 8px; right: 8px; z-index: 40; margin: 0; pointer-events: none; }
 .aclara-answer { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); max-width: 80%; padding: 16px 36px; border-radius: 18px; text-align: center;
     font-size: clamp(1.6rem, 3.4vw, 3.2rem); font-weight: 900; color: #fff; background: linear-gradient(rgba(34,197,94,.35),rgba(34,197,94,.35)), rgba(0,0,0,.7);
     border: 2px solid var(--green); box-shadow: 0 0 30px rgba(34,197,94,.35); opacity: 0; transition: opacity .5s; pointer-events: none; }
@@ -441,7 +442,20 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .particles { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
 /* Vista incrustada en el iPad (modo sin pantalla): sin botón de pantalla completa ni QR de entrada */
 html.embed #fsBtn, html.embed #qrOverlay, html.embed .conn-dot { display: none !important; }
-.embed-sound-hint { position: fixed; top: 10px; right: 10px; z-index: 9999; padding: 10px 16px; border-radius: 999px; border: 2px solid #fff; background: rgba(0,0,0,.75); color: #fff; font: 700 16px system-ui, sans-serif; cursor: pointer; }
+/* Dentro del iPad el escenario no se amplía ni se desplaza con los dedos (doble toque de iOS) */
+html.embed, html.embed * { touch-action: none; overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html.embed #imagenScreenWrap, html.embed #aclaraScreenWrap, html.embed #imagenFijaWrap, html.embed #cancionScreenWrap { padding: 12px; box-sizing: border-box; }
+/* En un escenario estrecho (móvil en vertical) nada se sale por los lados: el logo de ronda tenía
+   ancho y alto mínimos pensados para el proyector, y la cola del pulsador también */
+html.embed .lobby-title { font-size: clamp(22px, 8vw, 72px); letter-spacing: 2px; text-align: center; max-width: 92vw; }
+html.embed .round-logo { top: 8px; min-height: 0; max-height: min(140px, 18vh); max-width: min(400px, 80vw); }
+html.embed .pulsador-screen-status { max-width: 100%; padding: 12px 20px; letter-spacing: 2px; }
+html.embed .pulsador-screen-queue { width: 100%; margin-top: 16px; }
+html.embed .psq-item { gap: 10px; padding: 10px 14px; }
+html.embed .psq-pos { min-width: 0; }
+html.embed .psq-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Ordenador que solo pone el sonido (juego sin pantalla): aviso discreto hasta el primer clic */
+.sound-hint { position: fixed; left: 16px; bottom: 16px; z-index: 9999; padding: 10px 18px; border-radius: 999px; border: 2px solid #fff; background: rgba(0,0,0,.8); color: #fff; font: 700 18px system-ui, sans-serif; pointer-events: none; }
 .particle { position: absolute; border-radius: 50%; opacity: 0; animation: particleFloat linear infinite; }
 @keyframes particleFloat {
     0% { opacity: 0; transform: translateY(100vh) scale(0); }
@@ -680,7 +694,25 @@ var gameId = location.pathname.split('/').filter(Boolean)[1] || '';
 // Incrustada no precarga (ya lo hace el iPad), no pide pantalla completa, no lleva partículas,
 // no cuenta como «Pantalla» para el coordinador y solo suena si el sonido va en los iPads.
 var EMBED = /[?&]embed=1/.test(location.search);
-if (EMBED) document.documentElement.classList.add('embed');
+if (EMBED) {
+    document.documentElement.classList.add('embed');
+    // Un doble toque en el escenario no debe ampliar la página del iPad: se anula el segundo toque
+    // rápido (repitiendo el clic si era un botón) y los gestos de zoom.
+    (function() {
+        var last = 0;
+        document.addEventListener('touchend', function(e) {
+            var now = Date.now(), quick = now - last < 350;
+            last = now;
+            if (!quick || e.touches.length) return;
+            e.preventDefault();
+            var b = e.target && e.target.closest && e.target.closest('button');
+            if (b && !b.disabled) b.click();
+        }, { passive: false });
+        ['gesturestart', 'gesturechange', 'dblclick'].forEach(function(ev) {
+            document.addEventListener(ev, function(e) { e.preventDefault(); }, { passive: false });
+        });
+    })();
+}
 var ps = null;
 // ¿Debe sonar esta página? Con pantalla: solo la pantalla de verdad. Sin pantalla: la pantalla
 // del ordenador si el sonido va en el ordenador, o el escenario de cada iPad si va en los iPads.
@@ -688,24 +720,41 @@ function soundAllowed() {
     var ipads = !!(ps && ps.noScreen && ps.audioOn === 'ipads');
     return EMBED ? ipads : !ipads;
 }
-var _embedGesture = false;
+// Los navegadores no dejan sonar nada hasta el primer toque o clic en la página. Ese primer gesto,
+// donde sea, activa el sonido (y arranca el vídeo si estaba esperando a poder sonar).
+var _soundUnlocked = false;
+function unlockSound() {
+    _ifUserGesture = true;
+    if (_soundUnlocked || !soundAllowed()) return;
+    _soundUnlocked = true;
+    initAudioCtx(); try { if (audioCtx && audioCtx.resume) audioCtx.resume(); } catch (e) {}
+    var v = document.getElementById('ifVideo');
+    if (v) {
+        v.muted = false;
+        var tap = document.querySelector('.if-video-tap');
+        if (tap) { tap.remove(); v.play().catch(function() {}); }
+    }
+    applyMediaSound();
+}
+window.gsUnlockSound = unlockSound; // el iPad lo llama al tocar cualquier parte de su pantalla
+['pointerup', 'touchend', 'click', 'keydown'].forEach(function(ev) { document.addEventListener(ev, unlockSound, true); });
+
 function applyMediaSound() {
-    // En el iPad, el sonido no arranca hasta que alguien toca: aviso pequeño mientras haga falta
+    var need = soundAllowed() && !_soundUnlocked;
     if (EMBED) {
-        var hint = document.getElementById('embedSoundHint');
-        var need = soundAllowed() && !_embedGesture;
-        if (need && !hint) {
-            hint = document.createElement('button');
-            hint.id = 'embedSoundHint'; hint.className = 'embed-sound-hint'; hint.type = 'button';
-            hint.textContent = '🔊 Toca para activar el sonido';
-            hint.onclick = function() {
-                _embedGesture = true; _ifUserGesture = true;
-                initAudioCtx(); try { if (audioCtx && audioCtx.resume) audioCtx.resume(); } catch (e) {}
-                var v = document.getElementById('ifVideo'); if (v) { v.muted = false; v.play().catch(function() {}); }
-                hint.remove();
-            };
+        // En el iPad el aviso lo pinta la propia página del iPad, encima del escenario: aquí dentro
+        // no se añade nada que pueda mover la vista
+        try { if (window.parent !== window && window.parent.gsStageSound) window.parent.gsStageSound(need); } catch (e) {}
+    } else {
+        // Ordenador que solo pone el sonido (sin pantalla): recordatorio hasta el primer clic
+        var hint = document.getElementById('soundHint');
+        var show = need && !!(ps && ps.noScreen);
+        if (show && !hint) {
+            hint = document.createElement('div');
+            hint.id = 'soundHint'; hint.className = 'sound-hint';
+            hint.textContent = '🔊 Haz clic en esta página para activar el sonido';
             document.body.appendChild(hint);
-        } else if (!need && hint) hint.remove();
+        } else if (!show && hint) hint.remove();
     }
     var vid = document.getElementById('ifVideo');
     if (!vid) return;
@@ -1080,6 +1129,7 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     // Toggle fullscreen mode for imagen
     document.getElementById('phase-question').classList.toggle('imagen-mode', type === 'imagen' || type === 'aclara');
     document.getElementById('phase-question').classList.toggle('aclara-mode', type === 'aclara');
+    document.getElementById('phase-question').classList.toggle('queue-over', type === 'imagen' || type === 'aclara' || type === 'imagen_fija' || type === 'cancion');
     document.getElementById('phase-question').classList.toggle('identidad-mode', type === 'identidad');
     _imagenState.built = type === 'imagen' ? _imagenState.built : false;
 
@@ -1395,8 +1445,11 @@ function _doRenderImageScreen(c, q, imgW, imgH) {
     } else {
         gridW = containerW; gridH = gridW / ratio;
     }
-    grid.style.width = Math.floor(gridW) + 'px';
-    grid.style.height = Math.floor(gridH) + 'px';
+    // Sin hueco todavía (escenario oculto): se dimensiona al aparecer, con el evento resize
+    if (containerW > 0 && containerH > 0) {
+        grid.style.width = Math.floor(gridW) + 'px';
+        grid.style.height = Math.floor(gridH) + 'px';
+    }
     grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
     grid.style.gridTemplateRows = 'repeat(' + rows + ', 1fr)';
 
@@ -1432,6 +1485,15 @@ function _doRenderImageScreen(c, q, imgW, imgH) {
     }
 }
 
+// Si cambia el tamaño (ventana, giro del iPad o el escenario incrustado que se muestra), la imagen
+// se vuelve a encajar entera, sin cortarse por ningún lado.
+window.addEventListener('resize', function() {
+    var wrap = document.getElementById('imagenScreenWrap');
+    if (!ps || !ps.question || !wrap || wrap.style.display === 'none' || !_imagenNatural.w) return;
+    if (_imagenNatural.qId !== (ps.question.id || '')) return;
+    _doRenderImageScreen(ps.question.content || {}, ps.question, _imagenNatural.w, _imagenNatural.h);
+});
+
 function updateImageTiles(revealed) {
     var tiles = document.querySelectorAll('#imagenScreenGrid .img-tile');
     for (var i = 0; i < tiles.length; i++) {
@@ -1460,8 +1522,6 @@ var _imagenFijaPrevQId = '';
 var _lastVideoTs = null;
 var _ifUserGesture = false;
 
-document.addEventListener('click', function() { _ifUserGesture = true; }, { once: true });
-
 function renderImagenFijaScreen(c, q) {
     var wrap = document.getElementById('imagenFijaWrap');
     wrap.style.display = 'flex';
@@ -1485,6 +1545,7 @@ function renderImagenFijaScreen(c, q) {
     if (c.video) {
         var attrs = 'playsinline';
         if (c.loop) attrs += ' loop';
+        if (!soundAllowed()) attrs += ' muted'; // silenciado desde el principio: así iOS lo deja arrancar solo
         html += '<video id="ifVideo" ' + attrs + ' src="' + esc(c.video) + '"></video>';
     } else {
         var imgUrl = c.image || q.media_url || '';

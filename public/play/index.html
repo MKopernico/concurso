@@ -14,7 +14,12 @@
 <style>
 :root { --bg: #0a0a10; --surface: #14141e; --surface2: #1e1e2e; --border: #2a2a3a; --text: #e4e4e7; --text2: #8888a0; --accent: #00d4ff; --accent-dim: #0097b8; --danger: #ef4444; --success: #22c55e; --gold: #facc15; --radius: 12px; }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; overflow: hidden; touch-action: manipulation; }
+html, body { height: 100%; overflow: hidden; touch-action: manipulation; overscroll-behavior: none; }
+/* Sin zoom ni desplazamiento por doble toque en ninguna parte (iOS ignora user-scalable=no, y el
+   touch-action no se hereda: los contenedores con overflow lo cortan, así que va en cada elemento).
+   En la vista de juego tampoco se puede ampliar con dos dedos. */
+* { touch-action: manipulation; }
+#screen-game, #screen-game * { touch-action: pan-x pan-y; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
 
 .screen { display: none; flex: 1; flex-direction: column; overflow-y: auto; }
@@ -105,6 +110,12 @@ input:focus { border-color: var(--accent); }
 /* ── Modo sin pantalla: escenario arriba y botones debajo ── */
 .stage { position: absolute; left: 0; right: 0; top: 0; height: var(--stageH, 60%); z-index: 3; padding: 6px 8px 0; box-sizing: border-box; }
 .stage iframe { width: 100%; height: 100%; border: 0; border-radius: 12px; background: #000; display: block; }
+/* Aviso de sonido (sonido en los iPads): flota encima del escenario sin mover nada; no recoge el
+   toque, que pasa al escenario y activa el sonido allí dentro */
+.stage-sound { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 4; pointer-events: none;
+    padding: 8px 16px; border-radius: 999px; border: 2px solid #fff; background: rgba(0,0,0,.78); color: #fff;
+    font-size: 15px; font-weight: 700; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
+.stage-sound[hidden] { display: none; }
 .game-area.has-stage .gphase { top: var(--stageH, 60%); }
 .game-area.has-stage .buzz-btn { width: min(30vh, 46vw, 300px); height: min(30vh, 46vw, 300px); font-size: clamp(1.8rem, 7vmin, 4.5rem); border-width: 5px; }
 .game-area.has-stage .gp-buzzer .q-statement { display: none; }
@@ -118,7 +129,7 @@ input:focus { border-color: var(--accent); }
 .buzz-btn-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; width: 100%; gap: 12px; }
 .buzz-btn { width: min(60vmin, 60vw, 60vh, 400px); height: min(60vmin, 60vw, 60vh, 400px); border-radius: 50%; font-size: clamp(3rem, 15vmin, 10rem); font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: 6px solid var(--danger); background: radial-gradient(circle, #dc2626 0%, #991b1b 100%); color: #fff; box-shadow: 0 8px 30px rgba(220,38,38,.4); flex-shrink: 0; }
 /* Sin gestos del sistema en el botón: el doble toque de iOS desplazaba la pantalla y lo dejaba cortado */
-.buzz-btn { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#screen-game .buzz-btn { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .buzz-btn:active:not(:disabled) { transform: scale(.92); box-shadow: 0 4px 15px rgba(220,38,38,.6); }
 .buzz-btn:disabled { background: var(--surface); border-color: var(--border); color: var(--text2); box-shadow: none; }
 /* Pulsador-specific button states */
@@ -189,7 +200,7 @@ input:focus { border-color: var(--accent); }
 .hz-pool-empty { color: var(--text2); font-size: 14px; text-align: center; margin: auto; padding: 6px; grid-column: 1 / -1; }
 .hz-card, .hz-left { height: var(--rowH); padding: 5px 10px 5px 6px; border-radius: 12px; box-sizing: border-box; min-width: 0;
     display: flex; align-items: center; gap: 8px; font-size: clamp(14px, calc(var(--rowH) * .28), 21px); font-weight: 700; color: #fff; overflow: hidden; }
-.hz-card { background: rgba(30,30,46,.95); border: 2px solid rgba(255,255,255,.16); touch-action: none; cursor: grab;
+.hz-card { background: rgba(30,30,46,.95); border: 2px solid rgba(255,255,255,.16); touch-action: none !important; cursor: grab;
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: border-color .15s, box-shadow .15s, opacity .15s; }
 .hz-left { background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.12); backdrop-filter: blur(4px); }
 .hz-card.nopic, .hz-left.nopic { padding-left: 12px; }
@@ -205,7 +216,7 @@ input:focus { border-color: var(--accent); }
 .hz-grip { color: var(--text2); font-size: 16px; line-height: 1; flex-shrink: 0; }
 .hz-card.selected { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0,212,255,.25); }
 .hz-card.lifted { opacity: .22; }
-.hz-card.locked { cursor: default; touch-action: auto; }
+.hz-card.locked { cursor: default; touch-action: pan-x pan-y !important; }
 .hz-ghost { position: fixed; z-index: 300; pointer-events: none; margin: 0; transform: translate(-50%, -50%) scale(1.06) rotate(-1.5deg);
     box-shadow: 0 16px 44px rgba(0,0,0,.65); border-color: var(--accent); }
 .hz-slot { min-height: var(--rowH); border-radius: 12px; border: 2px dashed rgba(255,255,255,.28); background: rgba(0,0,0,.4); display: flex; flex-direction: column;
@@ -566,7 +577,7 @@ body.karaoke-active .player-timer-bar { display: none !important; }
     </div>
     <div class="game-area">
         <!-- Modo sin pantalla: lo que vería la sala (la vista de pantalla incrustada) encima de los botones -->
-        <div class="stage" id="stage" hidden><iframe id="stageFrame" title="Lo que se vería en la pantalla de sala" allow="autoplay; fullscreen"></iframe></div>
+        <div class="stage" id="stage" hidden><iframe id="stageFrame" title="Lo que se vería en la pantalla de sala" allow="autoplay; fullscreen"></iframe><div class="stage-sound" id="stageSound" hidden>🔊 Toca la pantalla para activar el sonido</div></div>
         <div class="gphase gp-waiting" id="gp-waiting">
             <img id="playerWaitingLogo" class="gs-waiting-logo" style="display:none; max-height:100px; max-width:200px; object-fit:contain;">
         </div>
@@ -718,6 +729,36 @@ function getPasses() { try { return JSON.parse(localStorage.getItem('gs_passes')
 function getPass(gameId) { return getPasses()[gameId] || null; }
 function setPass(gameId, pass) { var p = getPasses(); p[gameId] = pass; localStorage.setItem('gs_passes', JSON.stringify(p)); }
 function clearPass(gameId) { var p = getPasses(); delete p[gameId]; localStorage.setItem('gs_passes', JSON.stringify(p)); }
+
+// ═══════════════ Sin zoom ni desplazamientos en iOS ═══════════════
+// Safari aún puede ampliar con doble toque o con dos dedos aunque el viewport lo prohíba. Se anula
+// el segundo toque rápido en el mismo sitio (fuera de los campos de texto) y se repite el clic si
+// era un botón, para que no se pierda. Si algo desplaza la ventana, se recoloca.
+(function() {
+    var last = 0, lx = 0, ly = 0;
+    document.addEventListener('touchend', function(e) {
+        var t = e.changedTouches && e.changedTouches[0];
+        if (!t) return;
+        var now = Date.now(), near = Math.abs(t.clientX - lx) < 40 && Math.abs(t.clientY - ly) < 40;
+        var quick = now - last < 350 && near;
+        last = now; lx = t.clientX; ly = t.clientY;
+        if (!quick || e.touches.length) return;
+        var el = e.target && e.target.closest ? e.target : null;
+        if (el && el.closest('input, textarea, select, [contenteditable], .hz-card, [data-hzslot], [data-hzpool]')) return;
+        e.preventDefault();
+        var b = el && el.closest('button, a, label, [onclick]');
+        if (b && !b.disabled && !b.classList.contains('buzz-btn')) b.click();
+    }, { passive: false });
+    ['gesturestart', 'gesturechange', 'dblclick'].forEach(function(ev) {
+        document.addEventListener(ev, function(e) { e.preventDefault(); }, { passive: false });
+    });
+    // Solo en el juego y sin teclado abierto (al escribir, iOS desplaza a propósito para enseñar el campo)
+    window.addEventListener('scroll', function() {
+        if (!(window.scrollX || window.scrollY)) return;
+        var g = document.getElementById('screen-game'), a = document.activeElement;
+        if (g && g.classList.contains('active') && !(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) window.scrollTo(0, 0);
+    });
+})();
 
 // ═══════════════ Boot ═══════════════
 document.addEventListener('DOMContentLoaded', function() {
@@ -1542,6 +1583,20 @@ function renderGamePhase() {
 // En las pruebas en las que el iPad no muestra el contenido (solo el pulsador), se ve encima la
 // vista de la pantalla de sala. Se carga en cuanto el modo está activo, para que esté lista.
 var STAGE_TYPES = { pulsador: 1, ruleta: 1, imagen: 1, imagen_fija: 1, cancion: 1, aclara: 1, karaoke: 1 };
+// El escenario avisa (gsStageSound) cuando el sonido va en los iPads y aún no se ha activado.
+// Cualquier toque en el iPad intenta activarlo allí dentro; el toque sobre el propio escenario
+// lo activa siempre.
+window.gsStageSound = function(need) {
+    var el = document.getElementById('stageSound');
+    if (el) el.hidden = !need;
+};
+['touchend', 'click'].forEach(function(ev) {
+    document.addEventListener(ev, function() {
+        var el = document.getElementById('stageSound');
+        if (!el || el.hidden) return;
+        try { var w = document.getElementById('stageFrame').contentWindow; if (w && w.gsUnlockSound) w.gsUnlockSound(); } catch (e) {}
+    }, true);
+});
 function updateStage() {
     var ps = S.ps;
     var area = document.querySelector('#screen-game .game-area');
@@ -2215,6 +2270,9 @@ function renderPlayMenu() {
     }
 
     container.innerHTML = html;
+    fitPlayMenu();
+    requestAnimationFrame(fitPlayMenu);
+    setTimeout(fitPlayMenu, 400); // por si la fase aún se estaba mostrando
 
     if (doFade) {
         requestAnimationFrame(function() {
@@ -2223,6 +2281,41 @@ function renderPlayMenu() {
         });
     }
 }
+
+// Menú del iPad: los logos se encogen lo justo para que todo quepa con aire en cualquier pantalla
+// (móvil en vertical incluido). En un iPad apaisado se queda como siempre: 500 px de ancho máximo
+// y el tamaño de logo que toca por número de opciones.
+function fitPlayMenu() {
+    var menu = document.querySelector('#playMenuContainer .play-menu');
+    var host = document.getElementById('gp-waiting');
+    var grid = menu && menu.querySelector('.play-menu-grid');
+    if (!grid || !host || !host.clientHeight) return;
+    var items = grid.children, n = items.length;
+    if (!n) return;
+    var cs = getComputedStyle(host);
+    var W = Math.min(500, host.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 40);
+    var H = host.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 40;
+    var logo = menu.querySelector('.play-menu-logo');
+    var logoH = logo && logo.style.display !== 'none' ? Math.max(40, Math.min(120, Math.round(H * 0.16))) : 0;
+    if (logo) logo.style.maxHeight = logoH + 'px';
+    var GAP = 16, availH = H - (logoH ? logoH + 14 : 0);
+    var cap = n <= 1 ? 180 : n === 2 ? 160 : n <= 4 ? 140 : 120;
+    var best = 0, cols = 1;
+    for (var c = 1; c <= n; c++) {
+        var rows = Math.ceil(n / c);
+        var s = Math.min((W - GAP * (c - 1)) / c, (availH - GAP * (rows - 1)) / rows, cap);
+        if (s > best + 0.5) { best = s; cols = c; }
+    }
+    var size = Math.max(44, Math.floor(best));
+    grid.style.maxWidth = (size * cols + GAP * (cols - 1)) + 'px';
+    for (var i = 0; i < n; i++) {
+        items[i].style.width = size + 'px';
+        items[i].style.height = size + 'px';
+        var img = items[i].querySelector('img');
+        if (img) img.style.maxHeight = Math.max(24, size - 20) + 'px';
+    }
+}
+window.addEventListener('resize', function() { fitPlayMenu(); });
 
 // ── Premio background layer (reusable for both premio overlays) ──
 function paintPremioBgLayer(el, resolved) {
