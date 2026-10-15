@@ -78,7 +78,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .aclara-ctrl { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .aclara-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .aclara-cap { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); margin-bottom: 3px; }
-.aclara-previews canvas, .aclara-previews img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #0b0b12; border-radius: 8px; border: 1px solid var(--border); display: block; }
+.aclara-previews canvas, .aclara-previews img { width: 100%; height: clamp(90px, 24vh, 240px); object-fit: contain; background: #0b0b12; border-radius: 8px; border: 1px solid var(--border); display: block; }
 .aclara-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .aclara-info { font-size: 13px; color: var(--text2); font-variant-numeric: tabular-nums; }
 .aclara-info b { color: var(--accent); }
@@ -106,7 +106,25 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .rc-q-btn.current { border-color: var(--accent); background: rgba(0,212,255,.15); color: var(--accent); }
 
 /* Question */
-#phase-question { gap: 16px; }
+#phase-question { gap: 10px; padding: 12px 16px; }
+/* Controles siempre a la vista en una pantalla 16:9 sin F11: nada se encoge (si no cabe, la
+   columna se desplaza), las filas de botones se quedan fijas abajo de su columna y las imágenes
+   y logos se ajustan al alto de la ventana. */
+.imagen-left > *, .precio-left > * { flex-shrink: 0; }
+.ctrl-row { position: sticky; bottom: 0; z-index: 3; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-top: 8px; background: var(--bg); }
+.imagen-right > .ctrl-row { background: var(--surface); margin-top: 8px; padding-bottom: 2px; }
+#imagenContainer { flex: 1 1 0; min-height: 140px; container-type: size; display: flex; align-items: center; justify-content: center; }
+.if-prev { max-width: 100%; max-height: clamp(100px, 30vh, 240px); object-fit: contain; border-radius: 10px; border: 2px solid var(--border); background: #1a1a2e; }
+.precio-logo-img { max-height: clamp(36px, 8vh, 72px); max-width: 200px; object-fit: contain; border-radius: 8px; }
+.karaoke-assign-actions { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; position: sticky; top: 0; z-index: 3; background: var(--bg); padding: 4px 0; }
+.karaoke-assign-actions .karaoke-start-btn { padding: 10px 22px; }
+.karaoke-team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+@media (max-height: 820px) {
+    .header-actions { padding: 2px 8px 3px; }
+    .header-actions .hdr-btn { padding: 3px 4px; font-size: 16px; gap: 1px; }
+    .header-actions .hdr-btn.btn-accent { font-size: 15px; }
+    .header-top { padding-top: 4px; padding-bottom: 4px; }
+}
 .question-nav { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .question-counter { font-size: 13px; color: var(--text2); flex: 1; text-align: center; }
 .question-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; flex-shrink: 0; }
@@ -387,7 +405,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
    del vídeo y el vídeo se limita al alto de la ventana. */
 #imagenFijaDirectorPanel .imagen-left > * { flex-shrink: 0; }
 .if-video-ctrls { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; justify-content: center; }
-.if-video-prev { max-width: 100%; max-height: min(240px, 30vh); object-fit: contain; border-radius: 10px; border: 2px solid var(--border); background: #1a1a2e; }
+
 .imagen-right { flex: 1; display: flex; flex-direction: column; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
 .imagen-right h4 { font-size: 12px; text-transform: uppercase; color: var(--text2); letter-spacing: .5px; margin-bottom: 8px; flex-shrink: 0; }
 .imagen-container { position: relative; border-radius: 10px; overflow: hidden; width: 100%; }
@@ -404,11 +422,11 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 
 /* ── Precio director panel ── */
 .precio-layout { display: flex; gap: 20px; flex: 1; min-height: 0; }
-.precio-left { flex: 2; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+.precio-left { flex: 2; display: flex; flex-direction: column; gap: clamp(8px, 1.6vh, 14px); overflow-y: auto; }
 .precio-right { flex: 1; display: flex; flex-direction: column; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
 .precio-right h4 { font-size: 12px; text-transform: uppercase; color: var(--text2); letter-spacing: .5px; margin-bottom: 8px; flex-shrink: 0; }
 .precio-img-wrap { text-align: center; }
-.precio-img-wrap img { max-width: 240px; max-height: 160px; border-radius: 10px; border: 2px solid var(--border); object-fit: contain; background: #1a1a2e; }
+.precio-img-wrap img { max-width: 240px; max-height: clamp(70px, 22vh, 180px); border-radius: 10px; border: 2px solid var(--border); object-fit: contain; background: #1a1a2e; }
 .precio-stmt { font-size: 15px; color: var(--text2); line-height: 1.4; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
 .precio-correct-box { background: rgba(34,197,94,.1); border: 1px solid var(--success); border-radius: 8px; padding: 12px; font-size: 15px; }
 .precio-answers-list { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; overflow-y: auto; }
@@ -664,18 +682,18 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                             <div class="answer-value" id="puAnswerText"></div>
                         </div>
                         <div class="aclara-ctrl" id="aclaraCtrl" style="display:none">
-                            <div class="aclara-previews">
-                                <div><div class="aclara-cap">Lo que ve la sala</div><canvas id="acDirCanvas"></canvas></div>
-                                <div><div class="aclara-cap">Imagen real</div><img id="acDirImg" alt=""></div>
-                            </div>
                             <div class="aclara-row">
                                 <button class="btn-accent btn-sm" id="acBtnPlay" onclick="emit('director:aclara_play')">&#9654; Aclarar</button>
                                 <button class="btn-ghost btn-sm" id="acBtnPause" onclick="emit('director:aclara_pause')">&#9208; Pausa</button>
                                 <span class="aclara-info" id="acInfo"></span>
                             </div>
                             <input type="range" id="acSlider" min="0" max="100" step="1" value="0" aria-label="Nitidez de la imagen">
+                            <div class="aclara-previews">
+                                <div><div class="aclara-cap">Lo que ve la sala</div><canvas id="acDirCanvas"></canvas></div>
+                                <div><div class="aclara-cap">Imagen real</div><img id="acDirImg" alt=""></div>
+                            </div>
                         </div>
-                        <div class="imagen-btn-row">
+                        <div class="imagen-btn-row ctrl-row">
                             <button class="btn-ghost btn-sm" id="btnPuToggleAnswer" onclick="togglePuAnswer()">&#128065; Mostrar respuesta</button>
                             <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
                         </div>
@@ -691,7 +709,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                         <div class="pulsador-queue-list" id="puQueueList">
                             <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
                         </div>
-                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                        <div class="ctrl-row">
                             <span class="buzzer-first-name" id="puFirstName"></span>
                             <button class="btn-success" id="puBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="puBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
@@ -712,7 +730,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                             <span style="color:var(--success);font-weight:700;">Valor correcto: </span>
                             <span id="precioDirCorrectValue"></span>
                         </div>
-                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <div class="ctrl-row">
                             <button class="btn-accent" id="btnPrecioRevealOpts" onclick="emit('director:reveal_options')">&#9654; Iniciar tiempo</button>
                             <button class="btn-accent" id="btnPrecioRevealAnswer" onclick="emit('director:reveal_answer')">&#128064; Revelar respuesta</button>
                             <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
@@ -742,7 +760,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                         <div style="margin-top:10px;">
                             <div class="ruleta-compact" id="ruRuletaKeyboard"></div>
                         </div>
-                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+                        <div class="ctrl-row">
                             <button class="rl-solve-btn" id="ruBtnSolve" onclick="emit('director:solve_roulette')" style="padding:8px 16px; font-size:13px;">&#9989; RESOLVER</button>
                             <button class="btn-ghost btn-sm" id="ruBtnResetRuleta" onclick="resetRuleta()" style="flex-shrink:0;">&#128260; Reset</button>
                             <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
@@ -759,7 +777,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                         <div class="pulsador-queue-list" id="ruQueueList">
                             <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
                         </div>
-                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                        <div class="ctrl-row">
                             <span class="buzzer-first-name" id="ruFirstName"></span>
                             <button class="btn-success" id="ruBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="ruBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
@@ -778,12 +796,10 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                             <div class="answer-label">Respuesta</div>
                             <div class="answer-value" id="imagenAnswerText"></div>
                         </div>
-                        <div class="imagen-btn-row">
+                        <div class="imagen-btn-row ctrl-row">
                             <button class="btn-accent" id="btnImagenRevealAll" onclick="imagenRevealAll()">&#128064; Revelar todo</button>
                             <button class="btn-ghost" id="btnImagenReset" onclick="imagenReset()">&#128260; Reiniciar</button>
                             <button class="btn-ghost" id="btnImagenToggleAnswer" onclick="imagenToggleAnswer()">Mostrar respuesta</button>
-                        </div>
-                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                             <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
                         </div>
                     </div>
@@ -798,7 +814,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                         <div class="pulsador-queue-list" id="imgQueueList">
                             <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
                         </div>
-                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                        <div class="ctrl-row">
                             <span class="buzzer-first-name" id="imgFirstName"></span>
                             <button class="btn-success" id="imgBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="imgBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
@@ -818,7 +834,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                             <div class="answer-label">Respuesta</div>
                             <div class="answer-value" id="ifAnswerText"></div>
                         </div>
-                        <div class="imagen-btn-row">
+                        <div class="imagen-btn-row ctrl-row">
                             <button class="btn-ghost btn-sm" id="btnIfToggleAnswer" onclick="toggleIfAnswer()">&#128065; Mostrar respuesta</button>
                             <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
                         </div>
@@ -834,7 +850,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                         <div class="pulsador-queue-list" id="ifQueueList">
                             <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
                         </div>
-                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                        <div class="ctrl-row">
                             <span class="buzzer-first-name" id="ifFirstName"></span>
                             <button class="btn-success" id="ifBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="ifBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
@@ -861,7 +877,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                         <div class="pulsador-queue-list" id="cnQueueList">
                             <div class="pq-empty">Nadie ha pulsado a&uacute;n</div>
                         </div>
-                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                        <div class="ctrl-row">
                             <span class="buzzer-first-name" id="cnFirstName"></span>
                             <button class="btn-success" id="cnBtnCorrect" onclick="markFirst(true)" style="display:none;">&#10004; Acierto</button>
                             <button class="btn-danger" id="cnBtnWrong" onclick="markFirst(false)" style="display:none;">&#10008; Fallo</button>
@@ -1276,11 +1292,13 @@ function renderRoundsActive() {
 
 function launchRound(roundId) { emit('director:launch_round', { roundId }); }
 
+// «Ronda completada» hace lo mismo que «Terminar ronda»: la marca como completada y saca el
+// cartel de fin de ronda (así cortar una ronda a medias no es un corte brusco). Si la pregunta
+// tiene bono, antes se elige el ganador.
 function markRoundComplete() {
     var ds = S.director;
     if (!ds || !ds.currentRoundId) return;
-    emit('director:complete_round', { roundId: ds.currentRoundId });
-    toast('Ronda marcada como completada');
+    handleFinishRound();
 }
 
 // ── Lobby ──
@@ -1713,7 +1731,7 @@ function renderQuestionPrecio() {
     if (logo !== _precioPrevLogo) {
         _precioPrevLogo = logo;
         var logoEl = document.getElementById('precioLogo');
-        if (logo) { logoEl.innerHTML = '<img src="' + esc(logo) + '" style="max-height:80px;max-width:200px;object-fit:contain;border-radius:8px;" onerror="this.style.display=\'none\'">'; }
+        if (logo) { logoEl.innerHTML = '<img class="precio-logo-img" src="' + esc(logo) + '" onerror="this.style.display=\'none\'">'; }
         else { logoEl.innerHTML = ''; }
     }
 
@@ -1927,7 +1945,8 @@ function renderQuestionImagen() {
     function buildGrid(imgW, imgH) {
         // Only rebuild the grid on question change to avoid flicker
         if (idx !== _imagenPrevQIdx) {
-            var html = '<div style="position:relative; aspect-ratio:' + imgW + '/' + imgH + '; max-width:100%; max-height:100%; overflow:hidden; background:#fff;">';
+            // Cabe entera en el hueco que deja la columna (ancho y alto), sin empujar los botones
+            var html = '<div style="position:relative; aspect-ratio:' + imgW + '/' + imgH + '; width:min(100cqw, calc(100cqh * ' + (imgW / imgH).toFixed(4) + ')); overflow:hidden; background:#fff;">';
             html += '<img class="imagen-base" src="' + esc(imgSrc) + '" draggable="false">';
             html += '<div class="imagen-grid" style="grid-template-columns:repeat(' + cols + ',1fr); grid-template-rows:repeat(' + rows + ',1fr);">';
             for (var i = 0; i < totalTiles; i++) {
@@ -2084,11 +2103,11 @@ function renderQuestionImagenFija() {
             '<button class="btn-ghost btn-sm" onclick="emit(\'director:video_command\',{action:\'pause\'})">&#10074;&#10074; Pausa</button>' +
             '<button class="btn-ghost btn-sm" onclick="emit(\'director:video_command\',{action:\'restart\'})">&#8634; Reiniciar</button>' +
             '</div>' +
-            '<video class="if-video-prev" src="' + esc(c.video) + '" muted playsinline></video>';
+            '<video class="if-prev" src="' + esc(c.video) + '" muted playsinline></video>';
     } else {
         var imgSrc = c.image || q.media_url || '';
         if (imgSrc) {
-            container.innerHTML = '<img src="' + esc(imgSrc) + '" style="max-width:100%;max-height:240px;object-fit:contain;border-radius:10px;border:2px solid var(--border);background:#1a1a2e;">';
+            container.innerHTML = '<img class="if-prev" src="' + esc(imgSrc) + '">';
         } else {
             container.innerHTML = '<div style="padding:40px;color:var(--text2);">Sin imagen</div>';
         }
@@ -3466,8 +3485,10 @@ function renderKaraokeAssign(panel, ds, c, colors) {
     html += '<div class="karaoke-assign-title">Karaoke — Asignación de equipos</div>';
     html += '<div class="karaoke-assign-sub">' + colors.length + ' colores: ' + colors.join(', ') + '</div>';
     if (teams.length > colors.length) html += '<div class="karaoke-assign-sub">Hay más equipos que colores: varios equipos comparten color y cantan juntos.</div>';
-    html += '<button class="btn btn-sm" id="karaokeAutoBtn" style="align-self:center">🎲 Repartir automáticamente</button>';
+    html += '<div class="karaoke-assign-actions"><button class="btn btn-sm" id="karaokeAutoBtn">🎲 Repartir automáticamente</button>'
+        + '<button class="karaoke-start-btn" id="karaokeStartBtn" disabled>Empezar karaoke</button></div>';
     html += '<div class="karaoke-color-counts" id="karaokeColorCounts"></div>';
+    html += '<div class="karaoke-team-grid">';
 
     teams.forEach(function(t) {
         if (!_karaokeAssign.hasOwnProperty(t.id)) _karaokeAssign[t.id] = '';
@@ -3482,8 +3503,7 @@ function renderKaraokeAssign(panel, ds, c, colors) {
         html += '</select></div>';
     });
 
-    html += '<button class="karaoke-start-btn" id="karaokeStartBtn" disabled>Empezar karaoke</button>';
-    html += '</div>';
+    html += '</div></div>';
     panel.innerHTML = html;
 
     panel.querySelectorAll('.karaoke-assign-select').forEach(function(sel) {
@@ -3767,9 +3787,22 @@ document.getElementById('pointsInput').addEventListener('keydown', function(e) {
 // Keep sidebar height in sync with bottom bar
 (function() {
     var bb = document.getElementById('bottomBar');
-    function syncBB() { document.documentElement.style.setProperty('--bb-h', bb.offsetHeight + 'px'); }
+    // La zona de trabajo deja abajo el hueco exacto de la barra de equipos. Antes a veces se
+    // quedaba con un alto viejo (40 px con la barra en 72) y los botones de abajo de cada panel
+    // quedaban tapados: se recalcula con el borde incluido, al cambiar la ventana y al cambiar
+    // su contenido.
+    var lastH = -1;
+    function syncBB() {
+        var h = bb.offsetHeight;
+        if (h === lastH) return;
+        lastH = h;
+        document.documentElement.style.setProperty('--bb-h', h + 'px');
+    }
     syncBB();
-    new ResizeObserver(syncBB).observe(bb);
+    try { new ResizeObserver(syncBB).observe(bb, { box: 'border-box' }); } catch (e) { new ResizeObserver(syncBB).observe(bb); }
+    new MutationObserver(syncBB).observe(bb, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    window.addEventListener('resize', syncBB);
+    setInterval(syncBB, 2000); // red de seguridad: leer un alto cada 2 s no cuesta nada
 })();
 </script>
 </body>
