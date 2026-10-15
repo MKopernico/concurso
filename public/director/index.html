@@ -2503,7 +2503,7 @@ function renderAnswerRevealed() {
             var totalPairs = boomSteps ? (c.items ? c.items.length : 0) : (c.pairs ? c.pairs.length : 0);
             var revIdx = boomSteps ? ds.boomStep : (ds.identidad.revealIndex || 0);
             idRevPanel.style.display = '';
-            document.getElementById('identidadRevealCount').textContent = revIdx + ' / ' + totalPairs + ' reveladas';
+            document.getElementById('identidadRevealCount').textContent = revIdx + ' / ' + totalPairs + ' reveladas' + (revIdx < totalPairs ? ' · los puntos se suman al terminar' : ' · puntos sumados');
             var btnRevPair = document.getElementById('btnRevealNextPair');
             btnRevPair.disabled = revIdx >= totalPairs;
             btnRevPair.innerHTML = revIdx >= totalPairs ? '&#10003; Todas reveladas' : '&#128065; Ir revelando';

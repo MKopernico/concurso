@@ -78,25 +78,32 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     check('Órdenes con huecos de más o índices falsos se rechazan', !(P[2].sync.answeredTeams || []).includes(T[2]));
     // Se acaba la pregunta: el provisional del equipo 0 cuenta (2 de 4 → 50 puntos)
     d.emit('director:reveal_answer'); await wait(500);
+    check('Identidad: al acabar el tiempo aún no cuentan los puntos', (d.state.director.scores[T[0]] || 0) === 0 && (d.state.director.scores[T[1]] || 0) === 0);
     const l = P[0].sync.lastQuestionScores;
     check('El hueco vacío no puntúa: 2 de 4 parejas', l[T[0]].correctCount === 2 && l[T[0]].points === 50, l[T[0]]);
     check('Su respuesta revelada conserva el hueco vacío', Array.isArray(l[T[0]].answer) && l[T[0]].answer[2] === null && l[T[0]].answer[3] === 2, l[T[0]].answer);
     check('El envío completo suma todo', l[T[1]].correct === true && l[T[1]].correctCount === 4, l[T[1]]);
     check('Quien no colocó nada no puntúa', l[T[2]].noAnswer === true || l[T[2]].points === 0, l[T[2]]);
-    // ── Boom revelado por pasos
+    d.emit('director:reveal_next_pair'); await wait(300);
+    check('Identidad: sin terminar de revelar siguen sin contar', (d.state.director.scores[T[1]] || 0) === 0);
+    // ── Boom revelado por pasos (al lanzar otra ronda, lo pendiente de Identidad se suma)
     d.emit('director:launch_round', { roundId: rBoom.id }); await wait(200);
     d.emit('director:launch_question', { idx: 0 }); await wait(200);
+    check('Identidad: al salir sin terminar de revelar, los puntos se suman', d.state.director.scores[T[0]] === 50 && d.state.director.scores[T[1]] === 100, { e0: d.state.director.scores[T[0]], e1: d.state.director.scores[T[1]] });
     d.emit('director:reveal_options'); await wait(400);
     const shownB = P[0].sync.question.content.items;
     P[0].emit('player:submit_order', { order: ['a', 'b', 'c'].map(x => shownB.indexOf(x)) }); await wait(250);
     d.emit('director:reveal_answer'); await wait(500);
     check('Boom: al acabar empieza sin nada revelado y el iPad no recibe el orden', P[0].sync.boomStep === 0 && P[0].sync.question.content.correct_order.length === 0, { step: P[0].sync.boomStep, co: P[0].sync.question.content.correct_order });
+    check('Boom: los puntos aún no cuentan al acabar el tiempo', d.state.director.scores[T[0]] === 50, d.state.director.scores[T[0]]);
     d.emit('director:reveal_next_pair'); await wait(300);
     check('Boom: «Ir revelando» destapa la primera posición', P[0].sync.boomStep === 1 && JSON.stringify(P[0].sync.question.content.correct_order) === '[0]');
-    d.emit('director:reveal_next_pair'); d.emit('director:reveal_next_pair'); await wait(300);
+    d.emit('director:reveal_next_pair'); await wait(300);
+    check('Boom: a mitad del revelado siguen sin contar', d.state.director.scores[T[0]] === 50, d.state.director.scores[T[0]]);
+    d.emit('director:reveal_next_pair'); await wait(300);
     d.emit('director:reveal_next_pair'); await wait(300);
     check('Boom: se detiene al llegar al final', P[0].sync.boomStep === 3 && P[0].sync.question.content.correct_order.length === 3);
-    check('Boom: los puntos se suman al acabar (una vez)', d.state.director.scores[T[0]] === 150, d.state.director.scores[T[0]]);
+    check('Boom: los puntos se suman al destapar la última posición (una vez)', d.state.director.scores[T[0]] === 150, d.state.director.scores[T[0]]);
     cmd('director:next_question'); await wait(300);
     check('Boom: la siguiente pregunta vuelve a ocultar', P[0].sync.boomStep === null && P[0].sync.phase === 'question');
     cmd('director:prev_question'); await wait(400);

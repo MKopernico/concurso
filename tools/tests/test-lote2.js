@@ -160,6 +160,7 @@ let d;
     await wait(300);
     const b0 = score(0), b1 = score(1);
     d.emit('director:reveal_answer'); await wait(400);
+    for (let k = 0; k < 4; k++) d.emit('director:reveal_next_pair'); await wait(400); // los puntos cuentan al revelar todo
     check('boom: el orden correcto (en lo que ve el iPad) puntúa', score(0) - b0 === 100, score(0) - b0);
     check('boom: el orden "tal cual llega" no acierta', score(1) - b1 <= 0, score(1) - b1);
 
@@ -174,6 +175,7 @@ let d;
     P[0].emit('player:submit_order', { order: want }); await wait(300);
     const i0 = score(0);
     d.emit('director:reveal_answer'); await wait(400);
+    for (let k = 0; k < 3; k++) d.emit('director:reveal_next_pair'); await wait(400); // los puntos cuentan al revelar todo
     check('identidad: el emparejamiento correcto puntúa', score(0) - i0 === 100, score(0) - i0);
     check('identidad: el resultado guarda el orden real', JSON.stringify((P[0].sync.lastQuestionScores[T[0]] || {}).answer) === '[0,1,2]');
 

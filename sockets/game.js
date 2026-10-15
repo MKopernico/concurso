@@ -119,6 +119,7 @@ function snapshotOf(state) {
         bloqueoGlobal: !!state.bloqueoGlobal,
         noScreen: !!ds.noScreen,
         audioOn: ds.audioOn || 'sala',
+        pendingScores: ds.pendingScores || null,
         teams: Object.fromEntries(state.equipos.map(e => [e.id, { bonos: e.bonos || [], bloqueado: !!e.bloqueado, descongelaEn: e.descongelaEn || 0 }])),
     });
 }
@@ -139,6 +140,7 @@ function restoreSnapshot(s, json) {
     s.bloqueoGlobal = !!snap.bloqueoGlobal;
     if (typeof snap.noScreen === 'boolean') s.director.noScreen = snap.noScreen;
     if (snap.audioOn === 'ipads' || snap.audioOn === 'sala') s.director.audioOn = snap.audioOn;
+    if (snap.pendingScores && typeof snap.pendingScores === 'object') s.director.pendingScores = snap.pendingScores;
     s._lastSnapshot = json;
 }
 
@@ -591,6 +593,25 @@ function shuffleNotIdentical(arr) {
     return shuffled;
 }
 
+// Boom e Identidad se revelan paso a paso: sus puntos esperan en ds.pendingScores y se suman al
+// destapar la última posición/pareja (más emoción). Si el coordinador sale de la pregunta antes,
+// se suman al salir: nunca se pierden.
+function addPending(ds, teamId, pts) {
+    if (!ds.pendingScores) ds.pendingScores = {};
+    ds.pendingScores[teamId] = (ds.pendingScores[teamId] || 0) + pts;
+}
+function applyPendingScores(state) {
+    const ds = state.director;
+    const p = ds.pendingScores;
+    if (!p) return false;
+    for (const [teamId, pts] of Object.entries(p)) {
+        if (!ds.scores[teamId]) ds.scores[teamId] = 0;
+        ds.scores[teamId] += pts;
+    }
+    ds.pendingScores = null;
+    return true;
+}
+
 function autoScoreIdentidad(state) {
     const ds = state.director;
     const q = ds.questions[ds.currentQuestionIdx];
@@ -612,11 +633,11 @@ function autoScoreIdentidad(state) {
         const proportional = Math.floor(cfg.basePoints * correctCount / nPairs);
         if (correctCount === nPairs) {
             const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
-            ds.scores[teamId] += proportional + bonus;
+            addPending(ds, teamId, proportional + bonus);
         } else {
-            ds.scores[teamId] += proportional;
+            addPending(ds, teamId, proportional);
             if (cfg.penalty > 0 && correctCount < nPairs) {
-                ds.scores[teamId] -= cfg.penalty;
+                addPending(ds, teamId, -cfg.penalty);
             }
         }
     }
@@ -635,9 +656,9 @@ function autoScoreBoom(state) {
         if (!ds.scores[teamId]) ds.scores[teamId] = 0;
         if (ok) {
             const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
-            ds.scores[teamId] += cfg.basePoints + bonus;
+            addPending(ds, teamId, cfg.basePoints + bonus);
         } else if (cfg.penalty > 0) {
-            ds.scores[teamId] -= cfg.penalty;
+            addPending(ds, teamId, -cfg.penalty);
         }
     }
 }
@@ -917,6 +938,7 @@ function aplicarDescongelacionPorPregunta(state, io, gameId) {
 }
 
 function avanzarPregunta(state, io, gameId) {
+    applyPendingScores(state);
     const ds = state.director;
     if (ds.currentQuestionIdx >= ds.questions.length - 1) return false;
     aplicarDescongelacionPorPregunta(state, io, gameId);
@@ -1616,6 +1638,7 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:launch_round', (data) => {
+            applyPendingScores(state); // puntos de Boom/Identidad sin terminar de revelar
             if (!data || !data.roundId) return;
             const round = db.prepare('SELECT * FROM rounds WHERE id = ?').get(data.roundId);
             if (!round) return;
@@ -1637,6 +1660,7 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:start_round', () => {
+            applyPendingScores(state); // puntos de Boom/Identidad sin terminar de revelar
             const ds = state.director;
             if (ds.currentRound && ds.questions.length > 0) {
                 aplicarDescongelacionPorPregunta(state, io, gameId);
@@ -1670,6 +1694,7 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:launch_question', (data) => {
+            applyPendingScores(state); // puntos de Boom/Identidad sin terminar de revelar
             const ds = state.director;
             const idx = Number(data && data.idx);
             if (!isFinite(idx) || idx < 0 || idx >= ds.questions.length) return;
@@ -1717,6 +1742,7 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:prev_question', () => {
+            applyPendingScores(state); // puntos de Boom/Identidad sin terminar de revelar
             const ds = state.director;
             if (ds.currentQuestionIdx > 0) {
                 stopTimer(state, gameId, io);
@@ -2016,6 +2042,7 @@ function attachSocketHandlers(io) {
                 const n = qb && qb.content && Array.isArray(qb.content.items) ? qb.content.items.length : 0;
                 if (ds.phase !== 'answer_revealed' || typeof ds.boomStep !== 'number' || ds.boomStep >= n) return;
                 ds.boomStep++;
+                if (ds.boomStep >= n) applyPendingScores(state); // última posición: ahora cuentan los puntos
                 io.to(roomOf(gameId)).emit('game:pair_revealed', { index: ds.boomStep - 1 });
                 broadcastDirector(io, gameId, state);
                 return;
@@ -2025,6 +2052,7 @@ function attachSocketHandlers(io) {
             if (!q || !q.content || !q.content.pairs) return;
             if (ds.identidad.revealIndex >= q.content.pairs.length) return;
             ds.identidad.revealIndex++;
+            if (ds.identidad.revealIndex >= q.content.pairs.length) applyPendingScores(state); // última pareja: ahora cuentan los puntos
             io.to(roomOf(gameId)).emit('game:pair_revealed', { index: ds.identidad.revealIndex - 1 });
             broadcastDirector(io, gameId, state);
         });
@@ -2218,6 +2246,7 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:complete_round', (data) => {
+            applyPendingScores(state); // puntos de Boom/Identidad sin terminar de revelar
             if (!data || !data.roundId) return;
             const ds = state.director;
             if (ds.completedRounds.indexOf(data.roundId) === -1) {
@@ -2227,10 +2256,12 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:finish_round', () => {
+            applyPendingScores(state); // puntos de Boom/Identidad sin terminar de revelar
             finalizarRonda(state, io, gameId);
         });
 
         socket.on('director:finish_with_premio', (data) => {
+            applyPendingScores(state); // puntos de Boom/Identidad sin terminar de revelar
             const r = resolverPremioAsignado(state, data, io, gameId);
             finalizarRonda(state, io, gameId);
             state.director.premioGanadorExtra = r.extra;
@@ -2241,6 +2272,7 @@ function attachSocketHandlers(io) {
         });
 
         socket.on('director:go_home', () => {
+            applyPendingScores(state); // puntos de Boom/Identidad sin terminar de revelar
             const ds = state.director;
             ds.currentRoundId = null;
             ds.currentRound = null;
@@ -2263,7 +2295,7 @@ function attachSocketHandlers(io) {
             Object.keys(ds.scores).forEach(k => { ds.scores[k] = 0; });
             // Reset completed rounds
             ds.completedRounds = [];
-            ds.bonoLog = []; ds.logCount = 0;
+            ds.bonoLog = []; ds.logCount = 0; ds.pendingScores = null;
             logAction(state, { action: 'reset', what: 'session' });
             // Reset round/question state
             ds.currentRoundId = null;
@@ -2306,7 +2338,7 @@ function attachSocketHandlers(io) {
             // Reset all director state
             ds.scores = {};
             ds.completedRounds = [];
-            ds.bonoLog = []; ds.logCount = 0;
+            ds.bonoLog = []; ds.logCount = 0; ds.pendingScores = null;
             ds.currentRoundId = null;
             ds.currentRound = null; // (antes de registrar: el reinicio no pertenece a ninguna ronda)
             logAction(state, { action: 'reset', what: 'full' });

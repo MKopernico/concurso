@@ -553,6 +553,12 @@ class Coordinator {
             const answers = this.D().answers || {};
             exp = expectedPoints(type, q.content, cfg, answers, this.D().timer.total);
             if (this.onClosed) this.onClosed({ type, q, key, closeAt, recorded: answers });
+            // Boom e Identidad: los puntos cuentan al revelarlo todo con «Ir revelando», como en sala
+            if (type === 'boom' || type === 'identidad') {
+                const n = type === 'boom' ? q.content.items.length : q.content.pairs.length;
+                for (let k = 0; k < n; k++) { d.emit('director:reveal_next_pair'); await wait(60); }
+                await wait(250);
+            }
         } else if (BUZZ_TYPES.has(type)) {
             if (type === 'ruleta') { d.emit('director:show_roulette_panel'); d.emit('director:reveal_letter', { letter: 'A' }); d.emit('director:reveal_letter', { letter: 'E' }); }
             else if (type === 'imagen') { d.emit('director:image_reveal_tile', { tileIndex: 0 }); d.emit('director:image_reveal_tile', { tileIndex: 3 }); }
