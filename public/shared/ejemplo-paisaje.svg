@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <!-- Imagen de muestra de la plantilla Excel con ejemplos: montañas junto a un lago al amanecer -->
+  <defs>
+    <linearGradient id="cielo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff8a5c"/>
+      <stop offset="0.55" stop-color="#ffd27a"/>
+      <stop offset="1" stop-color="#fff1c9"/>
+    </linearGradient>
+    <linearGradient id="lago" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a7fb8"/>
+      <stop offset="1" stop-color="#1d4a73"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#cielo)"/>
+  <circle cx="560" cy="250" r="70" fill="#fff6d5"/>
+  <polygon points="0,420 170,190 300,330 420,150 600,380 700,260 800,360 800,430 0,430" fill="#5b4a7a"/>
+  <polygon points="420,150 470,215 440,205 405,230 380,200" fill="#f4f1ff"/>
+  <polygon points="170,190 205,240 180,232 150,250 140,232" fill="#f4f1ff"/>
+  <polygon points="0,440 120,330 250,420 380,300 520,430 660,340 800,440 800,460 0,460" fill="#2f6b4f"/>
+  <rect y="455" width="800" height="145" fill="url(#lago)"/>
+  <rect x="470" y="480" width="180" height="6" rx="3" fill="#fff6d5" opacity=".7"/>
+  <rect x="500" y="500" width="120" height="5" rx="2.5" fill="#fff6d5" opacity=".5"/>
+  <rect x="525" y="518" width="70" height="4" rx="2" fill="#fff6d5" opacity=".35"/>
+  <g fill="#1f4a36">
+    <polygon points="60,460 80,400 100,460"/>
+    <polygon points="95,460 118,385 141,460"/>
+    <polygon points="700,460 718,410 736,460"/>
+    <polygon points="735,460 756,395 777,460"/>
+  </g>
+</svg>

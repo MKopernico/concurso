@@ -59,7 +59,7 @@ node tools/tests/test-loteD-registro.js # 11 (registro del coordinador: puntos, 
 node tools/tests/test-loteD-aclara.js   # 15 (Imagen que se aclara: avance, pausa al pulsar, fallo reanuda, puntos por nitidez, modo a mano, Excel)
 node tools/tests/test-loteD-recuperar.js # 10 (pasar un equipo a otro iPad con código de un solo uso)
 node tools/tests/test-loteE-sinpantalla.js # 9 (modo sin pantalla y dónde suena: backoffice, coordinador, vista incrustada)
-node tools/tests/test-loteF-informe.js  # 10 (resultados por equipo en pruebas de pulsador; «Mostrar respuesta» de Imagen que se aclara)
+node tools/tests/test-loteF-informe.js  # 17 (resultados por equipo en pulsador; «Mostrar respuesta» de aclara; plantilla Excel con ejemplos; Precio vacío = incompleto)
 node tools/tests/load-test.js 50   # N iPads simulados: entrada, respuestas, pulsador, bonos, reconexión masiva
 node tools/tests/soak-test.js 15   # resistencia: partida larga (minutos) con los 10 tipos; memoria, temporizadores, latencias, marcador
 node tools/tests/chaos-test.js 10  # red caótica: cortes al azar, zombis, retraso; puntos, equipos y errores
@@ -90,5 +90,8 @@ La contraseña local de desarrollo está en `.env` (no se sube).
 ## Documentación
 
 - Manual de monitores: `public/manual/index.html` (servido en `/manual/`). Actualizarlo cuando cambie el comportamiento visible.
+- Capturas del manual (`public/manual/img/*.webp`): se rehacen con `node tools/capturas-manual/shot-server.js` (servidor aparte en el puerto 3101 con una copia de `db/games.db` y `uploads/`; usa el juego «Batidora genérica» de la BD local) y, con él en marcha, `node tools/capturas-manual/shots.js` (Edge sin ventana manejado por CDP; partes: `admin`, `juego`, `aclara` o `todo`). Revisar las imágenes al terminar.
+- Plantillas Excel: `/api/templates/importacion` (vacía) y `?ejemplo=1` (una pregunta de cada tipo, importable tal cual; imagen de muestra en `/shared/ejemplo-paisaje.svg`). Botones en la lista de juegos, en cada juego y en la ventana de importar.
+- Kit: `VERSION.txt` dice con qué commit se generó.
 - Revisión exhaustiva de octubre 2026: `../revision-codigo-2026-10.md`.
 - Instrucciones del kit: `kit/LEEME.txt`.

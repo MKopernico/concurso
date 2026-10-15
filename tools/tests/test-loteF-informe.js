@@ -89,6 +89,36 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     check('Aclara: el acierto sale en resultados con los puntos que valía', la[T[2]] && la[T[2]].correct && la[T[2]].points === 50 && d.state.director.scores[T[2]] === 50, la[T[2]]);
     check('Aclara: la respuesta oculta de la pregunta anterior no se arrastra', scr.sync.imagePuzzle.answerVisible === false);
 
+    // ── Plantilla Excel con ejemplos: se descarga, se importa tal cual y salen las 10 pruebas ──
+    const XLSX = require(path.join(REPO, 'node_modules/xlsx'));
+    const tplRes = await fetch(B + '/api/templates/importacion?ejemplo=1', { headers: { cookie } });
+    const tplBuf = Buffer.from(await tplRes.arrayBuffer());
+    check('La plantilla con ejemplos se descarga con su nombre', /con_ejemplos/.test(tplRes.headers.get('content-disposition') || ''));
+    const twb = XLSX.read(tplBuf);
+    check('Trae ejemplos en Rondas y en cada pestaña', XLSX.utils.sheet_to_json(twb.Sheets['Rondas'], { header: 1 }).length === 13);
+    const gEj = (await api('/games', { method: 'POST', body: { name: 'Ejemplos' } })).data;
+    const fEj = new FormData(); fEj.append('file', new Blob([tplBuf]), 'ej.xlsx');
+    const impEj = await (await fetch(B + `/api/games/${gEj.id}/import-excel`, { method: 'POST', body: fEj, headers: { cookie } })).json();
+    const tEj = (await api(`/games/${gEj.id}`)).data;
+    const tipos = tEj.rounds.map(r => r.type).sort().join(',');
+    check('Al importarla se crean 10 rondas, una de cada tipo, sin errores', tEj.rounds.length === 10 && tipos === 'aclara,boom,cancion,identidad,imagen,imagen_fija,multirespuesta,precio,pulsador,ruleta' && !impEj.errors.length, { tipos, errores: impEj.errors });
+    const rq = (t) => tEj.rounds.find(r => r.type === t).questions[0].content;
+    check('Ejemplos correctos: Multirespuesta (Tajo), Boom (rueda primero), Identidad (4 parejas)', rq('multirespuesta').options[rq('multirespuesta').correct[0]] === 'Tajo' && rq('boom').items[rq('boom').correct_order[0]] === 'Rueda' && rq('identidad').pairs.length === 4);
+    const img = await fetch(B + '/shared/ejemplo-paisaje.svg');
+    check('La imagen de muestra viene con la app', img.ok && /svg/.test(img.headers.get('content-type') || ''));
+    const plain = await fetch(B + '/api/templates/importacion', { headers: { cookie } });
+    const pwb = XLSX.read(Buffer.from(await plain.arrayBuffer()));
+    check('La plantilla normal sigue vacía', XLSX.utils.sheet_to_json(pwb.Sheets['Rondas'], { header: 1 }).length === 3);
+
+    // Precio justo desde Excel: valor vacío = incompleta (antes entraba como 0); un 0 escrito vale
+    const wbP = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wbP, XLSX.utils.aoa_to_sheet([['t'], [], ['h'], ['Precios', '¿Vacío?', ''], ['Precios', '¿Cero?', 0]]), 'Precio Justo');
+    const gP = (await api('/games', { method: 'POST', body: { name: 'Precios' } })).data;
+    const fP = new FormData(); fP.append('file', new Blob([XLSX.write(wbP, { type: 'buffer', bookType: 'xlsx' })]), 'p.xlsx');
+    const impP = await (await fetch(B + `/api/games/${gP.id}/import-excel`, { method: 'POST', body: fP, headers: { cookie } })).json();
+    const qsP = (await api(`/games/${gP.id}`)).data.rounds[0].questions.map(q => q.content.correct_value);
+    check('Precio con valor vacío entra como incompleto, no como 0', impP.incomplete.length === 1 && qsP[0] === undefined && qsP[1] === 0, { incompletas: impP.incomplete.length, valores: qsP });
+
     [d, scr, ...P].forEach(s => s.close());
     server.kill();
     const failed = results.filter(x => !x).length;

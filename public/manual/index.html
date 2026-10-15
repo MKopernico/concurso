@@ -108,9 +108,14 @@
   .req b{color:var(--cyan); font-family:var(--display); font-weight:600; letter-spacing:.5px;
     text-transform:uppercase; font-size:11px}
 
-  /* huecos de captura */
+  /* capturas (clic = verla a tamaño completo) */
   .shot{margin:24px 0}
-  .shot img{width:100%; display:block; border-radius:12px; border:1px solid var(--line-2)}
+  .shot a{display:block}
+  .shot img{width:100%; display:block; border-radius:12px; border:1px solid var(--line-2); background:var(--surface)}
+  .shot a:hover img{border-color:var(--cyan-deep)}
+  .shots-2{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:24px 0; align-items:start}
+  .shots-2 .shot{margin:0}
+  @media(max-width:640px){ .shots-2{grid-template-columns:1fr} }
   .shot .ph{display:none}
   .shot.is-missing img{display:none}
   .shot.is-missing .ph{display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -178,11 +183,13 @@
       <a class="sub" href="#s2-zip">Exportar e importar un juego</a>
       <a class="num" href="#s3"><span class="n">03</span>Dirigir en directo</a>
       <a class="sub" href="#s3-protecciones">Protecciones y atajos</a>
+      <a class="sub" href="#s3-bonos">Bonos y premios</a>
       <a class="num" href="#s4"><span class="n">04</span>Montaje en sala</a>
       <a class="sub" href="#s4-pantalla">Pantalla extendida</a>
       <a class="sub" href="#s4-ipads">iPads</a>
       <a class="sub" href="#s4-precarga">Descarga del contenido</a>
-      <a class="sub" href="#s4-sonido">Sonido</a>
+      <a class="sub" href="#s4-sonido">Sonido de la canción</a>
+      <a class="sub" href="#s4-sinpantalla">Jugar sin pantalla</a>
       <a class="sub" href="#s4-offline">Jugar sin internet (kit)</a>
       <a class="num" href="#s5"><span class="n">05</span>Checklist final</a>
     </nav>
@@ -207,7 +214,7 @@
         <thead><tr><th>Vista</th><th>Quién la usa</th><th>Dispositivo</th><th>Para qué</th></tr></thead>
         <tbody>
           <tr><td><strong>Backoffice</strong><br><code>/admin</code></td><td>Quien prepara el juego</td><td>Ordenador</td><td>Crear y editar juegos, rondas y pruebas · <em>pide contraseña</em></td></tr>
-          <tr><td><strong>Coordinador</strong><br><code>/director</code></td><td>Quien dirige en directo</td><td>iPad / tablet</td><td>Lanzar pruebas, puntos, tiempos, pulsadores · <em>pide contraseña</em></td></tr>
+          <tr><td><strong>Coordinador</strong><br><code>/director</code></td><td>Quien dirige en directo</td><td>iPad, tablet u ordenador</td><td>Lanzar pruebas, puntos, tiempos, pulsadores · <em>pide contraseña</em></td></tr>
           <tr><td><strong>Jugador</strong><br><code>/play</code></td><td>Cada equipo</td><td>iPad</td><td>Ver las pruebas, responder y pulsar · <em>QR o código del juego</em></td></tr>
           <tr><td><strong>Pantalla</strong><br><code>/screen</code></td><td>El público</td><td>Ordenador + proyector</td><td>Vista espectacular de solo lectura · <em>libre</em></td></tr>
         </tbody>
@@ -218,7 +225,7 @@
         <li><strong>Antes del evento</strong>, en el ordenador, alguien entra al backoffice y crea el juego: nombre, preguntas organizadas en rondas, tipos de prueba, y lo publica.</li>
         <li><strong>El día del evento</strong> se monta la sala: el ordenador con el proyector mostrando la pantalla, y los iPads repartidos a los equipos.</li>
         <li>El <strong>coordinador</strong> abre su panel y dirige el concurso lanzando las pruebas en el orden que quiera, como si fueran botones.</li>
-        <li>Al final, una <strong>pantalla de podio</strong> corona al equipo ganador.</li>
+        <li>Al final, el <strong>marcador</strong> de la pantalla de sala muestra la clasificación y el equipo ganador.</li>
       </ol>
 
       <div id="s1-acceso"></div>
@@ -236,11 +243,7 @@
       <div class="sec-head"><span class="sec-num">02</span><h2>Crear un juego de principio a fin</h2></div>
       <p>El backoffice es donde se construye todo el concurso. Se accede desde un ordenador en <code>/admin</code>. No hace falta instalar nada: funciona en el navegador.</p>
 
-      <figure class="shot" data-file="img/01-backoffice-lista-juegos.png">
-        <img src="img/01-backoffice-lista-juegos.png" alt="Lista de juegos en el backoffice" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 01</div><div class="ph-file">img/01-backoffice-lista-juegos.png</div><div class="ph-label">Pantalla inicial del backoffice con la lista de juegos.</div></div>
-        <figcaption><span class="cn">01</span>El backoffice con la lista de juegos.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/01-backoffice-lista-juegos.webp" target="_blank" rel="noopener"><img src="img/01-backoffice-lista-juegos.webp" alt="Lista de juegos en el backoffice" loading="lazy"></a><figcaption>El backoffice: la lista de juegos, con los botones de plantilla Excel arriba.</figcaption></figure>
 
       <h3>Cómo se organiza un juego</h3>
       <p>Un concurso tiene tres niveles, como muñecas rusas: <strong>un juego contiene rondas, y cada ronda contiene pruebas.</strong></p>
@@ -255,40 +258,28 @@
       <ul>
         <li><strong>Nombre</strong> y <strong>fecha</strong> del evento.</li>
         <li><strong>Estado</strong>: empieza siempre como <strong>borrador</strong>. Un borrador se edita libremente pero todavía no se puede jugar. Cuando esté listo, se pasa a <strong>publicado</strong> (ver <a href="#s2-valid">Validación</a>).</li>
-        <li><strong>Código de acceso</strong>: un código de 4 a 6 dígitos que los jugadores introducen en sus iPads para entrar al juego correcto. Es opcional: si lo dejas vacío, se entra sin código. Quien entra por el <strong>QR de sala</strong> no tiene que teclearlo, y si cambias el código, los QR y accesos anteriores dejan de valer.</li>
+        <li><strong>Código de acceso</strong>: un código corto (hasta 6 cifras) que los jugadores introducen en sus iPads para entrar al juego correcto. Es opcional: si lo dejas vacío, se entra sin código. Quien entra por el <strong>QR de sala</strong> no tiene que teclearlo, y si cambias el código, los QR y accesos anteriores dejan de valer.</li>
         <li><strong>Nota interna</strong>: opcional, solo para ti. No la ve nadie durante el juego.</li>
       </ul>
       <p>Un juego ya creado se puede <strong>duplicar entero</strong> (con todas sus rondas y pruebas), muy cómodo para reutilizar un concurso cambiando solo lo necesario.</p>
 
-      <figure class="shot" data-file="img/02-crear-juego.png">
-        <img src="img/02-crear-juego.png" alt="Formulario de crear juego" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 02</div><div class="ph-file">img/02-crear-juego.png</div><div class="ph-label">Formulario de crear/editar juego: nombre, fecha, estado, código de acceso.</div></div>
-        <figcaption><span class="cn">02</span>Formulario de crear un juego.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/02-crear-juego.webp" target="_blank" rel="noopener"><img src="img/02-crear-juego.webp" alt="Formulario de un juego" loading="lazy"></a><figcaption>El formulario de un juego: nombre, fecha, código, estado y aspecto.</figcaption></figure>
 
       <h3>Crear las rondas</h3>
-      <p>Dentro del juego se añaden rondas. De cada una se define el <strong>nombre</strong>, el <strong>tipo de prueba</strong> (una ronda es de un solo tipo) y, opcionalmente, su <strong>logo y fondo</strong> propios para la pantalla de sala. Las rondas se reordenan arrastrándolas.</p>
+      <p>Dentro del juego se añaden rondas. De cada una se define el <strong>nombre</strong>, el <strong>tipo de prueba</strong> (una ronda es de un solo tipo) y, opcionalmente, su <strong>logo y fondo</strong> propios para la pantalla de sala. Las rondas se reordenan arrastrándolas por el asa <strong>⠿</strong>; las preguntas de una ronda, con las flechas ↑ ↓.</p>
       <div class="note"><span class="tag">Ojo</span>El tipo de una ronda <strong>no se puede cambiar si ya tiene pruebas</strong> (serían incompatibles). Crea una ronda nueva del tipo que quieras o borra antes sus pruebas.</div>
 
-      <figure class="shot" data-file="img/03-juego-rondas.png">
-        <img src="img/03-juego-rondas.png" alt="Vista de un juego con sus rondas" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 03</div><div class="ph-file">img/03-juego-rondas.png</div><div class="ph-label">Detalle de un juego mostrando su lista de rondas.</div></div>
-        <figcaption><span class="cn">03</span>Un juego con sus rondas.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/03-juego-rondas.webp" target="_blank" rel="noopener"><img src="img/03-juego-rondas.webp" alt="Un juego con sus rondas" loading="lazy"></a><figcaption>Un juego con sus rondas. Se reordenan arrastrando el asa ⠿.</figcaption></figure>
 
       <h3>Crear las pruebas: dos caminos</h3>
       <p>Hay dos formas de meter pruebas dentro de una ronda: <strong>a mano</strong>, una a una con un formulario adaptado al tipo, o <strong>por Excel</strong>, subiendo muchas de golpe. Ambos caminos pasan por el mismo control de calidad (ver <a href="#s2-valid">Validación</a>).</p>
 
-      <figure class="shot" data-file="img/06-formulario-prueba.png">
-        <img src="img/06-formulario-prueba.png" alt="Formulario de crear una prueba" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 06</div><div class="ph-file">img/06-formulario-prueba.png</div><div class="ph-label">Formulario de crear una prueba (p. ej. multirespuesta) con sus campos.</div></div>
-        <figcaption><span class="cn">06</span>Formulario de una prueba.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/04-formulario-prueba.webp" target="_blank" rel="noopener"><img src="img/04-formulario-prueba.webp" alt="Formulario de una prueba de Boom" loading="lazy"></a><figcaption>El formulario de una prueba (aquí, Boom): cambia según el tipo.</figcaption></figure>
 
       <!-- TIPOS -->
       <div id="s2-tipos"></div>
       <h3>Los tipos de prueba (y qué necesita cada uno)</h3>
-      <p>GameShow tiene nueve tipos. Para cada uno, qué es, cómo se juega y —lo más importante— <strong>qué necesita para estar completa</strong>: si le falta el campo clave, la app la marca como incompleta y no te deja publicar hasta arreglarla.</p>
+      <p>GameShow tiene once tipos. Para cada uno, qué es, cómo se juega y —lo más importante— <strong>qué necesita para estar completa</strong>: si le falta el campo clave, la app la marca como incompleta y no te deja publicar hasta arreglarla.</p>
 
       <div class="types">
         <div class="type">
@@ -303,7 +294,7 @@
         </div>
         <div class="type">
           <h4>Precio justo</h4>
-          <p>Cada equipo escribe un número; gana quien más se acerque sin pasarse.</p>
+          <p>Cada equipo escribe un número; gana quien más se acerque sin pasarse. Si dos equipos ponen la misma cifra ganadora, gana el que respondió antes, y el otro ve en su iPad que acertó pero fue más lento.</p>
           <span class="req"><b>Requisito</b> Enunciado · Valor correcto (el <code>0</code> vale)</span>
         </div>
         <div class="type">
@@ -318,12 +309,12 @@
         </div>
         <div class="type">
           <h4>Adivina la imagen</h4>
-          <p>Una imagen tapada por una cuadrícula que se destapa casilla a casilla. Cuantos más cuadrados tapados al acertar, más puntos. La respuesta es opcional: si la pones, se muestra en la pantalla al revelar.</p>
+          <p>Una imagen tapada por una cuadrícula que el coordinador destapa casilla a casilla mientras los equipos pulsan. No tiene temporizador: un acierto suma los <strong>puntos base</strong> de la ronda. La respuesta es opcional: si la pones, el coordinador la puede sacar en la pantalla con «Mostrar respuesta».</p>
           <span class="req"><b>Requisito</b> Imagen</span>
         </div>
         <div class="type">
           <h4>Imagen que se aclara</h4>
-          <p>Una imagen que empieza <strong>pixelada o desenfocada</strong> (se elige en cada pregunta) y se va aclarando: <strong>sola</strong> en los segundos que indiques, o <strong>a mano</strong> con una barra del coordinador. Los equipos pulsan cuando creen saberlo: la imagen <strong>se para</strong> mientras responden; si aciertan se revela, y si fallan <strong>sigue aclarándose</strong>. Cuanto menos nítida estaba al pulsar, <strong>más puntos</strong>: todos los puntos base con la imagen irreconocible y un mínimo del 20 % casi nítida. En el backoffice hay una vista previa con barra para ver cómo quedará.</p>
+          <p>Una imagen que empieza <strong>pixelada o desenfocada</strong> (se elige en cada pregunta) y se va aclarando: <strong>sola</strong> en los segundos que indiques, o <strong>a mano</strong> con una barra del coordinador. Los equipos pulsan cuando creen saberlo: la imagen <strong>se para</strong> mientras responden; si aciertan se revela, y si fallan <strong>sigue aclarándose</strong>. Cuanto menos nítida estaba al pulsar, <strong>más puntos</strong>: todos los puntos base con la imagen irreconocible y un mínimo del 20 % casi nítida. En el backoffice hay una vista previa con barra para ver cómo quedará. Con «Mostrar respuesta» el coordinador puede sacar la respuesta en la pantalla en cualquier momento.</p>
           <span class="req"><b>Requisito</b> Imagen · respuesta</span>
         </div>
         <div class="type">
@@ -339,7 +330,7 @@
         </div>
         <div class="type">
           <h4>Identidad (emparejar)</h4>
-          <p>En el iPad salen arriba las parejas (el elemento fijo con un hueco al lado) y debajo las respuestas desordenadas. El jugador <strong>arrastra cada respuesta a su hueco</strong>, o la toca y después toca el hueco; puede cambiarlas hasta enviar. Cada elemento puede ser una foto, un texto o ambos: el tamaño de las tarjetas se ajusta solo para que todo quepa en pantalla (con muchas parejas, se ponen dos por fila). Puntúa cada pareja acertada, con bonus por tiempo si las acierta todas. Si se acaba el tiempo sin enviar, cuenta lo que tenga colocado; un hueco vacío no puntúa.</p>
+          <p>En el iPad salen arriba las parejas (el elemento fijo con un hueco al lado) y debajo las respuestas desordenadas. El jugador <strong>arrastra cada respuesta a su hueco</strong>, o la toca y después toca el hueco; puede cambiarlas hasta enviar. Cada elemento puede ser una foto, un texto o ambos: el tamaño de las tarjetas se ajusta solo para que todo quepa en pantalla (con muchas parejas, se ponen dos por fila). Puntúa cada pareja acertada, con bonus por tiempo si las acierta todas. Si se acaba el tiempo sin enviar, cuenta lo que tenga colocado; un hueco vacío no puntúa. Al revelar, cada iPad ve sus parejas en verde o rojo; el que no respondió ve las correctas colocándose a la vez que en la pantalla.</p>
           <span class="req"><b>Requisito</b> Parejas de elementos (foto y/o texto en cada lado)</span>
         </div>
         <div class="type">
@@ -350,29 +341,39 @@
         </div>
       </div>
 
+      <div class="shots-2">
+        <figure class="shot"><a href="img/22-play-multirespuesta.webp" target="_blank" rel="noopener"><img src="img/22-play-multirespuesta.webp" alt="Multirespuesta en el iPad" loading="lazy"></a><figcaption>Multirespuesta en el iPad: se toca una opción y «Enviar».</figcaption></figure>
+        <figure class="shot"><a href="img/29-play-pulsador.webp" target="_blank" rel="noopener"><img src="img/29-play-pulsador.webp" alt="Pulsador en el iPad" loading="lazy"></a><figcaption>Pulsador: el botón se pone amarillo con el puesto en la cola.</figcaption></figure>
+      </div>
+      <div class="shots-2">
+        <figure class="shot"><a href="img/31-play-boom.webp" target="_blank" rel="noopener"><img src="img/31-play-boom.webp" alt="Boom en el iPad" loading="lazy"></a><figcaption>Boom: opciones a la izquierda y huecos numerados a la derecha.</figcaption></figure>
+        <figure class="shot"><a href="img/32-play-identidad.webp" target="_blank" rel="noopener"><img src="img/32-play-identidad.webp" alt="Identidad en el iPad" loading="lazy"></a><figcaption>Identidad: parejas arriba y respuestas para arrastrar debajo.</figcaption></figure>
+      </div>
+
       <!-- EXCEL -->
       <div id="s2-excel"></div>
       <h3>Importar pruebas desde Excel</h3>
-      <p>Para meter muchas preguntas de golpe, el backoffice ofrece una <strong>plantilla descargable</strong> con las columnas correctas según el tipo. Se rellena y se sube. Lo importante:</p>
+      <p>Para meter muchas preguntas de golpe se usa un Excel con <strong>una pestaña por tipo de prueba</strong>. Se descarga, se rellena y se sube con <strong>«📥 Importar Excel»</strong> dentro del juego. Hay tres puntos de partida:</p>
+      <ul>
+        <li><strong>«📄 Plantilla Excel»</strong> (en la lista de juegos, en cada juego y en la ventana de importar): la plantilla vacía, con las columnas correctas y una hoja de instrucciones.</li>
+        <li><strong>«📗 Plantilla con ejemplos»</strong>: la misma con una pregunta de ejemplo de cada tipo. Se puede importar tal cual en un juego de pruebas para ver cómo queda cada cosa.</li>
+        <li><strong>«📤 Exportar Excel»</strong> de un juego que ya tengas: sale en el mismo formato, así que sirve de base para otro parecido.</li>
+      </ul>
+      <p>Lo importante al importar:</p>
       <ul>
         <li><strong>No se descarta nada.</strong> Si una fila está a medias, se importa igual: la app prefiere guardar lo que haya y avisarte.</li>
         <li>Al terminar, <strong>te muestra un listado</strong> de qué preguntas entraron incompletas y qué les falta (hoja, ronda, fila y campo). Ese listado no desaparece solo.</li>
         <li>Si importas incompletas a un juego <strong>ya publicado</strong>, el juego <strong>se baja automáticamente a borrador</strong> como protección. Complétalas y vuelve a publicar.</li>
         <li>En <strong>correctas</strong> (multirespuesta) y <strong>orden_correcto</strong> (Boom) se escriben los números de columna separados por comas, por ejemplo <code>1,3</code>. Si una opción queda vacía en medio, los números siguen refiriéndose a la columna. En Boom, si no indicas orden, vale el orden en que escribiste los elementos.</li>
         <li>En la hoja <strong>Rondas</strong>, el tipo se puede escribir como el nombre de la pestaña («Precio Justo», «BOOM»…). Si no se reconoce, esa ronda no se crea y se avisa. El orden de las rondas es el de esa hoja.</li>
+        <li>Las imágenes, vídeos y audios se ponen con su ruta (por ejemplo <code>/uploads/images/foto.jpg</code>): súbelos antes desde <strong>📁 Medios</strong>.</li>
+        <li>En <strong>Precio justo</strong>, una celda de valor vacía entra como incompleta; un <code>0</code> escrito sí vale.</li>
+        <li>El <strong>karaoke</strong> no va por Excel: se crea a mano en el backoffice.</li>
       </ul>
 
-      <figure class="shot" data-file="img/07-importar-excel.png">
-        <img src="img/07-importar-excel.png" alt="Importar Excel" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 07</div><div class="ph-file">img/07-importar-excel.png</div><div class="ph-label">Botón / diálogo de importar Excel y descargar plantilla.</div></div>
-        <figcaption><span class="cn">07</span>Importación por Excel.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/05-importar-excel.webp" target="_blank" rel="noopener"><img src="img/05-importar-excel.webp" alt="Ventana de importar Excel" loading="lazy"></a><figcaption>Importar desde Excel, con las dos plantillas a mano.</figcaption></figure>
 
-      <figure class="shot" data-file="img/08-resultado-importacion.png">
-        <img src="img/08-resultado-importacion.png" alt="Resultado de importación" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 08</div><div class="ph-file">img/08-resultado-importacion.png</div><div class="ph-label">Modal de resultado con la lista de preguntas incompletas y, si aplica, el aviso de bajada a borrador.</div></div>
-        <figcaption><span class="cn">08</span>Resultado de la importación con incompletas.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/06-resultado-importacion.webp" target="_blank" rel="noopener"><img src="img/06-resultado-importacion.webp" alt="Resultado de la importación" loading="lazy"></a><figcaption>Al terminar, el resumen dice qué entró incompleto y qué le falta.</figcaption></figure>
 
       <!-- VALIDACIÓN -->
       <div id="s2-valid"></div>
@@ -385,17 +386,9 @@
       </ul>
       <div class="note"><span class="tag">La filosofía</span>Conservar tu trabajo, avisarte, y darte margen para el error humano — nunca borrar nada.</div>
 
-      <figure class="shot" data-file="img/05-pruebas-incompleta.png">
-        <img src="img/05-pruebas-incompleta.png" alt="Prueba marcada como incompleta" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 05</div><div class="ph-file">img/05-pruebas-incompleta.png</div><div class="ph-label">Lista de pruebas con al menos una marcada «⚠ Incompleta».</div></div>
-        <figcaption><span class="cn">05</span>Una prueba marcada como incompleta.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/07-pruebas-incompleta.webp" target="_blank" rel="noopener"><img src="img/07-pruebas-incompleta.webp" alt="Prueba marcada como incompleta" loading="lazy"></a><figcaption>Una prueba marcada «⚠ Incompleta» en la lista de su ronda.</figcaption></figure>
 
-      <figure class="shot" data-file="img/09-bloqueo-publicacion.png">
-        <img src="img/09-bloqueo-publicacion.png" alt="Bloqueo de publicación" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 09</div><div class="ph-file">img/09-bloqueo-publicacion.png</div><div class="ph-label">Aviso «No se puede publicar» listando las pruebas incompletas y qué les falta.</div></div>
-        <figcaption><span class="cn">09</span>Publicación bloqueada por pruebas incompletas.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/08-bloqueo-publicacion.webp" target="_blank" rel="noopener"><img src="img/08-bloqueo-publicacion.webp" alt="No se puede publicar" loading="lazy"></a><figcaption>Con pruebas incompletas, el juego no se deja publicar y dice cuáles son.</figcaption></figure>
 
       <!-- PUNTUACIÓN -->
       <div id="s2-punt"></div>
@@ -409,21 +402,12 @@
       <p>Cualquiera de estos valores puede ser <strong>0</strong> (por ejemplo, una ronda sin bonus). En una prueba, deja el campo vacío para que herede el valor de la ronda.</p>
       <p>Además, cada prueba puede llevar un <strong>bonus especial</strong> para el ganador, que se anuncia en la pantalla de sala: <strong>congelar</strong> a un rival, <strong>congelar a todos</strong> los rivales, <strong>puntos extra</strong>, o un <strong>anuncio</strong> con texto o imagen. El <strong>marcador general</strong> acumula todo, y el coordinador puede sumar o restar puntos a mano en cualquier momento.</p>
 
-      <figure class="shot" data-file="img/10-puntuacion-bonus.png">
-        <img src="img/10-puntuacion-bonus.png" alt="Configuración de puntuación" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 10</div><div class="ph-file">img/10-puntuacion-bonus.png</div><div class="ph-label">Configuración de puntos base, bonus por tiempo, penalización y bonus especial.</div></div>
-        <figcaption><span class="cn">10</span>Puntuación y bonus de una prueba.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/09-puntuacion-bonus.webp" target="_blank" rel="noopener"><img src="img/09-puntuacion-bonus.webp" alt="Puntos y bono de una pregunta" loading="lazy"></a><figcaption>Abajo del formulario: tiempo, puntos base, bonus y el bono especial.</figcaption></figure>
 
       <h3>Publicar</h3>
-      <p>Cuando el juego esté completo y revisado, se cambia su estado a <strong>publicado</strong>. A partir de ahí los iPads de jugadores pueden verlo y entrar con el código de acceso. Si quedan incompletas, la app no te deja publicar hasta resolverlas.</p>
+      <p>Cuando el juego esté completo y revisado, se publica con el botón <strong>«Publicar»</strong> del juego (o cambiando su estado en «Editar juego»). En la lista aparece la etiqueta <strong>PUBLICADO</strong> y los botones <strong>«▶ Jugar»</strong> y <strong>«🎬 Director»</strong>. A partir de ahí los iPads pueden verlo y entrar con el código de acceso. Si quedan incompletas, la app no te deja publicar hasta resolverlas.</p>
 
-      <figure class="shot" data-file="img/11-publicar-juego.png">
-        <img src="img/11-publicar-juego.png" alt="Publicar el juego" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 11</div><div class="ph-file">img/11-publicar-juego.png</div><div class="ph-label">Botón de publicar y/o el juego ya en estado «publicado».</div></div>
-        <figcaption><span class="cn">11</span>El juego publicado.</figcaption>
-      </figure>
-
+      
       <div id="s2-zip"></div>
       <h3>Exportar e importar un juego completo</h3>
       <p>Cada juego tiene un botón <strong>📦</strong> en la lista del backoffice que descarga un <strong>.zip con todo</strong>: rondas, pruebas, tema y todas sus imágenes, vídeos y audios. Con <strong>«📦 Importar juego (.zip)»</strong> se crea un juego nuevo a partir de ese archivo. Sirve para:</p>
@@ -439,43 +423,43 @@
     <!-- ── SECCIÓN 3 ── -->
     <section id="s3">
       <div class="sec-head"><span class="sec-num">03</span><h2>Dirigir el juego en directo</h2></div>
-      <p>Con el juego publicado y la sala montada, el coordinador toma el control desde su iPad en <code>/director</code>. Desde ahí también está el botón para <strong>abrir la pantalla de sala</strong>.</p>
+      <p>Con el juego publicado y la sala montada, el coordinador toma el control desde su iPad, tablet u ordenador en <code>/director</code>. El botón <strong>«📺 Pantalla»</strong> de la cabecera abre la pantalla de sala del juego. El panel está pensado para que, en un portátil normal sin pantalla completa, los botones de cada prueba se vean siempre sin tener que bajar.</p>
       <p>La partida se inicia con <strong>«▶ Jugar»</strong> en el backoffice. Si ese juego <strong>ya tiene una partida en marcha</strong> (por ejemplo, cerraste el coordinador sin querer), te pregunta: <strong>continuar</strong> la partida (lo normal: equipos y puntos siguen igual) o empezar una <strong>nueva</strong> (borra equipos y puntos y devuelve los iPads al inicio).</p>
       <div class="note"><span class="tag">Tranquilidad</span>El marcador, los bonos y las congelaciones se guardan solos cada pocos segundos. Si el servidor se reinicia a mitad de evento, al volver todo sigue donde estaba y los iPads recuperan su equipo solos.</div>
 
-      <figure class="shot" data-file="img/12-director-panel.png">
-        <img src="img/12-director-panel.png" alt="Panel del coordinador" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 12</div><div class="ph-file">img/12-director-panel.png</div><div class="ph-label">Panel del coordinador: lista de rondas y controles superiores (marcador, QR, abrir pantalla).</div></div>
-        <figcaption><span class="cn">12</span>El panel del coordinador.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/10-director-panel.webp" target="_blank" rel="noopener"><img src="img/10-director-panel.webp" alt="Panel del coordinador" loading="lazy"></a><figcaption>El panel del coordinador: rondas a la izquierda, cabecera de botones y equipos con sus puntos abajo.</figcaption></figure>
 
       <h3>Varios coordinadores a la vez</h3>
       <p>Pueden <strong>dirigir el mismo juego varias personas a la vez</strong>, todas sincronizadas: una mesa técnica controla y el presentador solo mira; o el presentador lleva los pulsadores y la mesa los puntos; o una sola persona hace todo. Si uno lanza una prueba, los demás la ven al instante.</p>
 
       <h3>Lanzar pruebas</h3>
-      <p>El panel muestra la lista completa de rondas y pruebas. <strong>No hay orden fijo</strong>: lanzas la que quieras cuando quieras, como hipervínculos de un PowerPoint. Al lanzarla, los iPads de jugadores se actualizan solos y la pantalla de sala la muestra a lo grande con su cuenta atrás.</p>
+      <p>El panel muestra la lista completa de rondas y pruebas. <strong>No hay orden fijo</strong>: lanzas la que quieras cuando quieras, como hipervínculos de un PowerPoint. Al lanzarla, los iPads de jugadores se actualizan solos y la pantalla de sala la muestra a lo grande con su cuenta atrás. Con <strong>«🏠 Home»</strong> la sala y los iPads vuelven al menú de pruebas, y con <strong>«⏸ Espera»</strong> a la pantalla de espera.</p>
+
+      <figure class="shot"><a href="img/11-director-pregunta.webp" target="_blank" rel="noopener"><img src="img/11-director-pregunta.webp" alt="Una pregunta en el coordinador" loading="lazy"></a><figcaption>Una pregunta de multirespuesta en marcha: abrir opciones, revelar y la ronda a la izquierda.</figcaption></figure>
 
       <h3>Controles durante una prueba</h3>
       <ul>
         <li><strong>Pulsador:</strong> ves la <strong>cola</strong> por orden y marcas <strong>acierto</strong> o <strong>fallo</strong>; si el primero falla, rebota al siguiente.</li>
-        <li><strong>Temporizador:</strong> lanzar, extender o cortar la cuenta atrás.</li>
-        <li><strong>Revelar respuesta</strong> cuando decidas.</li>
+        <li><strong>Temporizador:</strong> lanzar (▶), cortar (■) o alargar (+10 s) la cuenta atrás, arriba en la cabecera.</li>
+        <li><strong>Revelar respuesta</strong> cuando decidas. Debajo sale <strong>«Resultados por equipo»</strong>: qué respondió cada uno y los puntos que se lleva (en las pruebas de pulsador, quién acertó y quién falló); con «Mostrar resultados» se ve también en la pantalla.</li>
         <li><strong>Destapar</strong> (Adivina la imagen y Ruleta): cada clic revela un cuadrado o una letra.</li>
         <li><strong>Distorsión</strong> (Adivina la canción): el control para ir limpiando el sonido.</li>
       </ul>
 
-      <figure class="shot" data-file="img/13-director-pulsador.png">
-        <img src="img/13-director-pulsador.png" alt="Control de pulsador" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 13</div><div class="ph-file">img/13-director-pulsador.png</div><div class="ph-label">Control de pulsador: la cola de equipos y los botones de acierto/fallo.</div></div>
-        <figcaption><span class="cn">13</span>El control del pulsador con su cola.</figcaption>
-      </figure>
+      <div class="shots-2">
+        <figure class="shot"><a href="img/13-director-pulsador.webp" target="_blank" rel="noopener"><img src="img/13-director-pulsador.webp" alt="Control del pulsador" loading="lazy"></a><figcaption>Pulsador: la cola por orden y «Acierto» / «Fallo» para el primero.</figcaption></figure>
+        <figure class="shot"><a href="img/30-screen-pulsador.webp" target="_blank" rel="noopener"><img src="img/30-screen-pulsador.webp" alt="La cola del pulsador en la sala" loading="lazy"></a><figcaption>Lo mismo en la pantalla de sala.</figcaption></figure>
+      </div>
+
+      <figure class="shot"><a href="img/37-director-resultados.webp" target="_blank" rel="noopener"><img src="img/37-director-resultados.webp" alt="Resultados por equipo" loading="lazy"></a><figcaption>Respuesta revelada: la correcta y, debajo, los resultados por equipo con sus puntos.</figcaption></figure>
+      <figure class="shot"><a href="img/14-director-precio.webp" target="_blank" rel="noopener"><img src="img/14-director-precio.webp" alt="Precio justo en el coordinador" loading="lazy"></a><figcaption>Precio justo: el valor correcto a la vista y los botones siempre abajo, sin bajar.</figcaption></figure>
 
       <div id="s3-protecciones"></div>
       <p><strong>Terminar una ronda:</strong> en la última pregunta, «✓ Terminar ronda»; en cualquier pregunta, «✔ Ronda completada». Los dos hacen lo mismo: la marcan como completada y sacan en la pantalla el cartel de fin de ronda (si la pregunta tiene bono, antes se elige el ganador). Sirve para cortar una ronda a medias sin un corte brusco.</p>
       <h3>Protecciones y atajos de teclado</h3>
       <p>El panel está pensado para que un toque de más o una WiFi lenta no estropeen la partida:</p>
       <ul>
-        <li><strong>Doble toque</strong> en «Siguiente», «Acierto», «Abrir opciones» o en el reparto del karaoke: solo cuenta el primero.</li>
+        <li><strong>Doble toque</strong> en «Siguiente», «Acierto», «Abrir opciones» o en el reparto del karaoke: solo cuenta el primero. En los iPads, tocar dos veces seguidas no amplía ni mueve la pantalla.</li>
         <li>Al revelar, cada iPad muestra <strong>la respuesta correcta, la suya y si acertó</strong> (con los puntos). En las pruebas de pulsador dice quién acertó y si su equipo falló.</li>
         <li><strong>«◀ Anterior»</strong> sobre una pregunta ya puntuada la muestra <strong>revelada con su resultado</strong>: no se puede volver a responder ni sumar puntos otra vez.</li>
         <li><strong>«Espera» o «Home» a mitad de pregunta:</strong> aparece arriba el botón <strong>«↩ Volver a la pregunta»</strong> para seguir donde lo dejaste.</li>
@@ -484,10 +468,16 @@
         <li>Un equipo <strong>congelado no puede usar bonos</strong> mientras dure el bloqueo.</li>
         <li><strong>Si un iPad se rompe o se queda sin batería:</strong> en «Editar equipo» (el lápiz del equipo) pulsa <strong>«📱 Pasar el equipo a otro iPad»</strong>. Sale un QR y un código de 6 letras: el iPad nuevo escanea el QR, o en «Crea tu equipo» toca «Recuperar» y escribe el código. Sigue siendo el mismo equipo, con sus puntos y bonos. El código vale 10 minutos y una sola vez; el iPad viejo queda desconectado.</li>
       </ul>
-      <p>Atajos de teclado (con el coordinador en un ordenador): <strong>→</strong> siguiente · <strong>←</strong> anterior · <strong>Espacio</strong> arranca el tiempo · <strong>R</strong> revela · <strong>B</strong> abre el pulsador · <strong>Esc</strong> cierra el marcador o el pulsador. Solo funcionan con una pregunta en curso y se ignoran si escribes en un campo o pulsas Ctrl/Cmd (así <strong>Ctrl+R</strong> recarga la página sin revelar nada). En las pruebas sin temporizador (pulsador, ruleta, imagen, imagen fija, canción, karaoke), Espacio no hace nada.</p>
 
-      <p><strong>Identidad.</strong> Pulsa <strong>"Abrir opciones"</strong> para mostrar la columna a emparejar: en los iPads arranca una cuenta atrás de 5 segundos antes de que empiece el tiempo, y en la pantalla de sala aparece la columna desordenada. Cuando se acaba el tiempo, revela las parejas correctas una a una con cada click, de arriba abajo (igual que en Adivina la imagen).</p>
-      <p><strong>Imagen que se aclara.</strong> En el panel ves a la vez lo que ve la sala y la imagen real. Con <strong>«▶ Aclarar»</strong> empieza a aclararse y se abre el pulsador; <strong>«⏸ Pausa»</strong> la detiene. En modo «a mano» se usa la barra (mover la barra también abre el pulsador). Al lado se ve cuántos puntos vale acertar en ese momento, y en la cola del pulsador cuántos se lleva cada equipo según cuándo pulsó. Con un fallo, si no queda nadie en la cola, sigue aclarándose sola.</p>
+      <figure class="shot"><a href="img/24-play-resultado.webp" target="_blank" rel="noopener"><img src="img/24-play-resultado.webp" alt="Resultado en el iPad" loading="lazy"></a><figcaption>Al revelar, cada iPad ve la respuesta correcta, la suya y si acertó, con los puntos.</figcaption></figure>
+      <p>Atajos de teclado (con el coordinador en un ordenador): <strong>→</strong> siguiente · <strong>←</strong> anterior · <strong>Espacio</strong> arranca el tiempo · <strong>R</strong> revela · <strong>B</strong> abre el pulsador · <strong>Esc</strong> cierra el marcador o el pulsador. Solo funcionan con una pregunta en curso y se ignoran si escribes en un campo o pulsas Ctrl/Cmd (así <strong>Ctrl+R</strong> recarga la página sin revelar nada). En las pruebas sin temporizador (pulsador, ruleta, Adivina la imagen, Imagen que se aclara, imagen fija, canción, karaoke), Espacio no hace nada.</p>
+
+      <p><strong>Identidad.</strong> Pulsa <strong>"Abrir opciones"</strong> para mostrar la columna a emparejar: en los iPads arranca una cuenta atrás de 5 segundos antes de que empiece el tiempo, y en la pantalla de sala aparece la columna desordenada. Cuando se acaba el tiempo, revela las parejas correctas una a una con cada clic en «Ir revelando», de arriba abajo.</p>
+
+      <figure class="shot"><a href="img/33-screen-identidad.webp" target="_blank" rel="noopener"><img src="img/33-screen-identidad.webp" alt="Identidad revelándose en la sala" loading="lazy"></a><figcaption>Identidad en la sala: las parejas correctas van apareciendo una a una.</figcaption></figure>
+      <p><strong>Imagen que se aclara.</strong> En el panel ves a la vez lo que ve la sala y la imagen real. Con <strong>«▶ Aclarar»</strong> empieza a aclararse y se abre el pulsador; <strong>«⏸ Pausa»</strong> la detiene. En modo «a mano» se usa la barra (mover la barra también abre el pulsador). Al lado se ve cuántos puntos vale acertar en ese momento, y en la cola del pulsador cuántos se lleva cada equipo según cuándo pulsó. Con un fallo, si no queda nadie en la cola, sigue aclarándose sola. «Mostrar respuesta» la saca en la pantalla, igual que en Adivina la imagen.</p>
+
+      <figure class="shot"><a href="img/35-director-aclara.webp" target="_blank" rel="noopener"><img src="img/35-director-aclara.webp" alt="Imagen que se aclara en el coordinador" loading="lazy"></a><figcaption>Imagen que se aclara: arriba los controles y la barra de nitidez; debajo lo que ve la sala y la imagen real.</figcaption></figure>
       <p><strong>Boom.</strong> Igual: al acabar el tiempo el orden correcto no se ve entero. Con <strong>«Ir revelando»</strong> se destapa la posición 1, luego la 2… En la pantalla las que faltan salen como «?», y cada iPad va viendo en verde o rojo si acertó esa posición; el resultado final aparece al destapar la última. <strong>Los puntos se suman al destapar la última</strong> (también en Identidad), para mantener la emoción; si pasas a otra pregunta antes de terminar, se suman al salir.</p>
 
       <div id="s3-bonos"></div>
@@ -495,32 +485,28 @@
 
       <p>Algunas pruebas llevan un <strong>bonus</strong> configurado (ver <a href="#s2-punt">Puntuación y bonus</a>): una recompensa para el equipo ganador que entra en juego al cerrar la prueba. Hay dos clases. Los <strong>poderes de bloqueo</strong> —<strong>congelar a un rival</strong> o <strong>congelar a todos los rivales</strong>— el equipo los <strong>guarda</strong> y decide cuándo usarlos en una prueba posterior. Las <strong>recompensas instantáneas</strong> se aplican al momento de asignarlas: <strong>puntos extra</strong> (el ganador suma esa cantidad al marcador ahí mismo) y <strong>anuncio</strong> (un premio con texto y/o imagen que aparece en la pantalla de sala y en los iPads —la imagen arriba y el texto debajo; vale solo texto o solo imagen—, para que lo entregues o lo expliques de viva voz).</p>
 
-      <p>En todos los casos, al lanzar una prueba con bonus la sala avisa de que hay premio. En los <strong>puntos extra</strong> se muestra ya la cantidad (por ejemplo, "Puntos extra: +50"); en el <strong>anuncio</strong> el aviso es genérico y el contenido se revela solo después, al anunciar al ganador.</p>
+      <p>En todos los casos, al lanzar una prueba con bonus la sala avisa de que hay premio. En los <strong>puntos extra</strong> se muestra ya la cantidad (por ejemplo, "Puntos extra: +50"); en el <strong>anuncio</strong> el aviso es genérico y el contenido se revela solo después, al anunciar al ganador. El botón <strong>«🎁 Bono»</strong> de la cabecera quita o vuelve a poner ese aviso.</p>
+
+      <figure class="shot"><a href="img/21-screen-anuncio-premio.webp" target="_blank" rel="noopener"><img src="img/21-screen-anuncio-premio.webp" alt="Aviso de prueba con bono" loading="lazy"></a><figcaption>Al lanzar una prueba con bono, la sala lo anuncia.</figcaption></figure>
 
       <h4>Asignar el premio al ganador</h4>
-      <p>Al revelar el resultado de una prueba con bonus se abre <strong>siempre</strong> la ventana de selección de ganador, tanto si lo dejaste en automático como si no:</p>
+      <p>Cuando pasas a la siguiente pregunta (<strong>«Siguiente»</strong>, <strong>«Terminar ronda»</strong> o <strong>«Ronda completada»</strong>) desde una prueba con bonus, se abre <strong>siempre</strong> la ventana de selección de ganador, tanto si lo dejaste en automático como si no:</p>
       <ul>
         <li>Si el bonus está configurado para asignarse <strong>automáticamente</strong>, el equipo ganador ya viene marcado: solo tienes que <strong>confirmar</strong>.</li>
         <li>Si no, <strong>eliges tú</strong> el equipo antes de continuar.</li>
       </ul>
-      <p>Puedes abrir esta misma ventana cuando quieras con el botón <strong>"Ganador bono"</strong> de la cabecera del panel.</p>
+      <p>Al confirmar, la sala anuncia al ganador. El botón <strong>«🏅 Ganador bono»</strong> de la cabecera quita o vuelve a poner ese anuncio.</p>
 
-      <figure class="shot" data-file="img/14-director-ganador-bono.png">
-        <img src="img/14-director-ganador-bono.png" alt="Ventana de selección de ganador de bono" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 14</div><div class="ph-file">img/14-director-ganador-bono.png</div><div class="ph-label">Ventana '¿Quién se lleva el bono?' con la lista de equipos.</div></div>
-        <figcaption><span class="cn">14</span>La ventana de asignación del bono al ganador.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/12-director-ganador-bono.webp" target="_blank" rel="noopener"><img src="img/12-director-ganador-bono.webp" alt="Quién se lleva el bono" loading="lazy"></a><figcaption>Al pulsar «Siguiente» en una pregunta con bono: ¿quién se lo lleva? (aquí, preseleccionado en automático).</figcaption></figure>
 
-      <div class="note"><span class="tag">EN SALA</span>Al asignar el bono, la pantalla de sala muestra un anuncio de ganador a pantalla completa que tapa la pregunta por detrás. No se quita solo: lo cierras tú cuando convenga al ritmo.</div>
+      <div class="note"><span class="tag">EN SALA</span>Al asignar el bono, la pantalla de sala muestra un anuncio de ganador a pantalla completa que tapa la pregunta por detrás. No se quita solo: lo cierras tú con «🏅 Ganador bono» cuando convenga al ritmo.</div>
+
+      <figure class="shot"><a href="img/36-screen-ganador-bono.webp" target="_blank" rel="noopener"><img src="img/36-screen-ganador-bono.webp" alt="Anuncio del ganador del bono" loading="lazy"></a><figcaption>El anuncio del ganador en la sala.</figcaption></figure>
 
       <h4>El registro</h4>
       <p>El botón <strong>«Registro»</strong> de la cabecera abre la lista de todo lo que ha pasado en la partida, con la <strong>hora</strong> y en qué ronda y pregunta: puntos sumados o restados a mano, aciertos y fallos del pulsador, cada pregunta puntuada sola (cuántos equipos acertaron), el reparto del karaoke, bonos ganados, usados o dados y quitados a mano, congelaciones y descongelaciones, equipos eliminados y reinicios. Sirve para resolver cualquier duda («¿por qué tenemos estos puntos?»). Se puede filtrar por <strong>Puntos</strong>, <strong>Bonos</strong> o <strong>Congelaciones</strong>. Un número en el botón avisa de lo que aún no has visto, y con el panel abierto se actualiza en vivo. Al reiniciar puntuaciones o la partida, el registro empieza de cero.</p>
 
-      <figure class="shot" data-file="img/16-director-log-bonos.png">
-        <img src="img/16-director-log-bonos.png" alt="Panel de registro de bonos" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 16</div><div class="ph-file">img/16-director-log-bonos.png</div><div class="ph-label">Panel de registro de bonos repartidos y usados, con indicador de no-vistos.</div></div>
-        <figcaption><span class="cn">16</span>El registro de bonos del coordinador.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/15-director-registro.webp" target="_blank" rel="noopener"><img src="img/15-director-registro.webp" alt="Registro del coordinador" loading="lazy"></a><figcaption>El registro: todo lo que ha pasado, con hora y filtros.</figcaption></figure>
 
       <h4>Cómo usan los bonos los jugadores</h4>
       <p>El equipo que tiene un bono lo ve siempre en su iPad con un botón disponible. Al pulsarlo, elige sobre qué equipo lo aplica y se activa al instante. El bono de <strong>congelar a todos</strong> no pide objetivo: bloquea a todos los rivales de golpe.</p>
@@ -529,29 +515,23 @@
         <li><strong>En el iPad del equipo afectado</strong> aparece un aviso a pantalla completa ("¡TE HAN CONGELADO!") que le impide responder mientras dura el bloqueo.</li>
       </ul>
 
-      <figure class="shot" data-file="img/21-play-usar-bono.png">
-        <img src="img/21-play-usar-bono.png" alt="Uso de un bono desde el iPad" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 21</div><div class="ph-file">img/21-play-usar-bono.png</div><div class="ph-label">Botón de bono en el iPad y selección del equipo objetivo.</div></div>
-        <figcaption><span class="cn">21</span>Un equipo usa su bono desde el iPad.</figcaption>
-      </figure>
+      <div class="shots-2">
+        <figure class="shot"><a href="img/25-play-usar-bono.webp" target="_blank" rel="noopener"><img src="img/25-play-usar-bono.webp" alt="Usar un bono desde el iPad" loading="lazy"></a><figcaption>El equipo con el bono elige a quién congelar…</figcaption></figure>
+        <figure class="shot"><a href="img/27-play-congelado.webp" target="_blank" rel="noopener"><img src="img/27-play-congelado.webp" alt="iPad congelado" loading="lazy"></a><figcaption>…y el iPad del equipo congelado se bloquea.</figcaption></figure>
+      </div>
 
-      <figure class="shot" data-file="img/22-screen-anuncio-bono.png">
-        <img src="img/22-screen-anuncio-bono.png" alt="Aviso de bono en la pantalla de sala" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 22</div><div class="ph-file">img/22-screen-anuncio-bono.png</div><div class="ph-label">Banda de aviso de congelación en la pantalla de sala.</div></div>
-        <figcaption><span class="cn">22</span>El aviso de congelación en la sala.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/26-screen-aviso-congelado.webp" target="_blank" rel="noopener"><img src="img/26-screen-aviso-congelado.webp" alt="Aviso de congelación en la sala" loading="lazy"></a><figcaption>La sala avisa del movimiento con una banda arriba.</figcaption></figure>
 
       <h3>Estado de los dispositivos</h3>
       <p>En la barra inferior del coordinador, cada equipo lleva un icono con el estado de la <a href="#s4-precarga">descarga del contenido</a> en su iPad: <strong>✅</strong> todo descargado, <strong>⚠️</strong> le falta algo (pasa el dedo o el ratón para ver qué) y <strong>⏳</strong> aún no ha informado. A la derecha, un resumen tipo <em>«Contenido: iPads 12/12 ✅ · Pantalla ✅»</em>. Revísalo antes de empezar.</p>
 
       <h3>Marcador, bloqueos y final</h3>
-      <p>Desde el panel das y quitas puntos a mano cuando haga falta. Si una prueba repartió bonus de congelación, activas los <strong>bloqueos</strong> sobre los equipos y la pantalla de sala lo anuncia con un aviso vistoso. <strong>Entre pruebas</strong> puedes mostrar la pantalla de espera o el marcador; al acabar, lanzas el <strong>podio final</strong>.</p>
+      <p>Desde la barra <strong>«Equipos &amp; puntos»</strong> de abajo (se despliega tocándola) das y quitas puntos a mano, congelas o descongelas a un equipo (❄) y das o quitas bonos (🎁). <strong>«❄ Congelar a todos»</strong> está en el panel de las pruebas de pulsador, y cuando hay algún equipo congelado aparece <strong>«🔓 Descongelar a todos»</strong> en esa barra de abajo. <strong>Entre pruebas</strong> puedes mostrar la pantalla de espera o el marcador (<strong>🏆 Ranking</strong>); al acabar, el marcador muestra la clasificación final.</p>
 
-      <figure class="shot" data-file="img/15-director-marcador.png">
-        <img src="img/15-director-marcador.png" alt="Marcador en el panel" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 15</div><div class="ph-file">img/15-director-marcador.png</div><div class="ph-label">Gestión del marcador desde el panel: sumar y restar puntos.</div></div>
-        <figcaption><span class="cn">15</span>El marcador desde el panel del coordinador.</figcaption>
-      </figure>
+      <div class="shots-2">
+        <figure class="shot"><a href="img/16-director-marcador.webp" target="_blank" rel="noopener"><img src="img/16-director-marcador.webp" alt="Marcador en el coordinador" loading="lazy"></a><figcaption>Abajo, «Equipos & puntos» desplegado: sumar, restar, congelar y bonos a mano.</figcaption></figure>
+        <figure class="shot"><a href="img/28-screen-marcador.webp" target="_blank" rel="noopener"><img src="img/28-screen-marcador.webp" alt="Marcador en la sala" loading="lazy"></a><figcaption>El marcador en la pantalla de sala (botón 🏆 Ranking).</figcaption></figure>
+      </div>
     </section>
 
     <!-- ── SECCIÓN 4 ── -->
@@ -564,7 +544,7 @@
         <li>Un <strong>ordenador de sala</strong> conectado al proyector o televisor.</li>
         <li>El <strong>proyector o televisor</strong> para el público.</li>
         <li><strong>Altavoces</strong> conectados al ordenador (imprescindibles si hay prueba de canción).</li>
-        <li>Un <strong>iPad para el coordinador</strong> y <strong>un iPad por equipo</strong>.</li>
+        <li>Un <strong>iPad, tablet u ordenador para el coordinador</strong> y <strong>un iPad por equipo</strong>.</li>
         <li>Buena <strong>wifi</strong> que cubra a todos los dispositivos.</li>
       </ul>
 
@@ -574,22 +554,16 @@
       <ol>
         <li>Conecta el proyector al ordenador (normalmente HDMI).</li>
         <li>En la configuración de pantalla, elige <strong>«Extender»</strong> (no «Duplicar»).</li>
-        <li>Abre la <strong>vista de pantalla</strong> del juego. Lo más cómodo es el botón <strong>«Abrir pantalla de sala»</strong> desde el panel del coordinador, que ya te lleva al juego correcto.</li>
+        <li>Abre la <strong>vista de pantalla</strong> del juego. Lo más cómodo es el botón <strong>«📺 Pantalla»</strong> de la cabecera del coordinador, que ya te lleva al juego correcto.</li>
         <li><strong>Arrastra esa ventana al proyector</strong> y ponla a pantalla completa (F11 en la mayoría de navegadores).</li>
         <li>Comprueba que el público ve la pantalla de espera o el marcador.</li>
       </ol>
 
-      <figure class="shot" data-file="img/17-pantalla-extendida.png">
-        <img src="img/17-pantalla-extendida.png" alt="Configuración de pantalla extendida" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 17</div><div class="ph-file">img/17-pantalla-extendida.png</div><div class="ph-label">Ajustes del sistema con las pantallas en modo «Extender».</div></div>
-        <figcaption><span class="cn">17</span>Pantallas en modo extender.</figcaption>
-      </figure>
-
-      <figure class="shot" data-file="img/18-screen-sala.png">
-        <img src="img/18-screen-sala.png" alt="Pantalla de sala proyectada" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 18</div><div class="ph-file">img/18-screen-sala.png</div><div class="ph-label">La vista /screen proyectada: pantalla de espera o marcador.</div></div>
-        <figcaption><span class="cn">18</span>La pantalla de sala proyectada.</figcaption>
-      </figure>
+      
+      <div class="shots-2">
+        <figure class="shot"><a href="img/18-screen-menu.webp" target="_blank" rel="noopener"><img src="img/18-screen-menu.webp" alt="Menú de la pantalla de sala" loading="lazy"></a><figcaption>La pantalla de sala con el menú de pruebas.</figcaption></figure>
+        <figure class="shot"><a href="img/23-screen-pregunta.webp" target="_blank" rel="noopener"><img src="img/23-screen-pregunta.webp" alt="Pregunta en la pantalla de sala" loading="lazy"></a><figcaption>Una pregunta en la sala, con su cuenta atrás.</figcaption></figure>
+      </div>
 
       <div id="s4-ipads"></div>
       <h3>Los iPads de los jugadores</h3>
@@ -604,17 +578,12 @@
       <div class="note warn"><span class="tag">Tras una actualización</span>Cuando se actualiza la app, abre la vista de jugador <strong>una vez en cada iPad antes del evento</strong>: así todos tienen ya la versión nueva.</div>
       <div class="note"><span class="tag">Consejo</span>La vista de jugador se puede <strong>anclar al escritorio del iPad</strong> como si fuera una app (PWA). Si los iPads son recurrentes, déjala anclada. Y reparte los iPads ya con el juego elegido y el equipo creado antes de que llegue el público.</div>
 
-      <figure class="shot" data-file="img/19-play-ipad.png">
-        <img src="img/19-play-ipad.png" alt="Vista de jugador en el iPad" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 19</div><div class="ph-file">img/19-play-ipad.png</div><div class="ph-label">La vista /play en un iPad: elegir juego / introducir código / elegir equipo.</div></div>
-        <figcaption><span class="cn">19</span>La vista de jugador en el iPad.</figcaption>
-      </figure>
+      <div class="shots-2">
+        <figure class="shot"><a href="img/17-play-crear-equipo.webp" target="_blank" rel="noopener"><img src="img/17-play-crear-equipo.webp" alt="Crear el equipo en el iPad" loading="lazy"></a><figcaption>El iPad al entrar: nombre del equipo y foto (opcional).</figcaption></figure>
+        <figure class="shot"><a href="img/19-play-menu.webp" target="_blank" rel="noopener"><img src="img/19-play-menu.webp" alt="Menú en el iPad" loading="lazy"></a><figcaption>Entre pruebas, el iPad sigue al coordinador por el menú.</figcaption></figure>
+      </div>
 
-      <figure class="shot" data-file="img/20-qr-sala.png">
-        <img src="img/20-qr-sala.png" alt="QR de acceso proyectado en sala" loading="lazy" onerror="this.closest('.shot').classList.add('is-missing')">
-        <div class="ph"><div class="ph-cam">⬚</div><div class="ph-num">CAPTURA 20</div><div class="ph-file">img/20-qr-sala.png</div><div class="ph-label">El QR de acceso proyectado en sala (tarjeta flotante sobre la pantalla).</div></div>
-        <figcaption><span class="cn">20</span>El QR de acceso proyectado en sala.</figcaption>
-      </figure>
+      <figure class="shot"><a href="img/20-qr-sala.webp" target="_blank" rel="noopener"><img src="img/20-qr-sala.webp" alt="QR de acceso en la sala" loading="lazy"></a><figcaption>El QR de acceso proyectado en la sala (botón QR del coordinador).</figcaption></figure>
 
       <div id="s4-precarga"></div>
       <h3>Descarga del contenido (precarga)</h3>
@@ -628,18 +597,19 @@
       </ul>
 
       <div id="s4-sonido"></div>
-      <h3>El sonido (Adivina la canción)</h3>
-      <p>El audio de la prueba de canción <strong>no sale de GameShow</strong>: lo genera el <strong>Chaos Studio</strong>, que se ejecuta aparte. Para que suene en la sala:</p>
+      <h3>El sonido de «Adivina la canción»</h3>
+      <p>El audio de la prueba de canción lo pone el <strong>Chaos Studio</strong>, el reproductor con la distorsión que aparece en el panel del coordinador al lanzar esa prueba. La canción <strong>suena en el aparato donde está abierto ese panel</strong>. Para que se oiga en la sala:</p>
       <ol>
-        <li>El Chaos Studio debe estar funcionando en el <strong>ordenador de sala</strong> (el del proyector y los altavoces).</li>
+        <li>Lleva esa prueba con el coordinador abierto en el <strong>ordenador de sala</strong> (el de los altavoces).</li>
         <li>La <strong>salida de audio</strong> de ese ordenador debe ir a los <strong>altavoces de la sala</strong>.</li>
-        <li>Durante la prueba, el coordinador controla la distorsión desde su panel, pero <strong>el sonido viene del Chaos Studio</strong> del ordenador.</li>
+        <li>Desde el Chaos Studio se elige la pista y se va quitando la distorsión mientras los equipos pulsan.</li>
       </ol>
-      <div class="note warn"><span class="tag">Pruébalo antes</span>Es el punto del montaje que más conviene probar con antelación, porque mezcla dos cosas (la app y el Chaos Studio) y depende del enrutado de audio de tu ordenador. Haz una prueba de sonido real antes de que llegue el público.</div>
+      <div class="note warn"><span class="tag">Pruébalo antes</span>Es el punto del montaje que más conviene probar con antelación, porque depende del enrutado de audio de tu ordenador. Haz una prueba de sonido real antes de que llegue el público.</div>
 
       <div id="s4-sinpantalla"></div>
       <h3>Jugar sin pantalla de sala</h3>
       <p>Si no hay proyector, cada iPad puede mostrar también lo que se vería en la pantalla. Se marca en el backoffice, al editar el juego: <strong>«Este juego va sin pantalla»</strong>. En directo, el botón <strong>«📺 Con pantalla / 📵 Sin pantalla»</strong> de la cabecera del coordinador lo cambia en cualquier momento (por ejemplo, si el proyector falla a mitad).</p>
+      <figure class="shot"><a href="img/34-play-sin-pantalla.webp" target="_blank" rel="noopener"><img src="img/34-play-sin-pantalla.webp" alt="iPad sin pantalla de sala" loading="lazy"></a><figcaption>Sin pantalla: arriba, el escenario con lo que vería la sala; debajo, el pulsador.</figcaption></figure>
       <ul>
         <li>En las pruebas en las que el iPad solo tenía el pulsador (pulsador, ruleta, Adivina la imagen, imagen fija, canción, Imagen que se aclara) aparece arriba el <strong>escenario</strong>, con lo mismo que vería la sala, y el pulsador debajo. En el karaoke la letra ocupa todo el iPad, con el marco del color del equipo alrededor.</li>
         <li>En las que el iPad ya tenía la pregunta (multirespuesta, Precio justo, Boom, Identidad) no cambia nada.</li>
@@ -682,17 +652,18 @@
 
       <div class="grp">Sonido (si hay prueba de canción)</div>
       <ul class="check">
-        <li><span class="box"></span>El Chaos Studio está funcionando en el ordenador de sala.</li>
+        <li><span class="box"></span>Para la prueba de canción, el coordinador está abierto en el ordenador de sala y su audio va a los altavoces.</li>
         <li><span class="box"></span>Has hecho una prueba de sonido real por los altavoces.</li>
       </ul>
 
       <div class="grp">iPads</div>
       <ul class="check">
-        <li><span class="box"></span>El iPad del coordinador está en el panel y responde.</li>
+        <li><span class="box"></span>El coordinador está en el panel y responde.</li>
         <li><span class="box"></span>Cada equipo tiene su iPad dentro del juego correcto y con su equipo creado.</li>
         <li><span class="box"></span>Has lanzado una prueba de ejemplo y aparece en iPads y pantalla.</li>
         <li><span class="box"></span>El coordinador muestra «Contenido: iPads N/N ✅ · Pantalla ✅» (todos han descargado el contenido).</li>
         <li><span class="box"></span>Si hubo una partida de ensayo: has pulsado «Reiniciar puntuaciones» (o «Partida nueva»).</li>
+        <li><span class="box"></span>Sin pantalla y con el sonido en los iPads: cada equipo ha tocado su aviso «🔊 Toca aquí para activar el sonido».</li>
       </ul>
 
       <div class="grp">Red</div>

@@ -189,7 +189,9 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
     <div id="screen-games" class="screen active">
         <div class="toolbar">
             <button class="btn-primary" onclick="openGameModal()">+ Nuevo juego</button>
-            <label class="btn-ghost btn-sm" style="cursor:pointer" title="Crear un juego a partir de una exportación .zip (con imágenes, vídeos y audio)">📦 Importar juego (.zip)<input type="file" accept=".zip,application/zip" style="display:none" onchange="importGameZip(this)"></label>
+            <label class="btn-ghost btn-sm" style="cursor:pointer; display:inline-flex; margin:0; text-transform:none; letter-spacing:0; font-size:12px; color:var(--text)" title="Crear un juego a partir de una exportación .zip (con imágenes, vídeos y audio)">📦 Importar juego (.zip)<input type="file" accept=".zip,application/zip" style="display:none" onchange="importGameZip(this)"></label>
+            <a class="btn-ghost btn-sm" href="/api/templates/importacion" download style="text-decoration:none" title="Excel vacío con una pestaña por tipo de prueba, para rellenar e importar en un juego">📄 Plantilla Excel</a>
+            <a class="btn-ghost btn-sm" href="/api/templates/importacion?ejemplo=1" download style="text-decoration:none" title="La misma plantilla con una pregunta de ejemplo de cada tipo, lista para importar y probar">📗 Plantilla con ejemplos</a>
             <div class="toolbar-right">
                 <div class="filter-tabs" id="status-filter">
                     <button class="filter-tab active" data-val="">Todos</button>
@@ -209,6 +211,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
             <button class="btn-primary" onclick="openRoundModal()">+ Nueva ronda</button>
             <button class="btn-ghost btn-sm" onclick="openImportModal()">📥 Importar Excel</button>
             <button class="btn-ghost btn-sm" onclick="window.location='/api/games/'+currentGame.id+'/export-excel'">📤 Exportar Excel</button>
+            <a class="btn-ghost btn-sm" href="/api/templates/importacion" download style="text-decoration:none" title="Excel vacío con una pestaña por tipo de prueba">📄 Plantilla Excel</a>
             <button class="btn-ghost btn-sm" id="btnToggleSelectRounds" onclick="toggleRoundSelectMode()" style="display:none">☑ Seleccionar</button>
             <button class="btn-ghost btn-sm" id="btnDeleteSelectedRounds" onclick="deleteSelectedRounds()" style="display:none; color:var(--danger, #e53935)">🗑️ Eliminar seleccionadas</button>
             <div class="toolbar-right">
@@ -448,14 +451,14 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
         <form id="form-question" onsubmit="return saveQuestion(event)">
             <div id="question-fields"></div>
             <div class="field-row-3" style="margin-top:16px">
-                <div class="field"><label>Tiempo (override)</label><input type="number" name="q_time" placeholder="Hereda ronda"></div>
+                <div class="field"><label>Tiempo (segundos)</label><input type="number" name="q_time" placeholder="Hereda ronda"></div>
                 <div class="field"><label>Puntos base</label><input type="number" name="q_basePoints" placeholder="Hereda"></div>
                 <div class="field"><label>Bonus máx</label><input type="number" name="q_bonusMax" placeholder="Hereda"></div>
             </div>
             <div class="field-row-2" style="margin-top:12px; align-items:end">
                 <div class="field" style="flex:0 0 auto">
-                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer">
-                        <input type="checkbox" name="q_premio_check" onchange="document.getElementById('q_premio_tipo').disabled = !this.checked; updatePremioFields()">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; white-space:nowrap">
+                        <input type="checkbox" name="q_premio_check" style="width:auto; flex:0 0 auto; margin:0" onchange="document.getElementById('q_premio_tipo').disabled = !this.checked; updatePremioFields()">
                         Pregunta con premio
                     </label>
                 </div>
@@ -511,6 +514,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
         </p>
         <div style="display:flex; gap:8px; margin-bottom:16px;">
             <a class="btn-ghost btn-sm" href="/api/templates/importacion" download style="text-decoration:none">&#128196; Descargar plantilla Excel</a>
+            <a class="btn-ghost btn-sm" href="/api/templates/importacion?ejemplo=1" download style="text-decoration:none">&#128215; Plantilla con ejemplos</a>
         </div>
         <div class="field">
             <label>Archivo Excel (.xlsx)</label>

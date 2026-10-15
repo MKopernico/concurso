@@ -726,7 +726,9 @@ function parseExcelSheet(rows, type) {
             }
             case 'precio': {
                 const statement = String(r[1] || '').trim();
-                const correctVal = Number(r[2]);
+                // Celda vacía = sin valor (incompleta), no «0»; el 0 escrito sí vale
+                const rawVal = r[2] === undefined || r[2] === null ? '' : String(r[2]).trim();
+                const correctVal = rawVal === '' ? NaN : Number(rawVal);
                 if (!statement && !isFinite(correctVal)) break;
                 content = { statement: statement || undefined, correct_value: isFinite(correctVal) ? correctVal : undefined, image: String(r[3] || '').trim() || undefined };
                 if (r[4]) qConfig.time = Number(r[4]) || undefined;

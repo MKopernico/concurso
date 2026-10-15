@@ -72,9 +72,13 @@ console.log('  node/node.exe ' + process.version);
 for (const f of ['ARRANCAR.bat', 'LEEME.txt']) {
     fs.writeFileSync(path.join(DEST, f), toCrlf(fs.readFileSync(path.join(REPO, 'kit', f), 'utf8')), 'utf8');
 }
+// Versión del código con la que se generó (para comprobar de un vistazo si el kit está al día)
+let commit = '';
+try { commit = require('child_process').execSync('git log -1 --format="%h · %ad · %s" --date=format:"%d/%m/%Y %H:%M"', { cwd: REPO, encoding: 'utf8' }).trim(); } catch (e) {}
 fs.writeFileSync(path.join(DEST, 'VERSION.txt'), toCrlf([
     'GameShow kit offline',
     'Generado: ' + new Date().toLocaleString('es-ES'),
+    'Versión del código: ' + (commit || 'desconocida'),
     'Node: ' + process.version,
     '',
 ].join('\n')));
