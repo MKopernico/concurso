@@ -94,6 +94,15 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .type-identidad { background: #4a1942; color: #f0abfc; }
 .type-karaoke { background: #7c3aed; color: #e9d5ff; }
 .type-aclara { background: #3b2f63; color: #c4b5fd; }
+.type-abierta { background: #134e4a; color: #5eead4; }
+.ab-sub { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+.ab-sub-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.ab-sub-head input { flex: 1; }
+.ab-sub-num { font-weight: 700; min-width: 22px; }
+.ab-sub .field-row { margin-top: 6px; }
+.ab-lbl { font-size: 11px; color: var(--text2); margin-bottom: 3px; }
+.ab-sub .field-row input { width: 100%; }
+.ab-hint { font-size: 12px; color: var(--text2); margin-top: -6px; margin-bottom: 12px; }
 
 /* Sortable highlight */
 .sort-handle { cursor: grab; color: var(--text2); user-select: none; font-size: 18px; }
@@ -409,6 +418,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                     <option value="ruleta">Ruleta de la suerte</option>
                     <option value="imagen_fija">Imagen fija</option>
                     <option value="identidad">Identidad (emparejar)</option>
+                    <option value="abierta">Respuesta abierta (subpreguntas)</option>
                     <option value="karaoke">Karaoke</option>
                 </select>
             </div>
@@ -623,7 +633,7 @@ const TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador rápido', precio: 'Precio justo',
     imagen: 'Adivina imagen', cancion: 'Adivina canción', boom: 'Boom (ordenar)',
     ruleta: 'Ruleta de la suerte', imagen_fija: 'Imagen fija', identidad: 'Identidad',
-    karaoke: 'Karaoke', aclara: 'Imagen que se aclara'
+    karaoke: 'Karaoke', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta'
 };
 
 function statusBadge(s) {
@@ -920,11 +930,11 @@ function renderRounds() {
 
 function toggleTimeField(type) {
     var el = document.getElementById('field-cfg-time');
-    if (type === 'pulsador' || type === 'imagen') {
+    if (type === 'pulsador' || type === 'imagen' || type === 'abierta') {
         el.style.opacity = '.4';
         el.querySelector('input').disabled = true;
         el.querySelector('label').textContent = 'Tiempo (N/A)';
-        el.title = 'No aplica en este tipo de prueba';
+        el.title = type === 'abierta' ? 'La cuenta atrás (opcional) se pone en cada pregunta' : 'No aplica en este tipo de prueba';
     } else {
         el.style.opacity = '';
         el.querySelector('input').disabled = false;
@@ -960,7 +970,7 @@ function openRoundModal(round = null) {
 async function saveRound(e) {
     e.preventDefault();
     const form = document.getElementById('form-round');
-    const noTimer = form.type.value === 'pulsador' || form.type.value === 'imagen';
+    const noTimer = form.type.value === 'pulsador' || form.type.value === 'imagen' || form.type.value === 'abierta';
     const config = {
         time: noTimer ? 0 : (Number(form.cfg_time.value) || 30),
         // 0 es un valor válido (p. ej. ronda sin bonus); solo el campo vacío toma el valor por defecto
@@ -1121,7 +1131,9 @@ function renderQuestions() {
     }
     el.innerHTML = qs.map((q, idx) => {
         const c = q.content || {};
-        const preview = c.statement || c.phrase || c.answer || (c.image ? c.image.split('/').pop() : null) || JSON.stringify(c).slice(0, 80);
+        const preview = Array.isArray(c.subs)
+            ? (c.statement ? c.statement + ' · ' : '') + c.subs.length + (c.subs.length === 1 ? ' subpregunta' : ' subpreguntas') + (c.subs[0] && c.subs[0].text ? ' (' + c.subs[0].text + (c.subs.length > 1 ? '…' : '') + ')' : '') + (Number(c.time) > 0 ? ' · ⏱ ' + c.time + 's' : '')
+            : (c.statement || c.phrase || c.answer || (c.image ? c.image.split('/').pop() : null) || JSON.stringify(c).slice(0, 80));
         const vResult = QuestionValidation.isComplete(currentRound.type, c);
         const incompleteBadge = vResult.complete ? '' : `<span class="badge-incomplete" title="Falta: ${vResult.missing.map(k => QuestionValidation.LABELS[k] || k).join(', ')}">⚠ Incompleta</span>`;
         return `
@@ -1183,6 +1195,10 @@ function openQuestionModal(question = null) {
     const form = document.getElementById('form-question');
     form.reset();
     document.getElementById('q_premio_tipo').disabled = true;
+    // Algunos tipos desactivan el tiempo general al abrir su formulario: se restablece antes
+    var qTime = form.q_time, qTimeField = qTime.closest('.field');
+    qTime.disabled = false; qTimeField.style.opacity = ''; qTimeField.title = '';
+    form.q_bonusMax.closest('.field').title = '';
 
     const type = currentRound.type;
     const isEdit = !!question;
@@ -1226,6 +1242,7 @@ function buildFieldsForType(type, c) {
         case 'imagen_fija':    return fieldsImagenFija(c);
         case 'identidad':      return fieldsIdentidad(c);
         case 'karaoke':        return fieldsKaraoke(c);
+        case 'abierta':        return fieldsAbierta(c);
         default:               return `<div class="field"><label>Contenido (JSON)</label><textarea name="raw_json">${esc(JSON.stringify(c, null, 2))}</textarea></div>`;
     }
 }
@@ -1497,6 +1514,65 @@ function fieldsBoom(c) {
         <div class="field"><label>Elementos (uno por línea, en el orden CORRECTO)</label><textarea name="c_items" rows="6" required>${items.join('\n')}</textarea></div>
         <p style="font-size:12px; color:var(--text2); margin-top:-10px; margin-bottom:14px">Escríbelos en el orden correcto. El sistema los desordenará automáticamente para el jugador.</p>
     `;
+}
+
+// ── Respuesta abierta: enunciado general + subpreguntas (todas a la vez) ──
+function fieldsAbierta(c) {
+    setTimeout(function() {
+        // La cuenta atrás va aquí abajo (opcional); el campo general de tiempo no aplica
+        var timeOverride = document.querySelector('[name="q_time"]');
+        if (timeOverride) { timeOverride.disabled = true; timeOverride.closest('.field').style.opacity = '.4'; timeOverride.closest('.field').title = 'No aplica: usa «Cuenta atrás» de arriba'; }
+        var bonus = document.querySelector('[name="q_bonusMax"]');
+        if (bonus) bonus.closest('.field').title = 'Bonus para el equipo que más acierta (empate: el que envió antes)';
+        abiertaSyncTime();
+    }, 0);
+    var subs = (Array.isArray(c.subs) && c.subs.length) ? c.subs : [{ text: '', answer: '', alts: '' }];
+    var timed = Number(c.time) > 0;
+    return `
+        <div class="field"><label>Enunciado general (opcional)</label><textarea name="c_statement" placeholder="Ej: Mira el mapa y responde">${esc(c.statement || '')}</textarea></div>
+        <div class="field-row">
+            <div class="field"><label>Cuenta atrás</label>
+                <select name="c_timed" onchange="abiertaSyncTime()">
+                    <option value="no" ${timed ? '' : 'selected'}>Sin cuenta atrás (Lo sabe no lo sabe)</option>
+                    <option value="si" ${timed ? 'selected' : ''}>Con cuenta atrás</option>
+                </select>
+            </div>
+            <div class="field" id="ab-time-field"><label>Segundos</label><input type="number" name="c_time" min="5" max="3600" value="${timed ? Number(c.time) : 60}"></div>
+        </div>
+        <div class="field"><label>Subpreguntas (se lanzan todas a la vez)</label>
+            <div id="abierta-subs">${subs.map(function(s, i) { return abiertaSubRow(i, s); }).join('')}</div>
+            <button type="button" class="btn-ghost btn-sm" onclick="addAbiertaSub()" style="margin-top:4px">+ Añadir subpregunta</button>
+        </div>
+        <p class="ab-hint">Lo que coincida con la respuesta o con otra válida se corrige solo (da igual mayúsculas, tildes y signos); lo demás lo validas tú en el panel de control. Cada equipo se lleva la parte proporcional de los puntos base según lo que acierte, y el que más acierta gana además el «Bonus máx».</p>
+    `;
+}
+function abiertaSubRow(i, s) {
+    s = s || {};
+    return `<div class="ab-sub">
+        <div class="ab-sub-head">
+            <span class="ab-sub-num">${i + 1}</span>
+            <input type="text" data-ab="text" value="${esc(s.text || '')}" placeholder="Subpregunta (ej: ¿Quién escribió El Quijote?)">
+            <button type="button" class="btn-ghost btn-sm" onclick="removeAbiertaSub(this)" style="color:#f87171" title="Quitar subpregunta">&#10005;</button>
+        </div>
+        <div class="field-row">
+            <div><div class="ab-lbl">Respuesta correcta</div><input type="text" data-ab="answer" value="${esc(s.answer || '')}" placeholder="La que se verá al revelar"></div>
+            <div><div class="ab-lbl">Otras válidas (separadas por /)</div><input type="text" data-ab="alts" value="${esc(s.alts || '')}" placeholder="Opcional: variante 1 / variante 2"></div>
+        </div>
+    </div>`;
+}
+function addAbiertaSub() {
+    var box = document.getElementById('abierta-subs');
+    box.insertAdjacentHTML('beforeend', abiertaSubRow(box.querySelectorAll('.ab-sub').length, null));
+}
+function removeAbiertaSub(btn) {
+    var box = document.getElementById('abierta-subs');
+    if (box.querySelectorAll('.ab-sub').length <= 1) { toast('Tiene que haber al menos una subpregunta'); return; }
+    btn.closest('.ab-sub').remove();
+    box.querySelectorAll('.ab-sub-num').forEach(function(el, i) { el.textContent = i + 1; });
+}
+function abiertaSyncTime() {
+    var sel = document.querySelector('[name="c_timed"]'), f = document.getElementById('ab-time-field');
+    if (sel && f) f.style.display = sel.value === 'si' ? '' : 'none';
 }
 
 function fieldsIdentidad(c) {
@@ -1820,6 +1896,18 @@ function extractContent(type, form) {
                 });
             });
             return { statement: val(form, 'c_statement'), pairs, explanation: val(form, 'c_explanation') || undefined };
+        }
+        case 'abierta': {
+            const subs = [];
+            form.querySelectorAll('#abierta-subs .ab-sub').forEach(row => {
+                const get = k => (row.querySelector('[data-ab="' + k + '"]').value || '').trim();
+                const s = { text: get('text'), answer: get('answer'), alts: get('alts') || undefined };
+                if (s.text || s.answer || s.alts) subs.push(s);
+            });
+            const timed = val(form, 'c_timed') === 'si';
+            const secs = Math.round(Number(val(form, 'c_time')) || 0);
+            if (timed && secs < 5) throw new Error('la cuenta atrás necesita al menos 5 segundos');
+            return { statement: val(form, 'c_statement') || undefined, subs, time: timed ? Math.min(3600, secs) : undefined };
         }
         case 'aclara':
             return {

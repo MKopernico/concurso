@@ -270,6 +270,7 @@ const EXAMPLE_ROUNDS = [
     ['Ejemplo · Adivina la canción', 'cancion', '', 100, '', 0, '', ''],
     ['Ejemplo · Identidad', 'identidad', 60, 100, 50, 0, '', ''],
     ['Ejemplo · Imagen que se aclara', 'aclara', '', 100, '', 0, '', ''],
+    ['Ejemplo · Respuesta abierta', 'abierta', '', 100, 50, 0, '', ''],
 ];
 const EXAMPLE_ROWS = {
     multirespuesta: [['Ejemplo · Multirespuesta', '¿Cuál es el río más largo de la península ibérica?', 'Ebro', 'Tajo', 'Duero', 'Guadalquivir', '', '2', 'El Tajo mide unos 1.007 km.', 20, 100, 50, 0]],
@@ -287,6 +288,11 @@ const EXAMPLE_ROWS = {
         ['Ejemplo · Identidad', '', '', 'Portugal', '', 'Lisboa'],
     ],
     aclara: [['Ejemplo · Imagen que se aclara', '¿Qué se ve en la imagen?', EJ_IMG, 'Un paisaje de montaña', 'pixelado', 'sola', 20, 100]],
+    abierta: [
+        ['Ejemplo · Respuesta abierta', 'Literatura y geografía: responde a las tres', '¿Quién escribió El Quijote?', 'Cervantes', 'Miguel de Cervantes / el manco de Lepanto', 90, 100, 50],
+        ['Ejemplo · Respuesta abierta', '', '¿Cuál es la capital de Portugal?', 'Lisboa', ''],
+        ['Ejemplo · Respuesta abierta', '', '¿Cuántos lados tiene un hexágono?', '6', 'seis'],
+    ],
 };
 
 router.get('/templates/importacion', (req, res) => {

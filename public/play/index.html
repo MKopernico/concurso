@@ -281,6 +281,46 @@ input:focus { border-color: var(--accent); }
 .reveal-result.win { color: #fff; background: rgba(34,197,94,.35); border: 2px solid #22c55e; }
 .reveal-result.lose { color: #fff; background: rgba(239,68,68,.3); border: 2px solid #ef4444; }
 
+/* ── Respuesta abierta: una caja de texto por subpregunta ── */
+.gp-abierta { padding: 12px 16px 10px; gap: 10px; justify-content: flex-start; }
+.gp-abierta .q-statement { font-size: clamp(17px, 2.6vw, 22px); font-weight: 600; line-height: 1.35; text-align: center;
+    background: rgba(0,0,0,.6); border-radius: 16px; padding: 12px 18px; color: #fff; backdrop-filter: blur(6px); flex-shrink: 0; }
+.gp-abierta .q-statement:empty { display: none; }
+.gp-abierta.ab-intro .q-statement { font-size: clamp(22px, 4vw, 34px); padding: 24px; margin: auto 0; }
+.ab-list { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 10px; padding: 2px; }
+.ab-row { background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.15); border-radius: 14px; padding: 10px 14px; backdrop-filter: blur(6px); flex-shrink: 0; }
+.ab-q { font-size: clamp(15px, 2.2vw, 19px); font-weight: 700; color: #fff; margin-bottom: 8px; line-height: 1.3; }
+.ab-q .ab-n { color: var(--accent); margin-right: 6px; }
+.ab-in { width: 100%; font-size: 20px; padding: 12px 14px; border-radius: 10px; border: 2px solid rgba(255,255,255,.25); background: rgba(255,255,255,.92); color: #111; font-weight: 600; }
+.ab-in:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,212,255,.35); }
+.ab-in:disabled { background: rgba(255,255,255,.18); color: #fff; border-color: transparent; -webkit-text-fill-color: #fff; opacity: 1; }
+.ab-in::placeholder { color: #888; font-weight: 500; }
+.ab-in:disabled::placeholder { color: rgba(255,255,255,.55); }
+.ab-mine { font-size: 20px; font-weight: 700; color: #fff; padding: 10px 14px; border-radius: 10px; background: rgba(255,255,255,.12); border: 2px solid transparent; word-break: break-word; }
+.ab-mine.ab-empty { color: var(--text2); font-weight: 600; font-style: italic; }
+.ab-row.ok { border-color: var(--success); background: linear-gradient(rgba(34,197,94,.22),rgba(34,197,94,.22)),rgba(0,0,0,.6); }
+.ab-row.ok .ab-mine { border-color: var(--success); }
+.ab-row.bad { border-color: var(--danger); background: linear-gradient(rgba(239,68,68,.18),rgba(239,68,68,.18)),rgba(0,0,0,.6); }
+.ab-row.bad .ab-mine { border-color: var(--danger); }
+.ab-row.just { animation: abRowIn .5s ease; }
+@keyframes abRowIn { 0% { transform: scale(.96); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+.ab-fix { font-size: 16px; font-weight: 700; color: #4ade80; margin-top: 6px; }
+.ab-foot { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+.ab-status { font-size: 16px; font-weight: 700; color: #fff; text-align: center; text-shadow: 0 1px 4px rgba(0,0,0,.9); min-height: 18px; }
+.ab-status.ok { color: var(--success); }
+.ab-status.warn { color: var(--gold); }
+.ab-status.final { font-size: clamp(20px, 3.2vw, 28px); font-weight: 800; padding: 10px 20px; border-radius: 14px; background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.2); }
+.ab-status.final.ok { border-color: var(--success); background: rgba(34,197,94,.25); color: #fff; }
+.ab-send { width: clamp(180px, 50%, 340px); padding: 14px; font-size: 20px; font-weight: 800; background: var(--accent); color: #000; border-radius: 12px; }
+.ab-send.confirm { background: var(--gold); }
+.ab-send:disabled { opacity: .35; }
+.ab-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.ab-center .ab-ci { font-size: clamp(48px, 10vw, 84px); animation: abPulse 1.6s ease-in-out infinite; }
+.ab-center .ab-ct { font-size: clamp(22px, 4vw, 34px); font-weight: 800; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.8); }
+.ab-center .ab-cs { font-size: 16px; color: var(--text2); font-weight: 600; }
+@keyframes abPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .ab-center .ab-ci, .ab-row.just { animation: none; } }
+
 /* ── Round End ── */
 .gp-round-end { align-items: center; justify-content: center; padding: 24px; }
 .gp-round-end .round-end-title { font-size: clamp(24px, 7vw, 40px); font-weight: 800; text-align: center; text-transform: uppercase;
@@ -648,6 +688,15 @@ body.karaoke-active .player-timer-bar { display: none !important; }
                 <button class="hz-send" id="idBtn" onclick="submitIdentidad()" style="display:none">Enviar</button>
             </div>
         </div>
+        <div class="gphase gp-abierta" id="gp-abierta">
+            <div class="q-statement" id="abStatement"></div>
+            <div class="ab-list" id="abList"></div>
+            <div class="ab-center" id="abCenter" style="display:none"><div class="ab-ci" id="abCenterIcon"></div><div class="ab-ct" id="abCenterText"></div><div class="ab-cs" id="abCenterSub"></div></div>
+            <div class="ab-foot" id="abFoot">
+                <div class="ab-status" id="abStatus"></div>
+                <button class="ab-send" id="abBtn" type="button" onclick="submitAbierta()" style="display:none">Enviar respuestas</button>
+            </div>
+        </div>
         <div class="gphase gp-karaoke" id="gp-karaoke">
             <div id="karaokePlayWrap"></div>
         </div>
@@ -730,6 +779,7 @@ var S = {
     ps: null, selectedOptions: [], submitted: false,
     photoUrl: null,
     identidad: { myOrder: null, mySubmitted: false },
+    ab: { texts: [], submitted: false }, // Respuesta abierta: lo escrito por este equipo
 };
 var socket = null;
 var deviceId = localStorage.getItem('gs_deviceId') || (function() {
@@ -1193,9 +1243,19 @@ function connectSocket(onReady) {
     });
 
     socket.on('game:pair_revealed', function() {
+        if (S.ps && S.ps.roundType === 'abierta' && S.ps.phase === 'answer_revealed') renderAbierta();
         if (S.ps && S.ps.roundType === 'identidad' && S.ps.phase === 'answer_revealed') {
             renderIdentidad();
         }
+    });
+
+    // Respuesta abierta: lo que este equipo tenía escrito (al volver de un corte o desde otro iPad)
+    socket.on('game:your_abierta', function(d) {
+        var server = Array.isArray(d.texts) ? d.texts.slice() : [];
+        if (d.submitted || !abHasText(S.ab.texts)) { S.ab.texts = server; S.ab.submitted = !!d.submitted; }
+        else abQueueDraft(); // lo escrito aquí sin conexión es más reciente: se manda
+        _abKey = null;
+        if (S.ps && S.ps.roundType === 'abierta') renderAbierta();
     });
 
     socket.on('game:your_order', function(d) {
@@ -1216,8 +1276,8 @@ function connectSocket(onReady) {
 // para que cuente con el tiempo que quedaba al pulsar, no con el de llegada.
 var _pendingAnswers = {};
 var _lastAnswer = null;
-var _QUEUEABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:update_order': 1 };
-var _RESENDABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1 };
+var _QUEUEABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:update_order': 1, 'player:abierta_draft': 1, 'player:abierta_submit': 1 };
+var _RESENDABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:abierta_submit': 1 };
 function _nowMs() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
 function _withAgo(x) {
     var d = {}; for (var k in x.data) d[k] = x.data[k];
@@ -1230,7 +1290,7 @@ function emit(ev, data) {
     if (socket && socket.connected && S.myTeamId) { socket.emit(ev, data || {}); return; }
     if (_QUEUEABLE[ev]) {
         _pendingAnswers[ev] = entry;
-        toast('Reconectando… tu respuesta se enviará al volver');
+        if (ev !== 'player:abierta_draft') toast('Reconectando… tu respuesta se enviará al volver');
     } else if (ev === 'pulsar_boton') {
         toast('Sin conexión: espera a que vuelva');
     }
@@ -1330,6 +1390,7 @@ function onPlayerSync(ps) {
     if (qKey !== lastQIdx) {
         S.selectedOptions = []; S.submitted = false; S._precioSubmittedValue = undefined; lastQIdx = qKey;
         S.identidad = { myOrder: null, mySubmitted: false };
+        S.ab = { texts: [], submitted: false }; _abKey = null; clearTimeout(_abDraftT);
         applyYourOrder();
         var _pi = document.getElementById('precioInput'); if (_pi) _pi.value = '';
         hzCancelDrag();
@@ -1562,6 +1623,8 @@ function renderGamePhase() {
             renderPrecioRevealed(); document.getElementById('gp-precio').classList.add('active');
         } else if (type === 'identidad') {
             renderIdentidad(); document.getElementById('gp-identidad').classList.add('active');
+        } else if (type === 'abierta') {
+            renderAbierta(); document.getElementById('gp-abierta').classList.add('active');
         } else {
             renderRevealed(); document.getElementById('gp-revealed').classList.add('active');
         }
@@ -1593,6 +1656,10 @@ function renderGamePhase() {
             renderBoom(); document.getElementById('gp-boom').classList.add('active');
         } else if (type === 'identidad') {
             renderIdentidad(); document.getElementById('gp-identidad').classList.add('active');
+        } else if (type === 'abierta') {
+            // Cuenta atrás opcional: sin ella no se ve el reloj
+            timerBar.style.display = (ps.timer && ps.timer.total > 0) ? 'flex' : 'none';
+            renderAbierta(); document.getElementById('gp-abierta').classList.add('active');
         } else if (type === 'karaoke') {
             renderKaraokePlay(); document.getElementById('gp-karaoke').classList.add('active');
         } else {
@@ -2234,11 +2301,161 @@ function submitIdentidad() {
     renderIdentidad();
 }
 
+// ── Respuesta abierta: una caja de texto por subpregunta ──
+// Lo escrito se guarda en el servidor mientras se teclea (borrador): si se acaba el tiempo cuenta
+// igual, y si el iPad se corta lo recupera. Las cajas no se vuelven a crear mientras se escribe
+// (si no, se cerraría el teclado con cada actualización).
+var _abKey = null, _abDraftT = null, _abConfirmT = null, _abConfirmAt = 0;
+function abTextsFromInputs() {
+    var out = (S.ab.texts || []).slice();
+    document.querySelectorAll('#abList .ab-in').forEach(function(inp) { out[Number(inp.dataset.i)] = inp.value; });
+    return out;
+}
+function abHasText(texts) { return (texts || []).some(function(t) { return t && String(t).trim(); }); }
+function abQueueDraft() {
+    clearTimeout(_abDraftT);
+    var fast = S.ps && S.ps.timer && S.ps.timer.running && S.ps.timer.remaining <= 4;
+    _abDraftT = setTimeout(function() {
+        var ps = S.ps;
+        if (!ps || !ps.abierta || ps.abierta.step !== 'open' || S.ab.submitted || S.submitted) return;
+        emit('player:abierta_draft', { texts: S.ab.texts.slice() });
+    }, fast ? 120 : 600);
+}
+function abResetConfirm() {
+    clearTimeout(_abConfirmT);
+    var btn = document.getElementById('abBtn');
+    btn.classList.remove('confirm'); btn.textContent = 'Enviar respuestas';
+}
+function renderAbierta() {
+    var ps = S.ps; if (!ps || !ps.question) return;
+    var c = ps.question.content || {}, subs = c.subs || [], n = c.nSubs || subs.length;
+    var a = ps.abierta || {}, step = a.step || 'intro';
+    var phaseEl = document.getElementById('gp-abierta');
+    var list = document.getElementById('abList'), center = document.getElementById('abCenter');
+    var btn = document.getElementById('abBtn'), status = document.getElementById('abStatus');
+    var sent = !!(S.ab.submitted || S.submitted);
+    var mode = ps.phase === 'answer_revealed' ? 'reveal' : step === 'intro' ? 'intro' : step === 'correcting' ? 'correcting' : 'edit';
+    document.getElementById('abStatement').textContent = c.statement || (mode === 'intro' ? 'Preparad vuestras respuestas…' : '');
+    phaseEl.classList.toggle('ab-intro', mode === 'intro');
+    center.style.display = 'none'; list.style.display = ''; btn.style.display = 'none';
+    status.className = 'ab-status'; status.textContent = '';
+    if (mode !== 'edit') { _abKey = null; abResetConfirm(); }
+    if (mode !== 'reveal') list._html = null;
+
+    if (mode === 'intro') { list.innerHTML = ''; list.style.display = 'none'; return; }
+
+    if (mode === 'correcting') {
+        list.innerHTML = ''; list.style.display = 'none';
+        if (document.activeElement && document.activeElement.classList.contains('ab-in')) document.activeElement.blur();
+        center.style.display = 'flex';
+        document.getElementById('abCenterIcon').textContent = '✍️';
+        document.getElementById('abCenterText').textContent = 'Corrigiendo…';
+        document.getElementById('abCenterSub').textContent = abHasText(S.ab.texts) || sent ? 'Ya tenemos vuestras respuestas' : 'No llegó ninguna respuesta de vuestro equipo';
+        return;
+    }
+
+    if (mode === 'edit') {
+        var key = ps.questionKey + '|' + n;
+        if (_abKey !== key) {
+            _abKey = key;
+            list.innerHTML = subs.map(function(s, i) {
+                return '<div class="ab-row"><div class="ab-q"><span class="ab-n">' + (i + 1) + '.</span>' + esc(s.text || '') + '</div>'
+                    + '<input class="ab-in" data-i="' + i + '" type="text" maxlength="120" autocomplete="off" enterkeyhint="' + (i < n - 1 ? 'next' : 'done') + '" value="' + esc(S.ab.texts[i] || '') + '"></div>';
+            }).join('');
+        }
+        var canWrite = step === 'open' && !sent;
+        list.querySelectorAll('.ab-in').forEach(function(inp) {
+            inp.disabled = !canWrite;
+            inp.placeholder = canWrite ? 'Escribid vuestra respuesta' : (sent ? '' : 'Esperad a que se abran las respuestas');
+            var v = S.ab.texts[Number(inp.dataset.i)] || '';
+            if (document.activeElement !== inp && inp.value !== v) inp.value = v;
+        });
+        if (sent) {
+            status.textContent = '✓ Respuestas enviadas. Esperando al resto de equipos…'; status.className = 'ab-status ok';
+            if (document.activeElement && document.activeElement.classList.contains('ab-in')) document.activeElement.blur();
+        } else if (step === 'open') {
+            btn.style.display = '';
+            btn.disabled = !abHasText(S.ab.texts);
+        } else {
+            status.textContent = 'Leed las preguntas: enseguida podréis responder';
+        }
+        return;
+    }
+
+    // Revelado: vuestras respuestas en verde o rojo según control va destapando las subpreguntas
+    var mine = (ps.lastQuestionScores || {})[S.myTeamId];
+    var answered = !!(mine && !mine.noAnswer && Array.isArray(mine.answer));
+    var rs = a.revealStep || 0;
+    var html = subs.map(function(s, i) {
+        var shown = i < rs;
+        var my = answered ? String(mine.answer[i] || '').trim() : '';
+        var ok = shown && answered && !!(mine.marks && mine.marks[i]);
+        var cls = shown ? (answered ? (ok ? ' ok' : ' bad') : ' ok') : '';
+        var body;
+        if (answered) body = '<div class="ab-mine' + (my ? '' : ' ab-empty') + '">' + (my ? esc(my) : 'En blanco') + '</div>'
+            + (shown && !ok && s.answer ? '<div class="ab-fix">Respuesta: ' + esc(s.answer) + '</div>' : '');
+        else body = '<div class="ab-mine' + (shown ? '' : ' ab-empty') + '">' + (shown ? esc(s.answer || '') : '…') + '</div>';
+        return '<div class="ab-row' + cls + (shown && i === rs - 1 ? ' just' : '') + '"><div class="ab-q"><span class="ab-n">' + (i + 1) + '.</span>' + esc(s.text || '') + '</div>' + body + '</div>';
+    }).join('');
+    if (list._html !== html) {
+        list.innerHTML = html; list._html = html;
+        if (rs > 0 && list.children[rs - 1]) try { list.children[rs - 1].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+    }
+    if (!answered) status.textContent = 'No respondisteis: estas son las respuestas';
+    else if (rs < n) status.textContent = '👀 Revelando… ' + rs + ' de ' + n;
+    else {
+        status.textContent = mine.correctCount + ' de ' + n + ' correctas · ' + (mine.points > 0 ? '+' : '') + (mine.points || 0) + ' puntos' + (mine.winner ? ' · 🏆 ¡Bonus por ser los mejores!' : '');
+        status.className = 'ab-status final' + (mine.correctCount > 0 ? ' ok' : '');
+    }
+}
+function submitAbierta() {
+    var ps = S.ps;
+    if (S.ab.submitted || S.submitted || !ps || !ps.abierta || ps.abierta.step !== 'open') return;
+    var texts = abTextsFromInputs();
+    if (!abHasText(texts)) return;
+    var btn = document.getElementById('abBtn');
+    if (!btn.classList.contains('confirm')) {
+        // Primer toque: confirmar (avisa si queda alguna en blanco)
+        var blanks = texts.filter(function(t) { return !t || !String(t).trim(); }).length;
+        btn.classList.add('confirm');
+        btn.textContent = blanks ? 'Hay ' + blanks + ' en blanco · toca otra vez para enviar' : '¿Seguro? Toca otra vez para enviar';
+        _abConfirmAt = Date.now();
+        clearTimeout(_abConfirmT);
+        _abConfirmT = setTimeout(abResetConfirm, 4000);
+        return;
+    }
+    if (Date.now() - _abConfirmAt < 600) return; // un doble toque no confirma
+    abResetConfirm();
+    clearTimeout(_abDraftT);
+    S.ab.texts = texts;
+    S.ab.submitted = true;
+    emit('player:abierta_submit', { texts: texts });
+    renderAbierta();
+}
+(function() {
+    var list = document.getElementById('abList');
+    list.addEventListener('input', function(e) {
+        var inp = e.target.closest('.ab-in'); if (!inp) return;
+        S.ab.texts[Number(inp.dataset.i)] = inp.value;
+        var btn = document.getElementById('abBtn');
+        btn.disabled = !abHasText(S.ab.texts);
+        if (btn.classList.contains('confirm')) abResetConfirm();
+        abQueueDraft();
+    });
+    list.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter') return;
+        var inp = e.target.closest('.ab-in'); if (!inp) return;
+        e.preventDefault();
+        var next = list.querySelector('.ab-in[data-i="' + (Number(inp.dataset.i) + 1) + '"]');
+        if (next && !next.disabled) next.focus(); else inp.blur();
+    });
+})();
+
 // ── Menu (mirrors director navigation) ──
 var PLAY_TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
     imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta'
 };
 
 var _playMenuLevel = null;

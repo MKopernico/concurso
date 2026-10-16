@@ -496,6 +496,35 @@ html.embed .psq-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; 
 .id-reveal-anim { animation: id-reveal-pop .6s cubic-bezier(.34,1.56,.64,1); }
 @keyframes id-reveal-pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
 /* Identidad mode: no logo, no statement — timer lives in-flow inside identidadScreenWrap */
+/* ═══════════════ RESPUESTA ABIERTA ═══════════════ */
+#phase-question.abierta-mode.ab-subs { padding-top: clamp(70px, 10vh, 110px); justify-content: flex-start; }
+#abiertaScreenWrap { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: clamp(8px, 1.4vh, 16px); }
+.abs-list { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr; gap: clamp(8px, 1.2vh, 14px); align-content: center; }
+.abs-list.two { grid-template-columns: 1fr 1fr; }
+.abs-row { display: flex; align-items: center; gap: clamp(10px, 1.4vw, 20px); padding: clamp(10px, 1.6vh, 22px) clamp(14px, 1.8vw, 28px);
+    background: rgba(0,0,0,.60); border: 2px solid rgba(255,255,255,.15); border-radius: 16px; color: #fff; backdrop-filter: blur(6px);
+    font-size: clamp(1.05rem, 2vw, 1.9rem); font-weight: 600; line-height: 1.3; min-width: 0; }
+.abs-list.many .abs-row { font-size: clamp(.95rem, 1.6vw, 1.5rem); }
+.abs-num { flex-shrink: 0; width: 1.8em; height: 1.8em; border-radius: 50%; background: rgba(255,255,255,.1); color: var(--cyan);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; }
+.abs-q { flex: 1; min-width: 0; }
+.abs-a { flex-shrink: 0; max-width: 45%; text-align: right; font-weight: 800; color: #fff; }
+.abs-a.pending { color: rgba(255,255,255,.35); }
+.abs-row.ok { border-color: var(--green); background: linear-gradient(rgba(34,197,94,.30),rgba(34,197,94,.30)),rgba(0,0,0,.60); box-shadow: 0 0 20px rgba(34,197,94,.3); }
+.abs-row.ok .abs-num { background: var(--green); color: #fff; }
+.abs-row.just { animation: boomStepIn .5s ease; }
+.abs-band { flex-shrink: 0; align-self: center; text-align: center; padding: clamp(8px, 1.4vh, 16px) clamp(20px, 3vw, 44px); border-radius: 999px;
+    background: rgba(0,0,0,.65); border: 2px solid rgba(0,212,255,.5); color: #fff; font-size: clamp(1.1rem, 2.2vw, 2rem); font-weight: 700; backdrop-filter: blur(6px); }
+.abs-band b { color: var(--cyan); font-size: 1.25em; }
+.abs-band.done { border-color: var(--green); }
+.abs-band.done b { color: var(--green); }
+.abs-band.correcting { border-color: var(--gold); font-size: clamp(1.6rem, 3.4vw, 3rem); font-weight: 800; letter-spacing: 1px; animation: absPulse 1.6s ease-in-out infinite; }
+@keyframes absPulse { 0%,100% { box-shadow: 0 0 0 rgba(251,191,36,0); } 50% { box-shadow: 0 0 40px rgba(251,191,36,.45); } }
+.abs-band:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { .abs-band.correcting, .abs-row.just { animation: none; } }
+html.embed #phase-question.abierta-mode.ab-subs { padding-top: 12px; }
+html.embed .abs-list.two { grid-template-columns: 1fr; }
+
 #phase-question.identidad-mode { padding-top: clamp(16px, 2vh, 24px); }
 #phase-question.identidad-mode .q-statement { display: none; }
 .id-explanation { flex-shrink: 0; text-align: center;
@@ -582,6 +611,7 @@ body.karaoke-screen-active .round-logo { display: none !important; }
         <div id="imagenFijaWrap" style="display:none"></div>
         <div id="cancionScreenWrap" style="display:none"></div>
         <div id="identidadScreenWrap" style="display:none"></div>
+        <div id="abiertaScreenWrap" style="display:none"><div class="abs-list" id="absList"></div><div class="abs-band" id="absBand"></div></div>
         <div id="karaokeScreenWrap" style="display:none"></div>
         <div class="letter-panel" id="letterPanel" style="display:none"></div>
         <div class="mini-scores" id="miniScores"></div>
@@ -1098,7 +1128,8 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         renderTeamResultsOverlay();
     } else if (phase === 'question') {
         showPhase('question');
-        var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'karaoke' || type === 'aclara';
+        var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'karaoke' || type === 'aclara'
+            || (type === 'abierta' && !(ps.timer && ps.timer.total > 0)); // Respuesta abierta sin cuenta atrás
         timerStrip.style.display = hideTimer ? 'none' : '';
         timerBig.style.display = (hideTimer || type === 'identidad') ? 'none' : '';
         document.getElementById('roundLogo').style.display = (type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'identidad' || type === 'aclara') ? 'none' : '';
@@ -1181,6 +1212,8 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     document.getElementById('pulsadorScreen').style.display = 'none';
     document.getElementById('ruletaScreenPanel').style.display = 'none';
     document.getElementById('identidadScreenWrap').style.display = 'none';
+    document.getElementById('abiertaScreenWrap').style.display = 'none';
+    document.getElementById('phase-question').classList.remove('abierta-mode', 'ab-subs');
     document.getElementById('karaokeScreenWrap').style.display = 'none';
     document.getElementById('phase-question').classList.toggle('karaoke-mode', type === 'karaoke');
     document.body.classList.toggle('karaoke-screen-active', type === 'karaoke');
@@ -1229,6 +1262,8 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
         renderBoomItems(c);
     } else if (type === 'identidad') {
         renderIdentidadScreen(c, q);
+    } else if (type === 'abierta') {
+        renderAbiertaScreen(c, q, false);
     }
 }
 
@@ -1639,6 +1674,54 @@ function renderCancionScreen(c, q) {
     if (imgUrl) html += '<img src="' + esc(imgUrl) + '" draggable="false">';
     html += '</div>';
     wrap.innerHTML = html;
+}
+
+// ═══════════════ RESPUESTA ABIERTA — SCREEN ═══════════════
+// Enunciado general → subpreguntas → «X de Y equipos han respondido» → «Corrigiendo…» → se
+// revelan una a una con la respuesta correcta a la derecha.
+function renderAbiertaScreen(c, q, revealed) {
+    var a = ps.abierta || {}, step = a.step || 'intro';
+    var subs = c.subs || [];
+    var pq = document.getElementById('phase-question');
+    var wrap = document.getElementById('abiertaScreenWrap');
+    var stmt = document.getElementById('qStatement');
+    var showSubs = revealed || step !== 'intro';
+    pq.classList.add('abierta-mode');
+    pq.classList.toggle('ab-subs', showSubs);
+    // Al volver a abrir la pantalla con la pregunta ya revelada, el enunciado se rellena aquí
+    stmt.textContent = c.statement || ''; stmt.style.display = c.statement ? '' : 'none';
+    var md = document.getElementById('qMedia');
+    if (q && q.media_url) { if (md.getAttribute('src') !== q.media_url) md.src = q.media_url; md.style.display = showSubs ? 'none' : ''; }
+    else md.style.display = 'none';
+    // Con las subpreguntas a la vista el logo ocuparía su sitio
+    document.getElementById('roundLogo').style.display = showSubs ? 'none' : '';
+    wrap.style.display = showSubs ? 'flex' : 'none';
+    if (!showSubs) return;
+
+    var list = document.getElementById('absList');
+    var rs = revealed ? (a.revealStep || 0) : 0;
+    list.classList.toggle('two', subs.length > 5);
+    list.classList.toggle('many', subs.length > 4);
+    var html = subs.map(function(s, i) {
+        var shown = revealed && i < rs;
+        return '<div class="abs-row' + (shown ? ' ok' : '') + (shown && i === rs - 1 ? ' just' : '') + '"><span class="abs-num">' + (i + 1) + '</span>'
+            + '<span class="abs-q">' + esc(s.text || '') + '</span>'
+            + (revealed ? '<span class="abs-a' + (shown ? '' : ' pending') + '">' + (shown ? esc(s.answer || '') : '?') + '</span>' : '') + '</div>';
+    }).join('');
+    setHtmlIfChanged(list, html);
+
+    var band = document.getElementById('absBand');
+    var bandHtml = '', bandCls = 'abs-band';
+    if (!revealed && step === 'open') {
+        var active = (ps.equipos || []).filter(function(e) { return !e.bloqueado; });
+        var answered = active.filter(function(e) { return (ps.answeredTeams || []).indexOf(e.id) >= 0; }).length;
+        bandHtml = '✍️ <b>' + answered + '</b> de ' + active.length + ' equipos han respondido';
+        if (active.length && answered >= active.length) bandCls += ' done';
+    } else if (!revealed && step === 'correcting') {
+        bandHtml = '✍️ Corrigiendo…'; bandCls += ' correcting';
+    }
+    band.className = bandCls;
+    setHtmlIfChanged(band, bandHtml);
 }
 
 // ═══════════════ IDENTIDAD (Emparejar) — SCREEN ═══════════════
@@ -2062,6 +2145,8 @@ function renderRevealedInPlace() {
         document.getElementById('cancionScreenWrap').style.display = 'none';
     } else if (type === 'identidad') {
         renderIdentidadReveal();
+    } else if (type === 'abierta') {
+        renderAbiertaScreen(c, ps.question, true);
     } else if (type === 'ruleta') {
         // El panel se queda en pantalla con la frase completa
         var rc = document.getElementById('ruletaScreenPanel');
@@ -2117,6 +2202,9 @@ function renderTeamResultsOverlay() {
         } else if (type === 'boom' && c.items) {
             var order = Array.isArray(r.answer) ? r.answer : [];
             ansText = order.map(function(i) { return c.items[i] || i; }).join(' → ');
+        } else if (type === 'abierta' && Array.isArray(r.marks)) {
+            ansText = r.marks.map(function(m) { return m ? '✓' : '✗'; }).join(' ') + '  ·  ' + r.correctCount + ' de ' + r.totalSubs + (r.winner ? '  ·  🏆' : '');
+            cardClass = r.correctCount > 0 ? 'correct' : 'wrong'; icon = r.correctCount > 0 ? '&#9989;' : '&#10060;';
         } else {
             ansText = String(r.answer || '');
         }

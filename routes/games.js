@@ -231,13 +231,24 @@ function contentToRow(typeDef, roundName, question) {
                 return [roundName, '', l.image || '', l.text || '', r.image || '', r.text || '', '', '', ''];
             });
         }
+        case 'abierta': {
+            const subs = Array.isArray(c.subs) ? c.subs : [];
+            const head = [roundName, c.statement || ''];
+            const cfgCols = [c.time || '', qCfg.basePoints ?? '', qCfg.bonusMax ?? ''];
+            if (subs.length === 0) return [[...head, '', '', '', ...cfgCols]];
+            return subs.map((s, idx) => idx === 0
+                ? [...head, s.text || '', s.answer || '', s.alts || '', ...cfgCols]
+                // sin enunciado en las siguientes: si la pregunta no tiene enunciado general, la fila
+                // vacía de enunciado sigue siendo de la misma pregunta
+                : [roundName, '', s.text || '', s.answer || '', s.alts || '', '', '', '']);
+        }
         default:
             return [roundName];
     }
 }
 
 // ── Shared instruction rows for template & export ──
-const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'identidad', 'aclara'];
+const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'identidad', 'aclara', 'abierta'];
 
 function buildInstructionRows() {
     const rows = [
@@ -291,6 +302,10 @@ function buildInstructionRows() {
     rows.push(['  Cancion: caos_inicial (0-100, defecto 100), preset (defecto "default").']);
     rows.push(['  Identidad: una fila por pareja. La 1ª fila lleva enunciado, explicación y config; las siguientes dejan enunciado vacío.']);
     rows.push(['    Cada lado (izq/der) necesita imagen O texto (o ambos). Las imágenes son rutas ya subidas.']);
+    rows.push(['  Respuesta abierta: una fila por subpregunta (todas se lanzan a la vez). La 1ª fila lleva el enunciado general (opcional), tiempo, puntos y bonus.']);
+    rows.push(['    "otras_validas": todas en una celda separadas por / (ej: Miguel de Cervantes / el manco de Lepanto). Da igual mayúsculas, tildes y signos.']);
+    rows.push(['    "tiempo" vacío = sin cuenta atrás (modo «Lo sabe no lo sabe»). Para otra pregunta en la misma ronda, escribe su enunciado general.']);
+    rows.push(['    Puntos: cada equipo se lleva la parte proporcional de lo que acierta; el que más acierta (empate: el que envió antes) gana además el bonus.']);
     return rows;
 }
 
@@ -604,6 +619,7 @@ const EXCEL_TYPE_DEFS = [
     { sheet: 'Cancion',        type: 'cancion',         columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'audio', 'caos_inicial', 'preset', 'puntos_base'] },
     { sheet: 'Identidad',      type: 'identidad',       columns: ['ronda', 'enunciado', 'izq_imagen', 'izq_texto', 'der_imagen', 'der_texto', 'explicacion', 'puntos_base', 'tiempo'] },
     { sheet: 'Imagen se aclara', type: 'aclara',        columns: ['ronda', 'enunciado', 'imagen', 'respuesta', 'efecto', 'modo', 'segundos', 'puntos_base'] },
+    { sheet: 'Respuesta abierta', type: 'abierta',      columns: ['ronda', 'enunciado', 'subpregunta', 'respuesta', 'otras_validas', 'tiempo', 'puntos_base', 'bonus_max'] },
 ];
 
 const SHEET_TYPE_MAP = {};
@@ -678,8 +694,56 @@ function parseIdentidadSheet(rows) {
     return { rounds, skipped, incomplete };
 }
 
+// Respuesta abierta: una fila por subpregunta. Empieza una pregunta nueva al cambiar de ronda o
+// al escribir un enunciado general; tiempo, puntos y bonus se toman de la primera fila que los
+// tenga. Tiempo vacío = sin cuenta atrás.
+function parseAbiertaSheet(rows) {
+    const rounds = {};
+    let skipped = 0;
+    const incomplete = [];
+    let cur = null;
+
+    function flush() {
+        if (!cur) return;
+        const v = QuestionValidation.isComplete('abierta', cur.content);
+        if (!v.complete) incomplete.push({ row: cur.startRow, round: cur.round, missing: v.missing });
+        const qConfig = cur.config;
+        Object.keys(qConfig).forEach(k => { if (qConfig[k] === undefined) delete qConfig[k]; });
+        rounds[cur.round].questions.push({ content: cur.content, config: Object.keys(qConfig).length ? qConfig : undefined });
+        cur = null;
+    }
+
+    for (let i = 3; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r || r.every(c => c === '' || c === undefined || c === null)) continue;
+        const roundName = String(r[0] || '').trim();
+        if (!roundName) continue;
+        if (!rounds[roundName]) rounds[roundName] = { questions: [], config: {} };
+
+        const enunciado = String(r[1] || '').trim();
+        const sub = String(r[2] || '').trim();
+        const answer = String(r[3] || '').trim();
+        const alts = String(r[4] || '').trim();
+
+        if (!cur || cur.round !== roundName || enunciado) {
+            flush();
+            cur = { round: roundName, startRow: i + 1, content: { statement: enunciado || undefined, subs: [] }, config: {} };
+        }
+        const time = Number(r[5]);
+        if (cur.content.time === undefined && r[5] !== '' && r[5] != null && isFinite(time) && time > 0) cur.content.time = Math.round(time);
+        if (cur.config.basePoints === undefined && r[6] !== '' && r[6] != null && isFinite(Number(r[6]))) cur.config.basePoints = Number(r[6]);
+        if (cur.config.bonusMax === undefined && r[7] !== '' && r[7] != null && isFinite(Number(r[7]))) cur.config.bonusMax = Number(r[7]);
+
+        if (!sub && !answer && !alts) { if (!enunciado) skipped++; continue; }
+        cur.content.subs.push({ text: sub, answer, alts: alts || undefined });
+    }
+    flush();
+    return { rounds, skipped, incomplete };
+}
+
 function parseExcelSheet(rows, type) {
     if (type === 'identidad') return parseIdentidadSheet(rows);
+    if (type === 'abierta') return parseAbiertaSheet(rows);
 
     // rows: array of arrays, data starts at row index 3 (row 4 in Excel, 0-indexed)
     const rounds = {}; // roundName → { questions: [], config from first row }

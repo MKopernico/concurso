@@ -4,6 +4,7 @@
 const { db, DEFAULT_GAME_ID } = require('../db');
 
 const auth = require('../auth');
+const QV = require('../public/shared/question-validation.js');
 
 const gameStates = new Map();
 
@@ -120,6 +121,7 @@ function snapshotOf(state) {
         noScreen: !!ds.noScreen,
         audioOn: ds.audioOn || 'sala',
         pendingScores: ds.pendingScores || null,
+        abiertaWip: ds.abiertaWip || {}, // respuestas abiertas a medio corregir
         teams: Object.fromEntries(state.equipos.map(e => [e.id, { bonos: e.bonos || [], bloqueado: !!e.bloqueado, descongelaEn: e.descongelaEn || 0 }])),
     });
 }
@@ -141,6 +143,7 @@ function restoreSnapshot(s, json) {
     if (typeof snap.noScreen === 'boolean') s.director.noScreen = snap.noScreen;
     if (snap.audioOn === 'ipads' || snap.audioOn === 'sala') s.director.audioOn = snap.audioOn;
     if (snap.pendingScores && typeof snap.pendingScores === 'object') s.director.pendingScores = snap.pendingScores;
+    if (snap.abiertaWip && typeof snap.abiertaWip === 'object') s.director.abiertaWip = snap.abiertaWip;
     s._lastSnapshot = json;
 }
 
@@ -194,7 +197,7 @@ function publicView(state) {
     // cada actualización hacía que, tras cientos de preguntas, todo fuera cada vez más lento.
     // El registro tampoco viaja entero en cada actualización (puede tener cientos de entradas):
     // solo el contador y las 5 últimas; el panel lo pide completo con 'director:get_log'.
-    const { questionResults, bonoLog, ...ds } = rest.director || {};
+    const { questionResults, bonoLog, abiertaWip, ...ds } = rest.director || {};
     rest.director = ds;
     const log = Array.isArray(bonoLog) ? bonoLog : [];
     ds.logCount = typeof ds.logCount === 'number' ? ds.logCount : log.length;
@@ -237,7 +240,8 @@ function getQuestionConfig(state) {
     const rCfg = ds.currentRound ? parseJson(ds.currentRound.config) : {};
     const qCfg = q.config || {};
     return {
-        time: qCfg.time || rCfg.time || 30,
+        // Respuesta abierta: la cuenta atrás es de la pregunta y es opcional (0 = sin cuenta atrás)
+        time: (ds.currentRound && ds.currentRound.type === 'abierta') ? abiertaTime(q) : (qCfg.time || rCfg.time || 30),
         basePoints: qCfg.basePoints ?? rCfg.basePoints ?? 100,
         bonusMax: qCfg.bonusMax ?? rCfg.bonusMax ?? 50,
         penalty: qCfg.penalty ?? rCfg.penalty ?? 0,
@@ -294,6 +298,119 @@ function initIdentidadState(ds) {
     }
 }
 
+// ── Respuesta abierta ──
+// ds.abierta = { step, marks, revealStep, points, winner }
+//   step: 'intro' (solo el enunciado general) → 'shown' (se ven las subpreguntas, aún sin escribir)
+//         → 'open' (los equipos escriben) → 'correcting' (control corrige) → 'revealed'
+//   marks: { teamId: [true|false por subpregunta] } — lo que coincide con una respuesta válida sale
+//          ya en verde; el resto en rojo para que control lo valide a mano.
+//   points: { teamId: puntos de esta pregunta } (proporcional a los aciertos + bonus al ganador)
+// Las respuestas viven en ds.answers[teamId] = { answer: [textos], submitted, timestamp }.
+function abiertaTime(q) {
+    const t = Number(q && q.content && q.content.time);
+    return isFinite(t) && t > 0 ? Math.min(3600, Math.round(t)) : 0;
+}
+function abiertaSubs(ds) {
+    const q = ds.questions[ds.currentQuestionIdx];
+    return (q && q.content && Array.isArray(q.content.subs)) ? q.content.subs : [];
+}
+function initAbiertaState(ds) {
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (!(ds.currentRound && ds.currentRound.type === 'abierta' && q)) { ds.abierta = null; return; }
+    // Pregunta que se dejó a medio corregir: se recupera tal cual (respuestas y correcciones)
+    const wip = ds.abiertaWip && ds.abiertaWip[q.id];
+    if (wip && wip.abierta && !(ds.questionResults && ds.questionResults[q.id])) {
+        ds.answers = wip.answers || {};
+        ds.abierta = wip.abierta;
+        ds.optionsRevealed = true;
+        return;
+    }
+    ds.abierta = { step: 'intro', marks: {}, revealStep: 0, points: null, winner: null };
+}
+// Cierra el tiempo de respuesta: lo escrito sin enviar cuenta como enviado al cerrar (pierde
+// cualquier desempate), se corrige solo lo que coincide y empieza la corrección.
+function closeAbierta(state) {
+    const ds = state.director;
+    const a = ds.abierta;
+    if (!a || a.step === 'correcting' || a.step === 'revealed') return false;
+    stopTimer(state);
+    const now = Date.now();
+    const subs = abiertaSubs(ds);
+    for (const [tid, ans] of Object.entries(ds.answers)) {
+        const texts = Array.isArray(ans.answer) ? ans.answer : [];
+        if (!ans.submitted) {
+            if (!texts.some(t => String(t || '').trim())) { delete ds.answers[tid]; continue; } // nada escrito
+            ans.submitted = true; ans.timestamp = now; ans.timerRemaining = 0; ans.late = true;
+        }
+        a.marks[tid] = subs.map((s, i) => QV.matchesSub(texts[i], s));
+    }
+    a.step = 'correcting';
+    a.closedAt = now;
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (q) { if (!ds.abiertaWip) ds.abiertaWip = {}; ds.abiertaWip[q.id] = { answers: ds.answers, abierta: a }; }
+    logAction(state, { action: 'abierta_closed', answered: Object.keys(ds.answers).length, total: state.equipos.length });
+    return true;
+}
+// Puntos de cada equipo: puntos base × aciertos ÷ subpreguntas (redondeado). El que más acierta
+// gana además el bonus de la pregunta; con empate, el que envió antes.
+function abiertaResults(state) {
+    const ds = state.director;
+    const a = ds.abierta || {};
+    const n = abiertaSubs(ds).length;
+    const cfg = getQuestionConfig(state);
+    const res = {};
+    let winner = null;
+    for (const [tid, ans] of Object.entries(ds.answers)) {
+        if (!ans.submitted) continue;
+        const marks = ((a.marks || {})[tid] || []).slice(0, n);
+        const cc = marks.filter(Boolean).length;
+        res[tid] = { correctCount: cc, points: n ? Math.round(cfg.basePoints * cc / n) : 0 };
+        if (cc > 0) {
+            const w = winner && res[winner];
+            if (!w || cc > w.correctCount || (cc === w.correctCount && (ans.timestamp || 0) < (ds.answers[winner].timestamp || 0))) winner = tid;
+        }
+    }
+    if (winner && cfg.bonusMax > 0) res[winner].points += cfg.bonusMax;
+    return { res, winner };
+}
+// Al revelar: los puntos esperan (como en Boom e Identidad) hasta destapar la última subpregunta
+function scoreAbierta(state) {
+    const ds = state.director;
+    const a = ds.abierta;
+    const { res, winner } = abiertaResults(state);
+    a.points = {};
+    for (const [tid, r] of Object.entries(res)) { a.points[tid] = r.points; if (r.points) addPending(ds, tid, r.points); }
+    a.winner = winner;
+}
+// Rectificar una corrección con la respuesta ya revelada: se recalcula la pregunta entera
+// (también quién gana) y al marcador solo va la diferencia.
+function rectifyAbierta(state, teamIds, subIdx, ok) {
+    const ds = state.director;
+    const a = ds.abierta;
+    const old = a.points || {};
+    const { res, winner } = abiertaResults(state);
+    const neu = {};
+    for (const [tid, r] of Object.entries(res)) neu[tid] = r.points;
+    const changes = [];
+    for (const tid of new Set([...Object.keys(old), ...Object.keys(neu)])) {
+        const d = (neu[tid] || 0) - (old[tid] || 0);
+        if (d) changes.push({ team: teamName(state, tid), pts: d, tid });
+    }
+    if (ds.pendingScores) {
+        ds.pendingScores = {}; // aún sin sumar (revelando): se sustituyen
+        for (const [tid, p] of Object.entries(neu)) if (p) ds.pendingScores[tid] = p;
+    } else {
+        for (const ch of changes) { if (!ds.scores[ch.tid]) ds.scores[ch.tid] = 0; ds.scores[ch.tid] += ch.pts; }
+    }
+    a.points = neu;
+    a.winner = winner;
+    computeLastQuestionScores(state);
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (q && ds.questionResults && ds.questionResults[q.id]) ds.questionResults[q.id].lastQuestionScores = ds.lastQuestionScores;
+    logAction(state, { action: 'abierta_fix', teams: teamIds.map(t => teamName(state, t)), sub: subIdx + 1, ok,
+        changes: changes.map(ch => ({ team: ch.team, pts: ch.pts })), pending: !!ds.pendingScores });
+}
+
 function clearPreCountdown(state) {
     if (state._preCountdownHandle) { clearInterval(state._preCountdownHandle); state._preCountdownHandle = null; }
     delete state.director.preCountdown;
@@ -328,14 +445,30 @@ function logAction(state, entry) {
 }
 function teamName(state, id) { const e = state.equipos.find(x => x.id === id); return e ? e.nombre : '?'; }
 
-function isNoTimerRound(ds) { return !!(ds.currentRound && NO_TIMER_TYPES.has(ds.currentRound.type)); }
+function isNoTimerRound(ds) {
+    if (ds.currentRound && ds.currentRound.type === 'abierta') return !abiertaTime(ds.questions[ds.currentQuestionIdx]);
+    return !!(ds.currentRound && NO_TIMER_TYPES.has(ds.currentRound.type));
+}
 
 // Cierra la pregunta en curso: puntúa automáticamente según el tipo, revela y guarda el
 // resultado. Si la pregunta ya no está en fase 'question' no hace nada (nunca puntúa dos veces).
+// Respuesta abierta va en dos pasos: la primera vez (fin del tiempo, «Revelar» con los equipos
+// escribiendo) solo cierra las respuestas y empieza la corrección; ya corregida, revela.
 function finalizeQuestion(state) {
     const ds = state.director;
     if (ds.phase !== 'question') return false;
     const type = ds.currentRound && ds.currentRound.type;
+    if (type === 'abierta') {
+        const a = ds.abierta;
+        if (!a) return false;
+        if (a.step === 'open') { closeAbierta(state); return false; }
+        if (a.step !== 'correcting') return false; // aún sin abrir: no hay nada que cerrar
+        scoreAbierta(state);
+        a.step = 'revealed';
+        a.revealStep = 0; // se destapan una a una (los puntos, al destapar la última)
+        const qa = ds.questions[ds.currentQuestionIdx];
+        if (qa && ds.abiertaWip) delete ds.abiertaWip[qa.id];
+    }
     if (type === 'multirespuesta') autoScoreMultirespuesta(state);
     else if (type === 'precio') autoScorePrecio(state);
     else if (type === 'identidad') {
@@ -352,14 +485,14 @@ function finalizeQuestion(state) {
     state.pulsadorActivo = false;
     if (ds.aclara) { ds.aclara.level = 1; ds.aclara.running = false; }
     computeLastQuestionScores(state);
-    if (['multirespuesta', 'precio', 'boom', 'identidad'].includes(type)) {
+    if (['multirespuesta', 'precio', 'boom', 'identidad', 'abierta'].includes(type)) {
         const lqs = Object.values(ds.lastQuestionScores || {});
         logAction(state, { action: 'scored', hits: lqs.filter(r => r.correct).length, answered: lqs.filter(r => !r.noAnswer).length, total: lqs.length });
     }
     const q = ds.questions[ds.currentQuestionIdx];
     if (q) {
         if (!ds.questionResults) ds.questionResults = {};
-        ds.questionResults[q.id] = { answers: ds.answers, lastQuestionScores: ds.lastQuestionScores, identidad: ds.identidad,
+        ds.questionResults[q.id] = { answers: ds.answers, lastQuestionScores: ds.lastQuestionScores, identidad: ds.identidad, abierta: ds.abierta || undefined,
             buzzerWinner: ds.buzzerWinner || null, buzzerPoints: ds.buzzerPoints || 0, buzzerFailed: (ds.buzzerFailed || []).slice() };
     }
     return true;
@@ -375,6 +508,7 @@ function restoreQuestionResult(state) {
     ds.answers = r.answers || {};
     ds.lastQuestionScores = r.lastQuestionScores || {};
     if (r.identidad) ds.identidad = r.identidad;
+    if (r.abierta) { ds.abierta = r.abierta; ds.abierta.step = 'revealed'; ds.abierta.revealStep = abiertaSubs(ds).length; }
     ds.buzzerWinner = r.buzzerWinner || null;
     ds.buzzerPoints = r.buzzerPoints || 0;
     ds.buzzerFailed = r.buzzerFailed || [];
@@ -747,6 +881,18 @@ function computeLastQuestionScores(state) {
                     entry.points -= cfg.penalty;
                 }
             }
+        } else if (roundType === 'abierta' && ds.abierta) {
+            if (!ans.submitted) continue;
+            const n = Array.isArray(c.subs) ? c.subs.length : 0;
+            const marks = (((ds.abierta.marks || {})[teamId]) || []).slice(0, n).map(Boolean);
+            while (marks.length < n) marks.push(false);
+            entry.marks = marks;
+            entry.correctCount = marks.filter(Boolean).length;
+            entry.totalSubs = n;
+            entry.correct = n > 0 && entry.correctCount === n;
+            entry.points = ((ds.abierta.points || {})[teamId]) || 0;
+            entry.winner = ds.abierta.winner === teamId;
+            entry.late = !!ans.late; // no llegó a enviar: contó lo escrito al cerrar
         }
         results[teamId] = entry;
     }
@@ -833,6 +979,17 @@ function playerView(state, forPlayers) {
         if (ds.phase === 'answer_revealed' && forPlayers && type === 'boom' && typeof ds.boomStep === 'number' && Array.isArray(c.correct_order)) {
             c.correct_order = c.correct_order.slice(0, ds.boomStep);
         }
+        // Respuesta abierta: las subpreguntas solo desde «Mostrar subpreguntas»; las respuestas
+        // correctas, una a una según se revelan. Las otras válidas no salen nunca del servidor.
+        if (type === 'abierta') {
+            const a = ds.abierta || {};
+            const subs = Array.isArray(c.subs) ? c.subs : [];
+            const revealed = ds.phase === 'answer_revealed';
+            const showSubs = revealed || (a.step && a.step !== 'intro');
+            const rs = revealed ? (a.revealStep || 0) : 0;
+            c.nSubs = subs.length;
+            c.subs = showSubs ? subs.map((s, i) => (i < rs ? { text: s.text, answer: s.answer } : { text: s.text })) : [];
+        }
         // Identidad answer_revealed: gate by revealIndex, show explanation
         if (ds.phase === 'answer_revealed' && ds.currentRound && ds.currentRound.type === 'identidad') {
             if (c.pairs && ds.identidad) {
@@ -887,7 +1044,7 @@ function playerView(state, forPlayers) {
         imagePuzzle: ds.imagePuzzle,
         optionsRevealed: ds.optionsRevealed,
         completedRounds: ds.completedRounds,
-        lastQuestionScores: ds.lastQuestionScores,
+        lastQuestionScores: abiertaScoresView(ds, forPlayers),
         questionKey: (ds.currentRoundId || '') + ':' + ds.currentQuestionIdx + ':' + (ds.questionEpoch || 0), // cambia también al relanzar la misma pregunta
         buzzerFailed: ds.buzzerFailed || [],
         buzzerWinner: ds.buzzerWinner || null, // equipo que acertó en el pulsador (para mostrar el resultado)
@@ -912,6 +1069,7 @@ function playerView(state, forPlayers) {
         videoState: ds.videoState || null,
         identidad: ds.identidad ? { revealIndex: ds.identidad.revealIndex } : null,
         boomStep: typeof ds.boomStep === 'number' ? ds.boomStep : null, // posiciones de Boom ya reveladas
+        abierta: ds.abierta ? { step: ds.abierta.step, revealStep: ds.abierta.revealStep || 0 } : null, // paso de Respuesta abierta
         aclara: aclaraView(ds), // nitidez actual de «Imagen que se aclara» (el cliente la anima desde aquí)
         noScreen: !!ds.noScreen,          // modo sin pantalla: los iPads llevan el escenario
         audioOn: ds.audioOn || 'sala',    // dónde suena (vídeo y efectos): 'sala' (ordenador) o 'ipads'
@@ -919,9 +1077,29 @@ function playerView(state, forPlayers) {
     };
 }
 
+// Respuesta abierta revelándose: a los iPads solo les llega lo destapado (verde/rojo de las
+// subpreguntas ya reveladas; los puntos y el ganador, al terminar)
+function abiertaScoresView(ds, forPlayers) {
+    const lqs = ds.lastQuestionScores;
+    if (!forPlayers || !ds.abierta || ds.phase !== 'answer_revealed' || !lqs) return lqs;
+    const rs = ds.abierta.revealStep || 0;
+    const out = {};
+    for (const [tid, r] of Object.entries(lqs)) {
+        if (!r || !Array.isArray(r.marks) || rs >= r.marks.length) { out[tid] = r; continue; }
+        out[tid] = { answer: r.answer, marks: r.marks.slice(0, rs), totalSubs: r.totalSubs, late: r.late, pending: true };
+    }
+    return out;
+}
+
 function emitYourOrder(socket, state) {
     if (!socket.equipoId) return;
     const ds = state.director;
+    // Respuesta abierta: al volver (corte, otro iPad) el equipo recupera lo que tenía escrito
+    if (ds.currentRound && ds.currentRound.type === 'abierta') {
+        const e = ds.answers[socket.equipoId];
+        if (e && ds.phase === 'question') socket.emit('game:your_abierta', { texts: Array.isArray(e.answer) ? e.answer : [], submitted: !!e.submitted });
+        return;
+    }
     if (!(ds.currentRound && ds.currentRound.type === 'identidad')) return;
     const entry = ds.answers[socket.equipoId];
     if (!entry) return;
@@ -960,11 +1138,11 @@ function avanzarPregunta(state, io, gameId) {
     ds.answers = {};
     ds.revealedCells = [];
     ds.revealedLetters = [];
-    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
     ds.optionsRevealed = false; ds.optionsRevealedAt = null;
     ds.lastQuestionScores = {};
     ds.showTeamResults = false;
-    initIdentidadState(ds); initAclaraState(ds);
+    initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds);
     if (isNoTimerRound(ds)) {
         ds.timer = { total: 0, remaining: 0, running: false };
     } else {
@@ -1088,6 +1266,7 @@ function safePhotoUrl(u) {
 const POSITIONAL_EVENTS = new Set([
     'director:next_question', 'director:next_with_premio', 'director:prev_question', 'director:finish_round',
     'director:mark_correct', 'director:mark_wrong', 'director:karaoke_award',
+    'director:abierta_show', 'director:abierta_open', 'director:abierta_close', 'director:abierta_reveal', 'director:abierta_mark',
 ]);
 
 // La conexión nueva de un iPad se queda con su equipo: la anterior (si sigue abierta) se
@@ -1448,6 +1627,7 @@ function attachSocketHandlers(io) {
             if (!socket.equipoId) return;
             const ds = state.director;
             if (ds.phase !== 'question') return;
+            if (ds.currentRound && ds.currentRound.type === 'abierta') return; // tiene sus propios mensajes
             if (ds.answers[socket.equipoId]) return;
             ds.answers[socket.equipoId] = { answer: data.answer, ...answerTiming(state, data) };
             broadcastDirector(io, gameId, state);
@@ -1502,6 +1682,38 @@ function attachSocketHandlers(io) {
             const existing = ds.answers[socket.equipoId];
             if (existing && existing.submitted) return;
             ds.answers[socket.equipoId] = { answer: order, timestamp: Date.now(), timerRemaining: ds.timer.remaining, submitted: false };
+        });
+
+        // ── Respuesta abierta: borrador mientras escriben y envío definitivo ──
+        // El borrador se guarda en el servidor (si se acaba el tiempo o se cierra, cuenta lo
+        // escrito; si el iPad se corta, al volver lo recupera). No se reenvía a nadie.
+        const abiertaTexts = (data) => {
+            const ds = state.director;
+            if (!socket.equipoId || ds.phase !== 'question' || !ds.abierta || ds.abierta.step !== 'open') return null;
+            const eq = state.equipos.find(e => e.id === socket.equipoId);
+            if (!eq || eq.bloqueado) return null;
+            const prev = ds.answers[socket.equipoId];
+            if (prev && prev.submitted) return null;
+            const arr = data && data.texts;
+            if (!Array.isArray(arr)) return null;
+            const n = abiertaSubs(ds).length;
+            return Array.from({ length: n }, (_, i) => String(arr[i] == null ? '' : arr[i]).replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 120));
+        };
+        socket.on('player:abierta_draft', (data) => {
+            const texts = abiertaTexts(data);
+            if (!texts) return;
+            const ds = state.director;
+            ds.answers[socket.equipoId] = { answer: texts, timestamp: Date.now(), timerRemaining: ds.timer.remaining, submitted: false };
+        });
+        socket.on('player:abierta_submit', (data) => {
+            const texts = abiertaTexts(data);
+            if (!texts || !texts.some(t => t.trim())) return;
+            const ds = state.director;
+            ds.answers[socket.equipoId] = { answer: texts, ...answerTiming(state, data), submitted: true };
+            // Cuando han enviado todos los equipos (los congelados no cuentan) empieza la corrección
+            const need = state.equipos.filter(e => !e.bloqueado);
+            if (need.length && need.every(e => ds.answers[e.id] && ds.answers[e.id].submitted)) closeAbierta(state);
+            broadcastDirector(io, gameId, state);
         });
 
         socket.on('usar_bono', (data) => {
@@ -1663,7 +1875,7 @@ function attachSocketHandlers(io) {
             ds.phase = 'round_intro';
             logAction(state, { action: 'round', name: round.name });
             ds.answers = {};
-            ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
             state.pulsadorActivo = false;
@@ -1681,7 +1893,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
                 ds.optionsRevealed = false; ds.optionsRevealedAt = null;
                 ds.lastQuestionScores = {};
                 ds.showTeamResults = false;
@@ -1689,7 +1901,7 @@ function attachSocketHandlers(io) {
                 ds.qrVisible = false;
                 ds.menuLevel = null;
                 ds.selectedCategory = null;
-                initIdentidadState(ds); initAclaraState(ds);
+                initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds);
                 if (isNoTimerRound(ds)) {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
@@ -1717,14 +1929,14 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
             ds.premioGanadorVisible = false;
-            initIdentidadState(ds); initAclaraState(ds);
+            initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds);
             if (isNoTimerRound(ds)) {
                 ds.timer = { total: 0, remaining: 0, running: false };
             } else {
@@ -1763,9 +1975,9 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
                 ds.optionsRevealed = false; ds.optionsRevealedAt = null;
-                initIdentidadState(ds); initAclaraState(ds);
+                initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds);
                 if (isNoTimerRound(ds)) {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
@@ -1783,6 +1995,8 @@ function attachSocketHandlers(io) {
         socket.on('director:start_timer', () => {
             const ds = state.director;
             if (ds.phase !== 'question' || isNoTimerRound(ds)) return;
+            // Respuesta abierta: el tiempo arranca con «Abrir respuestas»; aquí solo se reanuda
+            if (ds.abierta && ds.abierta.step !== 'open') return;
             clearPreCountdown(state);
             if (ds.timer.running || ds.timer.remaining <= 0) return;
             ds.timer.running = true;
@@ -2048,8 +2262,72 @@ function attachSocketHandlers(io) {
             socket.emit('director:log', { log: state.director.bonoLog || [], count: state.director.logCount || 0 });
         });
 
+        // ── Respuesta abierta ──
+        socket.on('director:abierta_show', () => {
+            const ds = state.director, a = ds.abierta;
+            if (ds.phase !== 'question' || !a || a.step !== 'intro') return;
+            a.step = 'shown';
+            ds.optionsRevealed = true;
+            broadcastDirector(io, gameId, state);
+        });
+        socket.on('director:abierta_open', () => {
+            const ds = state.director, a = ds.abierta;
+            if (ds.phase !== 'question' || !a || (a.step !== 'intro' && a.step !== 'shown')) return;
+            a.step = 'open';
+            a.openedAt = Date.now();
+            ds.optionsRevealed = true;
+            ds.optionsRevealedAt = a.openedAt;
+            if (!isNoTimerRound(ds) && ds.timer.remaining > 0) startQuestionTimer(state, gameId, io);
+            broadcastDirector(io, gameId, state);
+        });
+        socket.on('director:abierta_close', () => {
+            const ds = state.director, a = ds.abierta;
+            if (ds.phase !== 'question' || !a || a.step !== 'open') return;
+            closeAbierta(state);
+            broadcastDirector(io, gameId, state);
+        });
+        socket.on('director:abierta_reveal', () => {
+            const ds = state.director, a = ds.abierta;
+            if (ds.phase !== 'question' || !a || a.step !== 'correcting') return;
+            finalizeQuestion(state);
+            broadcastDirector(io, gameId, state);
+        });
+        // Corregir (o rectificar ya revelada): { sub, teamIds, ok } — un grupo de respuestas iguales de una vez
+        socket.on('director:abierta_mark', (data) => {
+            const ds = state.director, a = ds.abierta;
+            if (!a || !data) return;
+            const revealed = ds.phase === 'answer_revealed';
+            if (!(ds.phase === 'question' && a.step === 'correcting') && !revealed) return;
+            const n = abiertaSubs(ds).length;
+            const i = Number(data.sub);
+            if (!Number.isInteger(i) || i < 0 || i >= n || !Array.isArray(data.teamIds)) return;
+            const ok = !!data.ok;
+            const changed = [];
+            for (const tid of data.teamIds.slice(0, 200)) {
+                const ans = ds.answers[tid];
+                if (!ans || !ans.submitted) continue;
+                if (!Array.isArray(a.marks[tid])) a.marks[tid] = Array.from({ length: n }, () => false);
+                if (!!a.marks[tid][i] === ok) continue;
+                a.marks[tid][i] = ok;
+                changed.push(tid);
+            }
+            if (!changed.length) return;
+            if (revealed) rectifyAbierta(state, changed, i, ok);
+            broadcastDirector(io, gameId, state);
+        });
+
         socket.on('director:reveal_next_pair', () => {
             const ds = state.director;
+            // Respuesta abierta: siguiente subpregunta (los puntos, al destapar la última)
+            if (ds.currentRound && ds.currentRound.type === 'abierta') {
+                const a = ds.abierta, n = abiertaSubs(ds).length;
+                if (ds.phase !== 'answer_revealed' || !a || a.revealStep >= n) return;
+                a.revealStep++;
+                if (a.revealStep >= n) applyPendingScores(state);
+                io.to(roomOf(gameId)).emit('game:pair_revealed', { index: a.revealStep - 1 });
+                broadcastDirector(io, gameId, state);
+                return;
+            }
             // Boom: siguiente posición del orden correcto
             if (ds.currentRound && ds.currentRound.type === 'boom') {
                 const qb = ds.questions[ds.currentQuestionIdx];
@@ -2234,7 +2512,7 @@ function attachSocketHandlers(io) {
         socket.on('director:reveal_options', () => {
             const ds = state.director;
             // Doble toque / dos coordinadores: solo la primera pulsación cuenta
-            if (ds.phase !== 'question' || ds.optionsRevealed || state._preCountdownHandle) return;
+            if (ds.phase !== 'question' || ds.optionsRevealed || state._preCountdownHandle || ds.abierta) return;
             ds.optionsRevealed = true;
             ds.optionsRevealedAt = Date.now();
             // Cuenta atrás de 5 s antes de que arranque solo el temporizador
@@ -2295,7 +2573,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.phase = 'lobby';
             ds.menuLevel = 'home';
@@ -2320,14 +2598,14 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
-            ds.questionResults = {};
+            ds.questionResults = {}; ds.abiertaWip = {};
             ds.premioAnuncioVisible = false; ds.premioGanadorVisible = false; ds.premioGanadorTeam = null; ds.premioGanadorTipo = null; ds.premioGanadorExtra = null;
             stopTimer(state, gameId, io);
             state.pulsadorActivo = false;
@@ -2365,14 +2643,14 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
-            ds.questionResults = {};
+            ds.questionResults = {}; ds.abiertaWip = {};
             ds.premioAnuncioVisible = false; ds.premioGanadorVisible = false; ds.premioGanadorTeam = null; ds.premioGanadorTipo = null; ds.premioGanadorExtra = null;
             state.bloqueoGlobal = false;
             // Clear teams from memory

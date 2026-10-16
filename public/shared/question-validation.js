@@ -82,6 +82,13 @@
         if (pairs.length >= 2 && !allItemsOk) missing.push('pair_items');
         break;
       }
+      case 'abierta': {
+        // Respuesta abierta: el enunciado general es opcional; cada subpregunta con texto y respuesta
+        var subs = Array.isArray(c.subs) ? c.subs : [];
+        if (subs.length < 1) missing.push('subs');
+        else if (!subs.every(function (s) { return s && nonEmpty(s.text) && nonEmpty(s.answer); })) missing.push('sub_items');
+        break;
+      }
       case 'karaoke': {
         var VALID_COLORS = ['rojo', 'amarillo', 'azul', 'verde'];
         if (!nonEmpty(c.lyrics)) { missing.push('lyrics'); break; }
@@ -120,8 +127,32 @@
     lyrics: 'letra de la canción',
     numColors: 'número de colores (1, 2 o 4)',
     colors: 'colores seleccionados',
-    basePoints: 'puntos base (entero ≥ 0)'
+    basePoints: 'puntos base (entero ≥ 0)',
+    subs: 'subpreguntas (mínimo 1)',
+    sub_items: 'cada subpregunta con su texto y su respuesta'
   };
 
-  return { isComplete: isComplete, LABELS: LABELS };
+  // ── Respuesta abierta: comparar lo que escribe un equipo con las respuestas válidas ──
+  // Da igual mayúsculas, tildes (la ñ cuenta como n), signos de puntuación y espacios de más.
+  function normAnswer(s) {
+    return String(s == null ? '' : s).toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim();
+  }
+  // Respuesta principal + otras válidas (una sola celda separada por «/»)
+  function acceptedAnswers(sub) {
+    sub = sub || {};
+    var list = [String(sub.answer || '')];
+    String(sub.alts || '').split('/').forEach(function (a) { list.push(a); });
+    var seen = {}, out = [];
+    list.forEach(function (a) { var n = normAnswer(a); if (n && !seen[n]) { seen[n] = 1; out.push(n); } });
+    return out;
+  }
+  function matchesSub(text, sub) {
+    var n = normAnswer(text);
+    return !!n && acceptedAnswers(sub).indexOf(n) >= 0;
+  }
+
+  return { isComplete: isComplete, LABELS: LABELS, normAnswer: normAnswer, acceptedAnswers: acceptedAnswers, matchesSub: matchesSub };
 });

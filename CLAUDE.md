@@ -32,6 +32,7 @@ El usuario no programa: Claude programa, prueba y **pregunta siempre antes de su
 - Multirespuesta con varias correctas: vale cualquiera.
 - Boom e Identidad en el iPad: arrastrar a huecos (componente `HZ` en `play/index.html`, tamaño con `hzFit`). En Identidad el orden puede llevar huecos vacíos (`null`): no puntúan; `toCanonicalOrder` rechaza repetidos. «Imagen que se aclara» (tipo `aclara`): `ds.aclara` en servidor (nitidez calculada al enviar, el cliente la anima con `shared/aclara-fx.js`); puntos con `aclaraPoints`. Boom se revela por pasos (`ds.boomStep`, mismo botón que Identidad: `director:reveal_next_pair`); a los iPads solo les llega lo destapado del orden.
 - Boom e Identidad: los puntos esperan en `ds.pendingScores` y se suman al revelar la última posición/pareja (`applyPendingScores`); si el coordinador sale de la pregunta antes, se suman al salir. Multirespuesta y Precio puntúan al cerrar.
+- Respuesta abierta (tipo `abierta`): `content = { statement?, subs: [{ text, answer, alts? }], time? }` (`alts` = texto con «/»; `time` vacío = sin cuenta atrás). Pasos en `ds.abierta.step`: intro → shown → open → correcting → revealed (`director:abierta_show|open|close|reveal|mark`). Borrador en servidor (`player:abierta_draft`, no se difunde) y envío (`player:abierta_submit`); al cerrar, lo escrito sin enviar cuenta con la hora del cierre. Corrección automática con `QuestionValidation.matchesSub` (sin mayúsculas, tildes, signos). Puntos = base × aciertos ÷ subpreguntas (redondeado) + `bonusMax` al que más acierta (empate: el que envió antes), en `pendingScores` hasta revelar la última. Rectificar ya revelada (`rectifyAbierta`) recalcula y suma solo la diferencia. A medio corregir se guarda en `ds.abiertaWip` (persistido).
 - Volver a una pregunta ya puntuada la muestra revelada (`ds.questionResults`, `restoreQuestionResult`) y no se vuelve a puntuar.
 - "▶ Jugar" con partida en marcha la continúa; partida nueva solo explícita (`resetGameForNewSession` reinicia el estado **en su sitio**: los sockets guardan referencia al objeto).
 
@@ -59,6 +60,7 @@ node tools/tests/test-loteD-registro.js # 11 (registro del coordinador: puntos, 
 node tools/tests/test-loteD-aclara.js   # 15 (Imagen que se aclara: avance, pausa al pulsar, fallo reanuda, puntos por nitidez, modo a mano, Excel)
 node tools/tests/test-loteD-recuperar.js # 10 (pasar un equipo a otro iPad con código de un solo uso)
 node tools/tests/test-loteE-sinpantalla.js # 9 (modo sin pantalla y dónde suena: backoffice, coordinador, vista incrustada)
+node tools/tests/test-abierta.js   # 46 (Respuesta abierta: pasos, borrador, corrección, puntos y bonus, revelado, rectificar, cuenta atrás, Excel)
 node tools/tests/test-loteF-informe.js  # 17 (resultados por equipo en pulsador; «Mostrar respuesta» de aclara; plantilla Excel con ejemplos; Precio vacío = incompleto)
 node tools/tests/load-test.js 50   # N iPads simulados: entrada, respuestas, pulsador, bonos, reconexión masiva
 node tools/tests/soak-test.js 15   # resistencia: partida larga (minutos) con los 10 tipos; memoria, temporizadores, latencias, marcador

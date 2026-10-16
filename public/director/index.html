@@ -70,6 +70,51 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .type-imagen_fija { background: #365314; color: #bef264; }
 .type-karaoke { background: #831843; color: #f9a8d4; }
 .type-aclara { background: #3b2f63; color: #c4b5fd; }
+.type-abierta { background: #134e4a; color: #5eead4; }
+.type-identidad { background: #4a1942; color: #f0abfc; }
+/* Respuesta abierta: pasos, envíos y corrección por subpregunta */
+#abiertaDirectorPanel { flex: 1; flex-direction: column; gap: 12px; overflow-y: auto; padding: 4px 2px 12px; }
+.ab-top { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.ab-statement { font-size: 18px; font-weight: 700; }
+.ab-steps { display: flex; flex-wrap: wrap; gap: 4px; font-size: 11px; }
+.ab-steps span { padding: 3px 8px; border-radius: 999px; background: var(--surface2); color: var(--text2); }
+.ab-steps span.done { color: var(--success); }
+.ab-steps span.on { background: var(--accent); color: #000; font-weight: 700; }
+.ab-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ab-actions .ab-info { font-size: 13px; color: var(--text2); }
+.ab-actions .ab-count { font-size: 15px; }
+.ab-actions .ab-count b { color: var(--accent); font-size: 18px; }
+.ab-cheat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 14px; }
+.ab-cheat-row { padding: 6px 0; border-top: 1px solid var(--border); font-size: 14px; }
+.ab-cheat-row:first-child { border-top: none; }
+.ab-cheat-row .ab-n { display: inline-block; min-width: 22px; font-weight: 800; color: var(--accent); }
+.ab-cheat-row .ab-ans { color: var(--success); font-weight: 700; }
+.ab-alts { font-size: 12px; color: var(--text2); }
+.ab-teams { display: flex; flex-wrap: wrap; gap: 6px; }
+.ab-team { font-size: 12px; padding: 4px 8px; border-radius: 6px; background: var(--surface2); color: var(--text2); border: 1px solid var(--border); }
+.ab-team.sent { color: #000; background: var(--success); border-color: var(--success); font-weight: 700; }
+.ab-team.frozen { opacity: .5; }
+.ab-correct { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ab-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.ab-tab { padding: 6px 10px; border-radius: 8px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); font-size: 13px; font-weight: 700; }
+.ab-tab.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.ab-tab .ab-red { color: var(--danger); }
+.ab-tab .ab-ok { color: var(--success); }
+.ab-subhead { font-size: 15px; }
+.ab-subhead .ab-ans { color: var(--success); font-weight: 700; }
+.ab-groups { display: flex; flex-direction: column; gap: 6px; }
+.ab-g { display: grid; grid-template-columns: 44px 1fr auto; gap: 4px 10px; align-items: center; text-align: left; padding: 8px 10px; border-radius: 8px; border: 2px solid var(--danger); background: rgba(239,68,68,.10); color: var(--text); font-size: 15px; }
+.ab-g.ok { border-color: var(--success); background: rgba(34,197,94,.12); }
+.ab-g .ab-g-mark { grid-row: span 2; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; background: var(--danger); color: #fff; }
+.ab-g.ok .ab-g-mark { background: var(--success); color: #000; }
+.ab-g .ab-g-text { font-weight: 700; word-break: break-word; }
+.ab-g .ab-g-count { font-size: 13px; color: var(--text2); white-space: nowrap; }
+.ab-g .ab-g-who { grid-column: 2 / 4; font-size: 11px; color: var(--text2); }
+.ab-g.ab-blank { border-color: var(--border); background: transparent; opacity: .7; cursor: default; }
+.ab-g.ab-blank .ab-g-mark { background: var(--surface2); color: var(--text2); }
+.ab-subnav { display: flex; justify-content: space-between; gap: 8px; }
+.ab-note { font-size: 12px; color: var(--text2); }
+.ab-note.warn { color: var(--gold); }
 .recover-box { display: flex; gap: 14px; align-items: center; margin-top: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); }
 .recover-qr { background: #fff; padding: 6px; border-radius: 8px; flex-shrink: 0; line-height: 0; }
 .recover-code { font-size: 28px; font-weight: 900; letter-spacing: 4px; color: var(--accent); font-variant-numeric: tabular-nums; }
@@ -890,6 +935,9 @@ body.round-type-karaoke #headerTimer { display: none !important; }
             <!-- Karaoke director panel -->
             <div id="karaokeDirectorPanel" style="display:none; flex:1; overflow:hidden;"></div>
 
+            <!-- Respuesta abierta: pasos, envíos y corrección -->
+            <div id="abiertaDirectorPanel" style="display:none"></div>
+
             <div class="question-card" id="questionCard">
                 <div id="questionMedia"></div>
                 <div class="question-statement" id="questionStatement">-</div>
@@ -928,6 +976,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                 <button class="btn-orange" id="btnRevealNextPair" onclick="emit('director:reveal_next_pair')">&#128065; Ir revelando</button>
                 <span id="identidadRevealCount" style="margin-left:8px; font-size:13px; color:var(--text2);"></span>
             </div>
+            <div id="abiertaAnswerPanel" style="display:none; margin-top:10px;"></div>
             <div id="teamResultsPanel"></div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;">
                 <button class="btn-success" id="btnAnswerNextBig" onclick="handleNextQuestion()">Siguiente pregunta &#9654;</button>
@@ -1096,6 +1145,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 <script src="/shared/roulette-panel.js"></script>
 <script src="/shared/aclara-fx.js"></script>
 <script src="/shared/qrcode.min.js"></script>
+<script src="/shared/question-validation.js"></script>
 <script>
 const S = {
     gameId: null, game: null, rounds: [],
@@ -1159,7 +1209,8 @@ function connectSocket() {
 
 // Órdenes que dependen de la pregunta en curso: viajan con la pregunta que ve el coordinador,
 // y el servidor las descarta si ya no coincide (doble toque o reenvío tras reconectar).
-var _POSITIONAL = { 'director:next_question': 1, 'director:next_with_premio': 1, 'director:prev_question': 1, 'director:finish_round': 1, 'director:mark_correct': 1, 'director:mark_wrong': 1, 'director:karaoke_award': 1 };
+var _POSITIONAL = { 'director:next_question': 1, 'director:next_with_premio': 1, 'director:prev_question': 1, 'director:finish_round': 1, 'director:mark_correct': 1, 'director:mark_wrong': 1, 'director:karaoke_award': 1,
+    'director:abierta_show': 1, 'director:abierta_open': 1, 'director:abierta_close': 1, 'director:abierta_reveal': 1, 'director:abierta_mark': 1 };
 function emit(ev, data) {
     if (!socket) return;
     data = data || {};
@@ -1348,7 +1399,7 @@ function renderLobby() {
 const TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio justo',
     imagen: 'Adivina imagen', cancion: 'Adivina cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen fija', aclara: 'Imagen que se aclara'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen fija', aclara: 'Imagen que se aclara', identidad: 'Identidad', abierta: 'Respuesta abierta'
 };
 
 function getCategories() {
@@ -2163,6 +2214,15 @@ function renderQuestion() {
     // Toggle body class for karaoke-specific CSS (hides timer etc.)
     document.body.classList.toggle('round-type-karaoke', roundType === 'karaoke');
 
+    // Respuesta abierta: panel propio (pasos, envíos y corrección)
+    document.getElementById('abiertaDirectorPanel').style.display = 'none';
+    if (roundType === 'abierta') {
+        ['karaokeDirectorPanel', 'pulsadorDirectorPanel', 'precioDirectorPanel', 'ruletaDirectorPanel', 'imagenDirectorPanel', 'imagenFijaDirectorPanel', 'cancionDirectorPanel', 'questionCard', 'questionDefaultActions', 'dirIdentidadStatus']
+            .forEach(function(id) { document.getElementById(id).style.display = 'none'; });
+        renderQuestionAbierta();
+        return;
+    }
+
     // Karaoke type: dedicated panel
     if (roundType === 'karaoke') {
         document.getElementById('pulsadorDirectorPanel').style.display = 'none';
@@ -2351,6 +2411,188 @@ function renderQuestion() {
     }
 }
 
+// ═══════════════ Respuesta abierta ═══════════════
+// Pasos: enunciado → subpreguntas → respondiendo → corrigiendo → revelar. La corrección va por
+// subpregunta y agrupa las respuestas iguales (sin mirar mayúsculas, tildes ni signos): un toque
+// corrige a todos los equipos que escribieron lo mismo.
+var _abSub = 0;        // subpregunta que se está corrigiendo
+var _abGroups = [];    // grupos pintados ahora (para saber qué equipos marca cada toque)
+var _abQKey = null;
+var AB_STEPS = [['intro', 'Enunciado'], ['shown', 'Subpreguntas'], ['open', 'Respondiendo'], ['correcting', 'Corrigiendo'], ['revealed', 'Revelando']];
+
+function abCurQ() { var ds = S.director; return ds && ds.questions ? ds.questions[ds.currentQuestionIdx] : null; }
+function abSubsOf(q) { return (q && q.content && Array.isArray(q.content.subs)) ? q.content.subs : []; }
+function abTeamName(id) { var t = S.equipos.find(function(e) { return e.id === id; }); return t ? t.nombre : '?'; }
+function abResetIfNewQuestion() {
+    var ds = S.director;
+    var key = (ds.currentRoundId || '') + ':' + ds.currentQuestionIdx;
+    if (key !== _abQKey) { _abQKey = key; _abSub = 0; }
+}
+
+function abStepsHtml(step) {
+    var idx = AB_STEPS.findIndex(function(s) { return s[0] === step; });
+    return '<div class="ab-steps">' + AB_STEPS.map(function(s, i) {
+        return '<span class="' + (i === idx ? 'on' : (i < idx ? 'done' : '')) + '">' + (i < idx ? '✓ ' : '') + s[1] + '</span>';
+    }).join('') + '</div>';
+}
+
+// Respuestas de una subpregunta agrupadas por texto normalizado
+function abGroupsFor(ds, i) {
+    var groups = {}, order = [], blank = [];
+    var marks = (ds.abierta && ds.abierta.marks) || {};
+    Object.keys(ds.answers || {}).forEach(function(tid) {
+        var a = ds.answers[tid];
+        if (!a || !a.submitted) return;
+        var txt = String((Array.isArray(a.answer) ? a.answer[i] : '') || '').trim();
+        var n = QuestionValidation.normAnswer(txt);
+        if (!n) { blank.push(tid); return; }
+        if (!groups[n]) { groups[n] = { variants: [], teamIds: [], ok: true }; order.push(n); }
+        var g = groups[n];
+        if (g.variants.indexOf(txt) < 0) g.variants.push(txt);
+        g.teamIds.push(tid);
+        if (!(marks[tid] && marks[tid][i])) g.ok = false;
+    });
+    var list = order.map(function(k) { return groups[k]; });
+    // Primero lo que está en rojo (lo que hay que revisar), y de más a menos equipos
+    list.sort(function(a, b) { return (a.ok - b.ok) || (b.teamIds.length - a.teamIds.length); });
+    return { list: list, blank: blank };
+}
+
+function abCorrectionHtml(ds, subs, rectify) {
+    if (_abSub >= subs.length) _abSub = 0;
+    var html = '<div class="ab-correct">';
+    html += '<div class="ab-tabs">' + subs.map(function(s, i) {
+        var g = abGroupsFor(ds, i);
+        var red = g.list.filter(function(x) { return !x.ok; }).reduce(function(n, x) { return n + x.teamIds.length; }, 0);
+        return '<button class="ab-tab' + (i === _abSub ? ' on' : '') + '" data-ab="sub" data-i="' + i + '">' + (i + 1)
+            + (red ? ' <span class="ab-red">· ' + red + ' ✗</span>' : ' <span class="ab-ok">✓</span>') + '</button>';
+    }).join('') + '</div>';
+    var s = subs[_abSub] || {};
+    html += '<div class="ab-subhead"><b>' + (_abSub + 1) + '.</b> ' + esc(s.text || '') + ' → <span class="ab-ans">' + esc(s.answer || '') + '</span>'
+        + (s.alts ? '<div class="ab-alts">También valen: ' + esc(s.alts) + '</div>' : '') + '</div>';
+    var g = abGroupsFor(ds, _abSub);
+    _abGroups = g.list;
+    html += '<div class="ab-groups">';
+    if (!g.list.length && !g.blank.length) html += '<div class="ab-note">Ningún equipo ha respondido.</div>';
+    g.list.forEach(function(gr, k) {
+        html += '<button class="ab-g' + (gr.ok ? ' ok' : '') + '" data-ab="mark" data-g="' + k + '">'
+            + '<span class="ab-g-mark">' + (gr.ok ? '✓' : '✗') + '</span>'
+            + '<span class="ab-g-text">' + gr.variants.map(esc).join(' · ') + '</span>'
+            + '<span class="ab-g-count">×' + gr.teamIds.length + '</span>'
+            + '<span class="ab-g-who">' + gr.teamIds.map(function(t) { return esc(abTeamName(t)); }).join(', ') + '</span></button>';
+    });
+    if (g.blank.length) {
+        html += '<div class="ab-g ab-blank"><span class="ab-g-mark">–</span><span class="ab-g-text">(en blanco)</span><span class="ab-g-count">×' + g.blank.length + '</span>'
+            + '<span class="ab-g-who">' + g.blank.map(function(t) { return esc(abTeamName(t)); }).join(', ') + '</span></div>';
+    }
+    html += '</div>';
+    html += '<div class="ab-note' + (rectify ? ' warn' : '') + '">' + (rectify
+        ? 'Rectificar: cada cambio recalcula la pregunta (también quién gana el bonus) y ajusta el marcador al momento.'
+        : 'Toca una respuesta para cambiarla entre ✓ y ✗. Lo que coincide con una respuesta válida ya sale en verde.') + '</div>';
+    html += '<div class="ab-subnav"><button class="btn-ghost btn-sm" data-ab="prev"' + (_abSub <= 0 ? ' disabled' : '') + '>&#9664; Subpregunta anterior</button>'
+        + '<button class="btn-ghost btn-sm" data-ab="next"' + (_abSub >= subs.length - 1 ? ' disabled' : '') + '>Siguiente subpregunta &#9654;</button></div>';
+    return html + '</div>';
+}
+
+function renderQuestionAbierta() {
+    var ds = S.director, q = abCurQ();
+    if (!q) return;
+    abResetIfNewQuestion();
+    var idx = ds.currentQuestionIdx, total = ds.questions.length;
+    document.querySelector('.question-nav').style.display = '';
+    document.getElementById('questionCounter').textContent = 'Pregunta ' + (idx + 1) + ' de ' + total;
+    document.getElementById('btnPrevQ').disabled = idx <= 0;
+    var btnNext = document.getElementById('btnNextQ');
+    btnNext.disabled = false;
+    if (idx >= total - 1) { btnNext.textContent = '✓ Terminar ronda'; btnNext.onclick = function() { handleFinishRound(); }; }
+    else { btnNext.innerHTML = 'Siguiente &#9654;'; btnNext.onclick = function() { handleNextQuestion(); }; }
+
+    var c = q.content || {}, subs = abSubsOf(q);
+    var a = ds.abierta || {}, step = a.step || 'intro';
+    var timed = Number(c.time) > 0;
+    var teams = S.equipos;
+    var active = teams.filter(function(e) { return !e.bloqueado; });
+    var sent = active.filter(function(e) { var x = (ds.answers || {})[e.id]; return x && x.submitted; }).length;
+
+    var html = '<div class="ab-top">';
+    html += '<div class="ab-statement">' + esc(c.statement || 'Respuesta abierta') + '</div>';
+    html += abStepsHtml(step);
+    html += '<div class="ab-actions">';
+    if (step === 'intro') {
+        html += '<button class="btn-accent" data-ab="show">&#128065; Mostrar subpreguntas</button>'
+            + '<button class="btn-success" data-ab="open">&#9654; Abrir respuestas</button>';
+    } else if (step === 'shown') {
+        html += '<button class="btn-success" data-ab="open">&#9654; Abrir respuestas</button>';
+    } else if (step === 'open') {
+        html += '<span class="ab-count"><b>' + sent + '</b> de ' + active.length + ' equipos han enviado</span>'
+            + '<button class="btn-danger" data-ab="close">&#9632; Cerrar respuestas</button>';
+    } else if (step === 'correcting') {
+        html += '<button class="btn-success" data-ab="reveal">Revelar respuestas &#9654;</button>';
+    }
+    html += '<span class="ab-info">' + (timed ? '⏱ Cuenta atrás de ' + c.time + ' s' : 'Sin cuenta atrás') + ' · ' + subs.length + (subs.length === 1 ? ' subpregunta' : ' subpreguntas') + '</span>';
+    html += '</div>';
+    if (step === 'intro') html += '<div class="ab-note">En la pantalla y en los iPads solo se ve el enunciado general.</div>';
+    if (step === 'shown') html += '<div class="ab-note">Se ven las subpreguntas, pero los equipos aún no pueden escribir.</div>';
+    if (step === 'open') html += '<div class="ab-note">Se pasa a corregir sola cuando envían todos' + (timed ? ' o se acaba el tiempo' : '') + '. Lo escrito sin enviar cuenta al cerrar.</div>';
+    if (step === 'open' || step === 'correcting') {
+        html += '<div class="ab-teams">' + teams.map(function(e) {
+            var x = (ds.answers || {})[e.id];
+            var cls = e.bloqueado ? ' frozen' : (x && x.submitted ? ' sent' : '');
+            return '<span class="ab-team' + cls + '">' + (e.bloqueado ? '❄ ' : (x && x.submitted ? '✓ ' : '')) + esc(e.nombre) + (x && x.late ? ' (sin enviar)' : '') + '</span>';
+        }).join('') + '</div>';
+    }
+    html += '</div>';
+
+    if (step === 'correcting') {
+        html += abCorrectionHtml(ds, subs, false);
+    } else {
+        html += '<div class="ab-cheat">' + subs.map(function(s, i) {
+            return '<div class="ab-cheat-row"><span class="ab-n">' + (i + 1) + '</span>' + esc(s.text || '') + ' → <span class="ab-ans">' + esc(s.answer || '') + '</span>'
+                + (s.alts ? '<div class="ab-alts">También valen: ' + esc(s.alts) + '</div>' : '') + '</div>';
+        }).join('') + '</div>';
+    }
+    var panel = document.getElementById('abiertaDirectorPanel');
+    panel.style.display = 'flex';
+    panel.innerHTML = html;
+}
+
+function renderAnswerAbierta(ds, c) {
+    var panel = document.getElementById('abiertaAnswerPanel');
+    abResetIfNewQuestion();
+    var subs = abSubsOf(abCurQ());
+    var a = ds.abierta || {};
+    var html = '';
+    if (a.winner) {
+        var w = (ds.lastQuestionScores || {})[a.winner] || {};
+        html += '<div class="ab-note" style="font-size:14px;margin-bottom:6px;">🏆 Gana el bonus: <b>' + esc(abTeamName(a.winner)) + '</b> (' + (w.correctCount || 0) + ' de ' + subs.length + ')</div>';
+    }
+    html += abCorrectionHtml(ds, subs, true);
+    panel.innerHTML = html;
+    panel.style.display = '';
+}
+
+// Botones del panel (delegado: el panel se vuelve a pintar con cada actualización)
+document.addEventListener('click', function(e) {
+    var b = e.target.closest('[data-ab]');
+    if (!b || !b.closest('#abiertaDirectorPanel, #abiertaAnswerPanel')) return;
+    var ds = S.director, act = b.dataset.ab;
+    if (act === 'show') emit('director:abierta_show');
+    else if (act === 'open') emit('director:abierta_open');
+    else if (act === 'close') {
+        var pending = S.equipos.filter(function(t) { var x = (ds.answers || {})[t.id]; return !t.bloqueado && !(x && x.submitted); }).length;
+        if (pending && !confirm((pending === 1 ? 'Queda 1 equipo' : 'Quedan ' + pending + ' equipos') + ' sin enviar. Lo que tengan escrito contará igual. ¿Cerrar las respuestas?')) return;
+        emit('director:abierta_close');
+    }
+    else if (act === 'reveal') emit('director:abierta_reveal');
+    else if (act === 'sub') { _abSub = Number(b.dataset.i) || 0; render(); }
+    else if (act === 'prev') { _abSub = Math.max(0, _abSub - 1); render(); }
+    else if (act === 'next') { _abSub++; render(); }
+    else if (act === 'mark') {
+        var g = _abGroups[Number(b.dataset.g)];
+        if (g) emit('director:abierta_mark', { sub: _abSub, teamIds: g.teamIds, ok: !g.ok });
+    }
+});
+
 // ── Image grid controls (redesigned with thumbnail) ──
 function renderDirImageGrid(type, c, q) {
     var el = document.getElementById('dirImageGrid');
@@ -2514,6 +2756,16 @@ function renderAnswerRevealed() {
     }).join(' | ');
     document.getElementById('answerText').textContent = ans || '-';
 
+    // Respuesta abierta: las respuestas están en el panel de corrección (que sirve para rectificar)
+    var isAbierta = roundType === 'abierta';
+    document.querySelector('#phase-answer .answer-card').style.display = isAbierta ? 'none' : '';
+    if (isAbierta) {
+        if (!c.statement) document.getElementById('answerStatement').textContent = 'Respuesta abierta';
+        renderAnswerAbierta(ds, c);
+    } else {
+        document.getElementById('abiertaAnswerPanel').style.display = 'none';
+    }
+
     // Identidad: explanation panel
     var idExplEl = document.getElementById('identidadExplanation');
     if (idExplEl) {
@@ -2529,10 +2781,11 @@ function renderAnswerRevealed() {
     var idRevPanel = document.getElementById('identidadRevealPanel');
     if (idRevPanel) {
         var boomSteps = roundType === 'boom' && ds.phase === 'answer_revealed' && typeof ds.boomStep === 'number';
-        if ((roundType === 'identidad' && ds.identidad) || boomSteps) {
-            // Identidad: parejas una a una · Boom: posiciones del orden una a una
-            var totalPairs = boomSteps ? (c.items ? c.items.length : 0) : (c.pairs ? c.pairs.length : 0);
-            var revIdx = boomSteps ? ds.boomStep : (ds.identidad.revealIndex || 0);
+        var abSteps = isAbierta && !!ds.abierta;
+        if ((roundType === 'identidad' && ds.identidad) || boomSteps || abSteps) {
+            // Identidad: parejas una a una · Boom: posiciones del orden una a una · Abierta: subpreguntas
+            var totalPairs = abSteps ? (c.subs ? c.subs.length : 0) : boomSteps ? (c.items ? c.items.length : 0) : (c.pairs ? c.pairs.length : 0);
+            var revIdx = abSteps ? (ds.abierta.revealStep || 0) : boomSteps ? ds.boomStep : (ds.identidad.revealIndex || 0);
             idRevPanel.style.display = '';
             document.getElementById('identidadRevealCount').textContent = revIdx + ' / ' + totalPairs + ' reveladas' + (revIdx < totalPairs ? ' · los puntos se suman al terminar' : ' · puntos sumados');
             var btnRevPair = document.getElementById('btnRevealNextPair');
@@ -2598,6 +2851,10 @@ function renderTeamResults() {
         } else if (roundType === 'boom' && c.items) {
             var order = Array.isArray(r.answer) ? r.answer : [];
             ansText = order.map(function(i) { return c.items[i] || i; }).join(' → ');
+        } else if (roundType === 'abierta' && Array.isArray(r.marks)) {
+            ansText = r.marks.map(function(m) { return m ? '✓' : '✗'; }).join(' ') + '  ·  ' + r.correctCount + ' de ' + r.totalSubs
+                + (r.winner ? '  ·  🏆 bonus' : '') + (r.late ? '  ·  sin enviar' : '');
+            if (!r.noAnswer) icon = r.correctCount > 0 ? '&#9989;' : '&#10060;';
         } else {
             ansText = String(r.answer || '');
         }
@@ -2642,7 +2899,9 @@ function renderTimer() {
     const ds = S.director;
     const el = document.getElementById('timerDisplay');
     if (!ds || !ds.timer) { el.textContent = '--:--'; el.className = 'timer-display stopped'; return; }
-    var noTimer = ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'ruleta' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'imagen_fija' || ds.currentRound.type === 'aclara');
+    var t0 = ds.timer;
+    var noTimer = ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'ruleta' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'imagen_fija' || ds.currentRound.type === 'aclara'
+        || (ds.currentRound.type === 'abierta' && !(t0 && t0.total > 0))); // Respuesta abierta sin cuenta atrás
     if (noTimer) {
         el.textContent = '--:--'; el.className = 'timer-display stopped';
         document.getElementById('btnStartTimer').disabled = true;
@@ -3070,7 +3329,7 @@ function closeBonoLog() {
 
 // Qué filtro incluye cada tipo de entrada del registro
 var _blFilter = 'all';
-var _blKind = { awarded: 'bono', used: 'bono', bono_add: 'bono', bono_remove: 'bono', points: 'pts', correct: 'pts', wrong: 'pts', scored: 'pts', karaoke: 'pts', team_removed: 'pts',
+var _blKind = { awarded: 'bono', used: 'bono', bono_add: 'bono', bono_remove: 'bono', points: 'pts', correct: 'pts', wrong: 'pts', scored: 'pts', karaoke: 'pts', team_removed: 'pts', abierta_fix: 'pts', abierta_closed: 'pts',
                 freeze: 'frz', unfreeze: 'frz', freeze_all: 'frz', unfreeze_all: 'frz' };
 document.getElementById('blFilters').addEventListener('click', function(e) {
     var b = e.target.closest('button[data-f]'); if (!b) return;
@@ -3106,6 +3365,9 @@ function renderBonoLog() {
             case 'correct': icon = '✅'; text = team + ' acertó ' + _blPts(e.pts); break;
             case 'wrong': icon = '❌'; text = team + ' falló' + (e.pts ? ' ' + _blPts(e.pts) : ''); break;
             case 'scored': icon = '📊'; text = 'Pregunta puntuada: <b>' + e.hits + '</b> de ' + e.total + ' equipos acertaron' + (e.answered < e.total ? ' (' + (e.total - e.answered) + ' sin responder)' : ''); break;
+            case 'abierta_closed': icon = '✍️'; text = 'Respuestas cerradas: <b>' + e.answered + '</b> de ' + e.total + ' equipos respondieron. A corregir'; break;
+            case 'abierta_fix': icon = '🩹'; text = 'Rectificado (subpregunta ' + e.sub + ' ' + (e.ok ? '✓' : '✗') + '): ' + (e.teams || []).map(esc).join(', ')
+                + ((e.changes || []).length ? ' · ' + e.changes.map(function(x) { return esc(x.team) + ' ' + _blPts(x.pts); }).join(', ') + (e.pending ? ' (al terminar de revelar)' : '') : ''); break;
             case 'karaoke': icon = '🎤'; text = 'Karaoke: ganó el color <b>' + esc(e.color) + '</b> ' + _blPts(e.pts) + ' a ' + (e.teams || []).map(esc).join(', '); break;
             case 'no_screen': icon = e.on ? '📵' : '📺'; text = e.on ? 'Modo <b>sin pantalla</b> activado' : 'Vuelve la pantalla de sala'; break;
             case 'audio': icon = '🔊'; text = 'El sonido pasa a ' + (e.where === 'ipads' ? '<b>los iPads</b>' : '<b>el ordenador</b>'); break;
@@ -3142,7 +3404,7 @@ var _pgPremioTipo = null;
 var _pgSelectedTeamId = null; // null = nobody, string = teamId
 var _pgNobodySelected = false;
 var _pgModo = 'next'; // 'next' | 'finish'
-var _AUTO_TYPES = { multirespuesta: 1, precio: 1, boom: 1, identidad: 1 };
+var _AUTO_TYPES = { multirespuesta: 1, precio: 1, boom: 1, identidad: 1, abierta: 1 };
 var _pgBonoStrings = { freeze: { icon: '&#10052;', nombre: 'Congelar rival' }, lock_all: { icon: '&#128274;', nombre: 'Congelar a todos' }, puntos: { icon: '&#10133;', nombre: 'Puntos extra' }, anuncio: { icon: '&#127873;', nombre: 'Premio sorpresa' } };
 
 function handleFinishRound() {
@@ -3756,7 +4018,7 @@ function renderKaraokeModal(colors, ks, basePoints) {
 }
 
 // Keyboard shortcuts
-var _NO_TIMER_TYPES = { pulsador: 1, imagen: 1, karaoke: 1, ruleta: 1, imagen_fija: 1, cancion: 1, aclara: 1 };
+var _NO_TIMER_TYPES = { pulsador: 1, imagen: 1, karaoke: 1, ruleta: 1, imagen_fija: 1, cancion: 1, aclara: 1 }; // (Respuesta abierta: el servidor decide)
 document.addEventListener('keydown', function(e) {
     // Ctrl+R / Cmd+R (recargar), Alt+…, tecla mantenida o foco en un control: no es un atajo
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;

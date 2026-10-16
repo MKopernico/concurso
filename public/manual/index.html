@@ -279,7 +279,7 @@
       <!-- TIPOS -->
       <div id="s2-tipos"></div>
       <h3>Los tipos de prueba (y qué necesita cada uno)</h3>
-      <p>GameShow tiene once tipos. Para cada uno, qué es, cómo se juega y —lo más importante— <strong>qué necesita para estar completa</strong>: si le falta el campo clave, la app la marca como incompleta y no te deja publicar hasta arreglarla.</p>
+      <p>GameShow tiene doce tipos. Para cada uno, qué es, cómo se juega y —lo más importante— <strong>qué necesita para estar completa</strong>: si le falta el campo clave, la app la marca como incompleta y no te deja publicar hasta arreglarla.</p>
 
       <div class="types">
         <div class="type">
@@ -334,6 +334,13 @@
           <span class="req"><b>Requisito</b> Parejas de elementos (foto y/o texto en cada lado)</span>
         </div>
         <div class="type">
+          <h4>Respuesta abierta (subpreguntas)</h4>
+          <p>Una pregunta con un <strong>enunciado general</strong> (opcional) y <strong>varias subpreguntas que se lanzan a la vez</strong>; lo normal es una pregunta por ronda. Cada equipo escribe sus respuestas en el iPad y las envía. Sirve para el estilo <strong>«Lo sabe no lo sabe»</strong> (sin cuenta atrás) o para una pregunta abierta con tiempo: la <strong>cuenta atrás es opcional</strong> y se elige en cada pregunta.</p>
+          <p>En cada subpregunta se pone la <strong>respuesta correcta</strong> (la que sale al revelar) y, si quieres, <strong>otras válidas</strong> en un solo campo separadas por <code>/</code> (por ejemplo <code>Miguel de Cervantes / el manco de Lepanto</code>). Da igual mayúsculas, tildes (la ñ cuenta como n), signos y espacios: «cervántes» vale por «Cervantes». Lo que coincide se corrige solo; lo demás sale en rojo para que lo valides tú.</p>
+          <p><strong>Puntos:</strong> cada equipo se lleva la parte proporcional de los puntos base según lo que acierte (3 de 4 → el 75 %). El que <strong>más acierta</strong> gana además el <strong>bonus</strong> de la pregunta; si empatan, el que <strong>envió antes</strong>. Los puntos se suman al revelar la última subpregunta, como en Boom e Identidad.</p>
+          <span class="req"><b>Requisito</b> ≥1 subpregunta, cada una con su texto y su respuesta</span>
+        </div>
+        <div class="type">
           <h4>Karaoke</h4>
           <p>La letra de una canción en pantalla mientras suena. Cada equipo tiene asignado un color (rojo, amarillo, azul o verde). El coordinador avanza por la letra y pone de fondo un color o una combinación: <strong>solo cantan los equipos cuyo color está en pantalla</strong>. Al terminar, el coordinador da los puntos a mano al color que mejor lo haya hecho (se reparten entre sus equipos). Cada canción de la ronda empieza limpia.</p>
           <p>Si hay <strong>más equipos que colores</strong>, varios equipos comparten color y cantan juntos; el botón <strong>«🎲 Repartir automáticamente»</strong> los reparte equilibrados. En la pantalla de sala el fondo muestra <strong>solo los colores que cantan</strong> (uno ocupa toda la pantalla, dos la parten en mitades, cuatro en cuartos) y la letra se ajusta sola al espacio, con la estrofa siguiente debajo, más pequeña y en gris. Cada iPad lleva un <strong>marco de su color</strong>, encendido toda la prueba; el iPad no avisa de cuándo cantar: los equipos lo tienen que ver en la pantalla.</p>
@@ -368,6 +375,7 @@
         <li>En la hoja <strong>Rondas</strong>, el tipo se puede escribir como el nombre de la pestaña («Precio Justo», «BOOM»…). Si no se reconoce, esa ronda no se crea y se avisa. El orden de las rondas es el de esa hoja.</li>
         <li>Las imágenes, vídeos y audios se ponen con su ruta (por ejemplo <code>/uploads/images/foto.jpg</code>): súbelos antes desde <strong>📁 Medios</strong>.</li>
         <li>En <strong>Precio justo</strong>, una celda de valor vacía entra como incompleta; un <code>0</code> escrito sí vale.</li>
+        <li>En <strong>Respuesta abierta</strong> va <strong>una fila por subpregunta</strong>. La primera fila de cada pregunta lleva el enunciado general (opcional), el tiempo, los puntos y el bonus; las siguientes, solo la subpregunta, su respuesta y las otras válidas (todas en una celda, separadas por <code>/</code>). <strong>Tiempo vacío = sin cuenta atrás.</strong> Para empezar otra pregunta en la misma ronda, escribe su enunciado general.</li>
         <li>El <strong>karaoke</strong> no va por Excel: se crea a mano en el backoffice.</li>
       </ul>
 
@@ -444,6 +452,8 @@
         <li><strong>Revelar respuesta</strong> cuando decidas. Debajo sale <strong>«Resultados por equipo»</strong>: qué respondió cada uno y los puntos que se lleva (en las pruebas de pulsador, quién acertó y quién falló); con «Mostrar resultados» se ve también en la pantalla.</li>
         <li><strong>Destapar</strong> (Adivina la imagen y Ruleta): cada clic revela un cuadrado o una letra.</li>
         <li><strong>Distorsión</strong> (Adivina la canción): el control para ir limpiando el sonido.</li>
+        <li><strong>Respuesta abierta:</strong> va por pasos que se ven arriba del panel. Al lanzarla solo se ve el enunciado general; <strong>«👁 Mostrar subpreguntas»</strong> las enseña en la sala y en los iPads (aún sin poder escribir) y <strong>«▶ Abrir respuestas»</strong> deja escribir (y arranca la cuenta atrás, si la tiene). La pantalla dice cuántos equipos han respondido. Se pasa a <strong>corregir</strong> cuando envían todos, cuando se acaba el tiempo o con <strong>«■ Cerrar respuestas»</strong>; lo que un equipo tuviera escrito sin enviar cuenta igual (pero pierde cualquier desempate). Mientras se corrige, la sala y los iPads muestran «Corrigiendo…».</li>
+        <li><strong>Corregir (Respuesta abierta):</strong> se corrige <strong>subpregunta a subpregunta</strong> (pestañas 1, 2, 3…; cada una dice cuántas quedan en rojo). Las respuestas iguales van juntas con los equipos que las dieron: <strong>un toque las cambia entre ✓ y ✗ para todos</strong>. Lo que coincide con una respuesta válida ya sale en verde. Varios coordinadores pueden corregir a la vez. Después, <strong>«Revelar respuestas»</strong> e <strong>«Ir revelando»</strong> una a una: en la sala sale la respuesta a la derecha de cada subpregunta y cada iPad ve las suyas en verde o rojo (con la correcta debajo si falló). Si te equivocaste al corregir, puedes <strong>rectificar después</strong> en el mismo panel: se recalcula la pregunta (también quién gana el bonus) y el marcador se ajusta solo; queda en el «Registro». Si sales a otra pregunta a mitad de corregir, al volver sigue tal cual.</li>
       </ul>
 
       <div class="shots-2">
@@ -612,7 +622,7 @@
       <figure class="shot"><a href="img/34-play-sin-pantalla.webp" target="_blank" rel="noopener"><img src="img/34-play-sin-pantalla.webp" alt="iPad sin pantalla de sala" loading="lazy"></a><figcaption>Sin pantalla: arriba, el escenario con lo que vería la sala; debajo, el pulsador.</figcaption></figure>
       <ul>
         <li>En las pruebas en las que el iPad solo tenía el pulsador (pulsador, ruleta, Adivina la imagen, imagen fija, canción, Imagen que se aclara) aparece arriba el <strong>escenario</strong>, con lo mismo que vería la sala, y el pulsador debajo. En el karaoke la letra ocupa todo el iPad, con el marco del color del equipo alrededor.</li>
-        <li>En las que el iPad ya tenía la pregunta (multirespuesta, Precio justo, Boom, Identidad) no cambia nada.</li>
+        <li>En las que el iPad ya tenía la pregunta (multirespuesta, Precio justo, Boom, Identidad, Respuesta abierta) no cambia nada: el iPad ya muestra todo lo necesario.</li>
         <li><strong>Sonido</strong> de vídeos y efectos: en el backoffice eliges si sale del <strong>ordenador</strong> (la página «Pantalla» abierta con altavoces, aunque no haya proyector) o de <strong>cada iPad</strong>; el botón «🔊 Sonido» del coordinador lo cambia en directo. Los navegadores no dejan sonar nada hasta que alguien toca la página: si va en el <strong>ordenador</strong>, la página «Pantalla» muestra «Haz clic en esta página para activar el sonido» hasta el primer clic (hazlo al montar la sala); los iPads no piden nada. Si va en los <strong>iPads</strong>, cada uno muestra en el centro un aviso grande «🔊 Toca aquí para activar el sonido»: con <strong>un toque por iPad basta para toda la partida</strong> (conviene pedirlo al empezar). Después, el Play del coordinador hace sonar el vídeo en todos. Un iPad que aún no se haya tocado ve el vídeo igualmente, en silencio y a la vez que los demás, y suena en cuanto lo tocan. Apple no deja que un iPad suene sin ese primer toque. Si se recarga la página, hay que volver a tocar. El audio de «Adivina la canción» sigue saliendo del Chaos Studio, como siempre.</li>
       </ul>
 
