@@ -17,7 +17,8 @@ let server, kitProc, cookie = '';
 const results = [];
 function check(name, ok, info) { results.push(!!ok); console.log((ok ? 'OK   ' : 'FALLO') + ' ' + name + (info !== undefined ? '  → ' + JSON.stringify(info) : '')); }
 async function startServer() {
-    server = spawn(process.execPath, ['server.js'], { cwd: process.env.GAMESHOW_TEST_APP || REPO, env: { ...process.env, PORT: String(PORT), GAMESHOW_DATA_DIR: DATA, ADMIN_PASSWORD: PW }, stdio: ['ignore', 'pipe', 'pipe'] });
+    // Tope de «juego offline» pequeño (100 MB ≈ 2 zips de prueba) para comprobar que se borran los antiguos
+    server = spawn(process.execPath, ['server.js'], { cwd: process.env.GAMESHOW_TEST_APP || REPO, env: { ...process.env, PORT: String(PORT), GAMESHOW_DATA_DIR: DATA, ADMIN_PASSWORD: PW, GAMESHOW_OFFLINE_CAP_MB: '100' }, stdio: ['ignore', 'pipe', 'pipe'] });
     server.stderr.on('data', d => { const s = String(d); if (!/ExperimentalWarning|\[socket /.test(s)) process.stdout.write('[srv-err] ' + s); });
     for (let i = 0; i < 50; i++) { try { if ((await fetch(B + '/ping')).ok) return; } catch {} await wait(200); }
     throw new Error('no arrancó');
@@ -148,6 +149,36 @@ function extract(file, dest) {
     check('juego offline reanudable (206)', offPart.status === 206 && Buffer.from(await offPart.arrayBuffer()).equals(offBuf.subarray(1000, 2000)));
     const bad = await api('/offline-kit/' + '0'.repeat(24));
     check('enlace inexistente → aviso de caducada', bad.status === 404 && /caducado/.test(bad.data.error));
+
+    // ── Limpieza del disco: reutilizar, tope, caducidad y restos
+    const OFF = path.join(DATA, 'kit-cache', 'offline');
+    const readyZips = () => fs.readdirSync(OFF).filter(f => /^[0-9a-f]{20}\.zip$/.test(f));
+    const off2 = await api('/games/' + g.id + '/offline-kit', { method: 'POST' });
+    check('mismo juego sin cambios → se reutiliza el zip (no se crea otro)', off2.status === 200 && off2.data.reused === true && readyZips().length === 1, { reused: off2.data.reused, zips: readyZips().length });
+    const oldUrl = off.data.url;
+    await api(`/games/${g.id}`, { method: 'PUT', body: { name: 'Kit Ñandú', note: 'cambiado' } });
+    const off3 = await api('/games/' + g.id + '/offline-kit', { method: 'POST' });
+    check('juego cambiado → zip nuevo', off3.status === 200 && off3.data.reused === false && readyZips().length === 2, readyZips().length);
+    const g2 = (await api('/games', { method: 'POST', body: { name: 'Otro juego', status: 'draft' } })).data;
+    const off4 = await api('/games/' + g2.id + '/offline-kit', { method: 'POST' });
+    const oldGone = await api(oldUrl.replace('/api', ''));
+    check('con el tope lleno se borra el más antiguo', off4.status === 200 && readyZips().length === 2 && oldGone.status === 404, { zips: readyZips().length, viejo: oldGone.status });
+    const total = readyZips().reduce((n, f) => n + fs.statSync(path.join(OFF, f)).size, 0);
+    check('los zips no pasan del tope (100 MB en la prueba)', total <= 100 * 1048576, Math.round(total / 1048576) + ' MB');
+    const fourHoursAgo = new Date(Date.now() - 4 * 3600 * 1000);
+    const victim = readyZips()[0];
+    fs.utimesSync(path.join(OFF, victim), fourHoursAgo, fourHoursAgo);
+    fs.writeFileSync(path.join(OFF, 'abcd.game.tmp'), 'x'); fs.utimesSync(path.join(OFF, 'abcd.game.tmp'), fourHoursAgo, fourHoursAgo);
+    fs.writeFileSync(path.join(OFF, 'a'.repeat(24) + '.zip'), 'x'); fs.utimesSync(path.join(OFF, 'a'.repeat(24) + '.zip'), fourHoursAgo, fourHoursAgo);
+    fs.writeFileSync(path.join(OFF, 'fresco.kit.tmp'), 'x');
+    await api('/kit/status');
+    const left = fs.readdirSync(OFF);
+    check('caducados (3 h), restos y zips de la versión anterior se borran', !left.includes(victim) && !left.includes('abcd.game.tmp') && !left.includes('a'.repeat(24) + '.zip'), left);
+    check('lo que se está preparando ahora no se toca', left.includes('fresco.kit.tmp'));
+    fs.rmSync(path.join(OFF, 'fresco.kit.tmp'), { force: true });
+    readyZips().forEach(f => fs.rmSync(path.join(OFF, f)));
+    const both = await Promise.all([1, 2].map(() => api('/games/' + g2.id + '/offline-kit', { method: 'POST' })));
+    check('dos clics a la vez en el mismo juego → un solo zip', both.every(b => b.status === 200) && readyZips().length === 1 && fs.readdirSync(OFF).length === 1, fs.readdirSync(OFF));
 
     // ── Arrancar el kit descargado como lo haría el usuario: primera vez, contraseña, carga del juego
     if (process.platform === 'win32') {
