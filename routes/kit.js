@@ -15,7 +15,8 @@ const { DB_DIR } = require('../paths');
 const router = express.Router();
 const CACHE_DIR = path.join(DB_DIR, 'kit-cache');
 const MIN_FREE_MB = 300; // los juegos tienen prioridad sobre el kit en el disco
-const IN_KIT = process.env.GAMESHOW_KIT === '1';
+// Dentro del kit (o de su app empaquetada, que no lleva esbuild) no se pueden montar kits
+const IN_KIT = process.env.GAMESHOW_KIT === '1' || (() => { try { require.resolve('esbuild/package.json'); return false; } catch (e) { return true; } })();
 
 const kit = { status: IN_KIT ? 'unavailable' : 'idle', error: '', file: '', size: 0, version: '', builtAt: 0 };
 let job = null;

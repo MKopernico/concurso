@@ -95,6 +95,17 @@ function extract(file, dest) {
     const r = (await api(`/games/${g.id}/rounds`, { method: 'POST', body: { name: 'R', type: 'imagen_fija' } })).data;
     await api(`/rounds/${r.id}/questions`, { method: 'POST', body: { content: { image: up.url } } });
 
+    // App empaquetada del kit (GAMESHOW_TEST_APP): no monta kits, solo lo dice
+    if (process.env.GAMESHOW_TEST_APP) {
+        const un = (await api('/kit/status')).data;
+        const unOff = await api('/games/' + g.id + '/offline-kit', { method: 'POST' });
+        check('app del kit: kit y juego offline «no disponibles» (sin error)', un.status === 'unavailable' && unOff.status === 503 && unOff.data.status === 'unavailable', un);
+        server.kill();
+        const failed = results.filter(x => !x).length;
+        console.log(`\n${results.length - failed}/${results.length} pruebas superadas`);
+        process.exit(failed ? 1 : 0);
+    }
+
     // ── Kit: se prepara bajo demanda (en local) y se consulta hasta que está listo
     const early = await api('/games/' + g.id + '/offline-kit', { method: 'POST' });
     check('juego offline con el kit sin preparar → 503 con estado', early.status === 503 && ['building', 'idle', 'ready'].includes(early.data.status), early.data);
