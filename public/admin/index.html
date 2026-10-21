@@ -74,6 +74,18 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .modal h2 { font-size: 18px; margin-bottom: 20px; color: var(--accent); }
 .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 
+/* Descargas */
+.dl-list { display: flex; flex-direction: column; gap: 10px; }
+.dl-item { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; text-decoration: none; color: var(--text); transition: border-color .15s; }
+.dl-item:hover { border-color: var(--accent); }
+.dl-item.disabled { opacity: .6; cursor: default; }
+.dl-item.disabled:hover { border-color: var(--border); }
+.dl-icon { font-size: 26px; line-height: 1; }
+.dl-text strong { display: block; font-size: 14px; margin-bottom: 3px; }
+.dl-text small { display: block; font-size: 12px; color: var(--text2); line-height: 1.4; }
+.dl-text small.dl-status { margin-top: 6px; color: var(--accent); }
+.dl-text small.dl-status.error { color: var(--danger, #e53935); }
+
 /* Toast */
 #toast { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 500; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
 .toast-msg { background: rgba(30,30,30,.92); border: 1px solid var(--border); padding: 18px 32px; border-radius: 10px; font-size: 17px; max-width: 520px; text-align: center; color: #fff; opacity: 0; transform: translateY(10px); animation: toastIn .3s forwards; pointer-events: none; }
@@ -199,8 +211,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
         <div class="toolbar">
             <button class="btn-primary" onclick="openGameModal()">+ Nuevo juego</button>
             <label class="btn-ghost btn-sm" style="cursor:pointer; display:inline-flex; margin:0; text-transform:none; letter-spacing:0; font-size:12px; color:var(--text)" title="Crear un juego a partir de una exportación .zip (con imágenes, vídeos y audio)">📦 Importar juego (.zip)<input type="file" accept=".zip,application/zip" style="display:none" onchange="importGameZip(this)"></label>
-            <a class="btn-ghost btn-sm" href="/api/templates/importacion" download style="text-decoration:none" title="Excel vacío con una pestaña por tipo de prueba, para rellenar e importar en un juego">📄 Plantilla Excel</a>
-            <a class="btn-ghost btn-sm" href="/api/templates/importacion?ejemplo=1" download style="text-decoration:none" title="La misma plantilla con una pregunta de ejemplo de cada tipo, lista para importar y probar">📗 Plantilla con ejemplos</a>
+            <button class="btn-ghost btn-sm" onclick="openDownloadsModal()" title="Plantillas Excel y kit offline para Windows">⬇ Descargas</button>
             <div class="toolbar-right">
                 <div class="filter-tabs" id="status-filter">
                     <button class="filter-tab active" data-val="">Todos</button>
@@ -220,7 +231,8 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
             <button class="btn-primary" onclick="openRoundModal()">+ Nueva ronda</button>
             <button class="btn-ghost btn-sm" onclick="openImportModal()">📥 Importar Excel</button>
             <button class="btn-ghost btn-sm" onclick="window.location='/api/games/'+currentGame.id+'/export-excel'">📤 Exportar Excel</button>
-            <a class="btn-ghost btn-sm" href="/api/templates/importacion" download style="text-decoration:none" title="Excel vacío con una pestaña por tipo de prueba">📄 Plantilla Excel</a>
+            <button class="btn-ghost btn-sm" onclick="openDownloadsModal()" title="Plantillas Excel y kit offline para Windows">⬇ Descargas</button>
+            <button class="btn-ghost btn-sm" onclick="openOfflineModal(currentGame.id)" title="Kit para Windows con este juego ya cargado, para jugar sin internet">💾 Juego offline</button>
             <button class="btn-ghost btn-sm" id="btnToggleSelectRounds" onclick="toggleRoundSelectMode()" style="display:none">☑ Seleccionar</button>
             <button class="btn-ghost btn-sm" id="btnDeleteSelectedRounds" onclick="deleteSelectedRounds()" style="display:none; color:var(--danger, #e53935)">🗑️ Eliminar seleccionadas</button>
             <div class="toolbar-right">
@@ -286,6 +298,53 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 <button type="submit" class="btn-primary">Guardar</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- ============ MODAL: Descargas ============ -->
+<div id="modal-downloads-overlay" class="modal-overlay">
+    <div class="modal" style="max-width:520px;">
+        <h2>Descargas</h2>
+        <div class="dl-list">
+            <a class="dl-item" href="/api/templates/importacion" download>
+                <span class="dl-icon">&#128196;</span>
+                <span class="dl-text"><strong>Plantilla Excel en blanco</strong><small>Una pestaña por tipo de prueba, para rellenar e importar en un juego.</small></span>
+            </a>
+            <a class="dl-item" href="/api/templates/importacion?ejemplo=1" download>
+                <span class="dl-icon">&#128215;</span>
+                <span class="dl-text"><strong>Plantilla con ejemplos</strong><small>La misma con una pregunta de ejemplo de cada tipo, lista para importar y probar.</small></span>
+            </a>
+            <a class="dl-item" id="dl-kit" href="/api/kit/download" onclick="return kitDownloadClick(event)">
+                <span class="dl-icon">&#128187;</span>
+                <span class="dl-text"><strong>Kit offline para Windows</strong><small>Para jugar sin internet: este ordenador hace de servidor y los iPads se conectan por WiFi. Descomprime el zip y abre ARRANCAR.bat (instrucciones en LEEME.txt).</small><small class="dl-status" id="dl-kit-status">Comprobando…</small></span>
+            </a>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-ghost" onclick="closeDownloadsModal()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============ MODAL: Juego offline ============ -->
+<div id="modal-offline-overlay" class="modal-overlay">
+    <div class="modal" style="max-width:520px;">
+        <h2>Juego offline</h2>
+        <p style="color:var(--text2); font-size:13px; line-height:1.5; margin-bottom:14px">
+            Descarga el kit offline para Windows con <strong id="offline-game-name" style="color:var(--text)"></strong> ya cargado. Es la forma más sencilla de jugar sin internet.
+        </p>
+        <div class="dl-item disabled" style="cursor:default">
+            <span class="dl-icon">&#128190;</span>
+            <span class="dl-text"><strong id="offline-title">Preparando la descarga…</strong><small class="dl-status" id="offline-status">Unos segundos.</small></span>
+        </div>
+        <ol style="color:var(--text2); font-size:13px; line-height:1.6; margin:16px 0 0 18px">
+            <li>Cuando termine la descarga, <strong style="color:var(--text)">descomprime</strong> el zip (botón derecho → «Extraer todo»).</li>
+            <li>Abre la carpeta y haz doble clic en <strong style="color:var(--text)">ARRANCAR.bat</strong>. Si Windows avisa, pulsa «Más información» → «Ejecutar de todas formas».</li>
+            <li>La primera vez pide una contraseña para el backoffice y el coordinador, y carga el juego solo.</li>
+        </ol>
+        <p style="color:var(--text2); font-size:12px; margin-top:10px">Si ya tienes el kit en ese ordenador, es más rápido usar 📦 (exportar juego) e importarlo allí.</p>
+        <div class="modal-footer">
+            <button type="button" class="btn-ghost" onclick="closeOfflineModal()">Cerrar</button>
+        </div>
     </div>
 </div>
 
@@ -668,6 +727,102 @@ async function savePassword(e) {
     return false;
 }
 
+// ─────────────────── DESCARGAS ───────────────────
+// El kit se monta en el servidor (en Render, al desplegar): mientras no está listo se consulta cada 5 s.
+
+let kitPoll = null;
+let kitReady = false;
+
+function openDownloadsModal() {
+    openModal('modal-downloads-overlay');
+    refreshKitStatus();
+}
+
+function closeDownloadsModal() {
+    closeModal('modal-downloads-overlay');
+    clearTimeout(kitPoll);
+}
+
+async function refreshKitStatus() {
+    clearTimeout(kitPoll);
+    const item = document.getElementById('dl-kit');
+    const st = document.getElementById('dl-kit-status');
+    let s;
+    try { s = await api('/kit/status'); }
+    catch (e) { s = { status: 'error', error: 'No se pudo consultar el estado del kit' }; }
+    kitReady = s.status === 'ready';
+    item.classList.toggle('disabled', !kitReady);
+    st.classList.toggle('error', s.status === 'error' || s.status === 'unavailable');
+    if (kitReady) {
+        st.textContent = `Listo · ${s.sizeMb} MB` + (s.version ? ` · versión ${s.version.split(' · ')[0]}` : '');
+    } else if (s.status === 'error') {
+        st.textContent = 'No se pudo preparar: ' + s.error + ' (se reintenta solo)';
+    } else if (s.status === 'unavailable') {
+        st.textContent = s.error;
+        return;
+    } else {
+        st.textContent = 'Preparando el kit con la última versión… (1-2 minutos)';
+    }
+    if (!kitReady && document.getElementById('modal-downloads-overlay').classList.contains('active')) {
+        kitPoll = setTimeout(refreshKitStatus, s.status === 'error' ? 15000 : 5000);
+    }
+}
+
+// Juego offline: el servidor añade el juego al kit (segundos) y devuelve la URL de descarga.
+// Si el kit aún se está preparando (recién desplegado), se espera y se reintenta solo.
+let offlineRun = 0;
+let offlinePoll = null;
+
+function openOfflineModal(gameId) {
+    const g = (games || []).find(x => x.id === gameId) || (currentGame && currentGame.id === gameId ? currentGame : null);
+    document.getElementById('offline-game-name').textContent = g ? '«' + g.name + '»' : 'este juego';
+    openModal('modal-offline-overlay');
+    prepareOffline(gameId, ++offlineRun);
+}
+
+function closeOfflineModal() {
+    offlineRun++;
+    clearTimeout(offlinePoll);
+    closeModal('modal-offline-overlay');
+}
+
+function setOfflineStatus(title, status, isError) {
+    document.getElementById('offline-title').textContent = title;
+    const st = document.getElementById('offline-status');
+    st.textContent = status;
+    st.classList.toggle('error', !!isError);
+}
+
+async function prepareOffline(gameId, run) {
+    clearTimeout(offlinePoll);
+    setOfflineStatus('Preparando la descarga…', 'Unos segundos.');
+    try {
+        const r = await api('/games/' + gameId + '/offline-kit', { method: 'POST' });
+        if (run !== offlineRun) return;
+        setOfflineStatus(`Descargando · ${r.sizeMb} MB`, 'Mira el progreso en las descargas del navegador. Si se corta, puedes reanudarla desde allí.'
+            + (r.missing ? ` Ojo: faltan ${r.missing} archivo(s) del juego en el servidor.` : ''));
+        window.location.href = r.url;
+    } catch (e) {
+        if (run !== offlineRun) return;
+        const s = e.data || {};
+        if (s.status === 'building' || s.status === 'idle') {
+            setOfflineStatus('Preparando el kit con la última versión…', 'Pasa tras cada actualización y tarda 1-2 minutos. La descarga empezará sola.');
+            offlinePoll = setTimeout(() => prepareOffline(gameId, run), 5000);
+        } else if (s.status === 'error') {
+            setOfflineStatus('El kit no está disponible', s.error + ' Se reintenta solo.', true);
+            offlinePoll = setTimeout(() => prepareOffline(gameId, run), 15000);
+        } else {
+            setOfflineStatus('No se pudo preparar', s.error || e.message, true);
+        }
+    }
+}
+
+function kitDownloadClick(e) {
+    if (!kitReady) { e.preventDefault(); return false; }
+    toast('Descargando el kit: mira el progreso en las descargas del navegador');
+    return true;
+}
+
 // ─────────────────── GAMES ───────────────────
 
 async function loadGames() {
@@ -697,6 +852,7 @@ function renderGames() {
                     <button class="btn-icon" onclick="openGameModal(${JSON.stringify(g).replace(/"/g,'&quot;')})" title="Editar">✏️</button>
                     <button class="btn-icon" onclick="duplicateGame('${g.id}')" title="Duplicar">📋</button>
                     <button class="btn-icon" onclick="exportGameZip('${g.id}')" title="Exportar juego completo (.zip con imágenes, vídeos y audio)">📦</button>
+                    <button class="btn-icon" onclick="openOfflineModal('${g.id}')" title="Juego offline: kit para Windows con este juego ya cargado">💾</button>
                     ${g.id !== 'default' ? `<button class="btn-icon" onclick="deleteGame('${g.id}')" title="Eliminar">🗑️</button>` : ''}
                 </div>
             </div>

@@ -61,6 +61,40 @@ function writeSettings(s) {
     fs.writeFileSync(SETTINGS, body, 'utf8');
 }
 
+// Juegos que vienen con el kit («Juego offline» del backoffice) o que se dejan en datos\importar:
+// se importan al arrancar con la misma ruta que el botón «Importar juego (.zip)» y se apartan a
+// datos\importar\importados para no repetirlos.
+async function importPending(port, password) {
+    const dir = path.join(DATA_DIR, 'importar');
+    if (!fs.existsSync(dir)) return;
+    const zips = fs.readdirSync(dir).filter(f => /\.zip$/i.test(f) && fs.statSync(path.join(dir, f)).isFile());
+    if (!zips.length) return;
+    const base = `http://127.0.0.1:${port}`;
+    const login = await fetch(base + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
+    const cookie = (login.headers.get('set-cookie') || '').split(';')[0];
+    if (!login.ok || !cookie) { line('  No se pudieron cargar los juegos de datos\\importar (fallo al entrar).'); return; }
+    const done = path.join(dir, 'importados');
+    for (const f of zips) {
+        const file = path.join(dir, f);
+        line(`  Cargando el juego ${f}…`);
+        try {
+            const form = new FormData();
+            form.append('file', new Blob([fs.readFileSync(file)]), f);
+            const res = await fetch(base + '/api/games/import-zip', { method: 'POST', headers: { cookie }, body: form });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'error ' + res.status);
+            fs.mkdirSync(done, { recursive: true });
+            let target = path.join(done, f);
+            if (fs.existsSync(target)) target = path.join(done, Date.now() + '-' + f);
+            fs.renameSync(file, target);
+            line(`  ✔ Juego «${data.name}» cargado: ya está en el backoffice.`);
+        } catch (err) {
+            line(`  ✘ No se pudo cargar ${f}: ${err.message}`);
+            line('    Puedes importarlo a mano desde el backoffice: «📦 Importar juego (.zip)».');
+        }
+    }
+}
+
 function portFree(port) {
     return new Promise(resolve => {
         const srv = net.createServer().once('error', () => resolve(false)).once('listening', () => srv.close(() => resolve(true)));
@@ -130,6 +164,7 @@ async function main() {
     require(path.join(APP_DIR, 'server.js'));
 
     await waitReady(port);
+    await importPending(port, settings.ADMIN_PASSWORD).catch(err => line('  No se pudieron cargar los juegos de datos\\importar: ' + err.message));
     const ips = localIps();
     const main = ips[0];
     line('');

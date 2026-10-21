@@ -20,7 +20,7 @@ function check(name, ok, info) { report.push({ name, ok: !!ok }); console.log((o
 function stats(arr) { const a = arr.slice().sort((x, y) => x - y); const p = (q) => a[Math.min(a.length - 1, Math.floor(q * a.length))]; return `p50 ${p(0.5)} ms · p95 ${p(0.95)} ms · máx ${a[a.length - 1]} ms`; }
 
 async function startServer() {
-    server = spawn(process.execPath, ['server.js'], { cwd: REPO, env: { ...process.env, PORT: String(PORT), GAMESHOW_DATA_DIR: DATA, ADMIN_PASSWORD: PW }, stdio: ['ignore', 'pipe', 'pipe'] });
+    server = spawn(process.execPath, ['server.js'], { cwd: process.env.GAMESHOW_TEST_APP || REPO, env: { ...process.env, PORT: String(PORT), GAMESHOW_DATA_DIR: DATA, ADMIN_PASSWORD: PW }, stdio: ['ignore', 'pipe', 'pipe'] });
     server.stderr.on('data', d => { const s = String(d); if (!/ExperimentalWarning/.test(s)) process.stdout.write('[srv-err] ' + s); });
     for (let i = 0; i < 50; i++) { try { if ((await fetch(B + '/ping')).ok) return; } catch {} await wait(200); }
     throw new Error('no arrancó');

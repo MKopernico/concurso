@@ -16,6 +16,9 @@ El usuario no programa: Claude programa, prueba y **pregunta siempre antes de su
 - Vistas: `public/admin` (backoffice), `public/director` (+ `chaos.html`, reproductor de música), `public/play` (iPads, PWA con `sw.js`), `public/screen` (proyector), `public/login`, `public/manual`, `public/kit`.
 - `public/shared/` — `asset-preloader.js` (precarga verificada), `media-sw-core.js` / `media-sw.js` (service workers de contenido, con respuestas 206), `staff-session.js`, `question-validation.js` (compartido servidor/cliente), `roulette-panel.js`, `gameshow-transitions.js`.
 - `kit/` + `tools/build-kit.js` — kit offline para Windows (genera `../GameShow-Offline` con node portátil; nunca toca `datos/`).
+  - `kit/assemble.js` monta el kit: la app **empaquetada con esbuild** en `app/server.js` (con `node_modules` completo eran 4.300 archivos y descomprimir tardaba +3 min; así son ~100 y 5 s) + `public/`, `db/schema.sql`, `socket.io/client-dist`, better-sqlite3 tal cual y `node/node.exe`. Un plugin reescribe `__dirname` de cada módulo a su carpeta original dentro de `app/`. Fuera de Windows (Render) descarga `node.exe` (verificado con SHASUMS256 de nodejs.org) y el binario de better-sqlite3 para Windows de sus releases de GitHub (`KIT_NODE` fija versión y ABI).
+  - `routes/kit.js`: **⬇ Descargas › Kit offline** (`/api/kit/status`, `/api/kit/download`) y **💾 Juego offline** (`POST /api/games/:id/offline-kit` → `/api/offline-kit/<token>`, 3 h). El zip vive en `<datos>/kit-cache` (en Render, el disco); en Render se monta solo al arrancar (`RENDER`), en local al pedirlo; se reutiliza mientras no cambie la huella del código. El juego se añade al zip del kit sin recomprimir (`appendStoredFile`) en `datos/importar/`, y `kit/start.js` importa al arrancar lo que haya ahí (lo aparta a `importados/`).
+- Portada: `/login/` (contraseña + «Soy jugador» → `/play/`) y, con sesión, `/` con «Soy coordinador» y «Backoffice».
 
 ## Modelo de acceso (no romperlo)
 
@@ -62,12 +65,14 @@ node tools/tests/test-loteD-recuperar.js # 10 (pasar un equipo a otro iPad con c
 node tools/tests/test-loteE-sinpantalla.js # 9 (modo sin pantalla y dónde suena: backoffice, coordinador, vista incrustada)
 node tools/tests/test-abierta.js   # 46 (Respuesta abierta: pasos, borrador, corrección, puntos y bonus, revelado, rectificar, cuenta atrás, Excel)
 node tools/tests/test-loteF-informe.js  # 17 (resultados por equipo en pulsador; «Mostrar respuesta» de aclara; plantilla Excel con ejemplos; Precio vacío = incompleto)
+node tools/tests/test-kit.js       # 26 (portada/acceso, kit y juego offline: descarga, rangos, CRC, y arranca el kit descargado con su node.exe)
 node tools/tests/load-test.js 50   # N iPads simulados: entrada, respuestas, pulsador, bonos, reconexión masiva
 node tools/tests/soak-test.js 15   # resistencia: partida larga (minutos) con los 10 tipos; memoria, temporizadores, latencias, marcador
 node tools/tests/chaos-test.js 10  # red caótica: cortes al azar, zombis, retraso; puntos, equipos y errores
 ```
 Las dos últimas usan `tools/tests/sim-common.js` (iPad y coordinador simulados) y `tools/tests/probe.js` (mide el servidor por dentro vía IPC); dejan el detalle en `tmp/pruebas/*.json`.
 Cada script arranca su propio servidor (puertos 3200-3400) con BD temporal; no tocan datos reales.
+Con `GAMESHOW_TEST_APP=<kit>/app` todos los scripts prueban la app empaquetada del kit en vez del repo.
 Para ver cambios visuales: servidor de desarrollo con `.claude/launch.json` (puerto 3000) y el navegador integrado.
 La contraseña local de desarrollo está en `.env` (no se sube).
 
@@ -76,7 +81,8 @@ La contraseña local de desarrollo está en `.env` (no se sube).
 - Rama de trabajo → tag de seguridad (`git tag -a v-antes-…`) → pruebas → **preguntar al usuario** → merge a `main` y push. Render despliega solo.
 - Producción: https://concurso-cf82.onrender.com. Comprobar tras subir: `/ping`, `/admin/` redirige a `/login/`, versión del SW en `/play/sw.js`.
 - No usar la contraseña de producción (no la tenemos ni debemos pedirla).
-- Tras cambios, regenerar el kit: `node tools/build-kit.js` (con el kit cerrado; si está abierto se detiene sin romper nada).
+- Tras cambios, regenerar el kit: `node tools/build-kit.js` (con el kit cerrado; si está abierto se detiene sin romper nada). `node tools/build-kit.js --zip <archivo>` hace el mismo zip que se descarga del backoffice.
+- El kit descargable de Render se rehace solo al desplegar (1-2 min tras arrancar). Sin la contraseña de producción no se puede comprobar desde aquí: lo mira el usuario en «⬇ Descargas» (debe decir «Listo» con la versión del commit subido).
 
 ## Trampas conocidas
 
@@ -86,7 +92,8 @@ La contraseña local de desarrollo está en `.env` (no se sube).
 - Muchos HTML usan **saltos de línea CRLF**: editar con la herramienta Edit o scripts que preserven CRLF. Las barras invertidas en heredocs de Bash se pierden: escribir los scripts a archivo.
 - En el kit se entra por `http://IP`: **sin service worker, Cache Storage, portapapeles ni micrófono**. La precarga usa entonces la caché HTTP (`cache: 'no-cache'`).
 - Windows marca las redes nuevas como "Pública" y el firewall bloquea a los iPads: el kit avisa al arrancar.
-- `better-sqlite3` es nativo: el kit copia el mismo `node.exe` con el que se compiló (Node 24, x64). No hay Visual Studio C++ en el equipo.
+- `better-sqlite3` es nativo: el kit lleva `node.exe` y el binario precompilado de la misma versión de Node (`KIT_NODE` en `kit/assemble.js`; al cambiarla, actualizar también `abi`). No hay Visual Studio C++ en el equipo.
+- Código nuevo en el servidor que lea archivos con rutas relativas a `__dirname` funciona en el kit gracias al plugin, pero el archivo tiene que estar en `RUNTIME_DIRS`/`RUNTIME_FILES` de `kit/assemble.js`. Un `require` dinámico (con variable) no se empaqueta. `test-kit.js` y los tests con `GAMESHOW_TEST_APP` lo detectan.
 - `publicView` (con soluciones) solo va a coordinadores; no emitir estado completo a `roomOf(gameId)`.
 
 ## Documentación

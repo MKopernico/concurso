@@ -38,9 +38,10 @@ function resolveUpload(url) {
 
 // ───────────────── Exportar ─────────────────
 
-router.get('/games/:id/export-zip', (req, res) => {
-    const game = db.prepare('SELECT * FROM games WHERE id = ?').get(req.params.id);
-    if (!game) return res.status(404).json({ error: 'juego no encontrado' });
+// Reúne lo que va en el .zip de un juego (o null si no existe). También lo usa el «juego offline» (routes/kit.js).
+function collectGameExport(gameId) {
+    const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId);
+    if (!game) return null;
 
     const rounds = db.prepare('SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order, id').all(game.id).map(r => ({
         name: r.name, type: r.type, sort_order: r.sort_order, config: r.config,
@@ -64,15 +65,25 @@ router.get('/games/:id/export-zip', (req, res) => {
         game: { name: game.name, date: game.date, status: game.status, note: game.note, theme: game.theme, access_code: game.access_code },
         rounds, files, missing,
     };
+    return { game, manifest, entries, fileName: sanitizeName(game.name).base + '.gameshow.zip' };
+}
 
-    res.attachment(sanitizeName(game.name).base + '.gameshow.zip');
+// Escribe el .zip del juego en `out` (respuesta HTTP o archivo). Devuelve el archivador para escuchar errores.
+function writeGameZip({ manifest, entries }, out) {
     const zip = archiver('zip', { zlib: { level: 6 } });
     zip.on('warning', (err) => console.warn('[export-zip]', err.message));
-    zip.on('error', (err) => { console.error('[export-zip]', err); res.destroy(err); });
-    zip.pipe(res);
+    zip.pipe(out);
     zip.append(JSON.stringify(manifest, null, 2), { name: 'game.json' });
     for (const [entry, abs] of Object.entries(entries)) zip.file(abs, { name: entry, store: ALREADY_COMPRESSED.test(entry) });
     zip.finalize();
+    return zip;
+}
+
+router.get('/games/:id/export-zip', (req, res) => {
+    const exp = collectGameExport(req.params.id);
+    if (!exp) return res.status(404).json({ error: 'juego no encontrado' });
+    res.attachment(exp.fileName);
+    writeGameZip(exp, res).on('error', (err) => { console.error('[export-zip]', err); res.destroy(err); });
 });
 
 // ───────────────── Importar ─────────────────
@@ -268,3 +279,4 @@ router.post('/games/import-zip', zipUpload.single('file'), async (req, res) => {
 });
 
 module.exports = router;
+module.exports.helpers = { collectGameExport, writeGameZip };

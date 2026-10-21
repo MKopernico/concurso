@@ -21,6 +21,7 @@ const apiRoutes = require('./routes/games');
 const uploadRoutes = require('./routes/uploads');
 const authRoutes = require('./routes/auth');
 const transferRoutes = require('./routes/transfer');
+const kitRoutes = require('./routes/kit');
 const auth = require('./auth');
 const { attachSocketHandlers } = require('./sockets/game');
 
@@ -39,6 +40,7 @@ app.use('/api', auth.requireStaffApi);
 app.use('/api', authRoutes);
 app.use('/api', apiRoutes);
 app.use('/api', transferRoutes); // exportar/importar juego completo (.zip)
+app.use('/api', kitRoutes.router); // kit offline descargable (⬇ Descargas del backoffice)
 app.use('/api', uploadRoutes);
 
 // Health-check para keepalive en Render (los WebSockets no cuentan como tráfico HTTP).
@@ -88,6 +90,7 @@ process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', 
 const port = process.env.PORT || 3000;
 const listener = server.listen(port, '0.0.0.0', () => {
     console.log('🚀 GameShow ON · puerto', listener.address().port, '· uploads:', UPLOADS_DIR);
+    kitRoutes.prepareInBackground();
     if (!auth.isConfigured()) console.warn('⚠️  Sin contraseña: define ADMIN_PASSWORD para poder entrar al backoffice/coordinador.');
 });
 listener.on('error', (e) => {

@@ -22,7 +22,11 @@ ANTES DEL EVENTO
 
 ARRANCAR
 --------
+0. Si lo has descargado como .zip, descomprímelo primero (botón derecho >
+   "Extraer todo"). Desde dentro del zip no funciona.
 1. Doble clic en ARRANCAR.bat
+   Si Windows muestra un aviso azul ("Windows protegió su PC"), pulsa
+   "Más información" > "Ejecutar de todas formas".
 2. La primera vez te pedirá una contraseña para el backoffice y el
    coordinador (mínimo 8 caracteres). Apúntala.
 3. La primera vez Windows preguntará si permite el acceso a la red a
@@ -36,9 +40,15 @@ ARRANCAR
 
 LLEVAR UN JUEGO DE ONLINE A OFFLINE
 -----------------------------------
-1. En el backoffice online, pulsa 📦 en el juego: se descarga un .zip.
-2. En el backoffice del kit: "📦 Importar juego (.zip)".
-Para el camino contrario (offline -> online), igual pero al revés.
+- Lo más sencillo: en el backoffice online, pulsa 💾 ("Juego offline") en
+  el juego. Se descarga el kit con el juego dentro (en datos\importar) y
+  se carga solo la primera vez que arrancas.
+- Si ya tienes el kit en este ordenador:
+  1. En el backoffice online, pulsa 📦 en el juego: se descarga un .zip.
+  2. En el backoffice del kit: "📦 Importar juego (.zip)".
+     (O deja el .zip en datos\importar y vuelve a arrancar: se carga solo.)
+Para el camino contrario (offline -> online), 📦 en el kit e "Importar
+juego (.zip)" en el backoffice online.
 
 
 DÓNDE ESTÁN LOS DATOS

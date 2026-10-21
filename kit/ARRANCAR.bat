@@ -3,7 +3,12 @@ chcp 65001 >nul
 title GameShow - servidor offline (no cerrar)
 cd /d "%~dp0"
 if not exist "node\node.exe" (
-    echo No se encuentra node\node.exe. El kit esta incompleto.
+    echo No se encuentra node\node.exe.
+    echo.
+    echo Si has abierto ARRANCAR.bat desde dentro del .zip, primero descomprimelo:
+    echo boton derecho sobre el .zip ^> "Extraer todo", y abre ARRANCAR.bat en la carpeta extraida.
+    echo.
+    echo Si ya estaba descomprimido, el kit esta incompleto: vuelve a descargarlo.
     pause
     exit /b 1
 )

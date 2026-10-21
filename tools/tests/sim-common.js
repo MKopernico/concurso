@@ -42,7 +42,7 @@ class TestServer {
     async start() {
         fs.rmSync(this.DATA, { recursive: true, force: true });
         this.proc = spawn(process.execPath, ['--expose-gc', '--require', path.join(__dirname, 'probe.js'), 'server.js'], {
-            cwd: REPO,
+            cwd: process.env.GAMESHOW_TEST_APP || REPO,
             env: { ...process.env, PORT: String(this.port), GAMESHOW_DATA_DIR: this.DATA, ADMIN_PASSWORD: this.PW },
             stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
         });

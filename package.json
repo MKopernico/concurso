@@ -10,6 +10,7 @@
   "dependencies": {
     "archiver": "^7.0.1",
     "better-sqlite3": "^12.10.0",
+    "esbuild": "0.28.2",
     "express": "^4.21.0",
     "image-size": "^2.0.2",
     "multer": "^2.1.1",

@@ -1,24 +1,21 @@
 // Monta (o actualiza) la carpeta del kit offline de GameShow.
 //
 //   node tools/build-kit.js [carpeta-destino]
+//   node tools/build-kit.js --zip <archivo.zip>     (el mismo zip que se descarga desde el backoffice)
 //
 // Por defecto: ../GameShow-Offline (junto a la carpeta del repo).
-// - Copia la app (sin .git, .env, BD ni archivos de desarrollo) a <destino>/app
-// - Copia este mismo node.exe a <destino>/node: better-sqlite3 está compilado para esta
-//   versión de Node, así que hay que lanzar el script con el mismo Node del proyecto.
-// - Escribe ARRANCAR.bat y LEEME.txt
+// - app/ y node/ se reemplazan enteras (contenido en kit/assemble.js: app empaquetada en pocos archivos)
+// - Si este Node es el del kit (KIT_NODE) en Windows, usa su node.exe y su better-sqlite3;
+//   si no, los descarga (y los guarda en la carpeta temporal del sistema para la próxima vez).
 // - NUNCA toca <destino>/datos (juegos, archivos y ajustes): actualizar el kit es seguro.
 
 const path = require('path');
 const fs = require('fs');
+const assemble = require('../kit/assemble');
 
 const REPO = path.resolve(__dirname, '..');
-const DEST = path.resolve(process.argv[2] || path.join(REPO, '..', 'GameShow-Offline'));
-const APP = path.join(DEST, 'app');
-
-const INCLUDE = ['server.js', 'auth.js', 'paths.js', 'package.json', 'db', 'routes', 'sockets', 'public', 'templates', 'kit', 'node_modules'];
-// Dentro de lo incluido, no copiar datos de desarrollo
-const SKIP = [/^db[\\/].*\.db(-wal|-shm)?$/i];
+const args = process.argv.slice(2);
+const log = (s) => console.log('  ' + s);
 
 function dirSize(p) {
     let total = 0;
@@ -29,61 +26,52 @@ function dirSize(p) {
     return total;
 }
 
-function toCrlf(text) { return text.replace(/\r?\n/g, '\r\n'); }
+async function buildZip(zipFile) {
+    const dest = path.resolve(zipFile);
+    console.log('Kit offline (zip) → ' + dest);
+    const entries = await assemble.kitEntries({ cacheDir: assemble.defaultCacheDir(), log });
+    await assemble.writeZip(entries, dest);
+    console.log(`  ${entries.length} archivos · ${(fs.statSync(dest).size / 1048576).toFixed(1)} MB`);
+}
 
-console.log('Kit offline → ' + DEST);
-fs.mkdirSync(DEST, { recursive: true });
+async function buildFolder(destArg) {
+    const DEST = path.resolve(destArg || path.join(REPO, '..', 'GameShow-Offline'));
+    const APP = path.join(DEST, 'app');
+    const NODE = path.join(DEST, 'node');
+    console.log('Kit offline → ' + DEST);
 
-// 1. App (se reemplaza entera)
-// Si el kit está en marcha, Windows no deja tocar sus archivos: se comprueba moviendo la app
-// actual a un lado ANTES de borrar nada (si falla, el kit queda intacto).
-const OLD = APP + '.old';
-if (fs.existsSync(OLD)) fs.rmSync(OLD, { recursive: true, force: true });
-if (fs.existsSync(APP)) {
-    try { fs.renameSync(APP, OLD); }
-    catch (e) {
-        console.error('\nNo se puede actualizar: el kit parece estar en marcha (' + e.code + ').');
-        console.error('Cierra GameShow (la ventana negra del kit) y vuelve a ejecutar este script.');
-        process.exit(1);
+    // Se prepara todo antes de tocar la carpeta (si falla una descarga, el kit queda como estaba)
+    const entries = await assemble.kitEntries({ cacheDir: assemble.defaultCacheDir(), log });
+    fs.mkdirSync(DEST, { recursive: true });
+
+    // Si el kit está en marcha, Windows no deja tocar sus archivos: se comprueba moviendo app/ y node/
+    // a un lado ANTES de borrar nada (si falla, el kit queda intacto).
+    const moved = [];
+    for (const dir of [APP, NODE]) {
+        const old = dir + '.old';
+        if (fs.existsSync(old)) fs.rmSync(old, { recursive: true, force: true });
+        if (!fs.existsSync(dir)) continue;
+        try { fs.renameSync(dir, old); moved.push(dir); }
+        catch (e) {
+            for (const d of moved) fs.renameSync(d + '.old', d);
+            console.error('\nNo se puede actualizar: el kit parece estar en marcha (' + e.code + ').');
+            console.error('Cierra GameShow (la ventana negra del kit) y vuelve a ejecutar este script.');
+            process.exit(1);
+        }
     }
-}
-for (const item of INCLUDE) {
-    const src = path.join(REPO, item);
-    if (!fs.existsSync(src)) { console.warn('  (no existe, se omite) ' + item); continue; }
-    fs.cpSync(src, path.join(APP, item), {
-        recursive: true,
-        filter: (s) => !SKIP.some(re => re.test(path.relative(REPO, s))),
-    });
-}
-console.log('  app/ copiada');
+    try { await assemble.writeFolder(entries, DEST); }
+    catch (e) {
+        for (const dir of [APP, NODE]) fs.rmSync(dir, { recursive: true, force: true });
+        for (const d of moved) fs.renameSync(d + '.old', d);
+        throw new Error(e.message + ' (se ha dejado el kit como estaba)');
+    }
+    for (const d of moved) fs.rmSync(d + '.old', { recursive: true, force: true });
+    log(`app/ y node/ (${entries.length} archivos) · ARRANCAR.bat, LEEME.txt, VERSION.txt`);
 
-// 2. Node portátil (el mismo que ejecuta este script)
-fs.mkdirSync(path.join(DEST, 'node'), { recursive: true });
-try { fs.copyFileSync(process.execPath, path.join(DEST, 'node', 'node.exe')); }
-catch (e) {
-    console.error('\nNo se puede copiar node.exe (' + e.code + '): ¿está el kit en marcha? Ciérralo y repite.');
-    if (fs.existsSync(OLD)) { fs.rmSync(APP, { recursive: true, force: true }); fs.renameSync(OLD, APP); console.error('Se ha dejado el kit como estaba.'); }
-    process.exit(1);
+    fs.mkdirSync(path.join(DEST, 'datos'), { recursive: true });
+    log('datos/ ' + (fs.readdirSync(path.join(DEST, 'datos')).length ? '(conservada)' : '(nueva, vacía)'));
+    console.log('Tamaño total: ' + (dirSize(DEST) / 1048576).toFixed(0) + ' MB');
 }
-if (fs.existsSync(OLD)) fs.rmSync(OLD, { recursive: true, force: true });
-console.log('  node/node.exe ' + process.version);
 
-// 3. Lanzador e instrucciones
-for (const f of ['ARRANCAR.bat', 'LEEME.txt']) {
-    fs.writeFileSync(path.join(DEST, f), toCrlf(fs.readFileSync(path.join(REPO, 'kit', f), 'utf8')), 'utf8');
-}
-// Versión del código con la que se generó (para comprobar de un vistazo si el kit está al día)
-let commit = '';
-try { commit = require('child_process').execSync('git log -1 --format="%h · %ad · %s" --date=format:"%d/%m/%Y %H:%M"', { cwd: REPO, encoding: 'utf8' }).trim(); } catch (e) {}
-fs.writeFileSync(path.join(DEST, 'VERSION.txt'), toCrlf([
-    'GameShow kit offline',
-    'Generado: ' + new Date().toLocaleString('es-ES'),
-    'Versión del código: ' + (commit || 'desconocida'),
-    'Node: ' + process.version,
-    '',
-].join('\n')));
-console.log('  ARRANCAR.bat, LEEME.txt, VERSION.txt');
-
-fs.mkdirSync(path.join(DEST, 'datos'), { recursive: true });
-console.log('  datos/ ' + (fs.readdirSync(path.join(DEST, 'datos')).length ? '(conservada)' : '(nueva, vacía)'));
-console.log('Tamaño total: ' + (dirSize(DEST) / 1048576).toFixed(0) + ' MB');
+(args[0] === '--zip' ? buildZip(args[1] || path.join(REPO, '..', 'GameShow-Offline.zip')) : buildFolder(args[0]))
+    .catch(err => { console.error('\nError montando el kit: ' + err.message); process.exit(1); });

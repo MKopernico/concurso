@@ -231,6 +231,7 @@
       <div id="s1-acceso"></div>
       <h3>Acceso y contraseña</h3>
       <p>El <strong>backoffice</strong> y el <strong>coordinador</strong> piden una <strong>contraseña general</strong> del equipo. Una vez dentro, el navegador recuerda la sesión mientras se use (caduca tras 12 horas sin actividad). Los iPads y la pantalla no piden contraseña: los iPads entran con el <strong>código del juego</strong> o escaneando el <strong>QR</strong>, y la pantalla es de solo lectura.</p>
+      <p>La dirección principal de la web abre la pantalla de acceso: la contraseña y el botón <strong>«🎮 Soy jugador»</strong> (por si algún equipo entra desde ahí en vez de con el QR). Al entrar con la contraseña aparecen dos botones del mismo tamaño: <strong>«Soy coordinador»</strong> (los juegos con partida en marcha, para abrir el coordinador o la pantalla de sala) y <strong>«Backoffice»</strong>.</p>
       <ul>
         <li><strong>Cambiar la contraseña:</strong> en el backoffice, botón <strong>🔑 Contraseña</strong>. Al cambiarla se cierra la sesión en el resto de dispositivos, incluidos los coordinadores abiertos.</li>
         <li><strong>Si se olvida:</strong> la contraseña configurada en el servidor funciona siempre como <strong>llave maestra</strong> (en Render, variable <code>ADMIN_PASSWORD</code>; en el kit sin internet, archivo <code>datos\ajustes.env</code>). Entras con ella y pones una nueva.</li>
@@ -243,7 +244,7 @@
       <div class="sec-head"><span class="sec-num">02</span><h2>Crear un juego de principio a fin</h2></div>
       <p>El backoffice es donde se construye todo el concurso. Se accede desde un ordenador en <code>/admin</code>. No hace falta instalar nada: funciona en el navegador.</p>
 
-      <figure class="shot"><a href="img/01-backoffice-lista-juegos.webp" target="_blank" rel="noopener"><img src="img/01-backoffice-lista-juegos.webp" alt="Lista de juegos en el backoffice" loading="lazy"></a><figcaption>El backoffice: la lista de juegos, con los botones de plantilla Excel arriba.</figcaption></figure>
+      <figure class="shot"><a href="img/01-backoffice-lista-juegos.webp" target="_blank" rel="noopener"><img src="img/01-backoffice-lista-juegos.webp" alt="Lista de juegos en el backoffice" loading="lazy"></a><figcaption>El backoffice: la lista de juegos, con «⬇ Descargas» arriba y los botones 📦 y 💾 en cada juego.</figcaption></figure>
 
       <h3>Cómo se organiza un juego</h3>
       <p>Un concurso tiene tres niveles, como muñecas rusas: <strong>un juego contiene rondas, y cada ronda contiene pruebas.</strong></p>
@@ -362,8 +363,8 @@
       <h3>Importar pruebas desde Excel</h3>
       <p>Para meter muchas preguntas de golpe se usa un Excel con <strong>una pestaña por tipo de prueba</strong>. Se descarga, se rellena y se sube con <strong>«📥 Importar Excel»</strong> dentro del juego. Hay tres puntos de partida:</p>
       <ul>
-        <li><strong>«📄 Plantilla Excel»</strong> (en la lista de juegos, en cada juego y en la ventana de importar): la plantilla vacía, con las columnas correctas y una hoja de instrucciones.</li>
-        <li><strong>«📗 Plantilla con ejemplos»</strong>: la misma con una pregunta de ejemplo de cada tipo. Se puede importar tal cual en un juego de pruebas para ver cómo queda cada cosa.</li>
+        <li><strong>«📄 Plantilla Excel en blanco»</strong> (en <strong>«⬇ Descargas»</strong>, en la lista de juegos y dentro de cada juego, y en la ventana de importar): la plantilla vacía, con las columnas correctas y una hoja de instrucciones.</li>
+        <li><strong>«📗 Plantilla con ejemplos»</strong> (en los mismos sitios): la misma con una pregunta de ejemplo de cada tipo. Se puede importar tal cual en un juego de pruebas para ver cómo queda cada cosa.</li>
         <li><strong>«📤 Exportar Excel»</strong> de un juego que ya tengas: sale en el mismo formato, así que sirve de base para otro parecido.</li>
       </ul>
       <p>Lo importante al importar:</p>
@@ -420,7 +421,7 @@
       <h3>Exportar e importar un juego completo</h3>
       <p>Cada juego tiene un botón <strong>📦</strong> en la lista del backoffice que descarga un <strong>.zip con todo</strong>: rondas, pruebas, tema y todas sus imágenes, vídeos y audios. Con <strong>«📦 Importar juego (.zip)»</strong> se crea un juego nuevo a partir de ese archivo. Sirve para:</p>
       <ul>
-        <li>Llevar un juego de la web al <strong>kit sin internet</strong> (y al revés).</li>
+        <li>Llevar un juego de la web al <strong>kit sin internet</strong> (y al revés). Si en ese ordenador aún no está el kit, es más cómodo el botón <strong>💾 Juego offline</strong>: descarga el kit con el juego ya dentro (ver «Jugar sin internet»).</li>
         <li>Guardar una <strong>copia de seguridad</strong> de un juego antes de tocarlo.</li>
         <li>Pasar un juego a un compañero.</li>
       </ul>
@@ -629,10 +630,17 @@
       <div id="s4-offline"></div>
       <h3>Jugar sin internet (kit offline)</h3>
       <p>Para sitios sin internet existe el <strong>kit offline</strong>: una carpeta que convierte un ordenador con Windows en el servidor del juego. Los iPads se conectan a él por la WiFi de un router (que no necesita tener internet).</p>
+      <p>Hay dos formas de conseguirlo, las dos en el backoffice de la web. Siempre sale con la última versión de GameShow:</p>
+      <ul>
+        <li><strong>💾 Juego offline</strong> (en cada juego de la lista y dentro del juego): el kit con ese juego <strong>ya cargado</strong>. Es lo más sencillo si el ordenador no tiene aún el kit. Tarda unos segundos en prepararse y luego se descarga (unos 40 MB más lo que ocupe el juego).</li>
+        <li><strong>⬇ Descargas › Kit offline para Windows</strong>: el kit vacío (unos 40 MB). Luego llevas los juegos con <strong>📦</strong> e «Importar juego (.zip)».</li>
+      </ul>
+      <p>Justo después de cada actualización de GameShow, el kit tarda 1-2 minutos en estar listo. La descarga espera y empieza sola.</p>
       <ol>
-        <li>Lleva el juego al kit: <strong>📦 exportar</strong> en la web e <strong>importar el .zip</strong> en el backoffice del kit.</li>
+        <li><strong>Descomprime</strong> el zip descargado (botón derecho › «Extraer todo»). Desde dentro del zip no funciona.</li>
+        <li>Si no usaste «Juego offline», lleva el juego al kit: <strong>📦 exportar</strong> en la web e <strong>importar el .zip</strong> en el backoffice del kit.</li>
         <li>Conecta el ordenador y los iPads al <strong>mismo router</strong> y marca esa red como <strong>«Privada»</strong> en Windows (Configuración › Red e Internet › Wi-Fi › tu red › Tipo de perfil de red). Si queda como «Pública», los iPads no conectan; la ventana del kit te avisa.</li>
-        <li>Doble clic en <strong>ARRANCAR.bat</strong>. La primera vez pide una contraseña y Windows pregunta por el acceso a la red: permite <strong>Redes privadas</strong>.</li>
+        <li>Doble clic en <strong>ARRANCAR.bat</strong> (si Windows muestra un aviso azul, «Más información» › «Ejecutar de todas formas»). La primera vez pide una contraseña y Windows pregunta por el acceso a la red: permite <strong>Redes privadas</strong>. Con «Juego offline», el juego se carga solo en ese primer arranque.</li>
         <li>Se abre una página con un <strong>QR grande</strong> para los iPads y los botones de backoffice y coordinador.</li>
         <li><strong>No cierres la ventana negra</strong> mientras dure el juego. Si el servidor se detuviera por algo inesperado, se reinicia solo y el marcador se conserva.</li>
       </ol>
