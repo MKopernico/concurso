@@ -231,7 +231,15 @@
       <div id="s1-acceso"></div>
       <h3>Acceso y contraseña</h3>
       <p>El <strong>backoffice</strong> y el <strong>coordinador</strong> piden una <strong>contraseña general</strong> del equipo. Una vez dentro, el navegador recuerda la sesión mientras se use (caduca tras 12 horas sin actividad). Los iPads y la pantalla no piden contraseña: los iPads entran con el <strong>código del juego</strong> o escaneando el <strong>QR</strong>, y la pantalla es de solo lectura.</p>
-      <p>La dirección principal de la web abre la pantalla de acceso: la contraseña y el botón <strong>«🎮 Soy jugador»</strong> (por si algún equipo entra desde ahí en vez de con el QR). Al entrar con la contraseña aparecen dos botones del mismo tamaño: <strong>«Soy coordinador»</strong> (los juegos con partida en marcha, para abrir el coordinador o la pantalla de sala) y <strong>«Backoffice»</strong>.</p>
+      <p>La dirección principal de la web abre la <strong>pantalla de acceso</strong>: la contraseña y, debajo, el botón <strong>«🎮 Soy jugador»</strong>, por si algún equipo entra desde ahí en vez de con el QR. Al entrar con la contraseña aparecen dos botones del mismo tamaño:</p>
+      <ul>
+        <li><strong>«Soy coordinador»</strong>: los juegos con partida en marcha, para abrir el coordinador o la pantalla de sala.</li>
+        <li><strong>«Backoffice»</strong>: crear y preparar juegos, plantillas y descargas (incluido el kit sin internet).</li>
+      </ul>
+      <div class="shots-2">
+        <figure class="shot"><a href="img/38-acceso.webp" target="_blank" rel="noopener"><img src="img/38-acceso.webp" alt="Pantalla de acceso" loading="lazy"></a><figcaption>La pantalla de acceso: contraseña y «Soy jugador».</figcaption></figure>
+        <figure class="shot"><a href="img/39-portada.webp" target="_blank" rel="noopener"><img src="img/39-portada.webp" alt="Portada tras entrar" loading="lazy"></a><figcaption>Tras entrar: coordinador y backoffice.</figcaption></figure>
+      </div>
       <ul>
         <li><strong>Cambiar la contraseña:</strong> en el backoffice, botón <strong>🔑 Contraseña</strong>. Al cambiarla se cierra la sesión en el resto de dispositivos, incluidos los coordinadores abiertos.</li>
         <li><strong>Si se olvida:</strong> la contraseña configurada en el servidor funciona siempre como <strong>llave maestra</strong> (en Render, variable <code>ADMIN_PASSWORD</code>; en el kit sin internet, archivo <code>datos\ajustes.env</code>). Entras con ella y pones una nueva.</li>
@@ -629,22 +637,50 @@
 
       <div id="s4-offline"></div>
       <h3>Jugar sin internet (kit offline)</h3>
-      <p>Para sitios sin internet existe el <strong>kit offline</strong>: una carpeta que convierte un ordenador con Windows en el servidor del juego. Los iPads se conectan a él por la WiFi de un router (que no necesita tener internet).</p>
-      <p>Hay dos formas de conseguirlo, las dos en el backoffice de la web. Siempre sale con la última versión de GameShow:</p>
+      <p>Para sitios sin internet existe el <strong>kit offline</strong>: una carpeta que convierte un ordenador con Windows en el servidor del juego. Los iPads se conectan a él por la WiFi de un router (que no necesita tener internet). Funciona igual que la web: backoffice, coordinador, iPads y pantalla de sala.</p>
+
+      <h4>Qué necesita el ordenador</h4>
       <ul>
-        <li><strong>💾 Juego offline</strong> (en cada juego de la lista y dentro del juego): el kit con ese juego <strong>ya cargado</strong>. Es lo más sencillo si el ordenador no tiene aún el kit. Tarda unos segundos en prepararse y luego se descarga (unos 40 MB más lo que ocupe el juego).</li>
-        <li><strong>⬇ Descargas › Kit offline para Windows</strong>: el kit vacío (unos 40 MB). Luego llevas los juegos con <strong>📦</strong> e «Importar juego (.zip)».</li>
+        <li><strong>Windows 10 u 11 de 64 bits</strong> (lo normal en cualquier portátil actual). En Mac no funciona.</li>
+        <li><strong>No hay que instalar nada</strong>: el kit lleva dentro todo lo que necesita (incluido su propio Node.js, en la carpeta <code>node</code>). No toca el sistema; si borras la carpeta, no queda rastro. Da igual que el ordenador tenga otro Node instalado.</li>
+        <li>La primera vez, <strong>permiso en el aviso del firewall de Windows</strong>. En ordenadores de empresa o de colegio muy cerrados puede pedir la contraseña de administrador: sin ese permiso el kit arranca, pero los iPads no pueden conectarse. Por eso conviene <strong>probarlo días antes en el ordenador del evento</strong>.</li>
       </ul>
-      <p>Justo después de cada actualización de GameShow, el kit tarda 1-2 minutos en estar listo. La descarga espera y empieza sola.</p>
+
+      <h4>Conseguir el kit</h4>
+      <p>Se descarga desde el backoffice de la web y <strong>siempre sale con la última versión de GameShow</strong> (el servidor lo vuelve a preparar solo cada vez que se actualiza la app). Hay dos formas:</p>
+      <ul>
+        <li><strong>💾 Juego offline</strong> (en cada juego de la lista y dentro del juego): el kit con ese juego <strong>ya cargado</strong>, tal como está en ese momento. Es lo más sencillo si el ordenador no tiene aún el kit. Se prepara en unos segundos y se descarga: unos 40 MB más lo que ocupe el juego (con fotos y vídeos, 80 MB es normal).</li>
+        <li><strong>⬇ Descargas › Kit offline para Windows</strong>: el kit vacío (unos 40 MB). Luego llevas los juegos con <strong>📦</strong> e «Importar juego (.zip)». Es lo práctico si el ordenador ya tiene el kit y solo quieres llevarle otro juego.</li>
+      </ul>
+      <div class="shots-2">
+        <figure class="shot"><a href="img/41-juego-offline.webp" target="_blank" rel="noopener"><img src="img/41-juego-offline.webp" alt="Ventana de Juego offline" loading="lazy"></a><figcaption>💾 Juego offline: se prepara y empieza a descargarse solo.</figcaption></figure>
+        <figure class="shot"><a href="img/40-descargas.webp" target="_blank" rel="noopener"><img src="img/40-descargas.webp" alt="Ventana de Descargas" loading="lazy"></a><figcaption>⬇ Descargas: plantillas Excel y el kit vacío, con su versión.</figcaption></figure>
+      </div>
+      <ul>
+        <li>Justo después de una actualización de GameShow, el kit tarda unos segundos (como mucho un par de minutos) en estar listo: la ventana lo dice, espera y la descarga empieza sola.</li>
+        <li>El progreso se ve en las <strong>descargas del navegador</strong>. Si se corta, se puede <strong>reanudar</strong> desde ahí durante unas horas; si ya no deja, vuelve a pulsar 💾.</li>
+        <li>Si avisa de que <strong>faltan archivos del juego</strong>, es que alguna imagen o audio ya no está en el servidor: revisa esas pruebas en el backoffice antes del evento.</li>
+      </ul>
+
+      <h4>Primer arranque</h4>
       <ol>
-        <li><strong>Descomprime</strong> el zip descargado (botón derecho › «Extraer todo»). Desde dentro del zip no funciona.</li>
+        <li><strong>Descomprime</strong> el zip descargado (botón derecho › «Extraer todo»). Desde dentro del zip no funciona. Tarda unos segundos.</li>
         <li>Si no usaste «Juego offline», lleva el juego al kit: <strong>📦 exportar</strong> en la web e <strong>importar el .zip</strong> en el backoffice del kit.</li>
         <li>Conecta el ordenador y los iPads al <strong>mismo router</strong> y marca esa red como <strong>«Privada»</strong> en Windows (Configuración › Red e Internet › Wi-Fi › tu red › Tipo de perfil de red). Si queda como «Pública», los iPads no conectan; la ventana del kit te avisa.</li>
-        <li>Doble clic en <strong>ARRANCAR.bat</strong> (si Windows muestra un aviso azul, «Más información» › «Ejecutar de todas formas»). La primera vez pide una contraseña y Windows pregunta por el acceso a la red: permite <strong>Redes privadas</strong>. Con «Juego offline», el juego se carga solo en ese primer arranque.</li>
+        <li>Doble clic en <strong>ARRANCAR.bat</strong>. Si Windows muestra un aviso azul («Windows protegió su PC»), pulsa «Más información» › «Ejecutar de todas formas».</li>
+        <li>La primera vez pide una <strong>contraseña</strong> para el backoffice y el coordinador del kit (mínimo 8 caracteres; apúntala). Windows pregunta por el acceso a la red: permite <strong>Redes privadas</strong>.</li>
+        <li>Con «Juego offline», el juego <strong>se carga solo</strong> en ese primer arranque (la ventana negra lo confirma: «✔ Juego … cargado») y ya aparece en el backoffice del kit, con el mismo estado y código que en la web (si estaba en borrador, publícalo antes del evento).</li>
         <li>Se abre una página con un <strong>QR grande</strong> para los iPads y los botones de backoffice y coordinador.</li>
         <li><strong>No cierres la ventana negra</strong> mientras dure el juego. Si el servidor se detuviera por algo inesperado, se reinicia solo y el marcador se conserva.</li>
       </ol>
-      <p>Todos los detalles están en el archivo <strong>LEEME.txt</strong> del kit. Los juegos y archivos del kit viven en su carpeta <code>datos</code>: para hacer copia, cierra antes el kit y copia la carpeta entera.</p>
+
+      <h4>Más juegos, actualizar y copias</h4>
+      <ul>
+        <li><strong>Otro juego en un kit que ya tienes:</strong> 📦 en la web e «Importar juego (.zip)» en el kit. También vale dejar el .zip en la carpeta <code>datos\importar</code> del kit y volver a arrancar: se carga solo y se aparta a <code>datos\importar\importados</code>.</li>
+        <li><strong>Si cambias el juego en la web</strong> después de descargarlo, el kit no se entera: vuelve a llevarlo (💾 o 📦).</li>
+        <li><strong>Los datos del kit</strong> (juegos, archivos y ajustes) viven en su carpeta <code>datos</code>. Para hacer copia, cierra antes el kit y copia la carpeta entera. La contraseña maestra del kit está en <code>datos\ajustes.env</code>.</li>
+      </ul>
+      <p>Todos los detalles están en el archivo <strong>LEEME.txt</strong> del kit.</p>
     </section>
 
     <!-- ── SECCIÓN 5 ── -->
@@ -687,7 +723,9 @@
       <div class="grp">Red</div>
       <ul class="check">
         <li><span class="box"></span>Todos los dispositivos están en la wifi y la señal es estable.</li>
+        <li><span class="box"></span>Sin internet (kit): lo has probado antes en este mismo ordenador (firewall permitido y un iPad conectado).</li>
         <li><span class="box"></span>Sin internet (kit): la red está como «Privada» en el ordenador y la ventana negra sigue abierta.</li>
+        <li><span class="box"></span>Sin internet (kit): el juego del kit es la última versión (si lo cambiaste en la web, vuelve a llevarlo).</li>
       </ul>
 
       <p style="margin-top:24px">Si todo está marcado, estás listo para jugar. ¡A disfrutar del concurso!</p>

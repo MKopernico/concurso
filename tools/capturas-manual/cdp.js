@@ -30,8 +30,9 @@ class Page {
         if (r.exceptionDetails) throw new Error('JS: ' + (r.exceptionDetails.exception && r.exceptionDetails.exception.description || r.exceptionDetails.text));
         return r.result.value;
     }
-    async shot(file, quality = 82) {
-        const r = await this.send('Page.captureScreenshot', { format: 'webp', quality, captureBeyondViewport: false });
+    // clip (opcional): { x, y, width, height } en píxeles de la página, para recortar
+    async shot(file, quality = 82, clip = null) {
+        const r = await this.send('Page.captureScreenshot', { format: 'webp', quality, captureBeyondViewport: false, ...(clip ? { clip: { ...clip, scale: 1 } } : {}) });
         fs.writeFileSync(file, Buffer.from(r.data, 'base64'));
         return fs.statSync(file).size;
     }

@@ -1,5 +1,5 @@
 // Capturas del manual. Requiere shot-server.js en marcha (puerto 3101).
-// Uso: node shots.js [parte]   parte = admin | juego | todo (por defecto todo)
+// Uso: node shots.js [parte]   parte = kit | admin | juego | aclara | todo (por defecto todo)
 const { launch, newPage, newIsolatedPage, waitFor, closeAll, wait } = require('./cdp');
 const path = require('path');
 const fs = require('fs');
@@ -12,7 +12,11 @@ const ACLARA = 'g_8f91f28c';
 const only = process.argv[2] || 'todo';
 fs.mkdirSync(OUT, { recursive: true });
 
-async function shot(p, name) { const n = await p.shot(path.join(OUT, name + '.webp')); console.log('  ' + name + '.webp ' + Math.round(n / 1024) + ' KB'); }
+async function shot(p, name, clip) { const n = await p.shot(path.join(OUT, name + '.webp'), 82, clip); console.log('  ' + name + '.webp ' + Math.round(n / 1024) + ' KB'); }
+// Recorte alrededor de un elemento (con margen), para que una ventana pequeña se lea en el manual
+async function around(p, selector, pad = 24) {
+    return p.eval(`const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: Math.max(0, r.left - ${pad}), y: Math.max(0, r.top - ${pad}), width: r.width + ${pad * 2}, height: r.height + ${pad * 2} };`);
+}
 async function login(p) { await p.go(B + '/login/', 800); await p.eval(`await fetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({password:'${PW}'})}); return 1;`); }
 async function nodeCookie() { const r = await fetch(B + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: PW }) }); return r.headers.get('set-cookie').split(';')[0]; }
 async function skipPreload(p) { await p.eval(`const b=[...document.querySelectorAll('button')].find(x=>/Continuar igualmente|Continuar/.test(x.textContent)&&x.offsetParent); if(b) b.click(); return 1;`); }
@@ -198,9 +202,30 @@ async function partAclara() {
     await shot(d, '35-director-aclara');
 }
 
+async function partKit() {
+    console.log('Acceso, descargas y kit');
+    const a = await newIsolatedPage(); await a.size(1366, 768);   // sin sesión
+    await a.go(B + '/login/', 1200);
+    await shot(a, '38-acceso', await around(a, '.card', 40));
+    const p = await newPage(); await p.size(1366, 768); await login(p);
+    await p.go(B + '/', 1200);
+    await shot(p, '39-portada');
+    await p.go(B + '/admin/', 2000);
+    // El kit se monta la primera vez que se pide (unos segundos): esperar a «Listo»
+    await p.eval(`openDownloadsModal(); for (let i = 0; i < 90; i++) { if (/Listo/.test(document.getElementById('dl-kit-status').textContent)) break; await new Promise(r => setTimeout(r, 1000)); } return 1;`);
+    await shot(p, '40-descargas', await around(p, '#modal-downloads-overlay .modal'));
+    await p.eval(`closeDownloadsModal(); return 1;`);
+    // Juego offline de verdad, pero sin guardar la descarga
+    await p.send('Page.setDownloadBehavior', { behavior: 'deny' });
+    await p.eval(`openOfflineModal('${GAME}'); for (let i = 0; i < 60; i++) { if (/Descargando/.test(document.getElementById('offline-title').textContent)) break; await new Promise(r => setTimeout(r, 1000)); } return 1;`);
+    await wait(500);
+    await shot(p, '41-juego-offline', await around(p, '#modal-offline-overlay .modal'));
+}
+
 (async () => {
     const edge = await launch(path.join(require('os').tmpdir(), 'gameshow-capturas-edge'));
     try {
+        if (only === 'todo' || only === 'kit') await partKit();
         if (only === 'todo' || only === 'admin') await partAdmin();
         if (only === 'todo' || only === 'juego') await partJuego();
         if (only === 'todo' || only === 'aclara') await partAclara();

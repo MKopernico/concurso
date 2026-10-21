@@ -5,6 +5,16 @@ Para jugar sin internet: este ordenador hace de servidor y los iPads se conectan
 a él por la WiFi de un router (no hace falta que el router tenga internet).
 
 
+QUÉ NECESITA EL ORDENADOR
+-------------------------
+- Windows 10 u 11 de 64 bits. En Mac no funciona.
+- NO hay que instalar nada: el kit lleva dentro su propio Node.js (carpeta
+  node). No toca el sistema; si borras la carpeta del kit no queda rastro.
+- Permiso en el aviso del firewall la primera vez. En ordenadores de
+  empresa o colegio puede pedir la contraseña de administrador: sin ese
+  permiso los iPads no pueden conectarse. Pruébalo antes en ese ordenador.
+
+
 ANTES DEL EVENTO
 ----------------
 1. Conecta el ordenador y los iPads a la MISMA WiFi.
