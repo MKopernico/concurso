@@ -86,6 +86,8 @@ input:focus { border-color: var(--accent); }
 .gp-waiting { align-items: center; justify-content: center; gap: 16px; text-align: center; padding: 24px; }
 .gp-idle { align-items: center; justify-content: center; }
 .gp-waiting h2 { font-size: 24px; color: var(--text2); }
+/* Logo de espera (y de imagen fija sin pulsador): grande y flotando (gsFloat), como en la pantalla de sala */
+#playerWaitingLogo, #idleRoundLogo { max-height: 45vh; max-width: 80%; object-fit: contain; filter: drop-shadow(0 0 16px rgba(0,0,0,.5)); }
 
 .gp-multi { padding: 16px 16px 10px; gap: clamp(8px, 1.5vh, 16px); justify-content: flex-start; }
 .gp-multi .q-statement { font-size: 22px; font-weight: 600; line-height: 1.4; text-align: center;
@@ -634,10 +636,10 @@ body.karaoke-active .player-timer-bar { display: none !important; }
         <!-- Modo sin pantalla: lo que vería la sala (la vista de pantalla incrustada) encima de los botones -->
         <div class="stage" id="stage" hidden><iframe id="stageFrame" title="Lo que se vería en la pantalla de sala" allow="autoplay; fullscreen"></iframe><div class="stage-sound" id="stageSound" hidden><span class="ss-icon" aria-hidden="true">🔊</span><span class="ss-text">Toca aquí para activar el sonido</span></div></div>
         <div class="gphase gp-waiting" id="gp-waiting">
-            <img id="playerWaitingLogo" class="gs-waiting-logo" style="display:none; max-height:100px; max-width:200px; object-fit:contain;">
+            <img id="playerWaitingLogo" class="gs-waiting-logo" style="display:none;">
         </div>
         <div class="gphase gp-idle" id="gp-idle">
-            <img id="idleRoundLogo" style="display:none; max-height:140px; max-width:300px; object-fit:contain; filter:drop-shadow(0 0 10px rgba(0,0,0,.5));">
+            <img id="idleRoundLogo" class="gs-waiting-logo" style="display:none;">
         </div>
         <div class="gphase gp-round-intro" id="gp-round-intro">
             <div id="playerIntroLogo" style="display:none;"><img class="intro-logo" id="playerIntroLogoImg"></div>
