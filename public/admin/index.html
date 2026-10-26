@@ -236,7 +236,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
             <button class="btn-ghost btn-sm" id="btnToggleSelectRounds" onclick="toggleRoundSelectMode()" style="display:none">☑ Seleccionar</button>
             <button class="btn-ghost btn-sm" id="btnDeleteSelectedRounds" onclick="deleteSelectedRounds()" style="display:none; color:var(--danger, #e53935)">🗑️ Eliminar seleccionadas</button>
             <div class="toolbar-right">
-                <button class="btn-success btn-sm" id="btnStartSession" onclick="startSession(currentGame.id)" style="display:none">▶ Iniciar partida</button>
+                <button class="btn-success btn-sm" id="btnStartSession" onclick="startSession(currentGame.id)" style="display:none" title="Abrir el coordinador (crea la partida o continúa la que está en marcha)">▶ Jugar</button>
                 <button class="btn-ghost btn-sm" onclick="openGameModal(currentGame)">Editar juego</button>
                 <button class="btn-ghost btn-sm" onclick="publishGame()">Publicar</button>
             </div>
@@ -848,7 +848,7 @@ function renderGames() {
                 <span class="card-title" onclick="loadGame('${g.id}')">${esc(g.name)}</span>
                 ${statusBadge(g.status)}
                 <div class="card-actions">
-                    ${g.status === 'published' ? `<button class="btn-success btn-sm" onclick="startSession('${g.id}')" title="Iniciar sesión y abrir director">▶ Jugar</button><a class="btn-ghost btn-sm" href="/director/${g.id}" target="_blank" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Ir al director">🎬 Director</a>` : ''}
+                    ${g.status === 'published' ? `<button class="btn-success btn-sm" onclick="startSession('${g.id}')" title="Abrir el coordinador (crea la partida o continúa la que está en marcha)">▶ Jugar</button>` : ''}
                     <button class="btn-icon" onclick="openGameModal(${JSON.stringify(g).replace(/"/g,'&quot;')})" title="Editar">✏️</button>
                     <button class="btn-icon" onclick="duplicateGame('${g.id}')" title="Duplicar">📋</button>
                     <button class="btn-icon" onclick="exportGameZip('${g.id}')" title="Exportar juego completo (.zip con imágenes, vídeos y audio)">📦</button>
@@ -2274,22 +2274,12 @@ function populateThemeForm(form, theme) {
 // ─── Session management ───
 async function startSession(gameId) {
     // Abrir la pestaña ya (los navegadores bloquean window.open tras esperas)
+    // Sin preguntas: con la pestaña nueva delante, el navegador anula los confirm() de esta
+    // y la partida nunca llegaba a abrirse. Si hay partida en marcha se continúa; para
+    // empezar de cero está «🗑 Borrar todo» en el coordinador.
     const win = window.open('about:blank', '_blank');
     try {
-        let nueva = false;
-        let active = null;
-        try { active = await api(`/games/${gameId}/session`); } catch (e) { /* 404: no hay partida */ }
-        if (active) {
-            const n = (active.teams || []).length;
-            if (!confirm(`Este juego ya tiene una partida en marcha (${n} equipo${n === 1 ? '' : 's'}).\n\nAceptar: CONTINUAR esa partida.\nCancelar: ver otras opciones.`)) {
-                if (!confirm('¿Empezar una partida NUEVA?\n\nSe borrarán los equipos y los puntos de la partida actual y los iPads volverán a la pantalla de inicio.')) {
-                    if (win) win.close();
-                    return;
-                }
-                nueva = true;
-            }
-        }
-        const r = await api(`/games/${gameId}/session`, { method: 'POST', body: { nueva } });
+        const r = await api(`/games/${gameId}/session`, { method: 'POST', body: {} });
         toast(r.resumed ? 'Continuando la partida en marcha' : 'Partida nueva iniciada');
         if (win) win.location = '/director/' + gameId; else window.open('/director/' + gameId, '_blank');
     } catch (e) {
