@@ -2846,8 +2846,8 @@ function renderPictionary() {
     if (p.step !== 'drawing') {
         // Aún sin la palabra: que se preparen
         draw.style.display = 'none'; wait.style.display = '';
-        var html = '<div class="pic-msg"><div class="pic-msg-icon">✏️</div><div class="pic-msg-title">¡Os toca dibujar!</div>'
-            + '<div class="pic-msg-sub">Decidid quién dibuja. La palabra aparecerá aquí cuando el coordinador dé la salida.<br>No vale escribir letras ni números.</div></div>';
+        var html = '<div class="pic-msg"><div class="pic-msg-card"><div class="pic-msg-icon">✏️</div><div class="pic-msg-title">¡Os toca dibujar!</div>'
+            + '<div class="pic-msg-sub">Decidid quién dibuja.<br>La palabra aparecerá aquí cuando comience el tiempo.<br>No vale escribir letras ni números.</div></div></div>';
         if (wait._h !== html) { wait.innerHTML = html; wait._h = html; }
         if (_pic.pad) _pic.pad.setEnabled(false);
         return;

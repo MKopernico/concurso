@@ -49,8 +49,8 @@ var board = null, pad = null, loadedKey = null;
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function msg(icon, title, sub, extra) {
-    var html = '<div class="pic-msg">' + (icon ? '<div class="pic-msg-icon">' + icon + '</div>' : '') + '<div class="pic-msg-title">' + title + '</div>'
-        + (sub ? '<div class="pic-msg-sub">' + sub + '</div>' : '') + (extra || '') + '</div>';
+    var html = '<div class="pic-msg"><div class="pic-msg-card">' + (icon ? '<div class="pic-msg-icon">' + icon + '</div>' : '') + '<div class="pic-msg-title">' + title + '</div>'
+        + (sub ? '<div class="pic-msg-sub">' + sub + '</div>' : '') + (extra || '') + '</div></div>';
     var el = document.getElementById('padMsg');
     if (el._h !== html) { el.innerHTML = html; el._h = html; }
     el.style.display = ''; document.getElementById('padDraw').style.display = 'none';
@@ -86,7 +86,7 @@ function render() {
     }
     if (isPic && p && ps.phase === 'question') {
         if (p.step !== 'drawing') {
-            msg('✏️', '¡Prepárate para dibujar!', 'La palabra aparecerá aquí cuando el coordinador dé la salida.<br>No vale escribir letras ni números.');
+            msg('✏️', '¡Prepárate para dibujar!', 'La palabra aparecerá aquí cuando comience el tiempo.<br>No vale escribir letras ni números.');
             return;
         }
         showDraw();
