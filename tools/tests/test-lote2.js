@@ -51,11 +51,11 @@ let d;
 
     const g = (await api('/games', { method: 'POST', body: { name: 'Test Lote2', status: 'published', access_code: '2468' } })).data;
     const mk = async (name, type, config, qs) => { const r = (await api(`/games/${g.id}/rounds`, { method: 'POST', body: { name, type, config } })).data; for (const c of qs) await api(`/rounds/${r.id}/questions`, { method: 'POST', body: { content: c } }); return r; };
-    const rMulti = await mk('Multi', 'multirespuesta', { time: 20, basePoints: 100, bonusMax: 0, penalty: 10 }, [{ statement: 'M1', options: ['a', 'b', 'c'], correct: [0, 2] }, { statement: 'M2', options: ['x', 'y'], correct: [1] }, { statement: 'M3', options: ['x', 'y'], correct: [0] }, { statement: 'M4', options: ['x', 'y'], correct: [0] }]);
+    const rMulti = await mk('Multi', 'multirespuesta', { time: 20, points: 100, fastestExtra: false, penalty: 10 }, [{ statement: 'M1', options: ['a', 'b', 'c'], correct: [0, 2] }, { statement: 'M2', options: ['x', 'y'], correct: [1] }, { statement: 'M3', options: ['x', 'y'], correct: [0] }, { statement: 'M4', options: ['x', 'y'], correct: [0] }]);
     const rPul = await mk('Pulsa', 'pulsador', { basePoints: 100, bonusMax: 50, penalty: 0 }, [{ statement: 'P1', answer: 'x' }]);
     const rRul = await mk('Ruleta', 'ruleta', { basePoints: 100, bonusMax: 50 }, [{ phrase: 'LA CASA DE PAPEL', hint: 'serie' }]);
-    const rBoom = await mk('Boom', 'boom', { time: 20, basePoints: 100, bonusMax: 0 }, [{ statement: 'Ordena', items: ['uno', 'dos', 'tres', 'cuatro'], correct_order: [0, 1, 2, 3] }]);
-    const rId = await mk('Identidad', 'identidad', { time: 30, basePoints: 100, bonusMax: 0 }, [{ statement: 'Empareja', pairs: [{ left: 'A', right: 'a' }, { left: 'B', right: 'b' }, { left: 'C', right: 'c' }] }]);
+    const rBoom = await mk('Boom', 'boom', { time: 20, points: 100, fastestExtra: false }, [{ statement: 'Ordena', items: ['uno', 'dos', 'tres', 'cuatro'], correct_order: [0, 1, 2, 3] }]);
+    const rId = await mk('Identidad', 'identidad', { time: 30, points: 100, fastestExtra: false }, [{ statement: 'Empareja', pairs: [{ left: 'A', right: 'a' }, { left: 'B', right: 'b' }, { left: 'C', right: 'c' }] }]);
     const rImg = await mk('Imagen', 'imagen', { basePoints: 100 }, [{ image: '/uploads/images/secreta.png', answer: 'SECRETO', grid_rows: 2, grid_cols: 2 }]);
     await api(`/games/${g.id}/session`, { method: 'POST', body: {} });
 

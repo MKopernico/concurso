@@ -91,7 +91,7 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     check('orden de la hoja Rondas respetado (Zeta antes que Alfa)', t2.rounds.map(x => x.name).join(',') === 'Zeta,Alfa', t2.rounds.map(x => x.name));
     const mq = t2.rounds[0].questions[0].content;
     check('opción vacía en medio no desplaza la correcta ("3" = "tres")', mq.options[mq.correct[0]] === 'tres', mq);
-    check('ronda con puntos base 0 desde Excel', t2.rounds[0].config.basePoints === 0, t2.rounds[0].config);
+    check('ronda con 0 puntos desde Excel', t2.rounds[0].config.points === 0, t2.rounds[0].config);
     const bq = t2.rounds[1].questions[0].content;
     check('boom sin orden en Excel = orden escrito', JSON.stringify(bq.correct_order) === '[0,1,2]', bq);
     // exportar y volver a importar: el tema no pierde freezeMode

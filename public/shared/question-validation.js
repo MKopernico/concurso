@@ -159,5 +159,59 @@
     return !!n && acceptedAnswers(sub).indexOf(n) >= 0;
   }
 
-  return { isComplete: isComplete, LABELS: LABELS, normAnswer: normAnswer, acceptedAnswers: acceptedAnswers, matchesSub: matchesSub };
+  // ── Puntos de una prueba ──
+  // «points» = lo máximo que da acertar (la mitad fija y la otra mitad según la rapidez, en las
+  // pruebas con tiempo); «fastestExtra» = +10 % al más rápido de los que aciertan (por defecto sí).
+  // Los juegos anteriores guardaban «basePoints» + «bonusMax»: se convierten al vuelo. En las pruebas
+  // donde el bonus no se usaba (pulsador, sin tiempo, imagen que se aclara) solo cuentan los base, y
+  // en Respuesta abierta el bonus era el premio al que más acierta, que ahora es el extra.
+  var DEFAULT_POINTS = 500;
+  var EXTRA_RATIO = 0.1;
+  var BASE_ONLY_TYPES = { pulsador: 1, ruleta: 1, imagen: 1, imagen_fija: 1, cancion: 1, aclara: 1, karaoke: 1, abierta: 1 };
+  function present(v) { return v !== null && v !== undefined && v !== '' && !isNaN(Number(v)); }
+  // Pictionary sin tiempo (tiempo 0 en la ronda y la pregunta sin el suyo) tampoco usaba el bonus
+  function usedBonus(type, qc, rc) {
+    if (BASE_ONLY_TYPES[type]) return false;
+    if (type === 'pictionary') return Number(qc && qc.time) > 0 || !(present(rc && rc.time) && Number(rc.time) === 0);
+    return true;
+  }
+  function legacyTotal(type, qc, rc, base, bonus) {
+    return Math.max(0, Math.round(Number(base) || 0) + (usedBonus(type, qc, rc) ? Math.round(Number(bonus) || 0) : 0));
+  }
+  function roundPoints(type, rc) {
+    rc = rc || {};
+    if (present(rc.points)) return Math.max(0, Math.round(Number(rc.points)));
+    if (present(rc.basePoints) || present(rc.bonusMax)) return legacyTotal(type, {}, rc, present(rc.basePoints) ? rc.basePoints : 100, present(rc.bonusMax) ? rc.bonusMax : 50);
+    return DEFAULT_POINTS;
+  }
+  // Puntos de la pregunta: los suyos si los tiene; si no, los de la ronda
+  function questionPoints(type, qc, rc) {
+    qc = qc || {}; rc = rc || {};
+    if (present(qc.points)) return Math.max(0, Math.round(Number(qc.points)));
+    if (present(qc.basePoints) || present(qc.bonusMax)) {
+      var rBase = present(rc.basePoints) ? rc.basePoints : 100, rBonus = present(rc.bonusMax) ? rc.bonusMax : 50;
+      if (present(rc.points)) { rBase = rc.points; rBonus = 0; }
+      return legacyTotal(type, qc, rc, present(qc.basePoints) ? qc.basePoints : rBase, present(qc.bonusMax) ? qc.bonusMax : rBonus);
+    }
+    return roundPoints(type, rc);
+  }
+  function fastestExtraOf(qc, rc) {
+    qc = qc || {}; rc = rc || {};
+    if (typeof qc.fastestExtra === 'boolean') return qc.fastestExtra;
+    if (typeof rc.fastestExtra === 'boolean') return rc.fastestExtra;
+    return true;
+  }
+  function extraPoints(points) { return Math.round((Number(points) || 0) * EXTRA_RATIO); }
+  // Lo que se lleva quien acierta: con tiempo, la mitad fija y la otra mitad según lo que quedaba
+  function speedPoints(points, remaining, total) {
+    points = Math.max(0, Math.round(Number(points) || 0));
+    if (!(total > 0)) return points;
+    var half = Math.floor(points / 2);
+    var frac = Math.min(1, Math.max(0, (Number(remaining) || 0) / total));
+    return (points - half) + Math.floor(half * frac);
+  }
+
+  return { isComplete: isComplete, LABELS: LABELS, normAnswer: normAnswer, acceptedAnswers: acceptedAnswers, matchesSub: matchesSub,
+    DEFAULT_POINTS: DEFAULT_POINTS, EXTRA_RATIO: EXTRA_RATIO, roundPoints: roundPoints, questionPoints: questionPoints,
+    fastestExtraOf: fastestExtraOf, extraPoints: extraPoints, speedPoints: speedPoints };
 });

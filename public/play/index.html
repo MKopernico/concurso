@@ -1995,18 +1995,20 @@ function renderPrecioRevealed() {
         html += '<div class="precio-reveal-mine">Tu respuesta: ' + S._precioSubmittedValue + '</div>';
     }
 
-    var isWinner = ps.precioWinner && ps.precioWinner.teamId === S.myTeamId;
+    // Pueden ganar varios (misma cifra): todos se llevan los puntos y el más rápido, el extra
+    var mineW = ps.lastQuestionScores && ps.lastQuestionScores[S.myTeamId];
+    var isWinner = (ps.precioWinners || []).some(function(w) { return w.teamId === S.myTeamId; }) || !!(mineW && mineW.correct);
     if (isWinner) {
-        html += '<div class="precio-reveal-result win">&#127942; ¡HAS GANADO!</div>';
+        var sub = '';
+        if (mineW && mineW.points) sub += '+' + mineW.points + ' puntos';
+        if (mineW && mineW.extra) sub += '<br>⚡ ¡El más rápido! (+' + mineW.extra + ' de extra)';
+        else if (mineW && mineW.sharedWin) sub += '<br>Empate: el extra fue para el más rápido';
+        html += '<div class="precio-reveal-result win">' + (mineW && mineW.exact ? '&#127919; ¡HAS CLAVADO EL PRECIO!' : '&#127942; ¡HAS GANADO!')
+            + (sub ? '<br><span style="font-size:.7em;font-weight:600">' + sub + '</span>' : '') + '</div>';
     } else if (ps.lastQuestionScores && ps.lastQuestionScores[S.myTeamId] && !ps.lastQuestionScores[S.myTeamId].noAnswer) {
         // Del servidor: correcto también si la página se recargó y se perdió el valor local
         var mineP = ps.lastQuestionScores[S.myTeamId];
-        if (mineP.sameAsWinner) {
-            var quien = mineP.winnerName ? 'el equipo ' + esc(mineP.winnerName) : 'otro equipo';
-            html += '<div class="precio-reveal-result lose">' + (mineP.exact ? '&#127919; ¡Has clavado el precio!' : '&#129309; Misma respuesta que el ganador') + '<br><span style="font-size:.75em;font-weight:600">pero ' + quien + ' fue más rápido</span></div>';
-        } else {
-            html += '<div class="precio-reveal-result lose">' + (mineP.passed ? '&#128200; Te pasaste' : '&#128201; Te quedaste corto') + '</div>';
-        }
+        html += '<div class="precio-reveal-result lose">' + (mineP.passed ? '&#128200; Te pasaste' : '&#128201; Te quedaste corto') + '</div>';
     } else if (S.submitted) {
         var myVal = S._precioSubmittedValue;
         var passed = myVal > correctValue;
@@ -2446,7 +2448,7 @@ function renderAbierta() {
     if (!answered) status.textContent = 'No respondisteis: estas son las respuestas';
     else if (rs < n) status.textContent = '👀 Revelando… ' + rs + ' de ' + n;
     else {
-        status.textContent = mine.correctCount + ' de ' + n + ' correctas · ' + (mine.points > 0 ? '+' : '') + (mine.points || 0) + ' puntos' + (mine.winner ? ' · 🏆 ¡Bonus por ser los mejores!' : '');
+        status.textContent = mine.correctCount + ' de ' + n + ' correctas · ' + (mine.points > 0 ? '+' : '') + (mine.points || 0) + ' puntos' + (mine.winner ? ' · 🏆 ¡Sois los que más acertáis!' : '');
         status.className = 'ab-status final' + (mine.correctCount > 0 ? ' ok' : '');
     }
 }
@@ -2757,7 +2759,8 @@ function renderRevealed() {
     var mineHtml = null;           // null = no se muestra «Tu respuesta» (pruebas de pulsador)
     var res = null;                // { cls: 'win'|'lose'|'info', html }
     function opt(i) { return '<b>' + (letters[i] || '?') + '</b> — ' + esc(c.options[i]); }
-    function pts(n) { return n ? '<div class="reveal-points">' + (n > 0 ? '+' : '') + n + ' puntos</div>' : ''; }
+    // ex: extra por ser el más rápido de los que aciertan (ya va sumado en n)
+    function pts(n, ex) { return n ? '<div class="reveal-points">' + (n > 0 ? '+' : '') + n + ' puntos' + (ex ? '<br>⚡ ¡El más rápido! (+' + ex + ' de extra)' : '') + '</div>' : ''; }
     function teamName(id) { var t = (ps.equipos || []).find(function(e) { return e.id === id; }); return t ? t.nombre : 'otro equipo'; }
 
     if (type === 'multirespuesta' && c.options && c.correct !== undefined) {
@@ -2766,7 +2769,7 @@ function renderRevealed() {
         if (answered) {
             var picked = Array.isArray(mine.answer) ? mine.answer : [mine.answer];
             mineHtml = picked.map(function(i) { return '<span class="' + (corr.indexOf(i) >= 0 ? 'rm-ok' : 'rm-bad') + '">' + opt(i) + '</span>'; }).join('<br>');
-            res = mine.correct ? { cls: 'win', html: '✅ ¡ACERTASTE!' + pts(mine.points) } : { cls: 'lose', html: '❌ FALLASTE' + pts(mine.points) };
+            res = mine.correct ? { cls: 'win', html: '✅ ¡ACERTASTE!' + pts(mine.points, mine.extra) } : { cls: 'lose', html: '❌ FALLASTE' + pts(mine.points, mine.extra) };
         } else mineHtml = '<span class="rm-none">No respondiste</span>';
     } else if (type === 'boom' && c.items && c.correct_order) {
         // Se revela por pasos: al iPad solo le llegan las posiciones ya destapadas (c.correct_order)
@@ -2780,7 +2783,7 @@ function renderRevealed() {
             mineHtml = '<ol class="reveal-order">' + mine.answer.map(function(i, k) {
                 return '<li class="' + (k < stepB ? (co[k] === i ? 'rm-ok' : 'rm-bad') : '') + '">' + esc(c.items[i]) + '</li>';
             }).join('') + '</ol>';
-            if (allShown) res = mine.correct ? { cls: 'win', html: '✅ ¡ORDEN PERFECTO!' + pts(mine.points) } : { cls: 'lose', html: '❌ ORDEN INCORRECTO' + pts(mine.points) };
+            if (allShown) res = mine.correct ? { cls: 'win', html: '✅ ¡ORDEN PERFECTO!' + pts(mine.points, mine.extra) } : { cls: 'lose', html: '❌ ORDEN INCORRECTO' + pts(mine.points, mine.extra) };
             else res = { cls: 'info', html: '👀 Revelando el orden… ' + stepB + ' de ' + nB };
         } else mineHtml = '<span class="rm-none">No respondiste</span>';
     } else {
@@ -2790,7 +2793,7 @@ function renderRevealed() {
         textEl.textContent = ans || '-';
         var w = ps.buzzerWinner;
         var failed = (ps.buzzerFailed || []).indexOf(me) >= 0;
-        if (mine && mine.drawer) res = w ? { cls: 'win', html: '✏️ ¡LO ADIVINARON!' + pts(mine.points) + '<div class="reveal-sub">Acertó el equipo ' + esc(teamName(w)) + '</div>' } : { cls: 'info', html: '✏️ Esta vez nadie lo adivinó' };
+        if (mine && mine.drawer) res = w ? { cls: 'win', html: '✏️ ¡LO ADIVINARON!' + pts(mine.points, mine.extra) + '<div class="reveal-sub">Acertó el equipo ' + esc(teamName(w)) + '</div>' } : { cls: 'info', html: '✏️ Esta vez nadie lo adivinó' };
         else if (w && w === me) res = { cls: 'win', html: '✅ ¡ACERTASTE!' + pts(ps.buzzerPoints) };
         else if (failed) res = { cls: 'lose', html: '❌ FALLASTE' + (w ? '<div class="reveal-sub">Acertó el equipo ' + esc(teamName(w)) + '</div>' : '') };
         else if (w) res = { cls: 'info', html: '🔔 Acertó el equipo ' + esc(teamName(w)) };

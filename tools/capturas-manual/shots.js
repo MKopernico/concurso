@@ -101,6 +101,8 @@ async function partJuego() {
     await wait(600);
     // Menú Home
     await d.eval(`emit('director:show_home'); return 1;`); await wait(1500);
+    // Que estén cargados los logos del menú antes de la captura
+    await d.eval(`for (let i = 0; i < 50 && [...document.images].some(im => im.offsetParent && !im.complete); i++) await new Promise(r => setTimeout(r, 200)); return 1;`);
     await shot(d, '10-director-panel');
     await shot(s, '18-screen-menu');
     await shot(P[0], '19-play-menu');
@@ -196,7 +198,7 @@ async function partAclara() {
     console.log('Imagen que se aclara');
     const d = await newPage(); await d.size(1366, 768); await login(d);
     await d.go(B + '/director/' + ACLARA, 3500); await skipPreload(d); await wait(800);
-    await d.eval(`const el=[...document.querySelectorAll('*')].find(x=>x.children.length===0 && x.textContent.trim()==='Se aclara' && x.offsetParent); el.click(); await new Promise(r=>setTimeout(r,800)); const b=[...document.querySelectorAll('button')].find(x=>/Empezar ronda/.test(x.textContent)&&x.offsetParent); if(b) b.click(); return 1;`);
+    await d.eval(`const el=[...document.querySelectorAll('#roundsList .round-item')].find(x=>x.querySelector('.round-name').textContent.replace(/^\\d+\\.\\s*/,'').trim()==='Se aclara'); el.click(); await new Promise(r=>setTimeout(r,800)); const b=[...document.querySelectorAll('button')].find(x=>/Empezar ronda/.test(x.textContent)&&x.offsetParent); if(b) b.click(); return 1;`);
     await wait(1500);
     await d.eval(`emit('director:aclara_set',{level:0.35}); return 1;`); await wait(1500);
     await shot(d, '35-director-aclara');

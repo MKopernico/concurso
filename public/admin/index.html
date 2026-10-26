@@ -485,8 +485,8 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
             </div>
             <div class="field-row-3">
                 <div class="field" id="field-cfg-time"><label>Tiempo (seg)</label><input type="number" name="cfg_time" value="30" min="5"></div>
-                <div class="field"><label>Puntos base</label><input type="number" name="cfg_basePoints" value="100" min="0"></div>
-                <div class="field"><label>Bonus máx</label><input type="number" name="cfg_bonusMax" value="50" min="0"></div>
+                <div class="field" title="Lo máximo que da acertar. En las pruebas con tiempo, la mitad es fija y la otra mitad según la rapidez"><label>Puntos</label><input type="number" name="cfg_points" value="500" min="0"></div>
+                <div class="field" title="+10 % de los puntos para el más rápido de los que aciertan"><label>Extra al más rápido</label><select name="cfg_fastestExtra"><option value="si">Sí (+10 %)</option><option value="no">No</option></select></div>
             </div>
             <div class="field"><label>Penalización por fallo</label><input type="number" name="cfg_penalty" value="0"></div>
             <div id="pic-round-fields" style="display:none">
@@ -547,8 +547,8 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
             <div id="question-fields"></div>
             <div class="field-row-3" style="margin-top:16px">
                 <div class="field"><label>Tiempo (segundos)</label><input type="number" name="q_time" placeholder="Hereda ronda"></div>
-                <div class="field"><label>Puntos base</label><input type="number" name="q_basePoints" placeholder="Hereda"></div>
-                <div class="field"><label>Bonus máx</label><input type="number" name="q_bonusMax" placeholder="Hereda"></div>
+                <div class="field"><label>Puntos</label><input type="number" name="q_points" placeholder="Hereda" min="0"></div>
+                <div class="field"><label>Extra al más rápido</label><select name="q_fastestExtra"><option value="">Hereda</option><option value="si">Sí (+10 %)</option><option value="no">No</option></select></div>
             </div>
             <div class="field-row-2" style="margin-top:12px; align-items:end">
                 <div class="field" style="flex:0 0 auto">
@@ -714,6 +714,8 @@ function updateBreadcrumb() {
 function esc(s) { if (!s) return ''; return String(s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
 // ─── Type display helpers ───
+// Pruebas de un solo ganador (pulsador y similares): no llevan extra al más rápido
+const NO_EXTRA_TYPES = { pulsador: 1, ruleta: 1, imagen: 1, imagen_fija: 1, cancion: 1, aclara: 1, karaoke: 1, pictionary: 1 };
 const TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador rápido', precio: 'Precio justo',
     imagen: 'Adivina imagen', cancion: 'Adivina canción', boom: 'Boom (ordenar)',
@@ -1101,8 +1103,8 @@ function renderRounds() {
             </div>
             <div class="card-meta">
                 ${r.config.time ? `<span>⏱ ${r.config.time}s</span>` : ''}
-                ${r.config.basePoints ? `<span>🎯 ${r.config.basePoints} pts</span>` : ''}
-                ${r.config.bonusMax ? `<span>⚡ +${r.config.bonusMax} bonus</span>` : ''}
+                <span>🎯 ${QuestionValidation.roundPoints(r.type, r.config)} pts</span>
+                ${QuestionValidation.fastestExtraOf({}, r.config) && !NO_EXTRA_TYPES[r.type] ? '<span>⚡ extra al más rápido</span>' : ''}
                 ${r.config.logo ? `<span>🖼️ Logo</span>` : ''}
                 ${r.config.background ? `<span>🎨 Fondo</span>` : ''}
             </div>
@@ -1112,6 +1114,9 @@ function renderRounds() {
 
 function toggleTimeField(type) {
     var el = document.getElementById('field-cfg-time');
+    // El extra al más rápido solo tiene sentido donde responden todos a la vez
+    var ex = document.querySelector('[name="cfg_fastestExtra"]');
+    if (ex) ex.closest('.field').style.display = NO_EXTRA_TYPES[type] ? 'none' : '';
     // Pictionary: sus opciones y el tiempo puede ser 0 (sin límite)
     document.getElementById('pic-round-fields').style.display = type === 'pictionary' ? '' : 'none';
     syncPicRoundFields();
@@ -1158,8 +1163,8 @@ function openRoundModal(round = null) {
         form.cfg_picMode.value = cfg.picMode === 'ipad' ? 'ipad' : 'equipos';
         form.cfg_picTurns.value = cfg.picTurns === 'manual' ? 'manual' : 'auto';
         form.cfg_picDrawerPoints.value = cfg.picDrawerPoints || 0;
-        form.cfg_basePoints.value = cfg.basePoints ?? 100;
-        form.cfg_bonusMax.value = cfg.bonusMax ?? 50;
+        form.cfg_points.value = QuestionValidation.roundPoints(round.type, cfg);
+        form.cfg_fastestExtra.value = QuestionValidation.fastestExtraOf({}, cfg) ? 'si' : 'no';
         form.cfg_penalty.value = cfg.penalty ?? 0;
         form.cfg_logo.value = cfg.logo || '';
         form.cfg_background.value = cfg.background || '';
@@ -1185,8 +1190,8 @@ async function saveRound(e) {
     const config = {
         time: noTimer ? 0 : isPic ? Math.max(0, Math.min(600, numOr(form.cfg_time.value, 60))) : (Number(form.cfg_time.value) || 30),
         // 0 es un valor válido (p. ej. ronda sin bonus); solo el campo vacío toma el valor por defecto
-        basePoints: numOr(form.cfg_basePoints.value, 100),
-        bonusMax: numOr(form.cfg_bonusMax.value, 50),
+        points: Math.max(0, Math.round(numOr(form.cfg_points.value, QuestionValidation.DEFAULT_POINTS))),
+        fastestExtra: form.cfg_fastestExtra.value !== 'no',
         penalty: numOr(form.cfg_penalty.value, 0),
         logo: form.cfg_logo.value.trim() || undefined,
         background: form.cfg_background.value.trim() || undefined,
@@ -1330,7 +1335,7 @@ function renderRoundDetail() {
                     ${typeBadge(r.type)}
                     <span>${(r.questions||[]).length} preguntas</span>
                     ${r.config.time ? `<span>⏱ ${r.config.time}s</span>` : ''}
-                    ${r.config.basePoints ? `<span>🎯 ${r.config.basePoints} pts</span>` : ''}
+                    <span>🎯 ${QuestionValidation.roundPoints(r.type, r.config)} pts</span>
                 </div>
             </div>
         </div>
@@ -1415,10 +1420,12 @@ function openQuestionModal(question = null) {
     // Algunos tipos desactivan el tiempo general al abrir su formulario: se restablece antes
     var qTime = form.q_time, qTimeField = qTime.closest('.field');
     qTime.disabled = false; qTimeField.style.opacity = ''; qTimeField.title = '';
-    form.q_bonusMax.closest('.field').title = '';
+    form.q_fastestExtra.closest('.field').title = '';
+    form.q_points.placeholder = 'Hereda (' + QuestionValidation.roundPoints(currentRound.type, currentRound.config) + ')';
 
     const type = currentRound.type;
     const isEdit = !!question;
+    form.q_fastestExtra.closest('.field').style.display = NO_EXTRA_TYPES[type] ? 'none' : '';
     document.getElementById('modal-question-title').textContent = isEdit ? 'Editar pregunta' : `Nueva pregunta · ${TYPE_LABELS[type]}`;
 
     if (isEdit) {
@@ -1426,8 +1433,9 @@ function openQuestionModal(question = null) {
         form.media_url.value = question.media_url || '';
         const cfg = question.config || {};
         if (cfg.time) form.q_time.value = cfg.time;
-        if (cfg.basePoints != null) form.q_basePoints.value = cfg.basePoints;
-        if (cfg.bonusMax != null) form.q_bonusMax.value = cfg.bonusMax;
+        // Solo si la pregunta tiene puntos propios (los antiguos, base + bonus, se convierten)
+        if (cfg.points != null || cfg.basePoints != null || cfg.bonusMax != null) form.q_points.value = QuestionValidation.questionPoints(currentRound.type, cfg, currentRound.config);
+        if (typeof cfg.fastestExtra === 'boolean') form.q_fastestExtra.value = cfg.fastestExtra ? 'si' : 'no';
         if (cfg.premio) {
             form.q_premio_check.checked = true;
             form.q_premio_tipo.disabled = false;
@@ -1748,8 +1756,8 @@ function fieldsAbierta(c) {
         // La cuenta atrás va aquí abajo (opcional); el campo general de tiempo no aplica
         var timeOverride = document.querySelector('[name="q_time"]');
         if (timeOverride) { timeOverride.disabled = true; timeOverride.closest('.field').style.opacity = '.4'; timeOverride.closest('.field').title = 'No aplica: usa «Cuenta atrás» de arriba'; }
-        var bonus = document.querySelector('[name="q_bonusMax"]');
-        if (bonus) bonus.closest('.field').title = 'Bonus para el equipo que más acierta (empate: el que envió antes)';
+        var extra = document.querySelector('[name="q_fastestExtra"]');
+        if (extra) extra.closest('.field').title = 'Aquí el extra es para el equipo que más acierta (empate: el que envió antes)';
         abiertaSyncTime();
     }, 0);
     var subs = (Array.isArray(c.subs) && c.subs.length) ? c.subs : [{ text: '', answer: '', alts: '' }];
@@ -1769,7 +1777,7 @@ function fieldsAbierta(c) {
             <div id="abierta-subs">${subs.map(function(s, i) { return abiertaSubRow(i, s); }).join('')}</div>
             <button type="button" class="btn-ghost btn-sm" onclick="addAbiertaSub()" style="margin-top:4px">+ Añadir subpregunta</button>
         </div>
-        <p class="ab-hint">Lo que coincida con la respuesta o con otra válida se corrige solo (da igual mayúsculas, tildes y signos); lo demás lo validas tú en el panel de control. Cada equipo se lleva la parte proporcional de los puntos base según lo que acierte, y el que más acierta gana además el «Bonus máx».</p>
+        <p class="ab-hint">Lo que coincida con la respuesta o con otra válida se corrige solo (da igual mayúsculas, tildes y signos); lo demás lo validas tú en el panel de control. Cada equipo se lleva la parte proporcional de los puntos según lo que acierte, y el que más acierta gana además el extra (+10 %), si está activado.</p>
     `;
 }
 function abiertaSubRow(i, s) {
@@ -2030,8 +2038,8 @@ async function saveQuestion(e) {
 
     const config = {};
     if (form.q_time.value) config.time = Number(form.q_time.value);
-    if (form.q_basePoints.value !== '') config.basePoints = Number(form.q_basePoints.value);
-    if (form.q_bonusMax.value !== '') config.bonusMax = Number(form.q_bonusMax.value);
+    if (form.q_points.value !== '') config.points = Math.max(0, Math.round(Number(form.q_points.value) || 0));
+    if (form.q_fastestExtra.value) config.fastestExtra = form.q_fastestExtra.value === 'si';
     if (form.q_premio_check.checked) {
         var premioTipo = form.q_premio_tipo.value;
         if (premioTipo === 'puntos') {

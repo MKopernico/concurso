@@ -31,6 +31,9 @@ src.backup(path.join(DATA, 'games.db')).then(() => {
     // Pregunta de pulsador con un contenido más vistoso para el manual
     db.prepare(`UPDATE questions SET content = ? WHERE id = (SELECT id FROM questions WHERE round_id = 'r_d5eead80' ORDER BY sort_order LIMIT 1)`)
         .run(JSON.stringify({ statement: '¿Cuál es el planeta más grande del sistema solar?', answer: 'Júpiter', hints: ['Es un gigante gaseoso'] }));
+    // Puntos con el sistema actual (500 por ronda, extra al más rápido; las preguntas heredan)
+    db.prepare(`UPDATE rounds SET config = json_set(json_remove(COALESCE(config, '{}'), '$.basePoints', '$.bonusMax'), '$.points', 500)`).run();
+    db.prepare(`UPDATE questions SET config = json_remove(config, '$.basePoints', '$.bonusMax', '$.points') WHERE config IS NOT NULL AND json_valid(config)`).run();
     // El juego por defecto (heredado) no sale en el manual
     db.prepare(`UPDATE games SET status = 'archived' WHERE id = 'default'`).run();
     db.close();

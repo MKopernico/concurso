@@ -77,9 +77,9 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     P[2].emit('player:submit_price', { value: 30 }); await wait(300);
     d.emit('director:reveal_answer'); await wait(500);
     const lqs = P[1].sync.lastQuestionScores;
-    check('Precio: gana el primero en clavarlo', lqs[T[0]].correct === true);
-    check('Precio: el segundo que lo clava ve que acertó pero el otro fue más rápido', lqs[T[1]].sameAsWinner === true && lqs[T[1]].exact === true && lqs[T[1]].winnerName === 'Equipo 0', lqs[T[1]]);
-    check('Precio: quien no lo clava sigue viendo «te quedaste corto»', !lqs[T[2]].sameAsWinner && lqs[T[2]].passed === false);
+    check('Precio: los dos que la clavan ganan; el extra, el primero', lqs[T[0]].correct === true && lqs[T[1]].correct === true && lqs[T[0]].extra === 10 && !lqs[T[1]].extra && lqs[T[0]].points === 110 && lqs[T[1]].points === 100, { a: lqs[T[0]], b: lqs[T[1]] });
+    check('Precio: el segundo sabe que ha clavado el precio y que el extra fue para otro (empate)', lqs[T[1]].exact === true && lqs[T[1]].sharedWin === true && (P[1].sync.precioWinners || []).length === 2, lqs[T[1]]);
+    check('Precio: quien no lo clava sigue viendo «te quedaste corto»', !lqs[T[2]].correct && lqs[T[2]].passed === false);
 
     // ── «Congelar a todos» de un equipo y descongelar a todos
     d.emit('admin_gestionar_bono', { equipoId: T[0], accion: 'add', tipo: 'lock_all' }); await wait(200);

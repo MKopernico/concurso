@@ -260,37 +260,37 @@ router.get('/games/:id/assets', (req, res) => {
 // Las imágenes de muestra vienen con la app (/shared), así el ejemplo funciona sin subir nada.
 const EJ_IMG = '/shared/ejemplo-paisaje.svg';
 const EXAMPLE_ROUNDS = [
-    ['Ejemplo · Multirespuesta', 'multirespuesta', 20, 100, 50, 0, '', ''],
-    ['Ejemplo · Pulsador', 'pulsador', '', 100, '', 0, '', ''],
-    ['Ejemplo · Precio justo', 'precio', 20, 100, 50, 0, '', ''],
-    ['Ejemplo · Boom', 'boom', 30, 100, 50, 0, '', ''],
-    ['Ejemplo · Ruleta', 'ruleta', '', 100, '', 0, '', ''],
-    ['Ejemplo · Adivina la imagen', 'imagen', '', 100, '', 0, '', ''],
-    ['Ejemplo · Imagen fija', 'imagen_fija', '', 100, '', 0, '', ''],
-    ['Ejemplo · Adivina la canción', 'cancion', '', 100, '', 0, '', ''],
-    ['Ejemplo · Identidad', 'identidad', 60, 100, 50, 0, '', ''],
-    ['Ejemplo · Imagen que se aclara', 'aclara', '', 100, '', 0, '', ''],
-    ['Ejemplo · Respuesta abierta', 'abierta', '', 100, 50, 0, '', ''],
-    ['Ejemplo · Pictionary', 'pictionary', 60, 100, 50, 0, '', ''],
+    ['Ejemplo · Multirespuesta', 'multirespuesta', 20, 500, 'si', 0, '', ''],
+    ['Ejemplo · Pulsador', 'pulsador', '', 500, '', 0, '', ''],
+    ['Ejemplo · Precio justo', 'precio', 20, 500, 'si', 0, '', ''],
+    ['Ejemplo · Boom', 'boom', 30, 500, 'si', 0, '', ''],
+    ['Ejemplo · Ruleta', 'ruleta', '', 500, '', 0, '', ''],
+    ['Ejemplo · Adivina la imagen', 'imagen', '', 500, '', 0, '', ''],
+    ['Ejemplo · Imagen fija', 'imagen_fija', '', 500, '', 0, '', ''],
+    ['Ejemplo · Adivina la canción', 'cancion', '', 500, '', 0, '', ''],
+    ['Ejemplo · Identidad', 'identidad', 60, 500, 'si', 0, '', ''],
+    ['Ejemplo · Imagen que se aclara', 'aclara', '', 500, '', 0, '', ''],
+    ['Ejemplo · Respuesta abierta', 'abierta', '', 500, 'si', 0, '', ''],
+    ['Ejemplo · Pictionary', 'pictionary', 60, 500, 'si', 0, '', ''],
 ];
 const EXAMPLE_ROWS = {
-    multirespuesta: [['Ejemplo · Multirespuesta', '¿Cuál es el río más largo de la península ibérica?', 'Ebro', 'Tajo', 'Duero', 'Guadalquivir', '', '2', 'El Tajo mide unos 1.007 km.', 20, 100, 50, 0]],
-    pulsador: [['Ejemplo · Pulsador', '¿En qué año llegó el ser humano a la Luna?', '1969', 'Fue en verano', 'Neil Armstrong', '', 100, 0]],
-    precio: [['Ejemplo · Precio justo', '¿Cuántos kilómetros hay de la Tierra a la Luna?', 384400, '/shared/placeholder-precio.svg', 20, 100]],
-    boom: [['Ejemplo · Boom', 'Ordena del invento más antiguo al más moderno', 'Teléfono móvil', 'Imprenta', 'Rueda', 'Bombilla', '', '3,2,4,1', 30, 100, 50]],
-    ruleta: [['Ejemplo · Ruleta', 'Refrán', 'Más vale tarde que nunca', 100, 50]],
-    imagen: [['Ejemplo · Adivina la imagen', '¿Qué paisaje es?', 'Montañas junto a un lago', EJ_IMG, 100]],
-    imagen_fija: [['Ejemplo · Imagen fija', '¿A qué hora del día es esta imagen?', EJ_IMG, '', 'Al amanecer', 'si', '', '', '', 100]],
-    cancion: [['Ejemplo · Adivina la canción', '¿Qué canción es?', 'Cumpleaños feliz', '', '', 100, 'default', 100]],
+    multirespuesta: [['Ejemplo · Multirespuesta', '¿Cuál es el río más largo de la península ibérica?', 'Ebro', 'Tajo', 'Duero', 'Guadalquivir', '', '2', 'El Tajo mide unos 1.007 km.', 20, 500, 'si', 0]],
+    pulsador: [['Ejemplo · Pulsador', '¿En qué año llegó el ser humano a la Luna?', '1969', 'Fue en verano', 'Neil Armstrong', '', 500, 0]],
+    precio: [['Ejemplo · Precio justo', '¿Cuántos kilómetros hay de la Tierra a la Luna?', 384400, '/shared/placeholder-precio.svg', 20, 500]],
+    boom: [['Ejemplo · Boom', 'Ordena del invento más antiguo al más moderno', 'Teléfono móvil', 'Imprenta', 'Rueda', 'Bombilla', '', '3,2,4,1', 30, 500, 'si']],
+    ruleta: [['Ejemplo · Ruleta', 'Refrán', 'Más vale tarde que nunca', 500, '']],
+    imagen: [['Ejemplo · Adivina la imagen', '¿Qué paisaje es?', 'Montañas junto a un lago', EJ_IMG, 500]],
+    imagen_fija: [['Ejemplo · Imagen fija', '¿A qué hora del día es esta imagen?', EJ_IMG, '', 'Al amanecer', 'si', '', '', '', 500]],
+    cancion: [['Ejemplo · Adivina la canción', '¿Qué canción es?', 'Cumpleaños feliz', '', '', 100, 'default', 500]],
     identidad: [
-        ['Ejemplo · Identidad', 'Empareja cada país con su capital', '', 'España', '', 'Madrid', 'Cuatro capitales europeas', 100, 60],
+        ['Ejemplo · Identidad', 'Empareja cada país con su capital', '', 'España', '', 'Madrid', 'Cuatro capitales europeas', 500, 60],
         ['Ejemplo · Identidad', '', '', 'Francia', '', 'París'],
         ['Ejemplo · Identidad', '', '', 'Italia', '', 'Roma'],
         ['Ejemplo · Identidad', '', '', 'Portugal', '', 'Lisboa'],
     ],
-    aclara: [['Ejemplo · Imagen que se aclara', '¿Qué se ve en la imagen?', EJ_IMG, 'Un paisaje de montaña', 'pixelado', 'sola', 20, 100]],
+    aclara: [['Ejemplo · Imagen que se aclara', '¿Qué se ve en la imagen?', EJ_IMG, 'Un paisaje de montaña', 'pixelado', 'sola', 20, 500]],
     abierta: [
-        ['Ejemplo · Respuesta abierta', 'Literatura y geografía: responde a las tres', '¿Quién escribió El Quijote?', 'Cervantes', 'Miguel de Cervantes / el manco de Lepanto', 90, 100, 50],
+        ['Ejemplo · Respuesta abierta', 'Literatura y geografía: responde a las tres', '¿Quién escribió El Quijote?', 'Cervantes', 'Miguel de Cervantes / el manco de Lepanto', 90, 500, 'si'],
         ['Ejemplo · Respuesta abierta', '', '¿Cuál es la capital de Portugal?', 'Lisboa', ''],
         ['Ejemplo · Respuesta abierta', '', '¿Cuántos lados tiene un hexágono?', '6', 'seis'],
     ],
@@ -316,7 +316,7 @@ router.get('/templates/importacion', (req, res) => {
     XLSX.utils.book_append_sheet(wb, wsInstr, 'Instrucciones');
 
     // Rounds sheet (empty template)
-    const ROUND_COLUMNS = ['nombre', 'tipo', 'tiempo', 'puntos_base', 'bonus_max', 'penalizacion', 'logo', 'fondo'];
+    const ROUND_COLUMNS = ['nombre', 'tipo', 'tiempo', 'puntos', 'extra_mas_rapido', 'penalizacion', 'logo', 'fondo'];
     const wsRondas = XLSX.utils.aoa_to_sheet([
         ['Rondas'],
         [],

@@ -138,8 +138,9 @@ const once = (s, ev, ms = 1500) => new Promise(r => { const t = setTimeout(() =>
     winnerP.emit('pulsar_boton'); await wait(300);
     const rem = d.state.colaPulsador[0].rem;
     cmd('director:mark_correct', { teamId: winnerId }); await wait(400);
-    const expected = 100 + Math.floor(50 * Math.min(1, rem / 30));
-    check('Acierto: puntos base + bonus por rapidez', ds().scores[winnerId] === expected, { score: ds().scores[winnerId], expected });
+    // Ronda antigua (base 100 + bonus 50) = 150 puntos: la mitad fija y la otra mitad según la rapidez al pulsar
+    const expected = 75 + Math.floor(75 * Math.min(1, rem / 30));
+    check('Acierto: mitad fija + mitad según la rapidez (desde que pulsó)', ds().scores[winnerId] === expected, { score: ds().scores[winnerId], expected });
     check('El equipo que dibuja se lleva sus puntos', ds().scores[drawer0] === 50 && ds().pictionary.drawerPts === 50, ds().scores);
     check('Se revela: la palabra llega a todos y la pantalla ve quién acertó', P[0].sync.phase === 'answer_revealed' && P[0].sync.question.content.word === 'Torre Eiffel' && scr.sync.buzzerWinner === winnerId);
     const lqs = ds().lastQuestionScores;
@@ -222,9 +223,10 @@ const once = (s, ev, ms = 1500) => new Promise(r => { const t = setTimeout(() =>
     P.forEach(p => p.emit('pulsar_boton')); await wait(300);
     check('Pulsan todos los equipos', d.state.colaPulsador.length === 4);
     const first = d.state.colaPulsador[0].id;
+    const remPad = d.state.colaPulsador[0].rem;
     const sb = JSON.parse(JSON.stringify(ds().scores));
     cmd('director:mark_correct', { teamId: first }); await wait(300);
-    check('Con pizarra solo suma quien acierta (la pizarra no es de nadie)', ds().scores[first] - (sb[first] || 0) === 100 && T.filter(t => t !== first).every(t => ds().scores[t] === sb[t]));
+    check('Con pizarra solo suma quien acierta (la pizarra no es de nadie)', ds().scores[first] - (sb[first] || 0) === 50 + Math.floor(50 * Math.min(1, remPad / 30)) && T.filter(t => t !== first).every(t => ds().scores[t] === sb[t]));
     const pad2 = io(B, { query: { gameId: g.id, pass }, transports: ['websocket'], forceNew: true });
     await connected(pad2);
     const replaced = once(pad, 'pad:replaced');

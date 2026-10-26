@@ -252,16 +252,18 @@ function loadRoundQuestions(roundId) {
 function getQuestionConfig(state) {
     const ds = state.director;
     const q = ds.questions[ds.currentQuestionIdx];
-    if (!q) return { time: 30, basePoints: 100, bonusMax: 50, penalty: 0 };
+    if (!q) return { time: 30, points: QV.DEFAULT_POINTS, fastestExtra: true, penalty: 0 };
     const rCfg = ds.currentRound ? parseJson(ds.currentRound.config) : {};
     const qCfg = q.config || {};
+    const type = ds.currentRound ? ds.currentRound.type : '';
     return {
         // Respuesta abierta: la cuenta atrás es de la pregunta y es opcional (0 = sin cuenta atrás)
         time: (ds.currentRound && ds.currentRound.type === 'abierta') ? abiertaTime(q)
             : (ds.currentRound && ds.currentRound.type === 'pictionary') ? picTimeOf(ds) // 0 = sin tiempo
             : (qCfg.time || rCfg.time || 30),
-        basePoints: qCfg.basePoints ?? rCfg.basePoints ?? 100,
-        bonusMax: qCfg.bonusMax ?? rCfg.bonusMax ?? 50,
+        // Puntos = lo máximo por acertar (ver QV.questionPoints: los juegos antiguos se convierten)
+        points: QV.questionPoints(type, qCfg, rCfg),
+        fastestExtra: QV.fastestExtraOf(qCfg, rCfg),
         penalty: qCfg.penalty ?? rCfg.penalty ?? 0,
     };
 }
@@ -477,8 +479,8 @@ function closeAbierta(state) {
     logAction(state, { action: 'abierta_closed', answered: Object.keys(ds.answers).length, total: state.equipos.length });
     return true;
 }
-// Puntos de cada equipo: puntos base × aciertos ÷ subpreguntas (redondeado). El que más acierta
-// gana además el bonus de la pregunta; con empate, el que envió antes.
+// Puntos de cada equipo: puntos × aciertos ÷ subpreguntas (redondeado; aquí no cuenta la rapidez).
+// El que más acierta gana además el extra (+10 %, si está activado); con empate, el que envió antes.
 function abiertaResults(state) {
     const ds = state.director;
     const a = ds.abierta || {};
@@ -490,13 +492,14 @@ function abiertaResults(state) {
         if (!ans.submitted) continue;
         const marks = ((a.marks || {})[tid] || []).slice(0, n);
         const cc = marks.filter(Boolean).length;
-        res[tid] = { correctCount: cc, points: n ? Math.round(cfg.basePoints * cc / n) : 0 };
+        res[tid] = { correctCount: cc, points: n ? Math.round(cfg.points * cc / n) : 0 };
         if (cc > 0) {
             const w = winner && res[winner];
             if (!w || cc > w.correctCount || (cc === w.correctCount && (ans.timestamp || 0) < (ds.answers[winner].timestamp || 0))) winner = tid;
         }
     }
-    if (winner && cfg.bonusMax > 0) res[winner].points += cfg.bonusMax;
+    const extra = extraPts(cfg);
+    if (winner && extra > 0) { res[winner].points += extra; res[winner].extra = extra; }
     return { res, winner };
 }
 // Al revelar: los puntos esperan (como en Boom e Identidad) hasta destapar la última subpregunta
@@ -705,10 +708,88 @@ function preciseRemaining(state, at) {
     const frac = Math.min(1, Math.max(0, ((at || Date.now()) - state._tickAt) / 1000));
     return Math.max(0, r - frac);
 }
-// Bonus por rapidez: proporcional al tiempo que quedaba (con milésimas) al responder
-function timeBonus(cfg, ds, remaining) {
-    if (!(ds.timer.total > 0) || !(cfg.bonusMax > 0)) return 0;
-    return Math.floor(cfg.bonusMax * Math.min(1, Math.max(0, (Number(remaining) || 0) / ds.timer.total)));
+// Lo que se lleva quien acierta: con tiempo, la mitad de los puntos fija y la otra mitad según lo
+// que quedaba al responder (con milésimas); sin tiempo, todos
+function speedPts(cfg, ds, remaining) {
+    return QV.speedPoints(cfg.points, remaining, ds.timer.total);
+}
+// Extra al más rápido de los que aciertan (si la prueba lo lleva)
+function extraPts(cfg) {
+    return cfg.fastestExtra ? QV.extraPoints(cfg.points) : 0;
+}
+// De varios equipos, el que respondió antes (más tiempo restante; empate: llegó antes)
+function fastestTeam(ds, ids) {
+    let best = null;
+    for (const tid of ids) {
+        const a = ds.answers[tid] || {}, b = best && (ds.answers[best] || {});
+        if (!b || (a.timerRemaining || 0) > (b.timerRemaining || 0)
+            || ((a.timerRemaining || 0) === (b.timerRemaining || 0) && (a.timestamp || 0) < (b.timestamp || 0))) best = tid;
+    }
+    return best;
+}
+
+// Puntos de cada equipo en las pruebas en las que responden todos a la vez (multirespuesta,
+// precio, boom, identidad): { teamId: { correct, points, extra, … } }. De aquí salen tanto el
+// marcador como el resultado que ve cada iPad, así que nunca pueden diferir.
+//  · Acertar: la mitad de los puntos fija + la otra mitad según la rapidez.
+//  · Identidad: la parte fija, proporcional a las parejas acertadas; la de rapidez, solo si acierta todas.
+//  · Precio: ganan todos los que dicen la cifra más cercana sin pasarse (puntos enteros).
+//  · El más rápido de los que lo aciertan todo se lleva además el extra (+10 %), si está activado.
+function answerScores(state) {
+    const ds = state.director;
+    const q = ds.questions[ds.currentQuestionIdx];
+    const out = {};
+    if (!q) return out;
+    const c = q.content || {};
+    const cfg = getQuestionConfig(state);
+    const type = ds.currentRound ? ds.currentRound.type : '';
+    const fail = cfg.penalty > 0 ? -cfg.penalty : 0;
+    const full = []; // los que lo aciertan todo: candidatos al extra
+    if (type === 'multirespuesta' && c.correct !== undefined) {
+        const correctSet = new Set(Array.isArray(c.correct) ? c.correct : [c.correct]);
+        for (const [tid, ans] of Object.entries(ds.answers)) {
+            const picked = Array.isArray(ans.answer) ? ans.answer : [ans.answer];
+            const ok = picked.length >= 1 && picked.every(a => correctSet.has(a)); // vale cualquiera de las correctas
+            out[tid] = { correct: ok, points: ok ? speedPts(cfg, ds, ans.timerRemaining) : fail };
+            if (ok) full.push(tid);
+        }
+    } else if (type === 'precio' && c.correct_value !== undefined) {
+        const cv = Number(c.correct_value);
+        let best = null;
+        for (const ans of Object.values(ds.answers)) {
+            const v = Number(ans.answer);
+            if (isFinite(v) && v <= cv && (best === null || v > best)) best = v;
+        }
+        for (const [tid, ans] of Object.entries(ds.answers)) {
+            const v = Number(ans.answer);
+            const ok = best !== null && isFinite(v) && v === best;
+            out[tid] = { correct: ok, points: ok ? cfg.points : 0 };
+            if (ok) full.push(tid);
+        }
+    } else if (type === 'boom' && c.correct_order) {
+        const want = JSON.stringify(c.correct_order);
+        for (const [tid, ans] of Object.entries(ds.answers)) {
+            const ok = JSON.stringify(Array.isArray(ans.answer) ? ans.answer : []) === want;
+            out[tid] = { correct: ok, points: ok ? speedPts(cfg, ds, ans.timerRemaining) : fail };
+            if (ok) full.push(tid);
+        }
+    } else if (type === 'identidad' && Array.isArray(c.pairs) && c.pairs.length) {
+        const n = c.pairs.length;
+        const fixed = cfg.points - Math.floor(cfg.points / 2);
+        for (const [tid, ans] of Object.entries(ds.answers)) {
+            const sub = Array.isArray(ans.answer) ? ans.answer : [];
+            let cc = 0;
+            for (let i = 0; i < n; i++) if (i < sub.length && sub[i] === i) cc++;
+            const ok = cc === n;
+            const pts = ok ? speedPts(cfg, ds, ans.timerRemaining) : Math.floor(fixed * cc / n) + fail;
+            out[tid] = { correct: ok, points: pts, correctCount: cc, totalPairs: n };
+            if (ok) full.push(tid);
+        }
+    }
+    const extra = extraPts(cfg);
+    const fast = extra > 0 ? fastestTeam(ds, full) : null;
+    if (fast) { out[fast].points += extra; out[fast].extra = extra; }
+    return out;
 }
 function answerTiming(state, data) {
     const ds = state.director;
@@ -783,50 +864,16 @@ function computeKaraokeAutoCombo(karaokeState, configColors) {
 
 function autoScorePrecio(state) {
     const ds = state.director;
-    const q = ds.questions[ds.currentQuestionIdx];
-    if (!q || !q.content || q.content.correct_value === undefined) return;
-    const correctValue = Number(q.content.correct_value);
-    const cfg = getQuestionConfig(state);
-
-    const entries = [];
-    for (const [teamId, ans] of Object.entries(ds.answers)) {
-        const value = Number(ans.answer);
-        if (isNaN(value)) continue;
-        entries.push({ teamId, value, timestamp: ans.timestamp, timerRemaining: ans.timerRemaining });
-    }
-
-    const valid = entries
-        .filter(e => e.value <= correctValue)
-        .sort((a, b) => {
-            const da = correctValue - a.value, db = correctValue - b.value;
-            if (da !== db) return da - db;
-            return a.timestamp - b.timestamp;
-        });
-
-    const winnerId = valid.length > 0 ? valid[0].teamId : null;
-    if (winnerId) {
-        if (!ds.scores[winnerId]) ds.scores[winnerId] = 0;
-        const bonus = timeBonus(cfg, ds, valid[0].timerRemaining);
-        ds.scores[winnerId] += cfg.basePoints + bonus;
+    for (const [teamId, r] of Object.entries(answerScores(state))) {
+        if (!r.points) continue;
+        ds.scores[teamId] = (ds.scores[teamId] || 0) + r.points;
     }
 }
 
 function autoScoreMultirespuesta(state) {
     const ds = state.director;
-    const q = ds.questions[ds.currentQuestionIdx];
-    if (!q || !q.content || q.content.correct === undefined) return;
-    const correctSet = new Set(Array.isArray(q.content.correct) ? q.content.correct : [q.content.correct]);
-    const cfg = getQuestionConfig(state);
-    for (const [teamId, ans] of Object.entries(ds.answers)) {
-        const picked = Array.isArray(ans.answer) ? ans.answer : [ans.answer];
-        const ok = picked.length >= 1 && picked.every(a => correctSet.has(a)); // vale cualquiera de las correctas
-        if (!ds.scores[teamId]) ds.scores[teamId] = 0;
-        if (ok) {
-            const bonus = timeBonus(cfg, ds, ans.timerRemaining);
-            ds.scores[teamId] += cfg.basePoints + bonus;
-        } else if (cfg.penalty > 0) {
-            ds.scores[teamId] -= cfg.penalty;
-        }
+    for (const [teamId, r] of Object.entries(answerScores(state))) {
+        ds.scores[teamId] = (ds.scores[teamId] || 0) + r.points;
     }
 }
 
@@ -904,52 +951,17 @@ function applyPendingScores(state) {
 
 function autoScoreIdentidad(state) {
     const ds = state.director;
-    const q = ds.questions[ds.currentQuestionIdx];
-    if (!q || !q.content || !q.content.pairs) return;
-    const pairs = q.content.pairs;
-    const nPairs = pairs.length;
-    if (nPairs === 0) return;
-    const cfg = getQuestionConfig(state);
-
-    for (const [teamId, ans] of Object.entries(ds.answers)) {
-        const submitted = Array.isArray(ans.answer) ? ans.answer : [];
-        let correctCount = 0;
-        for (let i = 0; i < nPairs; i++) {
-            if (i < submitted.length && submitted[i] === i) {
-                correctCount++;
-            }
-        }
+    for (const [teamId, r] of Object.entries(answerScores(state))) {
         if (!ds.scores[teamId]) ds.scores[teamId] = 0;
-        const proportional = Math.floor(cfg.basePoints * correctCount / nPairs);
-        if (correctCount === nPairs) {
-            const bonus = timeBonus(cfg, ds, ans.timerRemaining);
-            addPending(ds, teamId, proportional + bonus);
-        } else {
-            addPending(ds, teamId, proportional);
-            if (cfg.penalty > 0 && correctCount < nPairs) {
-                addPending(ds, teamId, -cfg.penalty);
-            }
-        }
+        addPending(ds, teamId, r.points);
     }
 }
 
 function autoScoreBoom(state) {
     const ds = state.director;
-    const q = ds.questions[ds.currentQuestionIdx];
-    if (!q || !q.content || !q.content.correct_order) return;
-    const order = q.content.correct_order;
-    const cfg = getQuestionConfig(state);
-
-    for (const [teamId, ans] of Object.entries(ds.answers)) {
-        const submitted = Array.isArray(ans.answer) ? ans.answer : [];
-        const ok = JSON.stringify(submitted) === JSON.stringify(order);
+    for (const [teamId, r] of Object.entries(answerScores(state))) {
         if (!ds.scores[teamId]) ds.scores[teamId] = 0;
-        if (ok) {
-            const bonus = timeBonus(cfg, ds, ans.timerRemaining);
-            addPending(ds, teamId, cfg.basePoints + bonus);
-        } else if (cfg.penalty > 0) {
-            addPending(ds, teamId, -cfg.penalty);
-        }
+        if (r.points) addPending(ds, teamId, r.points);
     }
 }
 
@@ -963,79 +975,22 @@ function computeLastQuestionScores(state) {
     const roundType = ds.currentRound ? ds.currentRound.type : '';
     const results = {};
 
-    // Pre-calculate precio winner (needs all answers before per-team loop)
-    let precioWinnerId = null;
-    if (roundType === 'precio' && c.correct_value !== undefined) {
-        const cv = Number(c.correct_value);
-        const valid = Object.entries(ds.answers)
-            .map(([tid, a]) => ({ teamId: tid, value: Number(a.answer), timestamp: a.timestamp, timerRemaining: a.timerRemaining }))
-            .filter(e => !isNaN(e.value) && e.value <= cv)
-            .sort((a, b) => { const da = cv - a.value, db = cv - b.value; return da !== db ? da - db : a.timestamp - b.timestamp; });
-        precioWinnerId = valid.length > 0 ? valid[0].teamId : null;
-    }
+    // Multirespuesta, precio, boom e identidad: los mismos puntos que suman al marcador
+    const table = answerScores(state);
+    const winners = roundType === 'precio' ? Object.keys(table).filter(t => table[t].correct) : [];
 
     for (const [teamId, ans] of Object.entries(ds.answers)) {
         const entry = { answer: ans.answer, correct: false, points: 0 };
 
-        if (roundType === 'multirespuesta' && c.correct !== undefined) {
-            const correctSet = new Set(Array.isArray(c.correct) ? c.correct : [c.correct]);
-            const picked = Array.isArray(ans.answer) ? ans.answer : [ans.answer];
-            entry.correct = picked.length >= 1 && picked.every(a => correctSet.has(a));
-            if (entry.correct) {
-                const bonus = timeBonus(cfg, ds, ans.timerRemaining);
-                entry.points = cfg.basePoints + bonus;
-            } else if (cfg.penalty > 0) {
-                entry.points = -cfg.penalty;
-            }
-        } else if (roundType === 'precio' && c.correct_value !== undefined) {
-            const val = Number(ans.answer);
-            const cv = Number(c.correct_value);
-            entry.correct = teamId === precioWinnerId;
-            entry.passed = val > cv;
-            entry.delta = cv - val;
-            // Misma cifra que el ganador (p. ej. dos equipos clavan el precio): acertó igual, pero
-            // el ganador respondió antes. El iPad lo explica en vez de decir «te quedaste corto».
-            if (!entry.correct && precioWinnerId && ds.answers[precioWinnerId] && Number(ds.answers[precioWinnerId].answer) === val) {
-                const w = state.equipos.find(e => e.id === precioWinnerId);
-                entry.sameAsWinner = true;
+        if (table[teamId]) {
+            Object.assign(entry, table[teamId]);
+            if (roundType === 'precio') {
+                const val = Number(ans.answer);
+                const cv = Number(c.correct_value);
+                entry.passed = val > cv;
+                entry.delta = cv - val;
                 entry.exact = val === cv;
-                entry.winnerName = w ? w.nombre : '';
-            }
-            if (entry.correct) {
-                const bonus = timeBonus(cfg, ds, ans.timerRemaining);
-                entry.points = cfg.basePoints + bonus;
-            }
-        } else if (roundType === 'boom' && c.correct_order) {
-            const order = c.correct_order;
-            const submitted = Array.isArray(ans.answer) ? ans.answer : [];
-            entry.correct = JSON.stringify(submitted) === JSON.stringify(order);
-            if (entry.correct) {
-                const bonus = timeBonus(cfg, ds, ans.timerRemaining);
-                entry.points = cfg.basePoints + bonus;
-            } else if (cfg.penalty > 0) {
-                entry.points = -cfg.penalty;
-            }
-        } else if (roundType === 'identidad' && c.pairs) {
-            const nPairs = c.pairs.length;
-            const submitted = Array.isArray(ans.answer) ? ans.answer : [];
-            let correctCount = 0;
-            for (let i = 0; i < nPairs; i++) {
-                if (i < submitted.length && submitted[i] === i) {
-                    correctCount++;
-                }
-            }
-            entry.correct = correctCount === nPairs;
-            entry.correctCount = correctCount;
-            entry.totalPairs = nPairs;
-            const proportional = Math.floor(cfg.basePoints * correctCount / nPairs);
-            if (entry.correct) {
-                const bonus = timeBonus(cfg, ds, ans.timerRemaining);
-                entry.points = proportional + bonus;
-            } else {
-                entry.points = proportional;
-                if (cfg.penalty > 0 && correctCount < nPairs) {
-                    entry.points -= cfg.penalty;
-                }
+                entry.sharedWin = entry.correct && winners.length > 1; // empate: ganan todos, el extra al más rápido
             }
         } else if (roundType === 'abierta' && ds.abierta) {
             if (!ans.submitted) continue;
@@ -1166,16 +1121,19 @@ function playerView(state, forPlayers) {
         question = { id: curQ.id, content: c, media_url: curQ.media_url };
     }
     // Compute precio winner for display
-    let precioWinner = null;
+    // Precio: pueden ganar varios (misma cifra); precioWinner es el que se lleva el extra (o el primero)
+    let precioWinner = null, precioWinners = null;
     if (ds.phase === 'answer_revealed' && ds.currentRound && ds.currentRound.type === 'precio') {
         const lqs = ds.lastQuestionScores || {};
+        precioWinners = [];
         for (const [tid, r] of Object.entries(lqs)) {
-            if (r.correct) {
-                const eq = state.equipos.find(e => e.id === tid);
-                precioWinner = { teamId: tid, name: eq ? eq.nombre : tid, value: r.answer, points: r.points };
-                break;
-            }
+            if (!r.correct) continue;
+            const eq = state.equipos.find(e => e.id === tid);
+            const w = { teamId: tid, name: eq ? eq.nombre : tid, value: r.answer, points: r.points, extra: r.extra || 0 };
+            precioWinners.push(w);
+            if (!precioWinner || w.extra) precioWinner = w;
         }
+        if (!precioWinners.length) precioWinners = null;
     }
 
     const roundCfg = ds.currentRound ? parseJson(ds.currentRound.config) : {};
@@ -1229,7 +1187,7 @@ function playerView(state, forPlayers) {
         typeTheme: resolveTypeTheme(state, ds.currentRound ? ds.currentRound.type : null),
         roundTheme: { logo: roundCfg.logo || null, background: roundCfg.background || null },
         rounds: roundsSummary,
-        precioWinner,
+        precioWinner, precioWinners,
         videoState: ds.videoState || null,
         identidad: ds.identidad ? { revealIndex: ds.identidad.revealIndex } : null,
         boomStep: typeof ds.boomStep === 'number' ? ds.boomStep : null, // posiciones de Boom ya reveladas
@@ -1793,7 +1751,7 @@ function attachSocketHandlers(io) {
             if (state.director.aclara && state.director.phase === 'question') {
                 aclaraPause(state.director); // la imagen se congela mientras alguien responde
                 entry.level = state.director.aclara.level;
-                entry.pts = aclaraPoints(getQuestionConfig(state).basePoints, entry.level);
+                entry.pts = aclaraPoints(getQuestionConfig(state).points, entry.level);
             }
             state.colaPulsador.push(entry);
             // Pictionary: el tiempo se para mientras responden (vuelve a correr si fallan)
@@ -2558,9 +2516,10 @@ function attachSocketHandlers(io) {
             io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             const cfg = getQuestionConfig(state);
             // Bonus por rapidez solo en pruebas con temporizador (ruleta e imagen fija: puntos base)
-            const bonus = isNoTimerRound(ds) ? 0 : timeBonus(cfg, ds, typeof qEntry.rem === 'number' ? qEntry.rem : ds.timer.remaining);
+            // Pulsador y pruebas sin tiempo: puntos enteros; con tiempo (Pictionary), mitad fija + rapidez desde que pulsó
+            const timedPts = isNoTimerRound(ds) ? cfg.points : speedPts(cfg, ds, typeof qEntry.rem === 'number' ? qEntry.rem : ds.timer.remaining);
             // Imagen que se aclara: vale según lo nítida que estaba cuando pulsó
-            const won = (ds.aclara && typeof qEntry.pts === 'number') ? qEntry.pts : cfg.basePoints + bonus;
+            const won = (ds.aclara && typeof qEntry.pts === 'number') ? qEntry.pts : timedPts;
             if (!ds.scores[data.teamId]) ds.scores[data.teamId] = 0;
             ds.scores[data.teamId] += won;
             // Con un acierto la pregunta está resuelta: se cierra el pulsador, se vacía la cola (si

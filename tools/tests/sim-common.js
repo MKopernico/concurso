@@ -80,15 +80,15 @@ class TestServer {
 
 // ───────────────── Juego con los 10 tipos de prueba ─────────────────
 const ROUND_DEFS = [
-    { type: 'multirespuesta', config: { time: 20, basePoints: 100, bonusMax: 50, penalty: 10 } },
-    { type: 'precio', config: { time: 20, basePoints: 150, bonusMax: 50, penalty: 0 } },
-    { type: 'boom', config: { time: 20, basePoints: 100, bonusMax: 30, penalty: 20 } },
-    { type: 'identidad', config: { time: 25, basePoints: 90, bonusMax: 30, penalty: 10 } },
-    { type: 'pulsador', config: { basePoints: 100, bonusMax: 50, penalty: 25 } },
-    { type: 'ruleta', config: { basePoints: 120, bonusMax: 50, penalty: 0 } },
-    { type: 'imagen', config: { basePoints: 80, bonusMax: 50, penalty: 10 } },
-    { type: 'imagen_fija', config: { basePoints: 60, penalty: 0 } },
-    { type: 'cancion', config: { basePoints: 70, penalty: 5 } },
+    { type: 'multirespuesta', config: { time: 20, points: 150, fastestExtra: true, penalty: 10 } },
+    { type: 'precio', config: { time: 20, points: 200, fastestExtra: true, penalty: 0 } },
+    { type: 'boom', config: { time: 20, points: 130, fastestExtra: false, penalty: 20 } },
+    { type: 'identidad', config: { time: 25, points: 120, fastestExtra: true, penalty: 10 } },
+    { type: 'pulsador', config: { points: 100, penalty: 25 } },
+    { type: 'ruleta', config: { points: 120, penalty: 0 } },
+    { type: 'imagen', config: { points: 80, penalty: 10 } },
+    { type: 'imagen_fija', config: { points: 60, penalty: 0 } },
+    { type: 'cancion', config: { points: 70, penalty: 5 } },
     { type: 'karaoke', config: {} },
 ];
 const TIMED = new Set(['multirespuesta', 'precio', 'boom', 'identidad']);
@@ -142,37 +142,52 @@ async function buildGame(srv, name, code, types = ROUND_DEFS.map(r => r.type)) {
 // ───────────────── Puntuación esperada (cálculo propio, independiente del servidor) ─────────────────
 // answers: { teamId: { answer, timestamp, timerRemaining } } tal como quedaron al cerrar la pregunta.
 function expectedPoints(type, content, cfg, answers, timerTotal) {
+    // Sistema de puntos: mitad fija + mitad según la rapidez; +10 % al más rápido de los que aciertan
+    // todo; Precio: ganan todos los de la mejor cifra (puntos enteros); Identidad parcial: la parte
+    // fija, proporcional.
     const out = {};
-    const base = cfg.basePoints ?? 100, bonusMax = cfg.bonusMax ?? 50, penalty = cfg.penalty ?? 0;
-    const bonus = (tr) => timerTotal > 0 ? Math.floor(bonusMax * (tr / timerTotal)) : 0;
+    const P = cfg.points ?? 500, penalty = cfg.penalty ?? 0;
+    const half = Math.floor(P / 2), fixed = P - half;
+    const sp = (tr) => timerTotal > 0 ? fixed + Math.floor(half * Math.min(1, Math.max(0, tr / timerTotal))) : P;
+    const extra = cfg.fastestExtra === false ? 0 : Math.round(P * 0.1);
     const entries = Object.entries(answers || {});
+    const full = [];
     if (type === 'multirespuesta') {
         const ok = new Set(content.correct);
         for (const [t, a] of entries) {
             const picked = Array.isArray(a.answer) ? a.answer : [a.answer];
-            out[t] = (picked.length >= 1 && picked.every(x => ok.has(x))) ? base + bonus(a.timerRemaining) : -penalty;
+            const good = picked.length >= 1 && picked.every(x => ok.has(x));
+            out[t] = good ? sp(a.timerRemaining) : -penalty;
+            if (good) full.push(t);
         }
     } else if (type === 'precio') {
         const cv = Number(content.correct_value);
         let best = null;
-        for (const [t, a] of entries) {
-            const v = Number(a.answer);
-            if (isNaN(v) || v > cv) continue;
-            if (!best || cv - v < best.d || (cv - v === best.d && a.timestamp < best.ts)) best = { t, d: cv - v, ts: a.timestamp, tr: a.timerRemaining };
-        }
-        for (const [t] of entries) out[t] = 0;
-        if (best) out[best.t] = base + bonus(best.tr);
+        for (const [, a] of entries) { const v = Number(a.answer); if (!isNaN(v) && v <= cv && (best === null || v > best)) best = v; }
+        for (const [t, a] of entries) { const won = best !== null && Number(a.answer) === best; out[t] = won ? P : 0; if (won) full.push(t); }
     } else if (type === 'boom') {
         const want = JSON.stringify(content.correct_order);
-        for (const [t, a] of entries) out[t] = JSON.stringify(Array.isArray(a.answer) ? a.answer : []) === want ? base + bonus(a.timerRemaining) : -penalty;
+        for (const [t, a] of entries) {
+            const good = JSON.stringify(Array.isArray(a.answer) ? a.answer : []) === want;
+            out[t] = good ? sp(a.timerRemaining) : -penalty;
+            if (good) full.push(t);
+        }
     } else if (type === 'identidad') {
         const n = content.pairs.length;
         for (const [t, a] of entries) {
             const sub = Array.isArray(a.answer) ? a.answer : [];
             let c = 0; for (let i = 0; i < n; i++) if (sub[i] === i) c++;
-            const prop = Math.floor(base * c / n);
-            out[t] = c === n ? prop + bonus(a.timerRemaining) : prop - penalty;
+            out[t] = c === n ? sp(a.timerRemaining) : Math.floor(fixed * c / n) - penalty;
+            if (c === n) full.push(t);
         }
+    }
+    if (extra && full.length) {
+        let fast = null;
+        for (const t of full) {
+            const a = answers[t], b = fast && answers[fast];
+            if (!b || (a.timerRemaining || 0) > (b.timerRemaining || 0) || ((a.timerRemaining || 0) === (b.timerRemaining || 0) && (a.timestamp || 0) < (b.timestamp || 0))) fast = t;
+        }
+        out[fast] += extra;
     }
     for (const k of Object.keys(out)) if (out[k] === 0) delete out[k];
     return out;
@@ -578,7 +593,7 @@ class Coordinator {
             if (queue[k]) {
                 d.cmd('director:mark_correct', { teamId: queue[k] });
                 if (chance(0.3)) d.cmd('director:mark_correct', { teamId: queue[k] }); // doble toque: no suma dos veces
-                exp[queue[k]] = (exp[queue[k]] || 0) + cfg.basePoints;
+                exp[queue[k]] = (exp[queue[k]] || 0) + cfg.points; // pulsador y similares: puntos enteros
             }
             await wait(150);
             if (type === 'ruleta') d.emit('director:solve_roulette');

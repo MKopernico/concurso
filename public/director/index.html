@@ -1765,7 +1765,7 @@ function aclaraBasePoints(q) {
     var ds = S.director, rc = {};
     try { rc = typeof ds.currentRound.config === 'string' ? JSON.parse(ds.currentRound.config || '{}') : (ds.currentRound.config || {}); } catch (e) {}
     var qc = (q && q.config) || {};
-    return qc.basePoints != null ? qc.basePoints : (rc.basePoints != null ? rc.basePoints : 100);
+    return QuestionValidation.questionPoints('aclara', qc, rc);
 }
 // Igual que el servidor (aclaraPoints): de todos los puntos a un 20 %, redondeado a 5
 function aclaraPts(base, level) { return Math.round(Math.max(base * 0.2, base * (1 - Math.max(0, Math.min(1, level)))) / 5) * 5; }
@@ -2231,13 +2231,14 @@ function imagenToggleAnswer() { emit('director:image_toggle_answer'); }
 
 function getQuestionConfig(ds) {
     var q = ds.questions[ds.currentQuestionIdx];
-    if (!q) return { time: 30, basePoints: 100, bonusMax: 50, penalty: 0 };
+    if (!q) return { time: 30, points: QuestionValidation.DEFAULT_POINTS, fastestExtra: true, penalty: 0 };
     var rCfg = ds.currentRound ? parseJson(ds.currentRound.config) : {};
     var qCfg = q.config || {};
     return {
         time: qCfg.time || rCfg.time || 30,
-        basePoints: qCfg.basePoints !== undefined ? qCfg.basePoints : (rCfg.basePoints !== undefined ? rCfg.basePoints : 100),
-        bonusMax: qCfg.bonusMax !== undefined ? qCfg.bonusMax : (rCfg.bonusMax !== undefined ? rCfg.bonusMax : 50),
+        // Igual que el servidor: los juegos antiguos (puntos base + bonus) se convierten al vuelo
+        points: QuestionValidation.questionPoints(ds.currentRound ? ds.currentRound.type : '', qCfg, rCfg),
+        fastestExtra: QuestionValidation.fastestExtraOf(qCfg, rCfg),
         penalty: qCfg.penalty !== undefined ? qCfg.penalty : (rCfg.penalty !== undefined ? rCfg.penalty : 0),
     };
 }
@@ -2635,7 +2636,7 @@ function abCorrectionHtml(ds, subs, rectify) {
     }
     html += '</div>';
     html += '<div class="ab-note' + (rectify ? ' warn' : '') + '">' + (rectify
-        ? 'Rectificar: cada cambio recalcula la pregunta (también quién gana el bonus) y ajusta el marcador al momento.'
+        ? 'Rectificar: cada cambio recalcula la pregunta (también quién gana el extra) y ajusta el marcador al momento.'
         : 'Toca una respuesta para cambiarla entre ✓ y ✗. Lo que coincide con una respuesta válida ya sale en verde.') + '</div>';
     html += '<div class="ab-subnav"><button class="btn-ghost btn-sm" data-ab="prev"' + (_abSub <= 0 ? ' disabled' : '') + '>&#9664; Subpregunta anterior</button>'
         + '<button class="btn-ghost btn-sm" data-ab="next"' + (_abSub >= subs.length - 1 ? ' disabled' : '') + '>Siguiente subpregunta &#9654;</button></div>';
@@ -2712,7 +2713,7 @@ function renderAnswerAbierta(ds, c) {
     var html = '';
     if (a.winner) {
         var w = (ds.lastQuestionScores || {})[a.winner] || {};
-        html += '<div class="ab-note" style="font-size:14px;margin-bottom:6px;">🏆 Gana el bonus: <b>' + esc(abTeamName(a.winner)) + '</b> (' + (w.correctCount || 0) + ' de ' + subs.length + ')</div>';
+        html += '<div class="ab-note" style="font-size:14px;margin-bottom:6px;">🏆 Más aciertos (extra): <b>' + esc(abTeamName(a.winner)) + '</b> (' + (w.correctCount || 0) + ' de ' + subs.length + ')</div>';
     }
     html += abCorrectionHtml(ds, subs, true);
     panel.innerHTML = html;
@@ -3001,14 +3002,14 @@ function renderTeamResults() {
             ansText = order.map(function(i) { return c.items[i] || i; }).join(' → ');
         } else if (roundType === 'abierta' && Array.isArray(r.marks)) {
             ansText = r.marks.map(function(m) { return m ? '✓' : '✗'; }).join(' ') + '  ·  ' + r.correctCount + ' de ' + r.totalSubs
-                + (r.winner ? '  ·  🏆 bonus' : '') + (r.late ? '  ·  sin enviar' : '');
+                + (r.winner ? '  ·  🏆 extra' : '') + (r.late ? '  ·  sin enviar' : '');
             if (!r.noAnswer) icon = r.correctCount > 0 ? '&#9989;' : '&#10060;';
         } else {
             ansText = String(r.answer || '');
         }
 
         var ptsClass = r.points > 0 ? 'positive' : (r.points < 0 ? 'negative' : 'zero');
-        var ptsText = r.points > 0 ? '+' + r.points : String(r.points);
+        var ptsText = (r.points > 0 ? '+' + r.points : String(r.points)) + (r.extra ? ' ⚡' : ''); // ⚡ = se llevó el extra al más rápido
         var photoHtml = eq.photo_url
             ? '<img class="tr-photo" src="' + esc(eq.photo_url) + '">'
             : '<div class="tr-photo" style="display:flex;align-items:center;justify-content:center;font-size:14px;">&#128100;</div>';
@@ -3287,9 +3288,9 @@ var _qpMode = 'add'; // 'add' or 'sub'
 
 function getDefaultPoints() {
     var ds = S.director;
-    if (!ds || ds.currentQuestionIdx < 0 || !ds.questions || !ds.questions.length) return 100;
+    if (!ds || ds.currentQuestionIdx < 0 || !ds.questions || !ds.questions.length) return QuestionValidation.DEFAULT_POINTS;
     var cfg = getQuestionConfig(ds);
-    return cfg.basePoints || 100;
+    return cfg.points || QuestionValidation.DEFAULT_POINTS;
 }
 
 function openQuickPoints(teamId, mode, btnEl) {

@@ -211,50 +211,50 @@ function contentToRow(typeDef, roundName, question, round) {
             const opts = c.options || [];
             const rawCorrect = Array.isArray(c.correct) ? c.correct : (c.correct !== undefined ? [c.correct] : []);
             const correct = rawCorrect.map(i => i + 1).join(',');
-            return [roundName, c.statement || '', opts[0] || '', opts[1] || '', opts[2] || '', opts[3] || '', opts[4] || '', correct, c.explanation || '', qCfg.time || '', qCfg.basePoints || '', qCfg.bonusMax || '', qCfg.penalty || ''];
+            return [roundName, c.statement || '', opts[0] || '', opts[1] || '', opts[2] || '', opts[3] || '', opts[4] || '', correct, c.explanation || '', qCfg.time || '', ownPts(typeDef.type, qCfg, round), ownExtra(qCfg), qCfg.penalty || ''];
         }
         case 'pulsador': {
             const hints = c.hints || [];
-            return [roundName, c.statement || '', c.answer || '', hints[0] || '', hints[1] || '', qCfg.time || '', qCfg.basePoints || '', qCfg.penalty || ''];
+            return [roundName, c.statement || '', c.answer || '', hints[0] || '', hints[1] || '', qCfg.time || '', ownPts(typeDef.type, qCfg, round), qCfg.penalty || ''];
         }
         case 'precio':
-            return [roundName, c.statement || '', c.correct_value ?? '', c.image || '', qCfg.time || '', qCfg.basePoints || ''];
+            return [roundName, c.statement || '', c.correct_value ?? '', c.image || '', qCfg.time || '', ownPts(typeDef.type, qCfg, round)];
         case 'boom': {
             const items = c.items || [];
             const rawOrder = Array.isArray(c.correct_order) ? c.correct_order : (c.correct_order !== undefined ? [c.correct_order] : []);
             const order = rawOrder.map(i => i + 1).join(',');
-            return [roundName, c.statement || '', items[0] || '', items[1] || '', items[2] || '', items[3] || '', items[4] || '', order, qCfg.time || '', qCfg.basePoints || '', qCfg.bonusMax || ''];
+            return [roundName, c.statement || '', items[0] || '', items[1] || '', items[2] || '', items[3] || '', items[4] || '', order, qCfg.time || '', ownPts(typeDef.type, qCfg, round), ownExtra(qCfg)];
         }
         case 'ruleta':
-            return [roundName, c.hint || '', c.phrase || '', qCfg.basePoints || '', qCfg.bonusMax || ''];
+            return [roundName, c.hint || '', c.phrase || '', ownPts(typeDef.type, qCfg, round), ownExtra(qCfg)];
         case 'imagen':
-            return [roundName, c.statement || '', c.answer || '', c.image || '', qCfg.basePoints || ''];
+            return [roundName, c.statement || '', c.answer || '', c.image || '', ownPts(typeDef.type, qCfg, round)];
         case 'imagen_fija': {
             const hasVideo = !!c.video;
-            return [roundName, c.statement || '', hasVideo ? '' : (c.image || ''), hasVideo ? c.video : '', c.answer || '', c.buzzer_enabled === false ? 'no' : 'si', hasVideo ? (c.autoplay === false ? 'no' : 'si') : '', hasVideo ? (c.loop ? 'si' : 'no') : '', qCfg.time || '', qCfg.basePoints || ''];
+            return [roundName, c.statement || '', hasVideo ? '' : (c.image || ''), hasVideo ? c.video : '', c.answer || '', c.buzzer_enabled === false ? 'no' : 'si', hasVideo ? (c.autoplay === false ? 'no' : 'si') : '', hasVideo ? (c.loop ? 'si' : 'no') : '', qCfg.time || '', ownPts(typeDef.type, qCfg, round)];
         }
         case 'cancion':
-            return [roundName, c.statement || '', c.answer || '', c.image || '', c.audio || '', c.initial_chaos ?? 100, c.preset || 'default', qCfg.basePoints || ''];
+            return [roundName, c.statement || '', c.answer || '', c.image || '', c.audio || '', c.initial_chaos ?? 100, c.preset || 'default', ownPts(typeDef.type, qCfg, round)];
         case 'aclara':
-            return [roundName, c.statement || '', c.image || '', c.answer || '', c.effect === 'blur' ? 'desenfoque' : 'pixelado', c.mode === 'manual' ? 'a mano' : 'sola', c.duration || 30, qCfg.basePoints || ''];
+            return [roundName, c.statement || '', c.image || '', c.answer || '', c.effect === 'blur' ? 'desenfoque' : 'pixelado', c.mode === 'manual' ? 'a mano' : 'sola', c.duration || 30, ownPts(typeDef.type, qCfg, round)];
         case 'pictionary': {
             const rc = (round && round.config) || {};
             return [roundName, c.word || '', c.category || '', rc.picMode === 'ipad' ? 'ipad' : 'equipo', rc.picTurns === 'manual' ? 'coordinador' : 'auto',
-                rc.picDrawerPoints || 0, qCfg.time || '', qCfg.basePoints ?? '', qCfg.bonusMax ?? ''];
+                rc.picDrawerPoints || 0, qCfg.time || '', ownPts(typeDef.type, qCfg, round), ownExtra(qCfg)];
         }
         case 'identidad': {
             const pairs = Array.isArray(c.pairs) ? c.pairs : [];
-            if (pairs.length === 0) return [[roundName, c.statement || '', '', '', '', '', c.explanation || '', qCfg.basePoints || '', qCfg.time || '']];
+            if (pairs.length === 0) return [[roundName, c.statement || '', '', '', '', '', c.explanation || '', ownPts(typeDef.type, qCfg, round), qCfg.time || '']];
             return pairs.map((p, idx) => {
                 const l = p.left || {}, r = p.right || {};
-                if (idx === 0) return [roundName, c.statement || '', l.image || '', l.text || '', r.image || '', r.text || '', c.explanation || '', qCfg.basePoints || '', qCfg.time || ''];
+                if (idx === 0) return [roundName, c.statement || '', l.image || '', l.text || '', r.image || '', r.text || '', c.explanation || '', ownPts(typeDef.type, qCfg, round), qCfg.time || ''];
                 return [roundName, '', l.image || '', l.text || '', r.image || '', r.text || '', '', '', ''];
             });
         }
         case 'abierta': {
             const subs = Array.isArray(c.subs) ? c.subs : [];
             const head = [roundName, c.statement || ''];
-            const cfgCols = [c.time || '', qCfg.basePoints ?? '', qCfg.bonusMax ?? ''];
+            const cfgCols = [c.time || '', ownPts(typeDef.type, qCfg, round), ownExtra(qCfg)];
             if (subs.length === 0) return [[...head, '', '', '', ...cfgCols]];
             return subs.map((s, idx) => idx === 0
                 ? [...head, s.text || '', s.answer || '', s.alts || '', ...cfgCols]
@@ -278,7 +278,7 @@ function buildInstructionRows() {
         ['  - Hoja "Configuración" (opcional): tema del juego (logo, colores, fondos, logos/fondos por tipo).'],
         ['    Si se incluye, REEMPLAZA el tema del juego destino al importar.'],
         ['  - Hoja "Rondas" (opcional pero recomendada): define rondas con tipo, config, logo y fondo.'],
-        ['    Columnas: nombre, tipo, tiempo, puntos_base, bonus_max, penalizacion, logo, fondo.'],
+        ['    Columnas: nombre, tipo, tiempo, puntos, extra_mas_rapido, penalizacion, logo, fondo.'],
         ['    Si no se incluye, las rondas se crean automáticamente desde las pestañas de preguntas.'],
         ['  - Pestañas de prueba: una por tipo. La columna "ronda" referencia la ronda por nombre.'],
         [],
@@ -288,9 +288,15 @@ function buildInstructionRows() {
         ['3. Las columnas de media (imagen, audio, video) esperan la ruta del archivo'],
         ['   ya subido en el servidor (ej: /uploads/images/foto.jpg).'],
         ['   Suba los archivos desde el admin ANTES de importar el Excel.'],
-        ['4. Los campos de configuración (tiempo, puntos_base, etc.) son opcionales.'],
+        ['4. Los campos de configuración (tiempo, puntos, etc.) son opcionales.'],
         ['   Si se omiten, se usan los valores por defecto.'],
         ['5. Las filas sin datos obligatorios (ej: imagen sin respuesta) se omiten silenciosamente.'],
+        [],
+        ['PUNTOS:'],
+        ['  "puntos" = lo máximo que da acertar (por defecto 500). En las pruebas con tiempo, la mitad es fija y la otra mitad'],
+        ['  según la rapidez. Pulsador y pruebas sin tiempo dan los puntos enteros.'],
+        ['  "extra_mas_rapido" = si/no: +10 % para el más rápido de los que aciertan (por defecto si). En una pregunta, vacío = el de la ronda.'],
+        ['  Los Excel antiguos (columnas "puntos_base" y "bonus_max") se siguen pudiendo importar: los puntos se suman.'],
         [],
         ['HOJA "CONFIGURACIÓN" — campos (col A) y valores (col B):'],
         ['  logo — URL del logo del juego (ej: /uploads/images/logo.png)'],
@@ -322,10 +328,10 @@ function buildInstructionRows() {
     rows.push(['  Cancion: caos_inicial (0-100, defecto 100), preset (defecto "default").']);
     rows.push(['  Identidad: una fila por pareja. La 1ª fila lleva enunciado, explicación y config; las siguientes dejan enunciado vacío.']);
     rows.push(['    Cada lado (izq/der) necesita imagen O texto (o ambos). Las imágenes son rutas ya subidas.']);
-    rows.push(['  Respuesta abierta: una fila por subpregunta (todas se lanzan a la vez). La 1ª fila lleva el enunciado general (opcional), tiempo, puntos y bonus.']);
+    rows.push(['  Respuesta abierta: una fila por subpregunta (todas se lanzan a la vez). La 1ª fila lleva el enunciado general (opcional), tiempo, puntos y extra.']);
     rows.push(['    "otras_validas": todas en una celda separadas por / (ej: Miguel de Cervantes / el manco de Lepanto). Da igual mayúsculas, tildes y signos.']);
     rows.push(['    "tiempo" vacío = sin cuenta atrás (modo «Lo sabe no lo sabe»). Para otra pregunta en la misma ronda, escribe su enunciado general.']);
-    rows.push(['    Puntos: cada equipo se lleva la parte proporcional de lo que acierta; el que más acierta (empate: el que envió antes) gana además el bonus.']);
+    rows.push(['    Puntos: cada equipo se lleva la parte proporcional de lo que acierta; el que más acierta (empate: el que envió antes) gana además el extra (+10 %).']);
     rows.push(['  Pictionary: una fila por palabra (cada pregunta es una palabra y dibuja un equipo distinto). "categoria" es opcional y la ven todos.']);
     rows.push(['    "quien_dibuja": equipo (cada palabra la dibuja un equipo en su iPad; los demás adivinan) o ipad (una pizarra fija enlazada por QR; adivinan todos y quien dibuja no suma).']);
     rows.push(['    "turnos": auto (el programa propone a quién le toca: todos dibujan antes de repetir) o coordinador (lo elige el coordinador en cada palabra).']);
@@ -419,10 +425,10 @@ router.get('/games/:id/export-excel', (req, res) => {
     XLSX.utils.book_append_sheet(wb, wsConfig, 'Configuración');
 
     // Sheet 3: Rounds
-    const ROUND_COLUMNS = ['nombre', 'tipo', 'tiempo', 'puntos_base', 'bonus_max', 'penalizacion', 'logo', 'fondo'];
+    const ROUND_COLUMNS = ['nombre', 'tipo', 'tiempo', 'puntos', 'extra_mas_rapido', 'penalizacion', 'logo', 'fondo'];
     const roundRows = game.rounds.map(r => {
         const cfg = r.config || {};
-        return [r.name, r.type, cfg.time ?? '', cfg.basePoints ?? '', cfg.bonusMax ?? '', cfg.penalty ?? '', cfg.logo || '', cfg.background || ''];
+        return [r.name, r.type, cfg.time ?? '', QuestionValidation.roundPoints(r.type, cfg), QuestionValidation.fastestExtraOf({}, cfg) ? 'si' : 'no', cfg.penalty ?? '', cfg.logo || '', cfg.background || ''];
     });
     const wsRondas = XLSX.utils.aoa_to_sheet([
         ['Rondas'],
@@ -634,19 +640,44 @@ const xlsxUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize:
 // tabular de las demás pruebas y su volumen es bajo. Si se importa un Excel
 // con una hoja "karaoke_*", se ignorará silenciosamente igual que 'config.premio'.
 const EXCEL_TYPE_DEFS = [
-    { sheet: 'Multirespuesta', type: 'multirespuesta', columns: ['ronda', 'enunciado', 'opcion_1', 'opcion_2', 'opcion_3', 'opcion_4', 'opcion_5', 'correctas', 'explicacion', 'tiempo', 'puntos_base', 'bonus_max', 'penalizacion'] },
-    { sheet: 'Pulsador',       type: 'pulsador',       columns: ['ronda', 'enunciado', 'respuesta', 'pista_1', 'pista_2', 'tiempo', 'puntos_base', 'penalizacion'] },
-    { sheet: 'Precio Justo',   type: 'precio',         columns: ['ronda', 'enunciado', 'valor_correcto', 'imagen', 'tiempo', 'puntos_base'] },
-    { sheet: 'Boom',           type: 'boom',            columns: ['ronda', 'enunciado', 'elemento_1', 'elemento_2', 'elemento_3', 'elemento_4', 'elemento_5', 'orden_correcto', 'tiempo', 'puntos_base', 'bonus_max'] },
-    { sheet: 'Ruleta',         type: 'ruleta',          columns: ['ronda', 'pista', 'frase', 'puntos_base', 'bonus_max'] },
-    { sheet: 'Imagen',         type: 'imagen',          columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'puntos_base'] },
-    { sheet: 'Imagen Fija',    type: 'imagen_fija',     columns: ['ronda', 'enunciado', 'imagen', 'video', 'respuesta', 'pulsador', 'autoplay', 'loop', 'tiempo', 'puntos_base'] },
-    { sheet: 'Cancion',        type: 'cancion',         columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'audio', 'caos_inicial', 'preset', 'puntos_base'] },
-    { sheet: 'Identidad',      type: 'identidad',       columns: ['ronda', 'enunciado', 'izq_imagen', 'izq_texto', 'der_imagen', 'der_texto', 'explicacion', 'puntos_base', 'tiempo'] },
-    { sheet: 'Imagen se aclara', type: 'aclara',        columns: ['ronda', 'enunciado', 'imagen', 'respuesta', 'efecto', 'modo', 'segundos', 'puntos_base'] },
-    { sheet: 'Respuesta abierta', type: 'abierta',      columns: ['ronda', 'enunciado', 'subpregunta', 'respuesta', 'otras_validas', 'tiempo', 'puntos_base', 'bonus_max'] },
-    { sheet: 'Pictionary',     type: 'pictionary',      columns: ['ronda', 'palabra', 'categoria', 'quien_dibuja', 'turnos', 'puntos_dibuja', 'tiempo', 'puntos_base', 'bonus_max'] },
+    { sheet: 'Multirespuesta', type: 'multirespuesta', columns: ['ronda', 'enunciado', 'opcion_1', 'opcion_2', 'opcion_3', 'opcion_4', 'opcion_5', 'correctas', 'explicacion', 'tiempo', 'puntos', 'extra_mas_rapido', 'penalizacion'] },
+    { sheet: 'Pulsador',       type: 'pulsador',       columns: ['ronda', 'enunciado', 'respuesta', 'pista_1', 'pista_2', 'tiempo', 'puntos', 'penalizacion'] },
+    { sheet: 'Precio Justo',   type: 'precio',         columns: ['ronda', 'enunciado', 'valor_correcto', 'imagen', 'tiempo', 'puntos'] },
+    { sheet: 'Boom',           type: 'boom',            columns: ['ronda', 'enunciado', 'elemento_1', 'elemento_2', 'elemento_3', 'elemento_4', 'elemento_5', 'orden_correcto', 'tiempo', 'puntos', 'extra_mas_rapido'] },
+    { sheet: 'Ruleta',         type: 'ruleta',          columns: ['ronda', 'pista', 'frase', 'puntos', 'sin_uso'] },
+    { sheet: 'Imagen',         type: 'imagen',          columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'puntos'] },
+    { sheet: 'Imagen Fija',    type: 'imagen_fija',     columns: ['ronda', 'enunciado', 'imagen', 'video', 'respuesta', 'pulsador', 'autoplay', 'loop', 'tiempo', 'puntos'] },
+    { sheet: 'Cancion',        type: 'cancion',         columns: ['ronda', 'enunciado', 'respuesta', 'imagen', 'audio', 'caos_inicial', 'preset', 'puntos'] },
+    { sheet: 'Identidad',      type: 'identidad',       columns: ['ronda', 'enunciado', 'izq_imagen', 'izq_texto', 'der_imagen', 'der_texto', 'explicacion', 'puntos', 'tiempo'] },
+    { sheet: 'Imagen se aclara', type: 'aclara',        columns: ['ronda', 'enunciado', 'imagen', 'respuesta', 'efecto', 'modo', 'segundos', 'puntos'] },
+    { sheet: 'Respuesta abierta', type: 'abierta',      columns: ['ronda', 'enunciado', 'subpregunta', 'respuesta', 'otras_validas', 'tiempo', 'puntos', 'extra_mas_rapido'] },
+    { sheet: 'Pictionary',     type: 'pictionary',      columns: ['ronda', 'palabra', 'categoria', 'quien_dibuja', 'turnos', 'puntos_dibuja', 'tiempo', 'puntos', 'sin_uso'] },
 ];
+
+// Puntos en el Excel: «puntos» (lo máximo por acertar) y «extra_mas_rapido» (si/no). Los Excel de
+// antes traían «puntos_base» y «bonus_max» (número) en las mismas columnas: se guardan como estaban
+// (basePoints / bonusMax) y la app los convierte al jugar (QuestionValidation.questionPoints).
+function setExtraCell(cfg, v) {
+    const t = String(v == null ? '' : v).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (t === 'si' || t === 's' || t === 'yes') cfg.fastestExtra = true;
+    else if (t === 'no' || t === 'n') cfg.fastestExtra = false;
+    else if (t !== '' && isFinite(Number(t))) cfg.bonusMax = Number(t);
+}
+function isLegacyPointsHeader(header) {
+    return Array.isArray(header) && header.some(h => ['puntos_base', 'bonus_max'].includes(String(h).trim()));
+}
+// Excel nuevo: la columna de puntos ya es «puntos» (el parser la deja en basePoints)
+function toNewPointsKeys(cfg) {
+    if (cfg && cfg.basePoints !== undefined) { cfg.points = cfg.basePoints; delete cfg.basePoints; }
+}
+// Al exportar: puntos propios de la pregunta (vacío = hereda de la ronda) y su extra (vacío = hereda)
+function ownPts(type, qCfg, round) {
+    const has = ['points', 'basePoints', 'bonusMax'].some(k => qCfg[k] !== undefined && qCfg[k] !== null && qCfg[k] !== '');
+    return has ? QuestionValidation.questionPoints(type, qCfg, (round && round.config) || {}) : '';
+}
+function ownExtra(qCfg) {
+    return typeof qCfg.fastestExtra === 'boolean' ? (qCfg.fastestExtra ? 'si' : 'no') : '';
+}
 
 const SHEET_TYPE_MAP = {};
 EXCEL_TYPE_DEFS.forEach(d => { SHEET_TYPE_MAP[d.sheet] = d.type; });
@@ -758,7 +789,7 @@ function parseAbiertaSheet(rows) {
         const time = Number(r[5]);
         if (cur.content.time === undefined && r[5] !== '' && r[5] != null && isFinite(time) && time > 0) cur.content.time = Math.round(time);
         if (cur.config.basePoints === undefined && r[6] !== '' && r[6] != null && isFinite(Number(r[6]))) cur.config.basePoints = Number(r[6]);
-        if (cur.config.bonusMax === undefined && r[7] !== '' && r[7] != null && isFinite(Number(r[7]))) cur.config.bonusMax = Number(r[7]);
+        if (cur.config.bonusMax === undefined && cur.config.fastestExtra === undefined) setExtraCell(cur.config, r[7]);
 
         if (!sub && !answer && !alts) { if (!enunciado) skipped++; continue; }
         cur.content.subs.push({ text: sub, answer, alts: alts || undefined });
@@ -797,7 +828,7 @@ function parseExcelSheet(rows, type) {
                 content = { statement: statement || undefined, options, correct, explanation: String(r[8] || '').trim() || undefined };
                 if (r[9]) qConfig.time = Number(r[9]) || undefined;
                 if (r[10]) qConfig.basePoints = Number(r[10]) || undefined;
-                if (r[11]) qConfig.bonusMax = Number(r[11]) || undefined;
+                setExtraCell(qConfig, r[11]);
                 if (r[12]) qConfig.penalty = Number(r[12]) || undefined;
                 if (String(r[13] || '').trim()) rounds[roundName].config.background = String(r[13]).trim();
                 break;
@@ -836,7 +867,7 @@ function parseExcelSheet(rows, type) {
                 content = { statement: statement || undefined, items, correct_order };
                 if (r[8]) qConfig.time = Number(r[8]) || undefined;
                 if (r[9]) qConfig.basePoints = Number(r[9]) || undefined;
-                if (r[10]) qConfig.bonusMax = Number(r[10]) || undefined;
+                setExtraCell(qConfig, r[10]);
                 if (String(r[11] || '').trim()) rounds[roundName].config.background = String(r[11]).trim();
                 break;
             }
@@ -846,7 +877,7 @@ function parseExcelSheet(rows, type) {
                 if (!phrase && !hint) break;
                 content = { hint: hint || undefined, phrase: phrase || undefined };
                 if (r[3]) qConfig.basePoints = Number(r[3]) || undefined;
-                if (r[4]) qConfig.bonusMax = Number(r[4]) || undefined;
+                setExtraCell(qConfig, r[4]);
                 if (String(r[5] || '').trim()) rounds[roundName].config.background = String(r[5]).trim();
                 break;
             }
@@ -922,7 +953,7 @@ function parseExcelSheet(rows, type) {
                 if (pic.picDrawerPoints === undefined && r[5] !== '' && r[5] != null && isFinite(Number(r[5]))) pic.picDrawerPoints = Math.max(0, Number(r[5]));
                 if (r[6] !== '' && r[6] != null && Number(r[6]) > 0) qConfig.time = Number(r[6]);
                 if (r[7] !== '' && r[7] != null && isFinite(Number(r[7]))) qConfig.basePoints = Number(r[7]);
-                if (r[8] !== '' && r[8] != null && isFinite(Number(r[8]))) qConfig.bonusMax = Number(r[8]);
+                setExtraCell(qConfig, r[8]);
                 break;
             }
             case 'cancion': {
@@ -996,6 +1027,7 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
     if (hasRoundsSheet) {
         const wsR = wb.Sheets['Rondas'];
         const rRows = XLSX.utils.sheet_to_json(wsR, { header: 1, defval: '' });
+        const legacyR = isLegacyPointsHeader(rRows[2]);
         for (let i = 3; i < rRows.length; i++) {
             const row = rRows[i];
             if (!row || row.every(c => c === '' || c === undefined || c === null)) continue;
@@ -1009,8 +1041,8 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
             const cfg = {};
             const num = (v, dflt) => (v === '' || v === undefined || v === null || !isFinite(Number(v))) ? dflt : Number(v);
             if (row[2] !== '' && row[2] !== undefined) cfg.time = num(row[2], 30);
-            if (row[3] !== '' && row[3] !== undefined) cfg.basePoints = num(row[3], 100);
-            if (row[4] !== '' && row[4] !== undefined) cfg.bonusMax = num(row[4], 50);
+            if (row[3] !== '' && row[3] !== undefined) cfg[legacyR ? 'basePoints' : 'points'] = num(row[3], legacyR ? 100 : QuestionValidation.DEFAULT_POINTS);
+            if (row[4] !== '' && row[4] !== undefined) setExtraCell(cfg, row[4]);
             if (row[5] !== '' && row[5] !== undefined) cfg.penalty = num(row[5], 0);
             const logo = String(row[6] || '').trim();
             if (logo) cfg.logo = logo;
@@ -1045,6 +1077,7 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
             const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
             const parsed = parseExcelSheet(rows, type);
+            if (!isLegacyPointsHeader(rows[2])) for (const rd of Object.values(parsed.rounds)) rd.questions.forEach(q => toNewPointsKeys(q.config));
             results.skipped += parsed.skipped;
             parsed.incomplete.forEach(inc => results.incomplete.push({ sheet: sheetName, ...inc }));
 
@@ -1070,12 +1103,11 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
                         roundConfig = { ...roundDefs[roundName].config };
                     } else {
                         // Legacy: build config from first question + fondo_ronda from parser
-                        roundConfig = { time: type === 'pictionary' ? 60 : 30, basePoints: 100, bonusMax: 50, penalty: 0 };
+                        roundConfig = { time: type === 'pictionary' ? 60 : 30, penalty: 0 };
                         const firstQ = roundData.questions[0];
                         if (firstQ.config) {
                             if (firstQ.config.time) roundConfig.time = firstQ.config.time;
-                            if (firstQ.config.basePoints) roundConfig.basePoints = firstQ.config.basePoints;
-                            if (firstQ.config.bonusMax) roundConfig.bonusMax = firstQ.config.bonusMax;
+                            for (const k of ['points', 'basePoints', 'bonusMax', 'fastestExtra']) if (firstQ.config[k] !== undefined) roundConfig[k] = firstQ.config[k];
                             if (firstQ.config.penalty) roundConfig.penalty = firstQ.config.penalty;
                         }
                         if (roundData.config.background) roundConfig.background = roundData.config.background;

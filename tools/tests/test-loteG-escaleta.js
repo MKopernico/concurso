@@ -1,8 +1,8 @@
 // Ejecutar desde la carpeta del proyecto:  node tools/tests/test-loteG-escaleta.js
 // Arranca su propio servidor con una base de datos temporal (no toca tus datos).
 // Lote G: (1) escaleta: el orden de rondas del backoffice llega solo al coordinador abierto, a la
-// pantalla y a los iPads; (2) bonus por rapidez con milésimas: dos equipos que responden en el
-// mismo segundo ya no empatan.
+// pantalla y a los iPads; (2) puntos por rapidez con milésimas: dos equipos que responden en el
+// mismo segundo ya no empatan (mitad fija + mitad según la rapidez + extra al más rápido).
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -37,7 +37,7 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     await api('/auth/login', { method: 'POST', body: { password: PW } });
     const g = (await api('/games', { method: 'POST', body: { name: 'Escaleta', status: 'published' } })).data;
     const mk = async (name, type, config, qs) => { const r = (await api(`/games/${g.id}/rounds`, { method: 'POST', body: { name, type, config } })).data; for (const c of qs) await api(`/rounds/${r.id}/questions`, { method: 'POST', body: { content: c } }); return r; };
-    const rA = await mk('Multi A', 'multirespuesta', { time: 30, basePoints: 100, bonusMax: 300 }, [{ statement: 'M1', options: ['x', 'y'], correct: [1] }, { statement: 'M2', options: ['x', 'y'], correct: [0] }]);
+    const rA = await mk('Multi A', 'multirespuesta', { time: 30, points: 1000, fastestExtra: true }, [{ statement: 'M1', options: ['x', 'y'], correct: [1] }, { statement: 'M2', options: ['x', 'y'], correct: [0] }]);
     const rB = await mk('Pulsa B', 'pulsador', { time: 30, basePoints: 100, bonusMax: 300 }, [{ statement: 'P1', answer: 'x' }]);
     const rC = await mk('Multi C', 'multirespuesta', { time: 30, basePoints: 100, bonusMax: 50 }, [{ statement: 'M3', options: ['x', 'y'], correct: [1] }]);
     await api(`/games/${g.id}/session`, { method: 'POST', body: {} });
@@ -73,7 +73,7 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     await api(`/games/${other.id}/rounds`, { method: 'POST', body: { name: 'X', type: 'pulsador', config: {} } }); await wait(300);
     check('Cambios en otro juego no molestan a este coordinador', roundsChanged === 0, roundsChanged);
 
-    // ── 2. Bonus con milésimas (multirespuesta, bonus 300 en 30 s = 10 puntos por segundo)
+    // ── 2. Rapidez con milésimas (1000 puntos: 500 fijos + 500 en 30 s = 16,7 por segundo; extra 100)
     const startQuestion = async (round, idx) => {
         d.emit('director:launch_round', { roundId: round.id }); await wait(200);
         d.emit('director:launch_question', { idx }); await wait(200);
@@ -89,8 +89,8 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     const sc = T.map(t => d.state.director.scores[t]);
     check('Cuatro aciertos en menos de un segundo: cuatro puntuaciones distintas', new Set(sc).size === 4, sc);
     check('…y el más rápido saca más', sc[0] > sc[1] && sc[1] > sc[2] && sc[2] > sc[3], sc);
-    check('Diferencias de ~2 puntos cada 0,22 s (10 puntos por segundo)', sc.slice(1).every((v, i) => { const dlt = sc[i] - v; return dlt >= 1 && dlt <= 4; }), sc);
-    check('Nadie supera base + bonus', sc.every(v => v <= 400 && v >= 100), sc);
+    check('El más rápido se lleva el extra (100) y entre los demás ~3-4 puntos cada 0,22 s', sc[0] - sc[1] >= 100 && sc.slice(2).every((v, i) => { const dlt = sc[i + 1] - v; return dlt >= 2 && dlt <= 6; }), sc);
+    check('Entre 500 (acertar) y 1100 (todo + extra)', sc.every(v => v <= 1100 && v >= 500), sc);
 
     // Mismo instante (dentro de unos pocos ms): empate legítimo, sin errores
     const before = T.map(t => d.state.director.scores[t] || 0);
@@ -101,7 +101,7 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     P[0].emit('player:submit_answer', { answer: [0] }); P[1].emit('player:submit_answer', { answer: [1] });
     await wait(300); d.emit('director:reveal_answer'); await wait(500);
     const gain = T.map((t, i) => (d.state.director.scores[t] || 0) - before[i]);
-    check('Fallo no suma bonus; acierto sí', gain[0] >= 100 && gain[1] === 0, gain);
+    check('Fallo no suma; acierto sí (y el extra, al ser el único)', gain[0] >= 1000 && gain[1] === 0, gain);
 
     // ── 3. Pulsador: el bonus cuenta desde que pulsan, no desde que el coordinador marca el acierto
     await startQuestion(rB, 0);
@@ -113,9 +113,9 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     const won = (d.state.director.scores[T[2]] || 0) - s2;
     const remNow = d.state.director.timer.remaining, tot = d.state.director.timer.total;
     const bonusIfMarked = tot > 0 ? Math.floor(300 * remNow / tot) : 0;
-    check('Pulsador: suma base + bonus del momento de pulsar (≥ el de marcar ~1,6 s después)', won >= 100 + bonusIfMarked && won <= 400, { won, bonusIfMarked, timerCorriendo: tRun });
+    check('Pulsador: puntos enteros (ronda antigua base 100: el bonus no se usaba)', won === 100, { won, bonusIfMarked, timerCorriendo: tRun });
 
-    // ── 4. Bonus 50 (lo normal): la resolución es de 0,6 s por punto
+    // ── 4. Ronda antigua (base 100 + bonus 50 = 150): 75 fijos + 75 en 30 s → 0,4 s por punto
     await startQuestion(rC, 0);
     await wait(100);
     P[0].emit('player:submit_answer', { answer: [1] }); await wait(700);
@@ -123,7 +123,7 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     const b0 = T.map(t => d.state.director.scores[t] || 0);
     d.emit('director:reveal_answer'); await wait(500);
     const g2 = T.map((t, i) => (d.state.director.scores[t] || 0) - b0[i]);
-    check('Con bonus 50 en 30 s, 0,7 s de diferencia ya da un punto de diferencia', g2[0] > g2[1] && g2[1] >= 100, g2);
+    check('Ronda antigua convertida: 0,7 s de diferencia ya separa (y el primero lleva +15 de extra)', g2[0] - g2[1] >= 16 && g2[1] >= 75 && g2[0] <= 165, g2);
 
     [d, ...P].forEach(s => s.close());
     server.kill();

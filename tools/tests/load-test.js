@@ -51,9 +51,9 @@ function makePlayer(gameId, pass, i) {
     await startServer();
     await api('/auth/login', { method: 'POST', body: { password: PW } });
     const g = (await api('/games', { method: 'POST', body: { name: 'Carga', status: 'published', access_code: '4321' } })).data;
-    const rm = (await api(`/games/${g.id}/rounds`, { method: 'POST', body: { name: 'Multi', type: 'multirespuesta', config: { time: 60, basePoints: 100, bonusMax: 0, penalty: 10 } } })).data;
+    const rm = (await api(`/games/${g.id}/rounds`, { method: 'POST', body: { name: 'Multi', type: 'multirespuesta', config: { time: 60, points: 100, fastestExtra: false, penalty: 10 } } })).data;
     await api(`/rounds/${rm.id}/questions`, { method: 'POST', body: { content: { statement: '¿?', options: ['a', 'b', 'c', 'd'], correct: [0] } } });
-    const rp = (await api(`/games/${g.id}/rounds`, { method: 'POST', body: { name: 'Pulsa', type: 'pulsador', config: { basePoints: 100 } } })).data;
+    const rp = (await api(`/games/${g.id}/rounds`, { method: 'POST', body: { name: 'Pulsa', type: 'pulsador', config: { points: 100 } } })).data;
     await api(`/rounds/${rp.id}/questions`, { method: 'POST', body: { content: { statement: 'P', answer: 'x' } } });
     await api(`/games/${g.id}/session`, { method: 'POST', body: {} });
 

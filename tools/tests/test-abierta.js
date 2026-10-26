@@ -51,11 +51,11 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
         { text: '¿Capital de Portugal?', answer: 'Lisboa' },
         { text: '¿Lados de un hexágono?', answer: '6', alts: 'seis' },
     ];
-    const rA = await mk('Lo sabe', 'abierta', { basePoints: 90, bonusMax: 30 }, [
+    const rA = await mk('Lo sabe', 'abierta', { points: 90 }, [
         { statement: 'Cultura general', subs: SUBS },
         { statement: 'Segunda', subs: [{ text: '¿2+2?', answer: '4' }] },
     ]);
-    const rT = await mk('Con tiempo', 'abierta', { basePoints: 100, bonusMax: 0 }, [{ subs: [{ text: '¿Color del cielo?', answer: 'azul' }], time: 3 }]);
+    const rT = await mk('Con tiempo', 'abierta', { points: 100, fastestExtra: false }, [{ subs: [{ text: '¿Color del cielo?', answer: 'azul' }], time: 3 }]);
     await api(`/games/${g.id}/session`, { method: 'POST', body: {} });
 
     const d = io(B, { query: { gameId: g.id }, transports: ['websocket'], extraHeaders: { cookie } });
@@ -137,18 +137,18 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     d.emit('director:reveal_next_pair'); await wait(300);
     d.emit('director:reveal_next_pair'); await wait(200);
     // 90 base, 3 subpreguntas: 2/3 → 60, 3/3 → 90; empate a 3 (E1 y E2): gana E1, que envió antes → +30
-    check('Puntos al destapar la última: proporcional + bonus al mejor (empate: el que envió antes)', score(0) === 60 && score(1) === 120 && score(2) === 90, { e0: score(0), e1: score(1), e2: score(2) });
+    check('Puntos al destapar la última: proporcional + extra (+10 %) al mejor (empate: el que envió antes)', score(0) === 60 && score(1) === 99 && score(2) === 90, { e0: score(0), e1: score(1), e2: score(2) });
     const lq = P[1].sync.lastQuestionScores[T[1]];
-    check('El iPad ve sus aciertos, sus puntos y el bonus', lq.correctCount === 3 && lq.points === 120 && lq.winner === true && !lq.pending, lq);
+    check('El iPad ve sus aciertos, sus puntos y el extra', lq.correctCount === 3 && lq.points === 99 && lq.winner === true && !lq.pending, lq);
 
     // ── Rectificar con la pregunta ya puntuada ──
     cmd('director:abierta_mark', { sub: 2, teamIds: [T[1]], ok: false }); await wait(300);
-    check('Rectificar: se recalcula todo (también el bonus) y solo va la diferencia', score(0) === 60 && score(1) === 60 && score(2) === 120, { e0: score(0), e1: score(1), e2: score(2) });
+    check('Rectificar: se recalcula todo (también el extra) y solo va la diferencia', score(0) === 60 && score(1) === 60 && score(2) === 99, { e0: score(0), e1: score(1), e2: score(2) });
     cmd('director:abierta_mark', { sub: 0, teamIds: [T[2]], ok: false }); await wait(300);
-    check('Empate a 2 entre los tres: el bonus es para el que envió antes', score(0) === 90 && score(1) === 60 && score(2) === 60, { e0: score(0), e1: score(1), e2: score(2) });
+    check('Empate a 2 entre los tres: el extra es para el que envió antes', score(0) === 69 && score(1) === 60 && score(2) === 60, { e0: score(0), e1: score(1), e2: score(2) });
     const log = await new Promise(res => { d.once('director:log', res); d.emit('director:get_log'); });
     const fixes = log.log.filter(e => e.action === 'abierta_fix');
-    check('Las rectificaciones quedan en el registro', fixes.length === 2 && fixes[1].changes.some(ch => ch.pts === 30) && log.log.some(e => e.action === 'abierta_closed'));
+    check('Las rectificaciones quedan en el registro', fixes.length === 2 && fixes[1].changes.some(ch => ch.pts === 9) && log.log.some(e => e.action === 'abierta_closed'));
 
     // ── Siguiente pregunta: cierre automático y trabajo a medias ──
     cmd('director:next_question'); await wait(300);
@@ -164,7 +164,7 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     check('Cuando envían todos, se pasa sola a corregir', ds().abierta.step === 'correcting' && P[2].sync.abierta.step === 'correcting');
     cmd('director:abierta_mark', { sub: 0, teamIds: [T[1]], ok: true }); await wait(200);
     cmd('director:prev_question'); await wait(400);
-    check('Volver a la anterior: revelada del todo y sin repuntuar', P[0].sync.phase === 'answer_revealed' && P[0].sync.abierta.revealStep === 3 && score(0) === 90 && score(1) === 60);
+    check('Volver a la anterior: revelada del todo y sin repuntuar', P[0].sync.phase === 'answer_revealed' && P[0].sync.abierta.revealStep === 3 && score(0) === 69 && score(1) === 60, { e0: score(0), e1: score(1) });
     cmd('director:next_question'); await wait(400);
     check('La que estaba a medio corregir se recupera tal cual', ds().abierta.step === 'correcting' && ds().abierta.marks[T[1]][0] === true && ds().answers[T[0]].answer[0] === '4');
 
@@ -189,7 +189,7 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     const ra = tree.rounds.find(r => r.type === 'abierta');
     const qa = ra && ra.questions[0];
     check('Plantilla con ejemplo: se importa una pregunta con 3 subpreguntas', qa && qa.content.subs.length === 3 && ra.questions.length === 1 && !imp.errors.length, imp.errors);
-    check('Otras válidas en una celda separadas por /, tiempo y bonus', qa && qa.content.subs[0].alts.includes('/') && qa.content.time === 90 && qa.config.bonusMax === 50, qa && { c: qa.content, cfg: qa.config });
+    check('Otras válidas en una celda separadas por /, tiempo, puntos y extra', qa && qa.content.subs[0].alts.includes('/') && qa.content.time === 90 && qa.config.points === 500 && qa.config.fastestExtra === true, qa && { c: qa.content, cfg: qa.config });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['t'], [], ['h'],
         ['R1', '', 'P1', 'r1', '', '', '', ''], ['R1', '', 'P2', 'r2', 'a / b'],
