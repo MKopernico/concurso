@@ -239,6 +239,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
             <div class="toolbar-right">
                 <button class="btn-success btn-sm" id="btnStartSession" onclick="startSession(currentGame.id)" style="display:none" title="Abrir el coordinador (crea la partida o continúa la que está en marcha)">▶ Jugar</button>
                 <button class="btn-ghost btn-sm" onclick="openGameModal(currentGame)">Editar juego</button>
+                <button class="btn-ghost btn-sm" onclick="openPointsModal()" title="Poner los mismos puntos en todas las rondas de este juego (o de todos)">🎯 Puntos</button>
                 <button class="btn-ghost btn-sm" onclick="publishGame()">Publicar</button>
             </div>
         </div>
@@ -461,6 +462,27 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 </div>
 
 <!-- ============ MODAL: Round form ============ -->
+<div id="modal-points-overlay" class="modal-overlay">
+    <div class="modal" style="max-width:520px">
+        <h2>Puntos de todo el juego</h2>
+        <form id="form-points" onsubmit="return applyGamePoints(event)">
+            <p style="font-size:13px; color:var(--text2); margin:0 0 14px">Pone estos puntos en <strong>todas las rondas</strong> y las preguntas pasan a heredarlos (se quitan los puntos propios de cada pregunta). La penalización, los tiempos y el bono especial no cambian.</p>
+            <div class="field-row-2">
+                <div class="field"><label>Puntos</label><input type="number" name="points" value="500" min="0" required></div>
+                <div class="field"><label>Extra al más rápido</label><select name="fastestExtra"><option value="si">Sí (+10 %)</option><option value="no">No</option></select></div>
+            </div>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:8px">
+                <input type="checkbox" name="allGames" style="width:auto; flex:0 0 auto; margin:0">
+                <span>Aplicar a <strong>todos los juegos</strong> <span id="points-all-count" style="color:var(--text2)"></span></span>
+            </label>
+            <div class="modal-footer">
+                <button type="button" class="btn-ghost" onclick="closeModal('modal-points-overlay')">Cancelar</button>
+                <button type="submit" class="btn-primary">Aplicar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div id="modal-round-overlay" class="modal-overlay">
     <div class="modal">
         <h2 id="modal-round-title">Nueva ronda</h2>
@@ -995,6 +1017,35 @@ async function deleteGame(id) {
         toast('Juego eliminado');
         loadGames();
     } catch (e) { toast('Error: ' + e.message); }
+}
+
+// ── Puntos de todo el juego (o de todos los juegos) de una vez ──
+function openPointsModal() {
+    if (!currentGame) return;
+    const form = document.getElementById('form-points');
+    form.reset();
+    form.points.value = QuestionValidation.DEFAULT_POINTS;
+    document.getElementById('points-all-count').textContent = '(' + (games || []).length + ')';
+    openModal('modal-points-overlay');
+}
+async function applyGamePoints(e) {
+    e.preventDefault();
+    const form = document.getElementById('form-points');
+    const points = Math.round(Number(form.points.value));
+    if (!isFinite(points) || points < 0) { toast('Indica unos puntos válidos'); return false; }
+    const all = form.allGames.checked;
+    const extra = form.fastestExtra.value !== 'no';
+    const msg = (all ? '¿Poner ' + points + ' puntos en TODAS las rondas de TODOS los juegos?' : '¿Poner ' + points + ' puntos en todas las rondas de «' + currentGame.name + '»?')
+        + '\n\nExtra al más rápido: ' + (extra ? 'sí' : 'no') + '. Las preguntas pasarán a heredar los puntos de su ronda.';
+    if (!confirm(msg)) return false;
+    try {
+        const r = await api('/games/' + currentGame.id + '/points', { method: 'PUT', body: { points, fastestExtra: extra, allGames: all } });
+        closeModal('modal-points-overlay');
+        toast('Listo: ' + r.rounds + ' rondas' + (all ? ' en ' + r.games + ' juegos' : '') + (r.questions ? ' · ' + r.questions + ' preguntas heredan ahora' : ''));
+        if (all) games = await api('/games');
+        await loadGame(currentGame.id);
+    } catch (err) { toast('Error: ' + err.message); }
+    return false;
 }
 
 async function publishGame() {

@@ -195,6 +195,23 @@ const speed = (P, rem, total) => (P - Math.floor(P / 2)) + Math.floor(Math.floor
     const t4 = (await api(`/games/${g4.id}`)).data;
     check('Plantilla con ejemplos: se importa sin errores y con 500 puntos', !impT.errors.length && t4.rounds.length >= 10 && t4.rounds.every(r => QV.roundPoints(r.type, r.config) === 500), { errores: impT.errors, puntos: t4.rounds.map(r => QV.roundPoints(r.type, r.config)) });
 
+    // ── «🎯 Puntos» del backoffice: todo el juego (o todos los juegos) a la vez
+    const gp = (await api('/games', { method: 'POST', body: { name: 'Pasar a 500' } })).data;
+    const rp1 = (await api(`/games/${gp.id}/rounds`, { method: 'POST', body: { name: 'A', type: 'multirespuesta', config: { time: 20, basePoints: 100, bonusMax: 50, penalty: 10, logo: '/l.png' } } })).data;
+    const qp1 = (await api(`/rounds/${rp1.id}/questions`, { method: 'POST', body: { content: { statement: 'x', options: ['a', 'b'], correct: [0] }, config: { basePoints: 300, time: 15, premio: { tipo: 'freeze' } } } })).data;
+    const before = { other: (await api(`/games/${g3.id}`)).data.rounds[0].config };
+    const pr = await api(`/games/${gp.id}/points`, { method: 'PUT', body: { points: 500, fastestExtra: true } });
+    const tp = (await api(`/games/${gp.id}`)).data;
+    const rc1 = tp.rounds[0].config, qc1 = tp.rounds[0].questions[0].config;
+    check('Puntos de todo el juego: la ronda pasa a 500 + extra y conserva tiempo, penalización y logo', pr.status === 200 && rc1.points === 500 && rc1.fastestExtra === true && rc1.basePoints === undefined && rc1.bonusMax === undefined && rc1.time === 20 && rc1.penalty === 10 && rc1.logo === '/l.png', rc1);
+    check('…y la pregunta deja sus puntos propios (hereda) pero conserva tiempo y premio', qc1 && qc1.basePoints === undefined && qc1.points === undefined && qc1.time === 15 && qc1.premio && qc1.premio.tipo === 'freeze' && QV.questionPoints('multirespuesta', qc1, rc1) === 500, qc1);
+    check('Solo ese juego: los demás no cambian', JSON.stringify((await api(`/games/${g3.id}`)).data.rounds[0].config) === JSON.stringify(before.other));
+    const pa = await api(`/games/${gp.id}/points`, { method: 'PUT', body: { points: 400, fastestExtra: false, allGames: true } });
+    const allTrees = await Promise.all((await api('/games')).data.map(x => api(`/games/${x.id}`)));
+    const allRounds = allTrees.flatMap(t => t.data.rounds || []);
+    check('Con «todos los juegos»: todas las rondas de todos los juegos a 400 sin extra', pa.status === 200 && pa.data.games >= 5 && allRounds.length > 0 && allRounds.every(r => r.config.points === 400 && r.config.fastestExtra === false), { juegos: pa.data, rondas: allRounds.length });
+    check('Puntos no válidos se rechazan', (await api(`/games/${gp.id}/points`, { method: 'PUT', body: { points: -5 } })).status === 400);
+
     [d, ...P].forEach(s => s.close());
     server.kill();
     const failed = results.filter(x => !x).length;

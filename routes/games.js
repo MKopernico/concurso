@@ -538,6 +538,43 @@ router.delete('/rounds/:id', (req, res) => {
     res.status(204).end();
 });
 
+// Puntos de todo el juego de golpe: todas las rondas pasan a { points, fastestExtra } (fuera los
+// puntos antiguos, base + bonus) y las preguntas dejan sus puntos propios para heredar los de la
+// ronda. Con { allGames: true } se aplica a todos los juegos. La penalización y lo demás no se tocan.
+router.put('/games/:id/points', (req, res) => {
+    const { points, fastestExtra, allGames } = req.body || {};
+    const pts = Math.round(Number(points));
+    if (!isFinite(pts) || pts < 0 || pts > 100000) return res.status(400).json({ error: 'puntos no válidos' });
+    const ids = allGames
+        ? db.prepare('SELECT id FROM games').all().map(g => g.id)
+        : (db.prepare('SELECT id FROM games WHERE id = ?').get(req.params.id) ? [req.params.id] : []);
+    if (!ids.length) return res.status(404).json({ error: 'juego no encontrado' });
+    const upR = db.prepare('UPDATE rounds SET config = ? WHERE id = ?');
+    const upQ = db.prepare('UPDATE questions SET config = ? WHERE id = ?');
+    let nRounds = 0, nQuestions = 0;
+    db.transaction(() => {
+        for (const gid of ids) {
+            for (const r of db.prepare('SELECT id, config FROM rounds WHERE game_id = ?').all(gid)) {
+                const cfg = parseJsonField(r.config, {}) || {};
+                delete cfg.basePoints; delete cfg.bonusMax;
+                cfg.points = pts;
+                cfg.fastestExtra = fastestExtra !== false;
+                upR.run(JSON.stringify(cfg), r.id);
+                nRounds++;
+                for (const q of db.prepare('SELECT id, config FROM questions WHERE round_id = ?').all(r.id)) {
+                    const qc = parseJsonField(q.config, null);
+                    if (!qc || !['basePoints', 'bonusMax', 'points', 'fastestExtra'].some(k => k in qc)) continue;
+                    delete qc.basePoints; delete qc.bonusMax; delete qc.points; delete qc.fastestExtra;
+                    upQ.run(Object.keys(qc).length ? JSON.stringify(qc) : null, q.id);
+                    nQuestions++;
+                }
+            }
+        }
+    })();
+    for (const gid of ids) require('../sockets/game').roundsChanged(gid);
+    res.json({ games: ids.length, rounds: nRounds, questions: nQuestions });
+});
+
 // Reordenar rondas: recibe un array de IDs en el nuevo orden.
 router.put('/games/:id/rounds/reorder', (req, res) => {
     const { order } = req.body || {};
