@@ -10,6 +10,21 @@ const QuestionValidation = require('../public/shared/question-validation.js');
 
 const router = express.Router();
 
+// Escaleta en directo: cuando el backoffice cambia las rondas o sus preguntas (orden, nuevas,
+// borradas, nombres, importar Excel), los coordinadores abiertos recargan su lista de rondas solos.
+router.use((req, res, next) => {
+    if (req.method === 'GET') return next();
+    let gameId = null;
+    try {
+        let m;
+        if ((m = /^\/games\/([^/]+)\/(rounds|import-excel)/.exec(req.path))) gameId = m[1];
+        else if ((m = /^\/rounds\/([^/]+)/.exec(req.path))) gameId = (db.prepare('SELECT game_id FROM rounds WHERE id = ?').get(m[1]) || {}).game_id;
+        else if ((m = /^\/questions\/([^/]+)/.exec(req.path))) gameId = (db.prepare('SELECT r.game_id FROM questions q JOIN rounds r ON r.id = q.round_id WHERE q.id = ?').get(m[1]) || {}).game_id;
+    } catch (e) { gameId = null; }
+    if (gameId) res.on('finish', () => { if (res.statusCode < 400) require('../sockets/game').roundsChanged(gameId); });
+    next();
+});
+
 // Genera un ID corto, legible y sin colisiones para juegos/rondas/preguntas.
 const newId = (prefix) => `${prefix}_${crypto.randomBytes(4).toString('hex')}`;
 

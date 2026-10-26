@@ -275,7 +275,7 @@
       <figure class="shot"><a href="img/02-crear-juego.webp" target="_blank" rel="noopener"><img src="img/02-crear-juego.webp" alt="Formulario de un juego" loading="lazy"></a><figcaption>El formulario de un juego: nombre, fecha, código, estado y aspecto.</figcaption></figure>
 
       <h3>Crear las rondas</h3>
-      <p>Dentro del juego se añaden rondas. De cada una se define el <strong>nombre</strong>, el <strong>tipo de prueba</strong> (una ronda es de un solo tipo) y, opcionalmente, su <strong>logo y fondo</strong> propios para la pantalla de sala. Las rondas se reordenan arrastrándolas por el asa <strong>⠿</strong>; las preguntas de una ronda, con las flechas ↑ ↓.</p>
+      <p>Dentro del juego se añaden rondas. De cada una se define el <strong>nombre</strong>, el <strong>tipo de prueba</strong> (una ronda es de un solo tipo) y, opcionalmente, su <strong>logo y fondo</strong> propios para la pantalla de sala. Las rondas se reordenan arrastrándolas por el asa <strong>⠿</strong>; las preguntas de una ronda, con las flechas ↑ ↓. <strong>El orden de las rondas es la escaleta</strong>: la barra «Rondas» del coordinador las muestra numeradas en ese mismo orden, y si las arrastras con el coordinador abierto se reordena solo, sin recargar.</p>
       <div class="note"><span class="tag">Ojo</span>El tipo de una ronda <strong>no se puede cambiar si ya tiene pruebas</strong> (serían incompatibles). Crea una ronda nueva del tipo que quieras o borra antes sus pruebas.</div>
 
       <figure class="shot"><a href="img/03-juego-rondas.webp" target="_blank" rel="noopener"><img src="img/03-juego-rondas.webp" alt="Un juego con sus rondas" loading="lazy"></a><figcaption>Un juego con sus rondas. Se reordenan arrastrando el asa ⠿.</figcaption></figure>
@@ -413,7 +413,7 @@
       <p>La puntuación se configura por prueba, o de golpe para toda una ronda o juego con un botón de «aplicar a todas»:</p>
       <ul>
         <li><strong>Puntos base</strong>: lo que vale acertar.</li>
-        <li><strong>Bonus por tiempo</strong>: puntos extra proporcionales a lo rápido que se responde.</li>
+        <li><strong>Bonus por tiempo</strong>: puntos extra proporcionales a lo rápido que se responde. Se mide con <strong>milésimas</strong>, así que el límite lo pone el propio bonus: cada punto equivale a <em>tiempo ÷ bonus</em> segundos (30 s con bonus 50 → un punto cada 0,6 s; con bonus 300 → un punto cada 0,1 s). Cuanto más alto el bonus, menos empates.</li>
         <li><strong>Penalización por fallo</strong>: opcional.</li>
       </ul>
       <p>Cualquiera de estos valores puede ser <strong>0</strong> (por ejemplo, una ronda sin bonus). En una prueba, deja el campo vacío para que herede el valor de la ronda.</p>

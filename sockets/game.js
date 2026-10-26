@@ -189,8 +189,18 @@ function resetGameForNewSession(gameId, sessionId) {
     }
 }
 
+// Rondas cambiadas en el backoffice (orden de la escaleta, nuevas, borradas…): menús de pantalla
+// e iPads al día y los coordinadores recargan su barra de rondas. La pregunta en curso no se toca.
+function roundsChanged(gameId) {
+    const s = gameStates.get(gameId);
+    if (s) s._rounds = db.prepare('SELECT id, name, type, config FROM rounds WHERE game_id = ? ORDER BY sort_order, id').all(gameId);
+    if (!_io) return;
+    _io.to(`directors:${gameId}`).emit('game:rounds_changed');
+    if (s) broadcastDirector(_io, gameId, s);
+}
+
 function publicView(state) {
-    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _preCountdownHandle, _gameTheme, _sessionId, _rounds, _lastSnapshot, _gameId, _recovery, ...rest } = state;
+    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _preCountdownHandle, _gameTheme, _sessionId, _rounds, _lastSnapshot, _gameId, _recovery, _tickAt, _ticks, ...rest } = state;
     rest.gameTheme = _gameTheme || {};
     // questionResults (respuestas de todas las preguntas ya jugadas) solo sirve al servidor para
     // no volver a puntuar: crece ~3,5 KB por pregunta y no lo usa ninguna pantalla. Enviarlo en
@@ -474,7 +484,7 @@ function finalizeQuestion(state) {
     else if (type === 'identidad') {
         // Las ordenaciones provisionales pasan a definitivas
         for (const ans of Object.values(ds.answers)) {
-            if (!ans.submitted) { ans.submitted = true; ans.timerRemaining = ds.timer.remaining; }
+            if (!ans.submitted) { ans.submitted = true; ans.timerRemaining = preciseRemaining(state); }
         }
         autoScoreIdentidad(state);
     } else if (type === 'boom') {
@@ -528,9 +538,12 @@ function startQuestionTimer(state, gameId, io) {
     const ds = state.director;
     if (state._timerHandle) { clearInterval(state._timerHandle); state._timerHandle = null; }
     ds.timer.running = true;
+    state._tickAt = Date.now();
+    logTick(state);
     const handle = setInterval(() => {
         if (state._timerHandle !== handle) { clearInterval(handle); return; }
         ds.timer.remaining = Math.max(0, ds.timer.remaining - 1);
+        state._tickAt = Date.now();
         logTick(state);
         io.to(roomOf(gameId)).emit('game:timer_tick', { remaining: ds.timer.remaining, total: ds.timer.total });
         if (ds.timer.remaining <= 0) {
@@ -556,20 +569,36 @@ function logTick(state) {
     state._ticks.list.push({ t: Date.now(), r: ds.timer.remaining });
     if (state._ticks.list.length > 40) state._ticks.list.shift();
 }
+// Tiempo que quedaba en un instante, con milésimas: el reloj visible baja de segundo en segundo,
+// pero el bonus por rapidez no puede dar lo mismo a dos equipos que responden en el mismo segundo.
+function preciseRemaining(state, at) {
+    const ds = state.director;
+    const r = ds.timer.remaining;
+    if (!ds.timer.running || !state._tickAt) return r;
+    const frac = Math.min(1, Math.max(0, ((at || Date.now()) - state._tickAt) / 1000));
+    return Math.max(0, r - frac);
+}
+// Bonus por rapidez: proporcional al tiempo que quedaba (con milésimas) al responder
+function timeBonus(cfg, ds, remaining) {
+    if (!(ds.timer.total > 0) || !(cfg.bonusMax > 0)) return 0;
+    return Math.floor(cfg.bonusMax * Math.min(1, Math.max(0, (Number(remaining) || 0) / ds.timer.total)));
+}
 function answerTiming(state, data) {
     const ds = state.director;
     const t = Date.now();
+    const now = preciseRemaining(state, t);
     const ago = Math.min(MAX_AGO_MS, Math.max(0, Number(data && data.ago) || 0));
-    if (!ago) return { timestamp: t, timerRemaining: ds.timer.remaining };
+    if (!ago) return { timestamp: t, timerRemaining: now };
     const target = Math.max(t - ago, ds.optionsRevealedAt || t);
     const ticks = (state._ticks && state._ticks.epoch === (ds.questionEpoch || 0)) ? state._ticks.list : [];
-    let remaining = ds.timer.remaining;
+    let remaining = now;
     if (ticks.length) {
         let found = null;
         for (let k = ticks.length - 1; k >= 0; k--) if (ticks[k].t <= target) { found = ticks[k]; break; }
-        remaining = found ? found.r : ticks[0].r + 1;
+        remaining = found ? Math.max(found.r - 1, found.r - (target - found.t) / 1000)
+                          : ticks[0].r + (ticks[0].t - target) / 1000;
     }
-    return { timestamp: target, timerRemaining: Math.max(ds.timer.remaining, Math.min(ds.timer.total, remaining)) };
+    return { timestamp: target, timerRemaining: Math.max(now, Math.min(ds.timer.total, remaining)) };
 }
 
 function computeKaraokeAutoCombo(karaokeState, configColors) {
@@ -650,7 +679,7 @@ function autoScorePrecio(state) {
     const winnerId = valid.length > 0 ? valid[0].teamId : null;
     if (winnerId) {
         if (!ds.scores[winnerId]) ds.scores[winnerId] = 0;
-        const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (valid[0].timerRemaining / ds.timer.total)) : 0;
+        const bonus = timeBonus(cfg, ds, valid[0].timerRemaining);
         ds.scores[winnerId] += cfg.basePoints + bonus;
     }
 }
@@ -666,7 +695,7 @@ function autoScoreMultirespuesta(state) {
         const ok = picked.length >= 1 && picked.every(a => correctSet.has(a)); // vale cualquiera de las correctas
         if (!ds.scores[teamId]) ds.scores[teamId] = 0;
         if (ok) {
-            const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+            const bonus = timeBonus(cfg, ds, ans.timerRemaining);
             ds.scores[teamId] += cfg.basePoints + bonus;
         } else if (cfg.penalty > 0) {
             ds.scores[teamId] -= cfg.penalty;
@@ -766,7 +795,7 @@ function autoScoreIdentidad(state) {
         if (!ds.scores[teamId]) ds.scores[teamId] = 0;
         const proportional = Math.floor(cfg.basePoints * correctCount / nPairs);
         if (correctCount === nPairs) {
-            const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+            const bonus = timeBonus(cfg, ds, ans.timerRemaining);
             addPending(ds, teamId, proportional + bonus);
         } else {
             addPending(ds, teamId, proportional);
@@ -789,7 +818,7 @@ function autoScoreBoom(state) {
         const ok = JSON.stringify(submitted) === JSON.stringify(order);
         if (!ds.scores[teamId]) ds.scores[teamId] = 0;
         if (ok) {
-            const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+            const bonus = timeBonus(cfg, ds, ans.timerRemaining);
             addPending(ds, teamId, cfg.basePoints + bonus);
         } else if (cfg.penalty > 0) {
             addPending(ds, teamId, -cfg.penalty);
@@ -826,7 +855,7 @@ function computeLastQuestionScores(state) {
             const picked = Array.isArray(ans.answer) ? ans.answer : [ans.answer];
             entry.correct = picked.length >= 1 && picked.every(a => correctSet.has(a));
             if (entry.correct) {
-                const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+                const bonus = timeBonus(cfg, ds, ans.timerRemaining);
                 entry.points = cfg.basePoints + bonus;
             } else if (cfg.penalty > 0) {
                 entry.points = -cfg.penalty;
@@ -846,7 +875,7 @@ function computeLastQuestionScores(state) {
                 entry.winnerName = w ? w.nombre : '';
             }
             if (entry.correct) {
-                const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+                const bonus = timeBonus(cfg, ds, ans.timerRemaining);
                 entry.points = cfg.basePoints + bonus;
             }
         } else if (roundType === 'boom' && c.correct_order) {
@@ -854,7 +883,7 @@ function computeLastQuestionScores(state) {
             const submitted = Array.isArray(ans.answer) ? ans.answer : [];
             entry.correct = JSON.stringify(submitted) === JSON.stringify(order);
             if (entry.correct) {
-                const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+                const bonus = timeBonus(cfg, ds, ans.timerRemaining);
                 entry.points = cfg.basePoints + bonus;
             } else if (cfg.penalty > 0) {
                 entry.points = -cfg.penalty;
@@ -873,7 +902,7 @@ function computeLastQuestionScores(state) {
             entry.totalPairs = nPairs;
             const proportional = Math.floor(cfg.basePoints * correctCount / nPairs);
             if (entry.correct) {
-                const bonus = ds.timer.total > 0 ? Math.floor(cfg.bonusMax * (ans.timerRemaining / ds.timer.total)) : 0;
+                const bonus = timeBonus(cfg, ds, ans.timerRemaining);
                 entry.points = proportional + bonus;
             } else {
                 entry.points = proportional;
@@ -1612,7 +1641,8 @@ function attachSocketHandlers(io) {
             if ((state.director.buzzerFailed || []).includes(e.id)) return; // ya falló esta pregunta
             if (state.colaPulsador.find(p => p.id === e.id)) return;
             var elapsed = state.buzzerOpenedAt ? Date.now() - state.buzzerOpenedAt : 0;
-            const entry = { id: e.id, nombre: e.nombre, tiempo: Date.now(), elapsed: elapsed };
+            // rem: tiempo que quedaba al pulsar (el bonus se cuenta desde aquí, no desde que el coordinador marca el acierto)
+            const entry = { id: e.id, nombre: e.nombre, tiempo: Date.now(), elapsed: elapsed, rem: preciseRemaining(state) };
             if (state.director.aclara && state.director.phase === 'question') {
                 aclaraPause(state.director); // la imagen se congela mientras alguien responde
                 entry.level = state.director.aclara.level;
@@ -1681,7 +1711,7 @@ function attachSocketHandlers(io) {
             if (!order) return;
             const existing = ds.answers[socket.equipoId];
             if (existing && existing.submitted) return;
-            ds.answers[socket.equipoId] = { answer: order, timestamp: Date.now(), timerRemaining: ds.timer.remaining, submitted: false };
+            ds.answers[socket.equipoId] = { answer: order, timestamp: Date.now(), timerRemaining: preciseRemaining(state), submitted: false };
         });
 
         // ── Respuesta abierta: borrador mientras escriben y envío definitivo ──
@@ -1703,7 +1733,7 @@ function attachSocketHandlers(io) {
             const texts = abiertaTexts(data);
             if (!texts) return;
             const ds = state.director;
-            ds.answers[socket.equipoId] = { answer: texts, timestamp: Date.now(), timerRemaining: ds.timer.remaining, submitted: false };
+            ds.answers[socket.equipoId] = { answer: texts, timestamp: Date.now(), timerRemaining: preciseRemaining(state), submitted: false };
         });
         socket.on('player:abierta_submit', (data) => {
             const texts = abiertaTexts(data);
@@ -2371,7 +2401,7 @@ function attachSocketHandlers(io) {
             io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             const cfg = getQuestionConfig(state);
             // Bonus por rapidez solo en pruebas con temporizador (ruleta e imagen fija: puntos base)
-            const bonus = (!isNoTimerRound(ds) && ds.timer.total > 0) ? Math.floor(cfg.bonusMax * (ds.timer.remaining / ds.timer.total)) : 0;
+            const bonus = isNoTimerRound(ds) ? 0 : timeBonus(cfg, ds, typeof qEntry.rem === 'number' ? qEntry.rem : ds.timer.remaining);
             // Imagen que se aclara: vale según lo nítida que estaba cuando pulsó
             const won = (ds.aclara && typeof qEntry.pts === 'number') ? qEntry.pts : cfg.basePoints + bonus;
             if (!ds.scores[data.teamId]) ds.scores[data.teamId] = 0;
@@ -2826,4 +2856,4 @@ function attachSocketHandlers(io) {
     });
 }
 
-module.exports = { attachSocketHandlers, gameStates, resetGameForNewSession, persistAll };
+module.exports = { attachSocketHandlers, gameStates, resetGameForNewSession, roundsChanged, persistAll };

@@ -58,6 +58,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .round-item.completed .round-name { text-decoration: line-through; color: var(--danger); opacity: .7; }
 .round-item.completed .round-type { opacity: .5; }
 .round-item .round-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.round-item .round-num { color: var(--text2); font-weight: 700; margin-right: 2px; }
 .round-item .round-meta { font-size: 11px; color: var(--text2); display: flex; gap: 8px; }
 .round-type { font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 700; text-transform: uppercase; }
 .type-multirespuesta { background: #312e81; color: #a5b4fc; }
@@ -1190,6 +1191,7 @@ function connectSocket() {
     GSStaff.watchSocket(socket);
     socket.on('connect', () => socket.emit('director:join'));
     socket.on('game:director_sync', onSync);
+    socket.on('game:rounds_changed', reloadRounds);
     socket.on('director:log', onLogData);
     socket.on('director:recovery_code', onRecoveryCode);
     socket.on('game:timer_tick', (d) => {
@@ -1311,26 +1313,28 @@ function renderRounds() {
         list.innerHTML = '<div style="padding:16px;color:var(--text2);font-size:13px;">Sin rondas.<br><a href="/admin" target="_blank" style="color:var(--accent)">Crear en backoffice</a></div>';
         return;
     }
-    // Group rounds by type
-    var groups = {};
-    var groupOrder = [];
-    S.rounds.forEach(function(r) {
-        if (!groups[r.type]) { groups[r.type] = []; groupOrder.push(r.type); }
-        groups[r.type].push(r);
-    });
+    // Escaleta: en el mismo orden que en el backoffice (arrastrando allí se cambia aquí)
     var html = '';
-    groupOrder.forEach(function(type) {
-        var label = TYPE_LABELS[type] || type;
-        html += '<div style="padding:8px 12px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-top:4px;">' + esc(label) + '</div>';
-        groups[type].forEach(function(r) {
-            var qCount = (r.questions || []).length;
-            html += '<div class="round-item" data-id="' + r.id + '" onclick="launchRound(\'' + r.id + '\')">'
-                + '<div class="round-name">' + esc(r.name) + '</div>'
-                + '<div class="round-meta"><span class="round-type type-' + r.type + '">' + r.type + '</span>'
-                + '<span>' + qCount + ' preg.</span></div></div>';
-        });
+    S.rounds.forEach(function(r, i) {
+        var qCount = (r.questions || []).length;
+        html += '<div class="round-item" data-id="' + esc(r.id) + '" onclick="launchRound(this.dataset.id)">'
+            + '<div class="round-name"><span class="round-num">' + (i + 1) + '.</span> ' + esc(r.name) + '</div>'
+            + '<div class="round-meta"><span class="round-type type-' + esc(r.type) + '">' + esc(TYPE_LABELS[r.type] || r.type) + '</span>'
+            + '<span>' + qCount + ' preg.</span></div></div>';
     });
     list.innerHTML = html;
+    renderRoundsActive();
+}
+
+// El backoffice avisa cuando cambian las rondas (orden, nuevas, borradas, nombres): se recarga la lista
+function reloadRounds() {
+    fetch('/api/games/' + S.gameId).then(function(r) { return r.ok ? r.json() : null; }).then(function(g) {
+        if (!g) return;
+        S.game = g;
+        S.rounds = g.rounds || [];
+        renderRounds();
+        if (S.director) render();
+    }).catch(function() {});
 }
 
 function renderRoundsActive() {

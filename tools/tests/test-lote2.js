@@ -106,14 +106,14 @@ let d;
     P[0].emit('player:submit_answer', { answer: 0, ago: 60000 }); P[1].emit('player:submit_answer', { answer: 0 }); await wait(300);
     const a2 = D().answers;
     check('reenvío: nunca cuenta como pulsada antes de mostrar las opciones', a2[T[0]].timerRemaining === 20 && a2[T[0]].timestamp >= optAt, { r: a2[T[0]].timerRemaining, antesDeOpciones: a2[T[0]].timestamp < optAt });
-    check('respuesta normal: tiempo restante al llegar', a2[T[1]].timerRemaining === 18, a2[T[1]].timerRemaining);
+    check('respuesta normal: tiempo restante al llegar, con milésimas (~17,7)', Math.abs(a2[T[1]].timerRemaining - 17.7) < 0.3, a2[T[1]].timerRemaining);
     d.emit('director:launch_question', { idx: 3 }); await wait(300);
     d.emit('director:start_timer'); await wait(12500);
     const tSend = Date.now();
     P[0].emit('player:submit_answer', { answer: 0, ago: 3000 }); P[1].emit('player:submit_answer', { answer: 0, ago: 60000 }); await wait(300);
     const a3 = D().answers;
-    check('reenvío: cuenta con el tiempo que quedaba hace 3 s', a3[T[0]].timerRemaining === 11 && Math.abs(a3[T[0]].timestamp - (tSend - 3000)) < 150, { r: a3[T[0]].timerRemaining });
-    check('reenvío: como mucho 10 s hacia atrás', a3[T[1]].timerRemaining === 18 && Math.abs(a3[T[1]].timestamp - (tSend - 10000)) < 150, { r: a3[T[1]].timerRemaining });
+    check('reenvío: cuenta con el tiempo que quedaba hace 3 s (~10,5)', Math.abs(a3[T[0]].timerRemaining - 10.5) < 0.3 && Math.abs(a3[T[0]].timestamp - (tSend - 3000)) < 150, { r: a3[T[0]].timerRemaining });
+    check('reenvío: como mucho 10 s hacia atrás (~17,5)', Math.abs(a3[T[1]].timerRemaining - 17.5) < 0.3 && Math.abs(a3[T[1]].timestamp - (tSend - 10000)) < 150, { r: a3[T[1]].timerRemaining });
     d.emit('director:reveal_answer'); await wait(300);
 
     // ── Pulsador: Fallo sin rebote; tipos sin temporizador

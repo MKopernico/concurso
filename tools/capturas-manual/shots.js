@@ -110,7 +110,7 @@ async function partJuego() {
     await d.eval(`emit('director:toggle_qr'); return 1;`); await wait(600);
 
     const launch = async (roundName) => {
-        await d.eval(`const el=[...document.querySelectorAll('*')].find(x=>x.children.length===0 && x.textContent.trim()===${JSON.stringify(roundName)} && x.offsetParent); el.click(); await new Promise(r=>setTimeout(r,800)); const b=[...document.querySelectorAll('button')].find(x=>/Empezar ronda/.test(x.textContent)&&x.offsetParent); if(b) b.click(); return 1;`);
+        await d.eval(`const el=[...document.querySelectorAll('#roundsList .round-item')].find(x=>x.querySelector('.round-name').textContent.replace(/^\\d+\\.\\s*/,'').trim()===${JSON.stringify(roundName)}); el.click(); await new Promise(r=>setTimeout(r,800)); const b=[...document.querySelectorAll('button')].find(x=>/Empezar ronda/.test(x.textContent)&&x.offsetParent); if(b) b.click(); return 1;`);
         await wait(1500);
     };
     // Multirespuesta: la pregunta 1 lleva bono de puntos (su anuncio sale solo en la sala); la 2, de congelar
