@@ -173,6 +173,18 @@ function gamePassFor(gameId) {
     return game ? gamePass(gameId, game.access_code) : null;
 }
 
+// Llave de la pizarra del Pictionary (iPad de dibujo fijo): HMAC del juego + código de acceso.
+// Va en su QR; cambiar el código del juego la invalida, como los pases.
+function padKey(gameId) {
+    const game = db.prepare('SELECT access_code FROM games WHERE id = ?').get(gameId);
+    return game ? sign(`pad:${gameId}:${game.access_code || ''}`).slice(0, 22) : null;
+}
+
+function verifyPadKey(gameId, key) {
+    const k = padKey(gameId);
+    return !!k && !!key && safeEqual(key, k);
+}
+
 // ───────────────── límite de intentos ─────────────────
 
 function makeLimiter(max, windowMs) {
@@ -196,6 +208,6 @@ module.exports = {
     isConfigured, verifyPassword, setPassword,
     setSessionCookie, clearSessionCookie, isStaffRequest, sessionFromCookieHeader,
     requireStaffPage, requireStaffApi,
-    gamePass, gamePassFor, verifyGamePass,
+    gamePass, gamePassFor, verifyGamePass, padKey, verifyPadKey,
     makeLimiter,
 };

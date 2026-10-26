@@ -6,6 +6,7 @@
 <title>GameShow — Pantalla</title>
 <link rel="stylesheet" href="/shared/gameshow-transitions.css">
 <link rel="stylesheet" href="/shared/roulette-panel.css">
+<link rel="stylesheet" href="/shared/pictionary-board.css">
 <style>
 /* ═══════════════ RESET & BASE ═══════════════ */
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -292,6 +293,31 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
     font-size: clamp(1.6rem, 3.4vw, 3.2rem); font-weight: 900; color: #fff; background: linear-gradient(rgba(34,197,94,.35),rgba(34,197,94,.35)), rgba(0,0,0,.7);
     border: 2px solid var(--green); box-shadow: 0 0 30px rgba(34,197,94,.35); opacity: 0; transition: opacity .5s; pointer-events: none; }
 .aclara-answer.visible { opacity: 1; animation: reveal-pop .6s cubic-bezier(.34,1.56,.64,1); }
+
+/* Pictionary: quién dibuja arriba, la pizarra en grande y la palabra abajo al revelar */
+#picScreenWrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: stretch; padding: 2% 2% 2%; box-sizing: border-box; gap: 1.5vh; }
+.pic-scr-head { display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; min-height: 0; padding-right: 180px; padding-left: 180px; }
+.pic-scr-who { font-size: clamp(1.4rem, 3vw, 2.6rem); font-weight: 900; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,.6); display: flex; align-items: center; gap: 14px; }
+.pic-scr-who img { width: clamp(44px, 6vh, 72px); height: clamp(44px, 6vh, 72px); border-radius: 50%; object-fit: cover; border: 3px solid var(--gold); }
+.pic-scr-who b { color: var(--gold); }
+.pic-scr-cat { font-size: clamp(1rem, 1.8vw, 1.6rem); font-weight: 700; padding: 6px 18px; border-radius: 999px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.25); color: #fff; }
+.pic-scr-paused { font-size: clamp(1rem, 1.6vw, 1.4rem); font-weight: 800; color: #fde047; }
+.pic-scr-board { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative; }
+.pic-scr-board .pic-canvas { border-radius: 14px; box-shadow: 0 0 0 4px rgba(255,255,255,.15), 0 10px 50px rgba(0,0,0,.6); }
+.pic-scr-intro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.5vh; text-align: center; padding: 4%; }
+.pic-scr-intro .pi-icon { font-size: clamp(4rem, 12vh, 9rem); line-height: 1; filter: drop-shadow(0 0 20px rgba(250,204,21,.4)); }
+.pic-scr-intro .pi-label { font-size: clamp(1.4rem, 3vw, 2.6rem); font-weight: 700; letter-spacing: 4px; text-transform: uppercase; color: var(--text2, #a1a1aa); }
+.pic-scr-intro .pi-team { font-size: clamp(2.6rem, 7vw, 6.5rem); font-weight: 900; color: var(--gold); text-shadow: 0 0 30px rgba(250,204,21,.45); line-height: 1.05; display: flex; align-items: center; gap: 3vw; }
+.pic-scr-intro .pi-team img { width: clamp(80px, 14vh, 170px); height: clamp(80px, 14vh, 170px); border-radius: 50%; object-fit: cover; border: 5px solid var(--gold); }
+.pic-scr-intro .pi-cat { font-size: clamp(1.2rem, 2.4vw, 2rem); font-weight: 700; padding: 8px 26px; border-radius: 999px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.25); }
+.pic-scr-word { position: absolute; left: 50%; bottom: 5%; transform: translateX(-50%); max-width: 86%; padding: 14px 40px; border-radius: 18px; text-align: center;
+    font-size: clamp(1.8rem, 4.4vw, 4rem); font-weight: 900; color: #fff; background: linear-gradient(rgba(34,197,94,.35),rgba(34,197,94,.35)), rgba(0,0,0,.75);
+    border: 2px solid var(--green); box-shadow: 0 0 30px rgba(34,197,94,.35); pointer-events: none; animation: reveal-pop .6s cubic-bezier(.34,1.56,.64,1); }
+.pic-scr-word small { display: block; font-size: .42em; font-weight: 700; letter-spacing: 2px; opacity: .9; margin-top: 4px; }
+#phase-question.pic-mode { padding: 0; }
+#phase-question.pic-mode #buzzerQueue { top: auto; bottom: 4%; }
+html.embed #picScreenWrap { padding: 8px; gap: 6px; }
+html.embed .pic-scr-head { padding-right: 0; padding-left: 0; }
 
 /* ═══════════════ LETTER PANEL (RULETA) ═══════════════ */
 .letter-panel { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 40px; max-width: 1000px; }
@@ -614,6 +640,12 @@ body.karaoke-screen-active .round-logo { display: none !important; }
         <div id="identidadScreenWrap" style="display:none"></div>
         <div id="abiertaScreenWrap" style="display:none"><div class="abs-list" id="absList"></div><div class="abs-band" id="absBand"></div></div>
         <div id="karaokeScreenWrap" style="display:none"></div>
+        <div id="picScreenWrap" style="display:none">
+            <div class="pic-scr-head" id="picScrHead"></div>
+            <div class="pic-scr-board" id="picScrBoard"></div>
+            <div class="pic-scr-intro" id="picScrIntro" style="display:none"></div>
+            <div class="pic-scr-word" id="picScrWord" style="display:none"></div>
+        </div>
         <div class="letter-panel" id="letterPanel" style="display:none"></div>
         <div class="mini-scores" id="miniScores"></div>
     </div>
@@ -713,6 +745,7 @@ body.karaoke-screen-active .round-logo { display: none !important; }
 <script src="/shared/aclara-fx.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
+<script src="/shared/pictionary-board.js"></script>
 <script>
 (function() {
 'use strict';
@@ -1125,15 +1158,17 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
         timerStrip.style.display = 'none';
         timerBig.style.display = 'none';
         document.getElementById('phase-question').classList.toggle('imagen-mode', type === 'imagen' || type === 'aclara');
+        document.getElementById('phase-question').classList.toggle('pic-mode', type === 'pictionary');
         renderRevealedInPlace();
         renderTeamResultsOverlay();
     } else if (phase === 'question') {
         showPhase('question');
         var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'karaoke' || type === 'aclara'
-            || (type === 'abierta' && !(ps.timer && ps.timer.total > 0)); // Respuesta abierta sin cuenta atrás
+            || ((type === 'abierta' || type === 'pictionary') && !(ps.timer && ps.timer.total > 0)) // Respuesta abierta / Pictionary sin cuenta atrás
+            || (type === 'pictionary' && !(ps.pictionary && ps.pictionary.step === 'drawing')); // Pictionary: el reloj, al empezar a dibujar
         timerStrip.style.display = hideTimer ? 'none' : '';
         timerBig.style.display = (hideTimer || type === 'identidad') ? 'none' : '';
-        document.getElementById('roundLogo').style.display = (type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'identidad' || type === 'aclara') ? 'none' : '';
+        document.getElementById('roundLogo').style.display = (type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'identidad' || type === 'aclara' || type === 'pictionary') ? 'none' : '';
         renderQuestion(type, newQuestion, optionsJustRevealed);
     } else if (phase === 'round_end') {
         showPhase('round-end');
@@ -1195,7 +1230,8 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     // Toggle fullscreen mode for imagen
     document.getElementById('phase-question').classList.toggle('imagen-mode', type === 'imagen' || type === 'aclara');
     document.getElementById('phase-question').classList.toggle('aclara-mode', type === 'aclara');
-    document.getElementById('phase-question').classList.toggle('queue-over', type === 'imagen' || type === 'aclara' || type === 'imagen_fija' || type === 'cancion');
+    document.getElementById('phase-question').classList.toggle('queue-over', type === 'imagen' || type === 'aclara' || type === 'imagen_fija' || type === 'cancion' || type === 'pictionary');
+    document.getElementById('phase-question').classList.toggle('pic-mode', type === 'pictionary');
     document.getElementById('phase-question').classList.toggle('identidad-mode', type === 'identidad');
     _imagenState.built = type === 'imagen' ? _imagenState.built : false;
 
@@ -1216,6 +1252,7 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     document.getElementById('abiertaScreenWrap').style.display = 'none';
     document.getElementById('phase-question').classList.remove('abierta-mode', 'ab-subs');
     document.getElementById('karaokeScreenWrap').style.display = 'none';
+    document.getElementById('picScreenWrap').style.display = 'none';
     document.getElementById('phase-question').classList.toggle('karaoke-mode', type === 'karaoke');
     document.body.classList.toggle('karaoke-screen-active', type === 'karaoke');
     _identidadAnimateIdx = -1;
@@ -1239,6 +1276,12 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
         stmtEl.style.display = 'none';
         document.getElementById('qMedia').style.display = 'none';
         renderAclaraScreen(c, q, false);
+        renderBuzzerQueue();
+        document.getElementById('buzzerQueue').style.display = 'flex';
+    } else if (type === 'pictionary') {
+        stmtEl.style.display = 'none';
+        document.getElementById('qMedia').style.display = 'none';
+        renderPicScreen(c, false);
         renderBuzzerQueue();
         document.getElementById('buzzerQueue').style.display = 'flex';
     } else if (type === 'ruleta') {
@@ -1308,6 +1351,56 @@ function renderAclaraScreen(c, q, revealed) {
     var txt = c.answer || (ip.answerVisible ? ip.answerText : '') || '';
     ans.textContent = txt;
     ans.classList.toggle('visible', !!((revealed || ip.answerVisible) && txt));
+}
+
+// ═══════════════ PICTIONARY ═══════════════
+// La pizarra se pinta con los trazos que reenvía el servidor (shared/pictionary-board.js)
+var _picBoard = null, _picViewer = null;
+function picTeamHtml(id, name, bold) {
+    var t = (ps.equipos || []).find(function(e) { return e.id === id; });
+    var photo = t && t.photo_url ? '<img src="' + esc(t.photo_url) + '" alt="">' : '';
+    var n = esc(name || (t && t.nombre) || '');
+    return photo + (bold ? '<b>' + n + '</b>' : '<span>' + n + '</span>');
+}
+function renderPicScreen(c, revealed) {
+    var wrap = document.getElementById('picScreenWrap');
+    wrap.style.display = 'flex';
+    var p = ps.pictionary || {};
+    var drawing = revealed || p.step === 'drawing';
+    if (!_picBoard) {
+        _picBoard = new PicBoard.Board(document.getElementById('picScrBoard'));
+        _picViewer = new PicBoard.Viewer(_picBoard, socket);
+    }
+    _picViewer.setKey(ps.questionKey);
+    var intro = document.getElementById('picScrIntro');
+    var head = document.getElementById('picScrHead');
+    var boardEl = document.getElementById('picScrBoard');
+    var cat = c.category ? '<span class="pic-scr-cat">' + esc(c.category) + '</span>' : '';
+    if (!drawing) {
+        // Antes de empezar: a quién le toca, en grande
+        var who = p.mode === 'ipad' ? '<div class="pi-team">¡Atentos a la pizarra!</div>'
+            : (p.drawer ? '<div class="pi-team">' + picTeamHtml(p.drawer, p.drawerName) + '</div>' : '<div class="pi-team">…</div>');
+        var html = '<div class="pi-icon">✏️</div>' + (p.mode === 'ipad' ? '' : '<div class="pi-label">Dibuja</div>') + who
+            + (c.category ? '<div class="pi-cat">Categoría: ' + esc(c.category) + '</div>' : '');
+        if (intro._h !== html) { intro.innerHTML = html; intro._h = html; }
+        intro.style.display = 'flex'; head.style.visibility = 'hidden'; boardEl.style.visibility = 'hidden';
+    } else {
+        intro.style.display = 'none'; head.style.visibility = ''; boardEl.style.visibility = '';
+        var h = (p.mode === 'ipad' ? '<span class="pic-scr-who">✏️ Pizarra</span>'
+            : '<span class="pic-scr-who">✏️ Dibuja ' + picTeamHtml(p.drawer, p.drawerName, true) + '</span>') + cat
+            + (!revealed && p.paused ? '<span class="pic-scr-paused">⏸ Tiempo parado</span>' : '');
+        if (head._h !== h) { head.innerHTML = h; head._h = h; }
+        _picBoard.fit();
+    }
+    var wordEl = document.getElementById('picScrWord');
+    if (revealed && c.word) {
+        var winner = ps.buzzerWinner ? ((ps.equipos || []).find(function(e) { return e.id === ps.buzzerWinner; }) || {}).nombre : null;
+        var wh = esc(c.word) + '<small>' + (winner ? '¡Acertó ' + esc(winner) + '!' : 'Nadie lo adivinó') + '</small>';
+        if (wordEl._h !== wh) { wordEl.innerHTML = wh; wordEl._h = wh; }
+        wordEl.style.display = '';
+    } else {
+        wordEl.style.display = 'none'; wordEl._h = '';
+    }
 }
 
 function renderBuzzerQueue() {
@@ -2144,6 +2237,13 @@ function renderRevealedInPlace() {
         document.getElementById('buzzerQueue').style.display = 'none';
         document.getElementById('imagenFijaWrap').style.display = 'none';
         document.getElementById('cancionScreenWrap').style.display = 'none';
+    } else if (type === 'pictionary') {
+        // El dibujo se queda en pantalla con la palabra encima
+        document.getElementById('buzzerQueue').style.display = 'none';
+        document.getElementById('qStatement').style.display = 'none';
+        document.getElementById('qMedia').style.display = 'none';
+        document.getElementById('roundLogo').style.display = 'none';
+        renderPicScreen(c, true);
     } else if (type === 'identidad') {
         renderIdentidadReveal();
     } else if (type === 'abierta') {
@@ -2598,7 +2698,7 @@ document.addEventListener('click', function(e) {
 var TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
     imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary'
 };
 
 function renderScreenLobbyDefault() {

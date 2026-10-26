@@ -202,7 +202,7 @@ router.post('/games/:id/duplicate', (req, res) => {
 
 // ───────────────── EXPORT EXCEL ─────────────────
 
-function contentToRow(typeDef, roundName, question) {
+function contentToRow(typeDef, roundName, question, round) {
     const c = question.content || {};
     const qCfg = question.config || {};
 
@@ -237,6 +237,11 @@ function contentToRow(typeDef, roundName, question) {
             return [roundName, c.statement || '', c.answer || '', c.image || '', c.audio || '', c.initial_chaos ?? 100, c.preset || 'default', qCfg.basePoints || ''];
         case 'aclara':
             return [roundName, c.statement || '', c.image || '', c.answer || '', c.effect === 'blur' ? 'desenfoque' : 'pixelado', c.mode === 'manual' ? 'a mano' : 'sola', c.duration || 30, qCfg.basePoints || ''];
+        case 'pictionary': {
+            const rc = (round && round.config) || {};
+            return [roundName, c.word || '', c.category || '', rc.picMode === 'ipad' ? 'ipad' : 'equipo', rc.picTurns === 'manual' ? 'coordinador' : 'auto',
+                rc.picDrawerPoints || 0, qCfg.time || '', qCfg.basePoints ?? '', qCfg.bonusMax ?? ''];
+        }
         case 'identidad': {
             const pairs = Array.isArray(c.pairs) ? c.pairs : [];
             if (pairs.length === 0) return [[roundName, c.statement || '', '', '', '', '', c.explanation || '', qCfg.basePoints || '', qCfg.time || '']];
@@ -263,7 +268,7 @@ function contentToRow(typeDef, roundName, question) {
 }
 
 // ── Shared instruction rows for template & export ──
-const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'identidad', 'aclara', 'abierta'];
+const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'identidad', 'aclara', 'abierta', 'pictionary'];
 
 function buildInstructionRows() {
     const rows = [
@@ -321,6 +326,11 @@ function buildInstructionRows() {
     rows.push(['    "otras_validas": todas en una celda separadas por / (ej: Miguel de Cervantes / el manco de Lepanto). Da igual mayúsculas, tildes y signos.']);
     rows.push(['    "tiempo" vacío = sin cuenta atrás (modo «Lo sabe no lo sabe»). Para otra pregunta en la misma ronda, escribe su enunciado general.']);
     rows.push(['    Puntos: cada equipo se lleva la parte proporcional de lo que acierta; el que más acierta (empate: el que envió antes) gana además el bonus.']);
+    rows.push(['  Pictionary: una fila por palabra (cada pregunta es una palabra y dibuja un equipo distinto). "categoria" es opcional y la ven todos.']);
+    rows.push(['    "quien_dibuja": equipo (cada palabra la dibuja un equipo en su iPad; los demás adivinan) o ipad (una pizarra fija enlazada por QR; adivinan todos y quien dibuja no suma).']);
+    rows.push(['    "turnos": auto (el programa propone a quién le toca: todos dibujan antes de repetir) o coordinador (lo elige el coordinador en cada palabra).']);
+    rows.push(['    "puntos_dibuja": puntos para el equipo que dibuja cuando alguien acierta (0 = ninguno). quien_dibuja, turnos y puntos_dibuja son de la ronda: vale lo de la 1ª fila que los tenga.']);
+    rows.push(['    "tiempo": segundos por palabra (vacío = el de la ronda; en la hoja Rondas, 0 = sin límite; por defecto 60). Mientras alguien responde, el tiempo se para.']);
     return rows;
 }
 
@@ -435,7 +445,7 @@ router.get('/games/:id/export-excel', (req, res) => {
         const rounds = byType[d.type] || [];
         for (const round of rounds) {
             for (const q of (round.questions || [])) {
-                const row = contentToRow(d, round.name, q);
+                const row = contentToRow(d, round.name, q, round);
                 if (Array.isArray(row[0])) dataRows.push(...row); else dataRows.push(row);
             }
         }
@@ -635,6 +645,7 @@ const EXCEL_TYPE_DEFS = [
     { sheet: 'Identidad',      type: 'identidad',       columns: ['ronda', 'enunciado', 'izq_imagen', 'izq_texto', 'der_imagen', 'der_texto', 'explicacion', 'puntos_base', 'tiempo'] },
     { sheet: 'Imagen se aclara', type: 'aclara',        columns: ['ronda', 'enunciado', 'imagen', 'respuesta', 'efecto', 'modo', 'segundos', 'puntos_base'] },
     { sheet: 'Respuesta abierta', type: 'abierta',      columns: ['ronda', 'enunciado', 'subpregunta', 'respuesta', 'otras_validas', 'tiempo', 'puntos_base', 'bonus_max'] },
+    { sheet: 'Pictionary',     type: 'pictionary',      columns: ['ronda', 'palabra', 'categoria', 'quien_dibuja', 'turnos', 'puntos_dibuja', 'tiempo', 'puntos_base', 'bonus_max'] },
 ];
 
 const SHEET_TYPE_MAP = {};
@@ -897,6 +908,23 @@ function parseExcelSheet(rows, type) {
                 if (String(r[8] || '').trim()) rounds[roundName].config.background = String(r[8]).trim();
                 break;
             }
+            case 'pictionary': {
+                const word = String(r[1] || '').trim();
+                const category = String(r[2] || '').trim();
+                if (!word && !category) break;
+                content = { word: word || undefined, category: category || undefined };
+                // Opciones de la ronda: las de la primera fila que las tenga
+                const pic = rounds[roundName].config.pic || (rounds[roundName].config.pic = {});
+                const plain = (v) => String(v == null ? '' : v).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const quien = plain(r[3]), turnos = plain(r[4]);
+                if (pic.picMode === undefined && quien) pic.picMode = /ipad|pizarra|fij/.test(quien) ? 'ipad' : 'equipos';
+                if (pic.picTurns === undefined && turnos) pic.picTurns = /coord|manual|mano/.test(turnos) ? 'manual' : 'auto';
+                if (pic.picDrawerPoints === undefined && r[5] !== '' && r[5] != null && isFinite(Number(r[5]))) pic.picDrawerPoints = Math.max(0, Number(r[5]));
+                if (r[6] !== '' && r[6] != null && Number(r[6]) > 0) qConfig.time = Number(r[6]);
+                if (r[7] !== '' && r[7] != null && isFinite(Number(r[7]))) qConfig.basePoints = Number(r[7]);
+                if (r[8] !== '' && r[8] != null && isFinite(Number(r[8]))) qConfig.bonusMax = Number(r[8]);
+                break;
+            }
             case 'cancion': {
                 const statement = String(r[1] || '').trim();
                 const answer = String(r[2] || '').trim();
@@ -1042,7 +1070,7 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
                         roundConfig = { ...roundDefs[roundName].config };
                     } else {
                         // Legacy: build config from first question + fondo_ronda from parser
-                        roundConfig = { time: 30, basePoints: 100, bonusMax: 50, penalty: 0 };
+                        roundConfig = { time: type === 'pictionary' ? 60 : 30, basePoints: 100, bonusMax: 50, penalty: 0 };
                         const firstQ = roundData.questions[0];
                         if (firstQ.config) {
                             if (firstQ.config.time) roundConfig.time = firstQ.config.time;
@@ -1052,6 +1080,8 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
                         }
                         if (roundData.config.background) roundConfig.background = roundData.config.background;
                     }
+                    // Pictionary: quién dibuja, turnos y puntos para el que dibuja (de su pestaña)
+                    if (roundData.config.pic) Object.assign(roundConfig, roundData.config.pic);
 
                     roundId = newId('r');
                     insertRound.run(roundId, req.params.id, roundName, type, JSON.stringify(roundConfig), sortFor(roundName));

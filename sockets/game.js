@@ -122,6 +122,7 @@ function snapshotOf(state) {
         audioOn: ds.audioOn || 'sala',
         pendingScores: ds.pendingScores || null,
         abiertaWip: ds.abiertaWip || {}, // respuestas abiertas a medio corregir
+        pic: { done: ds.picDone || [], rank: ds.picRank || {}, last: ds.picLast || null }, // rueda de turnos del Pictionary
         teams: Object.fromEntries(state.equipos.map(e => [e.id, { bonos: e.bonos || [], bloqueado: !!e.bloqueado, descongelaEn: e.descongelaEn || 0 }])),
     });
 }
@@ -144,6 +145,11 @@ function restoreSnapshot(s, json) {
     if (snap.audioOn === 'ipads' || snap.audioOn === 'sala') s.director.audioOn = snap.audioOn;
     if (snap.pendingScores && typeof snap.pendingScores === 'object') s.director.pendingScores = snap.pendingScores;
     if (snap.abiertaWip && typeof snap.abiertaWip === 'object') s.director.abiertaWip = snap.abiertaWip;
+    if (snap.pic && typeof snap.pic === 'object') {
+        s.director.picDone = Array.isArray(snap.pic.done) ? snap.pic.done : [];
+        s.director.picRank = (snap.pic.rank && typeof snap.pic.rank === 'object') ? snap.pic.rank : {};
+        s.director.picLast = snap.pic.last || null;
+    }
     s._lastSnapshot = json;
 }
 
@@ -200,7 +206,7 @@ function roundsChanged(gameId) {
 }
 
 function publicView(state) {
-    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _preCountdownHandle, _gameTheme, _sessionId, _rounds, _lastSnapshot, _gameId, _recovery, _tickAt, _ticks, ...rest } = state;
+    const { precioCifraCorrecta, precioTimeoutHandle, _timerHandle, _preCountdownHandle, _gameTheme, _sessionId, _rounds, _lastSnapshot, _gameId, _recovery, _tickAt, _ticks, _pic, _picDrawings, _padSocketId, ...rest } = state;
     rest.gameTheme = _gameTheme || {};
     // questionResults (respuestas de todas las preguntas ya jugadas) solo sirve al servidor para
     // no volver a puntuar: crece ~3,5 KB por pregunta y no lo usa ninguna pantalla. Enviarlo en
@@ -251,7 +257,9 @@ function getQuestionConfig(state) {
     const qCfg = q.config || {};
     return {
         // Respuesta abierta: la cuenta atrás es de la pregunta y es opcional (0 = sin cuenta atrás)
-        time: (ds.currentRound && ds.currentRound.type === 'abierta') ? abiertaTime(q) : (qCfg.time || rCfg.time || 30),
+        time: (ds.currentRound && ds.currentRound.type === 'abierta') ? abiertaTime(q)
+            : (ds.currentRound && ds.currentRound.type === 'pictionary') ? picTimeOf(ds) // 0 = sin tiempo
+            : (qCfg.time || rCfg.time || 30),
         basePoints: qCfg.basePoints ?? rCfg.basePoints ?? 100,
         bonusMax: qCfg.bonusMax ?? rCfg.bonusMax ?? 50,
         penalty: qCfg.penalty ?? rCfg.penalty ?? 0,
@@ -295,6 +303,114 @@ function aclaraView(ds) {
     if (!ds.aclara) return null;
     const lvl = aclaraLevel(ds);
     return { level: lvl, running: ds.aclara.running && lvl < 1, rate: ds.aclara.rate };
+}
+
+// ── Pictionary ──
+// Cada pregunta es una palabra (content = { word, category? }). Config de la ronda:
+//   picMode 'equipos' (dibuja un equipo en su iPad; los demás pulsan) | 'ipad' (dibuja una pizarra
+//   fija enlazada por QR; pulsan todos y quien dibuja no suma), picTurns 'auto' (el servidor propone
+//   a quién le toca) | 'manual' (lo elige el coordinador), picDrawerPoints: puntos para el equipo
+//   que dibuja cuando alguien acierta (0 = nada). El tiempo (0 = sin tiempo) se para mientras
+//   responde quien ha pulsado.
+// ds.pictionary = { step: 'setup' (aún sin la palabra) | 'drawing', mode, drawer, drawerPts, pausedByBuzz }
+// Los trazos no van en el estado general (se envía entero con cada cambio): viven en state._pic
+// y viajan aparte (pic:chunk / pic:op / pic:full) solo a pantallas y coordinadores.
+const PIC_MAX_POINTS = 150000;   // números (x,y) por dibujo: de sobra para un minuto dibujando
+const PIC_MAX_CHUNK = 400;
+const PIC_ARCHIVE = 60;          // dibujos de preguntas ya jugadas que se recuerdan (para volver a verlas)
+function picCfg(ds) {
+    const rc = ds.currentRound ? parseJson(ds.currentRound.config) : {};
+    return {
+        mode: rc.picMode === 'ipad' ? 'ipad' : 'equipos',
+        turns: rc.picTurns === 'manual' ? 'manual' : 'auto',
+        drawerPoints: Math.max(0, Math.round(Number(rc.picDrawerPoints) || 0)),
+    };
+}
+function picTimeOf(ds) {
+    const q = ds.questions[ds.currentQuestionIdx];
+    const qt = Number(q && q.config && q.config.time);
+    if (isFinite(qt) && qt > 0) return Math.min(600, Math.round(qt));
+    const rt = Number(ds.currentRound ? parseJson(ds.currentRound.config).time : NaN);
+    return isFinite(rt) && rt >= 0 ? Math.min(600, Math.round(rt)) : 60;
+}
+function questionKeyOf(ds) { return (ds.currentRoundId || '') + ':' + ds.currentQuestionIdx + ':' + (ds.questionEpoch || 0); }
+// Pizarra de la pregunta en curso (null si la pregunta ya no es la suya)
+function picBoard(state) {
+    const b = state._pic;
+    return b && b.key === questionKeyOf(state.director) ? b : null;
+}
+// Turnos automáticos: dibujan todos los equipos (en un orden al azar) antes de que nadie repita;
+// al completar la vuelta se baraja otra (sin que repita justo el último). Los que entran a mitad
+// de vuelta también tienen su turno. Entre los pendientes se propone primero uno conectado y sin congelar.
+function picCandidate(state) {
+    const ds = state.director;
+    const teams = state.equipos;
+    if (!teams.length) return null;
+    if (!ds.picRank || typeof ds.picRank !== 'object') ds.picRank = {};
+    if (!Array.isArray(ds.picDone)) ds.picDone = [];
+    teams.forEach(e => { if (typeof ds.picRank[e.id] !== 'number') ds.picRank[e.id] = Math.random(); });
+    let pending = teams.filter(e => !ds.picDone.includes(e.id));
+    if (!pending.length) {
+        ds.picDone = [];
+        teams.forEach(e => { ds.picRank[e.id] = Math.random(); });
+        if (teams.length > 1 && ds.picLast) ds.picRank[ds.picLast] = 2; // el último de la vuelta anterior, al final
+        pending = teams.slice();
+    }
+    pending.sort((a, b) => ds.picRank[a.id] - ds.picRank[b.id]);
+    const ready = pending.find(e => e.ocupado && !e.bloqueado);
+    return (ready || pending[0]).id;
+}
+function picMarkDrawn(state, teamId) {
+    const ds = state.director;
+    if (!Array.isArray(ds.picDone)) ds.picDone = [];
+    // Ya habían dibujado todos (p. ej. turnos elegidos a mano): este empieza la vuelta nueva
+    if (state.equipos.length && state.equipos.every(e => ds.picDone.includes(e.id))) {
+        ds.picDone = [];
+        state.equipos.forEach(e => { if (!ds.picRank) ds.picRank = {}; ds.picRank[e.id] = Math.random(); });
+    }
+    if (!ds.picDone.includes(teamId)) ds.picDone.push(teamId);
+    ds.picLast = teamId;
+}
+function initPictionaryState(state) {
+    const ds = state.director;
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (!(ds.currentRound && ds.currentRound.type === 'pictionary' && q)) { ds.pictionary = null; return; }
+    const cfg = picCfg(ds);
+    ds.pictionary = {
+        step: 'setup', mode: cfg.mode, drawerPts: 0, pausedByBuzz: false,
+        drawer: cfg.mode === 'equipos' && cfg.turns === 'auto' ? picCandidate(state) : null,
+    };
+    state._pic = { key: questionKeyOf(ds), qid: q.id, seq: 0, strokes: [], size: 0 };
+}
+// Al revelar se guarda el dibujo: volver a la pregunta lo enseña tal cual quedó
+function picArchive(state) {
+    const b = picBoard(state);
+    if (!b || !b.strokes.length) return;
+    if (!state._picDrawings) state._picDrawings = new Map();
+    state._picDrawings.delete(b.qid);
+    state._picDrawings.set(b.qid, b.strokes);
+    while (state._picDrawings.size > PIC_ARCHIVE) state._picDrawings.delete(state._picDrawings.keys().next().value);
+}
+// Socket que dibuja ahora (el iPad del equipo o la pizarra fija), o null
+function picDrawerSocket(state) {
+    const p = state.director.pictionary;
+    if (!p || !_io) return null;
+    let sid = null;
+    if (p.mode === 'ipad') sid = state._padSocketId;
+    else { const e = state.equipos.find(x => x.id === p.drawer); sid = e && e.socketId; }
+    return sid ? _io.sockets.sockets.get(sid) || null : null;
+}
+// La palabra solo viaja al que dibuja (y al coordinador, que tiene las preguntas)
+function sendPicWord(socket, state) {
+    const ds = state.director, p = ds.pictionary;
+    if (!socket || !p || ds.phase !== 'question' || p.step !== 'drawing') return;
+    const q = ds.questions[ds.currentQuestionIdx];
+    const c = (q && q.content) || {};
+    socket.emit('pic:word', { k: questionKeyOf(ds), word: String(c.word || ''), category: String(c.category || '') });
+}
+function picDrawerName(state) {
+    const p = state.director.pictionary;
+    return p && p.drawer ? teamName(state, p.drawer) : null;
 }
 
 function initIdentidadState(ds) {
@@ -457,6 +573,7 @@ function teamName(state, id) { const e = state.equipos.find(x => x.id === id); r
 
 function isNoTimerRound(ds) {
     if (ds.currentRound && ds.currentRound.type === 'abierta') return !abiertaTime(ds.questions[ds.currentQuestionIdx]);
+    if (ds.currentRound && ds.currentRound.type === 'pictionary') return !picTimeOf(ds);
     return !!(ds.currentRound && NO_TIMER_TYPES.has(ds.currentRound.type));
 }
 
@@ -494,6 +611,7 @@ function finalizeQuestion(state) {
     ds.phase = 'answer_revealed';
     state.pulsadorActivo = false;
     if (ds.aclara) { ds.aclara.level = 1; ds.aclara.running = false; }
+    if (ds.pictionary) picArchive(state);
     computeLastQuestionScores(state);
     if (['multirespuesta', 'precio', 'boom', 'identidad', 'abierta'].includes(type)) {
         const lqs = Object.values(ds.lastQuestionScores || {});
@@ -503,6 +621,7 @@ function finalizeQuestion(state) {
     if (q) {
         if (!ds.questionResults) ds.questionResults = {};
         ds.questionResults[q.id] = { answers: ds.answers, lastQuestionScores: ds.lastQuestionScores, identidad: ds.identidad, abierta: ds.abierta || undefined,
+            pictionary: ds.pictionary ? { mode: ds.pictionary.mode, drawer: ds.pictionary.drawer, drawerPts: ds.pictionary.drawerPts || 0 } : undefined,
             buzzerWinner: ds.buzzerWinner || null, buzzerPoints: ds.buzzerPoints || 0, buzzerFailed: (ds.buzzerFailed || []).slice() };
     }
     return true;
@@ -523,6 +642,14 @@ function restoreQuestionResult(state) {
     ds.buzzerPoints = r.buzzerPoints || 0;
     ds.buzzerFailed = r.buzzerFailed || [];
     if (ds.currentRound && ds.currentRound.type === 'aclara') ds.aclara = { level: 1, running: false, since: 0, rate: 1 / 30 };
+    // Pictionary ya jugado: quién dibujó y el dibujo tal cual quedó (si el servidor aún lo recuerda)
+    if (ds.currentRound && ds.currentRound.type === 'pictionary') {
+        const rp = r.pictionary || {};
+        ds.pictionary = { step: 'drawing', mode: rp.mode || picCfg(ds).mode, drawer: rp.drawer || null, drawerPts: rp.drawerPts || 0, pausedByBuzz: false };
+        const b = picBoard(state);
+        const saved = state._picDrawings && state._picDrawings.get(q.id);
+        if (b) { b.strokes = saved || []; b.seq = 1; b.size = b.strokes.reduce((n, s) => n + s.p.length, 0); }
+    }
     // Boom ya puntuado: se vuelve a ver con el orden completo
     ds.boomStep = (ds.currentRound && ds.currentRound.type === 'boom' && q.content && Array.isArray(q.content.items)) ? q.content.items.length : null;
     ds.optionsRevealed = true;
@@ -826,7 +953,7 @@ function autoScoreBoom(state) {
     }
 }
 
-const BUZZER_RESULT_TYPES = new Set(['pulsador', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'aclara']);
+const BUZZER_RESULT_TYPES = new Set(['pulsador', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'aclara', 'pictionary']);
 function computeLastQuestionScores(state) {
     const ds = state.director;
     const q = ds.questions[ds.currentQuestionIdx];
@@ -935,6 +1062,11 @@ function computeLastQuestionScores(state) {
         if (ds.buzzerWinner && !results[ds.buzzerWinner]) {
             results[ds.buzzerWinner] = { answer: 'Acertó al pulsar', correct: true, points: ds.buzzerPoints || 0, buzzer: true };
         }
+        // Pictionary: el equipo que dibujaba (se lleva sus puntos si alguien lo adivinó)
+        const pd = ds.pictionary && ds.pictionary.mode === 'equipos' && ds.pictionary.drawer;
+        if (pd && !results[pd]) {
+            results[pd] = { answer: 'Dibujó', correct: !!ds.buzzerWinner, points: ds.pictionary.drawerPts || 0, buzzer: true, drawer: true };
+        }
     }
 
     // Mark teams that didn't answer
@@ -1003,6 +1135,9 @@ function playerView(state, forPlayers) {
                 }
             }
             delete c.correct; delete c.answer; delete c.correct_value; delete c.correct_order;
+            // Pictionary: la palabra solo la tienen el coordinador y quien dibuja (pic:word). Tampoco la
+            // pantalla: sin pantalla, cada iPad lleva su vista incrustada.
+            if (type === 'pictionary') delete c.word;
         }
         // Boom revelado por pasos: a los iPads solo les llega lo ya destapado del orden correcto
         if (ds.phase === 'answer_revealed' && forPlayers && type === 'boom' && typeof ds.boomStep === 'number' && Array.isArray(c.correct_order)) {
@@ -1100,6 +1235,10 @@ function playerView(state, forPlayers) {
         boomStep: typeof ds.boomStep === 'number' ? ds.boomStep : null, // posiciones de Boom ya reveladas
         abierta: ds.abierta ? { step: ds.abierta.step, revealStep: ds.abierta.revealStep || 0 } : null, // paso de Respuesta abierta
         aclara: aclaraView(ds), // nitidez actual de «Imagen que se aclara» (el cliente la anima desde aquí)
+        // Pictionary: quién dibuja y en qué paso va (la palabra no: va solo a quien dibuja)
+        pictionary: ds.pictionary ? { step: ds.pictionary.step, mode: ds.pictionary.mode, drawer: ds.pictionary.drawer || null,
+            drawerName: picDrawerName(state), drawerPts: ds.pictionary.drawerPts || 0, paused: !!ds.pictionary.pausedByBuzz } : null,
+        padConnected: !!ds.padConnected, // pizarra fija enlazada
         noScreen: !!ds.noScreen,          // modo sin pantalla: los iPads llevan el escenario
         audioOn: ds.audioOn || 'sala',    // dónde suena (vídeo y efectos): 'sala' (ordenador) o 'ipads'
         karaoke: ds.karaoke ? { blocks: ds.karaoke.blocks, blockIdx: ds.karaoke.blockIdx, activeCombo: ds.karaoke.activeCombo, finished: ds.karaoke.finished, winnerColor: ds.karaoke.winnerColor, teamsByColor: ds.karaoke.teamsByColor } : null,
@@ -1123,6 +1262,11 @@ function abiertaScoresView(ds, forPlayers) {
 function emitYourOrder(socket, state) {
     if (!socket.equipoId) return;
     const ds = state.director;
+    // Pictionary: si este equipo está dibujando, vuelve a recibir la palabra
+    if (ds.pictionary) {
+        if (ds.pictionary.mode === 'equipos' && ds.pictionary.drawer === socket.equipoId) sendPicWord(socket, state);
+        return;
+    }
     // Respuesta abierta: al volver (corte, otro iPad) el equipo recupera lo que tenía escrito
     if (ds.currentRound && ds.currentRound.type === 'abierta') {
         const e = ds.answers[socket.equipoId];
@@ -1167,11 +1311,11 @@ function avanzarPregunta(state, io, gameId) {
     ds.answers = {};
     ds.revealedCells = [];
     ds.revealedLetters = [];
-    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
     ds.optionsRevealed = false; ds.optionsRevealedAt = null;
     ds.lastQuestionScores = {};
     ds.showTeamResults = false;
-    initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds);
+    initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds); initPictionaryState(state);
     if (isNoTimerRound(ds)) {
         ds.timer = { total: 0, remaining: 0, running: false };
     } else {
@@ -1296,6 +1440,7 @@ const POSITIONAL_EVENTS = new Set([
     'director:next_question', 'director:next_with_premio', 'director:prev_question', 'director:finish_round',
     'director:mark_correct', 'director:mark_wrong', 'director:karaoke_award',
     'director:abierta_show', 'director:abierta_open', 'director:abierta_close', 'director:abierta_reveal', 'director:abierta_mark',
+    'director:pic_set_drawer', 'director:pic_start',
 ]);
 
 // La conexión nueva de un iPad se queda con su equipo: la anterior (si sigue abierta) se
@@ -1640,6 +1785,8 @@ function attachSocketHandlers(io) {
             if (!state.pulsadorActivo || state.bloqueoGlobal || e.bloqueado) return;
             if ((state.director.buzzerFailed || []).includes(e.id)) return; // ya falló esta pregunta
             if (state.colaPulsador.find(p => p.id === e.id)) return;
+            const pic = state.director.pictionary;
+            if (pic && pic.mode === 'equipos' && pic.drawer === e.id) return; // el equipo que dibuja no adivina
             var elapsed = state.buzzerOpenedAt ? Date.now() - state.buzzerOpenedAt : 0;
             // rem: tiempo que quedaba al pulsar (el bonus se cuenta desde aquí, no desde que el coordinador marca el acierto)
             const entry = { id: e.id, nombre: e.nombre, tiempo: Date.now(), elapsed: elapsed, rem: preciseRemaining(state) };
@@ -1649,6 +1796,11 @@ function attachSocketHandlers(io) {
                 entry.pts = aclaraPoints(getQuestionConfig(state).basePoints, entry.level);
             }
             state.colaPulsador.push(entry);
+            // Pictionary: el tiempo se para mientras responden (vuelve a correr si fallan)
+            if (pic && state.director.phase === 'question' && state.director.timer.running) {
+                stopTimer(state, gameId, io);
+                pic.pausedByBuzz = true;
+            }
             io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             broadcastDirector(io, gameId, state);
         });
@@ -1905,7 +2057,7 @@ function attachSocketHandlers(io) {
             ds.phase = 'round_intro';
             logAction(state, { action: 'round', name: round.name });
             ds.answers = {};
-            ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
             state.pulsadorActivo = false;
@@ -1923,7 +2075,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
                 ds.optionsRevealed = false; ds.optionsRevealedAt = null;
                 ds.lastQuestionScores = {};
                 ds.showTeamResults = false;
@@ -1931,7 +2083,7 @@ function attachSocketHandlers(io) {
                 ds.qrVisible = false;
                 ds.menuLevel = null;
                 ds.selectedCategory = null;
-                initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds);
+                initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds); initPictionaryState(state);
                 if (isNoTimerRound(ds)) {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
@@ -1959,14 +2111,14 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
             ds.premioGanadorVisible = false;
-            initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds);
+            initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds); initPictionaryState(state);
             if (isNoTimerRound(ds)) {
                 ds.timer = { total: 0, remaining: 0, running: false };
             } else {
@@ -2005,9 +2157,9 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
                 ds.optionsRevealed = false; ds.optionsRevealedAt = null;
-                initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds);
+                initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds); initPictionaryState(state);
                 if (isNoTimerRound(ds)) {
                     ds.timer = { total: 0, remaining: 0, running: false };
                 } else {
@@ -2027,6 +2179,9 @@ function attachSocketHandlers(io) {
             if (ds.phase !== 'question' || isNoTimerRound(ds)) return;
             // Respuesta abierta: el tiempo arranca con «Abrir respuestas»; aquí solo se reanuda
             if (ds.abierta && ds.abierta.step !== 'open') return;
+            // Pictionary: el tiempo arranca con «Empezar a dibujar»; aquí solo se reanuda
+            if (ds.pictionary && ds.pictionary.step !== 'drawing') return;
+            if (ds.pictionary) ds.pictionary.pausedByBuzz = false;
             clearPreCountdown(state);
             if (ds.timer.running || ds.timer.remaining <= 0) return;
             ds.timer.running = true;
@@ -2041,6 +2196,7 @@ function attachSocketHandlers(io) {
 
         socket.on('director:stop_timer', () => {
             stopTimer(state, gameId, io);
+            if (state.director.pictionary) state.director.pictionary.pausedByBuzz = false; // pausa del coordinador: no se reanuda sola
             broadcastDirector(io, gameId, state);
         });
 
@@ -2076,6 +2232,7 @@ function attachSocketHandlers(io) {
 
         socket.on('director:reset_buzzer', () => {
             state.colaPulsador = [];
+            picResume();
             io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             broadcastDirector(io, gameId, state);
         });
@@ -2412,6 +2569,17 @@ function attachSocketHandlers(io) {
             ds.buzzerWinner = data.teamId;
             ds.buzzerPoints = won;
             logAction(state, { action: 'correct', team: teamName(state, data.teamId), pts: won });
+            // Pictionary: el equipo que dibujaba se lleva sus puntos (si la ronda los da)
+            const pic = ds.pictionary;
+            if (pic && pic.mode === 'equipos' && pic.drawer && pic.drawer !== data.teamId && state.equipos.some(e => e.id === pic.drawer)) {
+                const dp = picCfg(ds).drawerPoints;
+                if (dp > 0) {
+                    if (!ds.scores[pic.drawer]) ds.scores[pic.drawer] = 0;
+                    ds.scores[pic.drawer] += dp;
+                    pic.drawerPts = dp;
+                    logAction(state, { action: 'pic_drawer', team: teamName(state, pic.drawer), pts: dp });
+                }
+            }
             state.pulsadorActivo = false;
             state.colaPulsador = [];
             io.to(roomOf(gameId)).emit('estado_pulsador_cambio', { activo: false, cola: [] });
@@ -2438,6 +2606,7 @@ function attachSocketHandlers(io) {
             if (ds.aclara && ds.phase === 'question' && !state.colaPulsador.length && aclaraMode(ds) === 'auto' && aclaraLevel(ds) < 1) {
                 ds.aclara.running = true; ds.aclara.since = Date.now();
             }
+            picResume();
             io.to(roomOf(gameId)).emit('actualizar_pulsador_lista', state.colaPulsador);
             broadcastDirector(io, gameId, state);
         });
@@ -2603,7 +2772,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.phase = 'lobby';
             ds.menuLevel = 'home';
@@ -2628,7 +2797,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
@@ -2636,6 +2805,7 @@ function attachSocketHandlers(io) {
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
             ds.questionResults = {}; ds.abiertaWip = {};
+            ds.picDone = []; ds.picRank = {}; ds.picLast = null; state._picDrawings = null;
             ds.premioAnuncioVisible = false; ds.premioGanadorVisible = false; ds.premioGanadorTeam = null; ds.premioGanadorTipo = null; ds.premioGanadorExtra = null;
             stopTimer(state, gameId, io);
             state.pulsadorActivo = false;
@@ -2673,7 +2843,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
@@ -2681,6 +2851,7 @@ function attachSocketHandlers(io) {
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
             ds.questionResults = {}; ds.abiertaWip = {};
+            ds.picDone = []; ds.picRank = {}; ds.picLast = null; state._picDrawings = null;
             ds.premioAnuncioVisible = false; ds.premioGanadorVisible = false; ds.premioGanadorTeam = null; ds.premioGanadorTipo = null; ds.premioGanadorExtra = null;
             state.bloqueoGlobal = false;
             // Clear teams from memory
@@ -2691,6 +2862,118 @@ function attachSocketHandlers(io) {
             // Notify all players to reset their local state
             io.to(roomOf(gameId)).emit('game:reset_full');
             broadcastDirector(io, gameId, state);
+        });
+
+        // ═══════════════════════ PICTIONARY ═══════════════════════
+
+        // Tras un fallo (o al vaciar la cola) el tiempo que se paró al pulsar vuelve a correr
+        function picResume() {
+            const ds = state.director, p = ds.pictionary;
+            if (!p || !p.pausedByBuzz || ds.phase !== 'question' || p.step !== 'drawing' || state.colaPulsador.length) return;
+            p.pausedByBuzz = false;
+            if (!ds.timer.running && ds.timer.total > 0 && ds.timer.remaining > 0) startQuestionTimer(state, gameId, io);
+        }
+        // ¿Puede dibujar esta conexión ahora?
+        function picCanDraw() {
+            const ds = state.director, p = ds.pictionary;
+            if (ds.phase !== 'question' || !p || p.step !== 'drawing') return false;
+            if (p.mode === 'ipad') return !!socket.isPad && state._padSocketId === socket.id;
+            return !!socket.equipoId && socket.equipoId === p.drawer;
+        }
+        const picRelay = (ev, data) => io.to(`screens:${gameId}`).to(`directors:${gameId}`).emit(ev, data);
+
+        // Coordinador: elegir quién dibuja (antes de empezar)
+        socket.on('director:pic_set_drawer', (data) => {
+            const ds = state.director, p = ds.pictionary;
+            if (ds.phase !== 'question' || !p || p.step !== 'setup' || p.mode !== 'equipos') return;
+            const eq = state.equipos.find(e => e.id === (data && data.teamId));
+            if (!eq) return;
+            p.drawer = eq.id;
+            broadcastDirector(io, gameId, state);
+        });
+        // Coordinador: «Empezar a dibujar» — la palabra llega a quien dibuja, se abre el pulsador y corre el tiempo
+        socket.on('director:pic_start', () => {
+            const ds = state.director, p = ds.pictionary;
+            if (ds.phase !== 'question' || !p || p.step !== 'setup') return;
+            if (p.mode === 'equipos') {
+                if (!state.equipos.some(e => e.id === p.drawer)) return;
+                picMarkDrawn(state, p.drawer);
+            }
+            p.step = 'drawing';
+            p.pausedByBuzz = false;
+            state.pulsadorActivo = true;
+            state.colaPulsador = [];
+            state.buzzerOpenedAt = Date.now();
+            ds.optionsRevealed = true;
+            ds.optionsRevealedAt = Date.now();
+            io.to(roomOf(gameId)).emit('estado_pulsador_cambio', { activo: true, cola: [] });
+            if (!isNoTimerRound(ds) && ds.timer.remaining > 0) startQuestionTimer(state, gameId, io);
+            logAction(state, { action: 'pic_start', team: p.mode === 'equipos' ? teamName(state, p.drawer) : null });
+            sendPicWord(picDrawerSocket(state), state);
+            broadcastDirector(io, gameId, state);
+        });
+        // Coordinador: QR de la pizarra fija
+        socket.on('director:pic_pad_link', () => {
+            socket.emit('director:pic_pad_link', { gameId, pass: auth.gamePassFor(gameId), key: auth.padKey(gameId) });
+        });
+
+        // Pizarra fija: el iPad abre /play/pizarra.html con la llave del QR
+        socket.on('pad:join', (data) => {
+            if (!auth.verifyPadKey(gameId, data && data.key)) { socket.emit('pad:rejected'); return; }
+            const prev = state._padSocketId && state._padSocketId !== socket.id && io.sockets.sockets.get(state._padSocketId);
+            if (prev) { prev.isPad = false; prev.emit('pad:replaced'); prev.disconnect(true); }
+            socket.isPad = true;
+            socket.join(roomOf(gameId));
+            state._padSocketId = socket.id;
+            state.director.padConnected = true;
+            state._gameTheme = loadGameTheme(gameId);
+            socket.emit('pad:ok');
+            emitPlayerSync(socket, state);
+            if (state.director.pictionary && state.director.pictionary.mode === 'ipad') sendPicWord(socket, state);
+            broadcastDirector(io, gameId, state);
+        });
+
+        // Trazos: { k: pregunta, s: id del trazo, n: trazo nuevo, c: color, w: grosor, p: [x,y,…] en 0-10000 }
+        socket.on('pic:stroke', (d) => {
+            if (!d || !picCanDraw()) return;
+            const b = picBoard(state);
+            if (!b || d.k !== b.key) return;
+            const p = d.p;
+            if (!Array.isArray(p) || !p.length || p.length % 2 || p.length > PIC_MAX_CHUNK) return;
+            if (!p.every(v => Number.isInteger(v) && v >= 0 && v <= 10000)) return;
+            const sid = Number(d.s), c = Number(d.c), w = Number(d.w);
+            if (!Number.isInteger(sid) || sid < 0 || sid > 1e9 || !Number.isInteger(c) || c < 0 || c > 9 || !Number.isInteger(w) || w < 0 || w > 3) return;
+            if (b.size + p.length > PIC_MAX_POINTS) { socket.emit('pic:full_board'); return; }
+            let st = b.strokes[b.strokes.length - 1];
+            const isNew = !!d.n || !st || st.s !== sid;
+            if (isNew) { st = { s: sid, c, w, p: [] }; b.strokes.push(st); }
+            for (const v of p) st.p.push(v);
+            b.size += p.length;
+            b.seq++;
+            picRelay('pic:chunk', { k: b.key, q: b.seq, s: sid, c: st.c, w: st.w, n: isNew, p });
+        });
+        socket.on('pic:undo', (d) => {
+            if (!d || !picCanDraw()) return;
+            const b = picBoard(state);
+            if (!b || d.k !== b.key || !b.strokes.length) return;
+            const st = b.strokes.pop();
+            b.size -= st.p.length;
+            b.seq++;
+            picRelay('pic:op', { k: b.key, q: b.seq, op: 'undo' });
+        });
+        socket.on('pic:clear', (d) => {
+            if (!d || !picCanDraw()) return;
+            const b = picBoard(state);
+            if (!b || d.k !== b.key) return;
+            b.strokes = []; b.size = 0;
+            b.seq++;
+            picRelay('pic:op', { k: b.key, q: b.seq, op: 'clear' });
+        });
+        // El dibujo entero (al entrar, al volver de un corte o si se ha perdido un trozo)
+        socket.on('pic:get', () => {
+            if (!(socket.hasPass || socket.isStaff || socket.isScreen || socket.isPad)) return;
+            const b = picBoard(state);
+            socket.emit('pic:full', b ? { k: b.key, q: b.seq, strokes: b.strokes } : { k: questionKeyOf(state.director), q: 0, strokes: [] });
         });
 
         // ─── Karaoke handlers ───
@@ -2840,6 +3123,11 @@ function attachSocketHandlers(io) {
 
         // ─── Disconnect ───
         socket.on('disconnect', () => {
+            if (socket.isPad && state._padSocketId === socket.id) {
+                state._padSocketId = null;
+                state.director.padConnected = false;
+                broadcastDirector(io, gameId, state);
+            }
             if (state.director.screensPreload && state.director.screensPreload[socket.id]) {
                 delete state.director.screensPreload[socket.id];
                 broadcastDirector(io, gameId, state);

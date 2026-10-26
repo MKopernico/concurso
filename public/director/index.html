@@ -6,6 +6,7 @@
 <title>GameShow · Coordinador</title>
 <link rel="stylesheet" href="/shared/gameshow-transitions.css">
 <link rel="stylesheet" href="/shared/roulette-panel.css">
+<link rel="stylesheet" href="/shared/pictionary-board.css">
 <style>
 :root { --bg: #0a0a10; --surface: #14141e; --surface2: #1c1c2a; --border: #2a2a3a; --text: #e4e4e7; --text2: #8888a0; --accent: #00d4ff; --accent-dim: #0097b8; --danger: #ef4444; --success: #22c55e; --gold: #facc15; --orange: #f97316; --radius: 10px; --bb-h: 70px; }
 
@@ -71,6 +72,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .type-imagen_fija { background: #365314; color: #bef264; }
 .type-karaoke { background: #831843; color: #f9a8d4; }
 .type-aclara { background: #3b2f63; color: #c4b5fd; }
+.type-pictionary { background: #5b3a12; color: #fcd34d; }
 .type-abierta { background: #134e4a; color: #5eead4; }
 .type-identidad { background: #4a1942; color: #f0abfc; }
 /* Respuesta abierta: pasos, envíos y corrección por subpregunta */
@@ -120,6 +122,26 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .recover-qr { background: #fff; padding: 6px; border-radius: 8px; flex-shrink: 0; line-height: 0; }
 .recover-code { font-size: 28px; font-weight: 900; letter-spacing: 4px; color: var(--accent); font-variant-numeric: tabular-nums; }
 .recover-help { font-size: 12px; color: var(--text2); line-height: 1.45; margin-top: 4px; }
+/* Pictionary: quién dibuja, empezar, pizarra fija y vista previa (dentro del panel de pulsador) */
+.pic-ctrl { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.pic-word-dir { font-size: clamp(22px, 3vw, 34px); font-weight: 900; color: var(--gold, #facc15); line-height: 1.1; }
+.pic-word-dir small { display: block; font-size: 12px; font-weight: 600; color: var(--text2); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 2px; }
+.pic-word-dir .pic-cat-dir { display: inline-block; margin-left: 10px; font-size: 14px; font-weight: 700; color: var(--text); background: var(--surface2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; vertical-align: middle; }
+.pic-info { font-size: 14px; color: var(--text2); line-height: 1.45; }
+.pic-info b { color: var(--text); }
+.pic-cap { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); margin-bottom: 4px; }
+.pic-team-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 26vh; overflow-y: auto; }
+.pic-team { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; border: 2px solid var(--border); background: var(--surface2); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.pic-team img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+.pic-team small { font-weight: 500; color: var(--text2); font-size: 11px; }
+.pic-team.on { border-color: var(--gold, #facc15); background: rgba(250,204,21,.15); }
+.pic-team.off { opacity: .55; }
+.pic-pad-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+.pic-pad-ok { color: var(--success); font-weight: 700; }
+.pic-pad-no { color: var(--danger); font-weight: 700; }
+.pic-preview { height: clamp(120px, 30vh, 320px); display: flex; align-items: center; justify-content: center; background: #0b0b12; border: 1px solid var(--border); border-radius: 8px; padding: 6px; }
+.pic-preview .pic-canvas { box-shadow: none; border-radius: 6px; }
+
 /* Imagen que se aclara: control de nitidez dentro del panel de pulsador */
 .aclara-ctrl { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .aclara-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -739,6 +761,16 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                                 <div><div class="aclara-cap">Imagen real</div><img id="acDirImg" alt=""></div>
                             </div>
                         </div>
+                        <div class="pic-ctrl" id="picCtrl" style="display:none">
+                            <div class="pic-info" id="picInfo"></div>
+                            <div id="picTeams"></div>
+                            <div class="pic-pad-row" id="picPadRow"><span id="picPadStatus"></span><button class="btn-ghost btn-sm" type="button" onclick="openPicPad()">&#128241; QR de la pizarra</button></div>
+                            <div class="ctrl-row">
+                                <button class="btn-success" id="picBtnStart" onclick="emit('director:pic_start')">&#9654; Empezar a dibujar</button>
+                                <button class="btn-ghost btn-sm" id="picBtnGiveUp" onclick="emit('director:reveal_answer')">&#127987; Nadie lo adivina: mostrar la palabra</button>
+                            </div>
+                            <div><div class="pic-cap">Lo que se ve en la sala</div><div class="pic-preview" id="picPreview"></div></div>
+                        </div>
                         <div class="imagen-btn-row ctrl-row">
                             <button class="btn-ghost btn-sm" id="btnPuToggleAnswer" onclick="togglePuAnswer()">&#128065; Mostrar respuesta</button>
                             <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Ronda completada</button>
@@ -1093,6 +1125,24 @@ body.round-type-karaoke #headerTimer { display: none !important; }
     </div>
 </div>
 
+<!-- Pictionary: QR de la pizarra fija -->
+<div class="modal-overlay" id="picPadModal">
+    <div class="modal">
+        <h3>&#128241; Pizarra del Pictionary</h3>
+        <div class="recover-box">
+            <div class="recover-qr" id="picPadQr"></div>
+            <div class="recover-help" id="picPadHelp">Escanea este QR con el iPad que va a dibujar. Se queda enlazado como pizarra para todas las rondas de Pictionary con «iPad de dibujo»: aquí, en el panel de la ronda, verás si está conectada. Si se abre en otro iPad, el anterior deja de ser la pizarra.</div>
+        </div>
+        <div class="field" style="margin-top:12px">
+            <label>Enlace (por si no se puede escanear)</label>
+            <input type="text" id="picPadUrl" readonly onclick="this.select()">
+        </div>
+        <div class="modal-footer">
+            <button class="btn-accent" onclick="closePicPad()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <!-- Premio ganador selector modal -->
 <div class="modal-overlay" id="premioGanadorModal">
     <div class="modal pg-modal">
@@ -1145,6 +1195,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
 <script src="/shared/aclara-fx.js"></script>
+<script src="/shared/pictionary-board.js"></script>
 <script src="/shared/qrcode.min.js"></script>
 <script src="/shared/question-validation.js"></script>
 <script>
@@ -1194,6 +1245,7 @@ function connectSocket() {
     socket.on('game:rounds_changed', reloadRounds);
     socket.on('director:log', onLogData);
     socket.on('director:recovery_code', onRecoveryCode);
+    socket.on('director:pic_pad_link', onPicPadLink);
     socket.on('game:timer_tick', (d) => {
         if (S.director) { S.director.timer.remaining = d.remaining; S.director.timer.total = d.total; }
         renderTimer();
@@ -1212,7 +1264,8 @@ function connectSocket() {
 // Órdenes que dependen de la pregunta en curso: viajan con la pregunta que ve el coordinador,
 // y el servidor las descarta si ya no coincide (doble toque o reenvío tras reconectar).
 var _POSITIONAL = { 'director:next_question': 1, 'director:next_with_premio': 1, 'director:prev_question': 1, 'director:finish_round': 1, 'director:mark_correct': 1, 'director:mark_wrong': 1, 'director:karaoke_award': 1,
-    'director:abierta_show': 1, 'director:abierta_open': 1, 'director:abierta_close': 1, 'director:abierta_reveal': 1, 'director:abierta_mark': 1 };
+    'director:abierta_show': 1, 'director:abierta_open': 1, 'director:abierta_close': 1, 'director:abierta_reveal': 1, 'director:abierta_mark': 1,
+    'director:pic_set_drawer': 1, 'director:pic_start': 1 };
 function emit(ev, data) {
     if (!socket) return;
     data = data || {};
@@ -1403,7 +1456,7 @@ function renderLobby() {
 const TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio justo',
     imagen: 'Adivina imagen', cancion: 'Adivina cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen fija', aclara: 'Imagen que se aclara', identidad: 'Identidad', abierta: 'Respuesta abierta'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen fija', aclara: 'Imagen que se aclara', identidad: 'Identidad', abierta: 'Respuesta abierta', pictionary: 'Pictionary'
 };
 
 function getCategories() {
@@ -1669,8 +1722,18 @@ function renderQuestionPulsador() {
 
     // Statement
     var isAclara = ds.currentRound && ds.currentRound.type === 'aclara';
-    document.getElementById('puStatement').textContent = c.statement || (isAclara ? '¿Qué es esta imagen?' : 'Sin enunciado');
+    var isPic = ds.currentRound && ds.currentRound.type === 'pictionary';
+    var stmtEl = document.getElementById('puStatement');
+    if (isPic) {
+        // Pictionary: la palabra (solo la ven el coordinador y quien dibuja)
+        stmtEl.innerHTML = '<div class="pic-word-dir"><small>Palabra (solo la ves tú y quien dibuja)</small>' + esc(c.word || '-')
+            + (c.category ? '<span class="pic-cat-dir">' + esc(c.category) + '</span>' : '') + '</div>';
+    } else {
+        stmtEl.textContent = c.statement || (isAclara ? '¿Qué es esta imagen?' : 'Sin enunciado');
+    }
     renderAclaraCtrl(isAclara ? q : null);
+    renderPicCtrl(isPic ? q : null);
+    document.getElementById('btnPuToggleAnswer').style.display = isPic ? 'none' : '';
 
     // Hints
     var hintsEl = document.getElementById('puHints');
@@ -1744,6 +1807,87 @@ function renderAclaraCtrl(q) {
     playBtn.innerHTML = (st.level > 0 && st.level < 1) ? '&#9654; Seguir aclarando' : '&#9654; Aclarar';
     pauseBtn.disabled = revealed || !st.running;
     document.getElementById('acSlider').disabled = revealed;
+}
+
+// ── Pictionary: quién dibuja, empezar, pizarra fija y vista previa ──
+var _picDirBoard = null, _picDirViewer = null;
+function picQuestionKey(ds) { return (ds.currentRoundId || '') + ':' + ds.currentQuestionIdx + ':' + (ds.questionEpoch || 0); }
+function renderPicCtrl(q) {
+    var box = document.getElementById('picCtrl');
+    if (!q) { box.style.display = 'none'; return; }
+    var ds = S.director, p = ds.pictionary || {};
+    box.style.display = '';
+    document.getElementById('puHints').style.display = 'none';
+    var revealed = ds.phase === 'answer_revealed';
+    var setup = !revealed && p.step !== 'drawing';
+    var teams = S.equipos || [];
+    var drawerName = '';
+    if (p.drawer) { var dt = teams.find(function(e) { return e.id === p.drawer; }); drawerName = dt ? dt.nombre : ''; }
+    // Qué toca ahora
+    var info = '';
+    if (revealed) {
+        var w = ds.buzzerWinner && teams.find(function(e) { return e.id === ds.buzzerWinner; });
+        info = w ? '&#9989; Acertó <b>' + esc(w.nombre) + '</b> (+' + (ds.buzzerPoints || 0) + ')' + (p.drawerPts ? ' · <b>' + esc(drawerName) + '</b> +' + p.drawerPts + ' por dibujar' : '')
+            : 'Nadie lo adivinó.';
+    } else if (setup) {
+        if (p.mode === 'ipad') info = 'Dibuja la <b>pizarra</b>: verá la palabra al pulsar «Empezar a dibujar». Pulsan todos los equipos (quien dibuja no suma).';
+        else if (p.drawer) info = 'Le toca dibujar a <b>' + esc(drawerName) + '</b>. Cuando estén listos, pulsa «Empezar a dibujar»: verán la palabra en su iPad, empieza el tiempo y se abre el pulsador para los demás.';
+        else info = 'Elige qué equipo dibuja.';
+    } else {
+        info = '&#9999;&#65039; Dibujando <b>' + (p.mode === 'ipad' ? 'la pizarra' : esc(drawerName)) + '</b>'
+            + (p.pausedByBuzz ? ' · <b>&#9208; tiempo parado</b> mientras responden (si fallan, sigue solo)' : '');
+    }
+    var infoEl = document.getElementById('picInfo');
+    if (infoEl._h !== info) { infoEl.innerHTML = info; infoEl._h = info; }
+    // Elegir equipo (solo antes de empezar)
+    var tEl = document.getElementById('picTeams');
+    if (setup && p.mode === 'equipos') {
+        var done = ds.picDone || [];
+        var html = '<div class="pic-cap">Dibuja (toca para cambiar)</div><div class="pic-team-list">' + teams.map(function(e) {
+            return '<button type="button" class="pic-team' + (e.id === p.drawer ? ' on' : '') + (!e.ocupado ? ' off' : '') + '" data-tid="' + esc(e.id) + '">'
+                + (e.photo_url ? '<img src="' + esc(e.photo_url) + '" alt="">' : '') + esc(e.nombre)
+                + (done.indexOf(e.id) >= 0 ? ' <small>&#10003; ya dibujó</small>' : '') + (!e.ocupado ? ' <small>sin conexión</small>' : '') + '</button>';
+        }).join('') + '</div>';
+        if (tEl._h !== html) { tEl.innerHTML = html; tEl._h = html; }
+        tEl.style.display = '';
+    } else { tEl.style.display = 'none'; }
+    // Pizarra fija
+    var padRow = document.getElementById('picPadRow');
+    padRow.style.display = p.mode === 'ipad' ? '' : 'none';
+    document.getElementById('picPadStatus').innerHTML = ds.padConnected ? '<span class="pic-pad-ok">&#128241; Pizarra conectada</span>' : '<span class="pic-pad-no">&#9888;&#65039; La pizarra no está conectada</span>';
+    var start = document.getElementById('picBtnStart');
+    start.style.display = setup ? '' : 'none';
+    start.disabled = p.mode === 'equipos' && !p.drawer;
+    document.getElementById('picBtnGiveUp').style.display = (!setup && !revealed) ? '' : 'none';
+    // Vista previa: lo que se ve en la sala
+    if (!_picDirBoard) {
+        _picDirBoard = new PicBoard.Board(document.getElementById('picPreview'));
+        _picDirViewer = new PicBoard.Viewer(_picDirBoard, socket);
+    }
+    _picDirBoard.fit();
+    _picDirViewer.setKey(picQuestionKey(ds));
+}
+document.getElementById('picTeams').addEventListener('click', function(e) {
+    var b = e.target.closest('[data-tid]');
+    if (b) emit('director:pic_set_drawer', { teamId: b.dataset.tid });
+});
+// QR de la pizarra: con el kit abierto como localhost, el QR lleva la IP de la red
+var _picLanOrigin = null;
+if (/^(localhost|127\.)/.test(location.hostname)) {
+    fetch('/kit/info').then(function(r) { return r.ok ? r.json() : null; }).then(function(info) {
+        if (info && info.ips && info.ips.length) _picLanOrigin = 'http://' + info.ips[0] + ':' + info.port;
+    }).catch(function() {});
+}
+function openPicPad() { if (socket) socket.emit('director:pic_pad_link'); }
+function closePicPad() { document.getElementById('picPadModal').classList.remove('active'); }
+function onPicPadLink(d) {
+    if (!d || !d.key) return;
+    var url = (_picLanOrigin || location.origin) + '/play/pizarra.html?g=' + encodeURIComponent(d.gameId) + '&p=' + encodeURIComponent(d.pass || '') + '&k=' + encodeURIComponent(d.key);
+    var qr = document.getElementById('picPadQr');
+    qr.innerHTML = '';
+    try { new QRCode(qr, { text: url, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {}
+    document.getElementById('picPadUrl').value = url;
+    document.getElementById('picPadModal').classList.add('active');
 }
 
 var _precioPrevLogo = undefined;
@@ -2242,7 +2386,7 @@ function renderQuestion() {
     }
 
     // Pulsador type (e Imagen que se aclara, que usa el mismo panel): dedicated layout
-    if (roundType === 'pulsador' || roundType === 'aclara') {
+    if (roundType === 'pulsador' || roundType === 'aclara' || roundType === 'pictionary') {
         document.getElementById('karaokeDirectorPanel').style.display = 'none';
         document.getElementById('precioDirectorPanel').style.display = 'none';
         document.getElementById('ruletaDirectorPanel').style.display = 'none';
@@ -2905,7 +3049,7 @@ function renderTimer() {
     if (!ds || !ds.timer) { el.textContent = '--:--'; el.className = 'timer-display stopped'; return; }
     var t0 = ds.timer;
     var noTimer = ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'ruleta' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'imagen_fija' || ds.currentRound.type === 'aclara'
-        || (ds.currentRound.type === 'abierta' && !(t0 && t0.total > 0))); // Respuesta abierta sin cuenta atrás
+        || ((ds.currentRound.type === 'abierta' || ds.currentRound.type === 'pictionary') && !(t0 && t0.total > 0))); // Respuesta abierta / Pictionary sin cuenta atrás
     if (noTimer) {
         el.textContent = '--:--'; el.className = 'timer-display stopped';
         document.getElementById('btnStartTimer').disabled = true;
@@ -3333,7 +3477,7 @@ function closeBonoLog() {
 
 // Qué filtro incluye cada tipo de entrada del registro
 var _blFilter = 'all';
-var _blKind = { awarded: 'bono', used: 'bono', bono_add: 'bono', bono_remove: 'bono', points: 'pts', correct: 'pts', wrong: 'pts', scored: 'pts', karaoke: 'pts', team_removed: 'pts', abierta_fix: 'pts', abierta_closed: 'pts',
+var _blKind = { awarded: 'bono', used: 'bono', bono_add: 'bono', bono_remove: 'bono', points: 'pts', correct: 'pts', wrong: 'pts', scored: 'pts', karaoke: 'pts', team_removed: 'pts', abierta_fix: 'pts', abierta_closed: 'pts', pic_drawer: 'pts',
                 freeze: 'frz', unfreeze: 'frz', freeze_all: 'frz', unfreeze_all: 'frz' };
 document.getElementById('blFilters').addEventListener('click', function(e) {
     var b = e.target.closest('button[data-f]'); if (!b) return;
@@ -3369,6 +3513,8 @@ function renderBonoLog() {
             case 'correct': icon = '✅'; text = team + ' acertó ' + _blPts(e.pts); break;
             case 'wrong': icon = '❌'; text = team + ' falló' + (e.pts ? ' ' + _blPts(e.pts) : ''); break;
             case 'scored': icon = '📊'; text = 'Pregunta puntuada: <b>' + e.hits + '</b> de ' + e.total + ' equipos acertaron' + (e.answered < e.total ? ' (' + (e.total - e.answered) + ' sin responder)' : ''); break;
+            case 'pic_start': icon = '✏️'; text = e.team ? 'Empieza a dibujar ' + team : 'Empieza a dibujar la pizarra'; break;
+            case 'pic_drawer': icon = '🖍️'; text = team + ' ' + _blPts(e.pts) + ' por dibujar'; break;
             case 'abierta_closed': icon = '✍️'; text = 'Respuestas cerradas: <b>' + e.answered + '</b> de ' + e.total + ' equipos respondieron. A corregir'; break;
             case 'abierta_fix': icon = '🩹'; text = 'Rectificado (subpregunta ' + e.sub + ' ' + (e.ok ? '✓' : '✗') + '): ' + (e.teams || []).map(esc).join(', ')
                 + ((e.changes || []).length ? ' · ' + e.changes.map(function(x) { return esc(x.team) + ' ' + _blPts(x.pts); }).join(', ') + (e.pending ? ' (al terminar de revelar)' : '') : ''); break;

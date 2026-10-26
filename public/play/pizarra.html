@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GameShow — Pizarra</title>
+<meta name="theme-color" content="#0a0a10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="/shared/pictionary-board.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; background: #0a0a10; color: #e4e4e7;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-user-select: none; user-select: none; }
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+#padMsg, #padDraw { flex: 1; min-height: 0; }
+#padDraw { display: none; }
+.pad-logo { max-width: min(60vw, 420px); max-height: 30vh; object-fit: contain; }
+.pad-conn { position: fixed; top: 10px; right: 12px; font-size: 13px; padding: 4px 10px; border-radius: 999px; background: #14532d; color: #bbf7d0; z-index: 5; }
+.pad-conn.off { background: #7f1d1d; color: #fecaca; }
+.pad-conn:not(.off) { display: none; } /* solo se avisa cuando no hay conexión */
+.pad-btn { margin-top: 10px; padding: 14px 28px; font-size: 20px; font-weight: 800; border-radius: 14px; border: 0; background: #00d4ff; color: #000; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="app">
+    <div class="pad-conn off" id="padConn">Conectando…</div>
+    <div id="padMsg"></div>
+    <div class="pic-draw" id="padDraw">
+        <div class="pic-head"><span class="pic-word-label">Dibuja</span><span class="pic-word" id="picWord">…</span><span class="pic-cat" id="picCat"></span><span class="pic-status" id="picStatus"></span></div>
+        <div class="pic-body"><div class="pic-bar" id="picBar"></div><div class="pic-area" id="picArea"></div></div>
+    </div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/shared/pictionary-board.js"></script>
+<script>
+// Pizarra fija del Pictionary: un iPad enlazado desde el coordinador (QR) que dibuja todas las
+// palabras de las rondas «iPad de dibujo». Quien dibuja no suma: pulsan todos los equipos.
+(function() {
+'use strict';
+var qs = new URLSearchParams(location.search);
+var saved = {};
+try { saved = JSON.parse(localStorage.getItem('gs_pad') || '{}') || {}; } catch (e) {}
+var cfg = { g: qs.get('g') || saved.g, p: qs.get('p') || saved.p || '', k: qs.get('k') || saved.k };
+try { if (cfg.g && cfg.k) localStorage.setItem('gs_pad', JSON.stringify(cfg)); } catch (e) {}
+
+var ps = null, socket = null, joined = false, word = null, rejected = '';
+var board = null, pad = null, loadedKey = null;
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function msg(icon, title, sub, extra) {
+    var html = '<div class="pic-msg">' + (icon ? '<div class="pic-msg-icon">' + icon + '</div>' : '') + '<div class="pic-msg-title">' + title + '</div>'
+        + (sub ? '<div class="pic-msg-sub">' + sub + '</div>' : '') + (extra || '') + '</div>';
+    var el = document.getElementById('padMsg');
+    if (el._h !== html) { el.innerHTML = html; el._h = html; }
+    el.style.display = ''; document.getElementById('padDraw').style.display = 'none';
+    if (pad) pad.setEnabled(false);
+}
+
+// Sin zoom ni desplazamiento (iOS ignora user-scalable=no): fuera de la barra no se mueve nada
+['gesturestart', 'gesturechange', 'dblclick'].forEach(function(ev) { document.addEventListener(ev, function(e) { e.preventDefault(); }, { passive: false }); });
+document.addEventListener('touchmove', function(e) { if (!(e.target.closest && e.target.closest('.pic-bar'))) e.preventDefault(); }, { passive: false });
+// Que la pantalla no se apague mientras se dibuja (si el navegador lo permite)
+var wakeLock = null;
+function keepAwake() {
+    if (!navigator.wakeLock || wakeLock) return;
+    navigator.wakeLock.request('screen').then(function(l) { wakeLock = l; l.addEventListener('release', function() { wakeLock = null; }); }).catch(function() {});
+}
+document.addEventListener('pointerdown', keepAwake, true);
+document.addEventListener('visibilitychange', function() { if (document.visibilityState === 'visible') keepAwake(); });
+
+function render() {
+    if (!cfg.g || !cfg.k) { msg('📷', 'Escanea el QR de la pizarra', 'Lo tiene el coordinador en el panel de la ronda de Pictionary («📱 Pizarra»).'); return; }
+    if (rejected === 'key') { msg('⚠️', 'Este QR ya no vale', 'Pide al coordinador el QR nuevo de la pizarra (cambió el código del juego).'); return; }
+    if (rejected === 'replaced') {
+        msg('🔁', 'La pizarra se ha abierto en otro iPad', 'Solo puede haber una pizarra a la vez.', '<button class="pad-btn" id="padRetake">Usar este iPad como pizarra</button>');
+        var b = document.getElementById('padRetake');
+        if (b) b.onclick = function() { rejected = ''; connect(); render(); };
+        return;
+    }
+    if (!joined || !ps) { msg('🖍️', 'Conectando la pizarra…', ''); return; }
+    var p = ps.pictionary;
+    var isPic = ps.roundType === 'pictionary';
+    if (isPic && p && p.mode === 'equipos' && (ps.phase === 'question' || ps.phase === 'answer_revealed')) {
+        msg('✏️', 'Ahora dibuja un equipo en su iPad', 'En esta ronda no se usa la pizarra.'); return;
+    }
+    if (isPic && p && ps.phase === 'question') {
+        if (p.step !== 'drawing') {
+            msg('✏️', '¡Prepárate para dibujar!', 'La palabra aparecerá aquí cuando el coordinador dé la salida.<br>No vale escribir letras ni números.');
+            return;
+        }
+        showDraw();
+        return;
+    }
+    if (isPic && ps.phase === 'answer_revealed' && ps.question) {
+        var w = (ps.question.content || {}).word || '';
+        var who = ps.buzzerWinner ? ((ps.equipos || []).find(function(e) { return e.id === ps.buzzerWinner; }) || {}).nombre : null;
+        msg('🎉', who ? '¡Lo ha adivinado ' + esc(who) + '!' : 'Esta vez nadie lo adivinó', '', '<div class="pic-msg-word">' + esc(w) + '</div>');
+        return;
+    }
+    var logo = ps.gameTheme && ps.gameTheme.logo;
+    msg('', 'Pizarra lista', 'Esperando a la siguiente palabra. Deja el iPad con la pantalla encendida.', logo ? '<img class="pad-logo" src="' + esc(logo) + '" alt="">' : '');
+}
+
+function showDraw() {
+    document.getElementById('padMsg').style.display = 'none';
+    document.getElementById('padDraw').style.display = 'flex';
+    if (!board) {
+        board = new PicBoard.Board(document.getElementById('picArea'));
+        pad = new PicBoard.Pad(board, document.getElementById('picBar'), {
+            emit: function(ev, d) { if (socket && socket.connected && joined) socket.emit(ev, d); },
+            getKey: function() { return ps && ps.questionKey; }
+        });
+    }
+    board.fit();
+    pad.setEnabled(true);
+    if (loadedKey !== ps.questionKey) {
+        loadedKey = ps.questionKey;
+        pad.load([]);
+        socket.emit('pic:get');
+    }
+    var w = word && word.k === ps.questionKey ? word : null;
+    document.getElementById('picWord').textContent = w ? w.word : '…';
+    document.getElementById('picCat').textContent = w && w.category ? w.category : '';
+    renderStatus();
+}
+
+function renderStatus() {
+    var el = document.getElementById('picStatus');
+    if (!ps || !el) return;
+    var t = ps.timer || {}, cola = ps.colaPulsador || [];
+    var html = '';
+    if (cola.length) html += '<span class="pic-buzz">🔔 ' + esc(cola[0].nombre) + ' responde…</span>';
+    if (t.total > 0) {
+        var r = Math.max(0, t.remaining || 0);
+        html += '<span class="pic-clock' + (!t.running ? ' paused' : (r <= 10 ? ' danger' : '')) + '">' + Math.floor(r / 60) + ':' + String(r % 60).padStart(2, '0') + '</span>';
+    }
+    if (el._h !== html) { el.innerHTML = html; el._h = html; }
+}
+
+function connect() {
+    if (!cfg.g || !cfg.k) return;
+    if (socket) { socket.removeAllListeners(); socket.disconnect(); }
+    socket = io({ query: { gameId: cfg.g, pass: cfg.p || '' } });
+    var conn = document.getElementById('padConn');
+    socket.on('connect', function() { conn.textContent = 'Conectada'; conn.classList.remove('off'); socket.emit('pad:join', { key: cfg.k }); });
+    socket.on('disconnect', function() { joined = false; conn.textContent = 'Sin conexión…'; conn.classList.add('off'); render(); });
+    socket.on('pad:ok', function() { joined = true; rejected = ''; loadedKey = null; render(); });
+    socket.on('pad:rejected', function() { joined = false; rejected = 'key'; socket.disconnect(); render(); });
+    socket.on('pad:replaced', function() { joined = false; rejected = 'replaced'; render(); });
+    socket.on('game:player_sync', function(d) { ps = d; render(); });
+    socket.on('game:timer_tick', function(d) { if (ps) { ps.timer.remaining = d.remaining; ps.timer.total = d.total; } renderStatus(); });
+    socket.on('estado_pulsador_cambio', function(d) { if (ps) { ps.pulsadorActivo = d.activo; ps.colaPulsador = d.cola; } renderStatus(); });
+    socket.on('actualizar_pulsador_lista', function(cola) { if (ps) ps.colaPulsador = cola; renderStatus(); });
+    socket.on('pic:word', function(d) { word = d; if (ps) render(); });
+    socket.on('pic:full', function(d) { if (pad && ps && d && d.k === ps.questionKey) pad.load(d.strokes || []); });
+    socket.on('pic:full_board', function() { alert('La pizarra está llena: borra algo para seguir dibujando'); });
+    socket.on('game:reset_full', function() { ps = null; render(); });
+}
+
+render();
+connect();
+})();
+</script>
+</body>
+</html>

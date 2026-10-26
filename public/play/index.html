@@ -11,6 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="/shared/gameshow-transitions.css">
 <link rel="stylesheet" href="/shared/roulette-panel.css">
+<link rel="stylesheet" href="/shared/pictionary-board.css">
 <style>
 :root { --bg: #0a0a10; --surface: #14141e; --surface2: #1e1e2e; --border: #2a2a3a; --text: #e4e4e7; --text2: #8888a0; --accent: #00d4ff; --accent-dim: #0097b8; --danger: #ef4444; --success: #22c55e; --gold: #facc15; --radius: 12px; }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -112,6 +113,10 @@ input:focus { border-color: var(--accent); }
     background: rgba(0,212,255,.2); border: 2px solid #00d4ff; border-radius: 16px; backdrop-filter: blur(6px); flex-shrink: 0; }
 
 .gp-buzzer { align-items: center; justify-content: flex-start; padding: 0; gap: 0; position: relative; }
+/* Pictionary: el equipo que dibuja ve la pizarra a pantalla completa */
+.gp-pic { padding: 8px; }
+.gp-pic #picWait { flex: 1; min-height: 0; }
+.gp-buzzer .pic-cat-line { font-size: 18px; font-weight: 600; opacity: .8; margin-top: 6px; }
 /* ── Modo sin pantalla: escenario arriba y botones debajo ── */
 .stage { position: absolute; left: 0; right: 0; top: 0; height: var(--stageH, 60%); z-index: 3; padding: 6px 8px 0; box-sizing: border-box; }
 .stage iframe { width: 100%; height: 100%; border: 0; border-radius: 12px; background: #000; display: block; }
@@ -659,6 +664,13 @@ body.karaoke-active .player-timer-bar { display: none !important; }
                 <div class="buzz-status" id="buzzStatus">Esperando apertura...</div>
             </div>
         </div>
+        <div class="gphase gp-pic" id="gp-pic">
+            <div id="picWait"></div>
+            <div class="pic-draw" id="picDraw" style="display:none">
+                <div class="pic-head"><span class="pic-word-label">Dibuja</span><span class="pic-word" id="picWord">…</span><span class="pic-cat" id="picCat"></span><span class="pic-status" id="picStatus"></span></div>
+                <div class="pic-body"><div class="pic-bar" id="picBar"></div><div class="pic-area" id="picArea"></div></div>
+            </div>
+        </div>
         <div class="gphase gp-precio" id="gp-precio">
             <div class="q-statement" id="precioStatement">-</div>
             <img class="precio-play-img" id="precioPlayImg" src="/shared/placeholder-precio.svg">
@@ -774,6 +786,7 @@ body.karaoke-active .player-timer-bar { display: none !important; }
 <script src="/shared/karaoke-colors.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
+<script src="/shared/pictionary-board.js"></script>
 <script>
 // ═══════════════ State ═══════════════
 var S = {
@@ -1127,6 +1140,7 @@ function connectSocket(onReady) {
         goScreen('screen-game');
         renderMyTeamHeader();
         sendPreloadStatus();
+        _pic.loadedKey = null; // Pictionary: si estaba dibujando, recupera lo que guarda el servidor
         // El sync de la pregunta llega justo después: entonces se envía lo pendiente
         setTimeout(flushPendingAnswers, 300);
     });
@@ -1221,6 +1235,7 @@ function connectSocket(onReady) {
     socket.on('estado_pulsador_cambio', function(d) {
         if (S.ps) { S.ps.pulsadorActivo = d.activo; S.ps.colaPulsador = d.cola; }
         renderBuzzerStatus();
+        renderPicStatus();
     });
 
     socket.on('notificacion_bono', function(d) { if (d.msg) toast(d.msg); });
@@ -1259,6 +1274,16 @@ function connectSocket(onReady) {
         _abKey = null;
         if (S.ps && S.ps.roundType === 'abierta') renderAbierta();
     });
+
+    // Pictionary: la palabra (solo llega al equipo que dibuja) y el dibujo guardado al volver de un corte
+    socket.on('pic:word', function(d) {
+        _pic.word = d;
+        if (S.ps && S.ps.phase === 'question' && picIsDrawer(S.ps)) renderPictionary();
+    });
+    socket.on('pic:full', function(d) {
+        if (_pic.pad && S.ps && d && d.k === S.ps.questionKey && picIsDrawer(S.ps)) _pic.pad.load(d.strokes || []);
+    });
+    socket.on('pic:full_board', function() { toast('La pizarra está llena: borra algo para seguir dibujando'); });
 
     socket.on('game:your_order', function(d) {
         _yourOrderPending = { order: d.order, submitted: !!d.submitted };
@@ -1664,6 +1689,15 @@ function renderGamePhase() {
             renderAbierta(); document.getElementById('gp-abierta').classList.add('active');
         } else if (type === 'karaoke') {
             renderKaraokePlay(); document.getElementById('gp-karaoke').classList.add('active');
+        } else if (type === 'pictionary') {
+            if (picIsDrawer(ps)) {
+                // El equipo que dibuja: pizarra a pantalla completa (lleva su propio reloj)
+                timerBar.style.display = 'none';
+                renderPictionary(); document.getElementById('gp-pic').classList.add('active');
+            } else {
+                timerBar.style.display = (ps.timer && ps.timer.total > 0 && ps.pictionary && ps.pictionary.step === 'drawing') ? 'flex' : 'none';
+                renderBuzzer(); document.getElementById('gp-buzzer').classList.add('active');
+            }
         } else {
             document.getElementById('gp-waiting').classList.add('active');
         }
@@ -1682,7 +1716,7 @@ function renderGamePhase() {
 // ── Modo sin pantalla: escenario ──
 // En las pruebas en las que el iPad no muestra el contenido (solo el pulsador), se ve encima la
 // vista de la pantalla de sala. Se carga en cuanto el modo está activo, para que esté lista.
-var STAGE_TYPES = { pulsador: 1, ruleta: 1, imagen: 1, imagen_fija: 1, cancion: 1, aclara: 1, karaoke: 1 };
+var STAGE_TYPES = { pulsador: 1, ruleta: 1, imagen: 1, imagen_fija: 1, cancion: 1, aclara: 1, karaoke: 1, pictionary: 1 };
 // El escenario avisa (gsStageSound) cuando el sonido va en los iPads y aún no se ha activado.
 // Cualquier toque en el iPad intenta activarlo allí dentro; el toque sobre el propio escenario
 // lo activa siempre.
@@ -1710,7 +1744,7 @@ function updateStage() {
     } else if (frame.dataset.src) {
         frame.dataset.src = ''; frame.src = 'about:blank'; // sin modo, se libera
     }
-    var on = mode && ps.phase === 'question' && !!STAGE_TYPES[ps.roundType];
+    var on = mode && ps.phase === 'question' && !!STAGE_TYPES[ps.roundType] && !picIsDrawer(ps); // quien dibuja ya tiene su pizarra
     var c = (ps && ps.question && ps.question.content) || {};
     var full = on && (ps.roundType === 'karaoke' || (ps.roundType === 'imagen_fija' && c.buzzer_enabled === false));
     stage.hidden = !on;
@@ -1787,9 +1821,15 @@ function submitMulti() {
 function renderBuzzer() {
     var ps = S.ps, q = ps.question; if (!q) return;
     var c = q.content || {};
-    var isPulsadorLike = ps.roundType === 'pulsador' || ps.roundType === 'ruleta' || ps.roundType === 'imagen' || ps.roundType === 'imagen_fija' || ps.roundType === 'aclara';
+    var isPulsadorLike = ps.roundType === 'pulsador' || ps.roundType === 'ruleta' || ps.roundType === 'imagen' || ps.roundType === 'imagen_fija' || ps.roundType === 'aclara' || ps.roundType === 'pictionary';
     var stmtEl = document.getElementById('buzzerStatement');
-    if (isPulsadorLike) {
+    if (ps.roundType === 'pictionary') {
+        // Quién dibuja (en el modo sin pantalla se ve en el escenario y esto se oculta)
+        var pp = ps.pictionary || {};
+        stmtEl.style.display = '';
+        stmtEl.innerHTML = (pp.mode === 'ipad' ? '✏️ ¡Atentos a la pizarra!' : '✏️ Dibuja <b>' + esc(pp.drawerName || '…') + '</b>')
+            + (c.category ? '<div class="pic-cat-line">Categoría: ' + esc(c.category) + '</div>' : '');
+    } else if (isPulsadorLike) {
         stmtEl.style.display = 'none';
     } else {
         stmtEl.style.display = '';
@@ -1803,7 +1843,7 @@ function renderBuzzerStatus() {
     var ps = S.ps; if (!ps) return;
     var btn = document.getElementById('buzzBtn');
     var status = document.getElementById('buzzStatus');
-    var isPulsadorLike = ps.roundType === 'pulsador' || ps.roundType === 'ruleta' || ps.roundType === 'imagen' || ps.roundType === 'imagen_fija' || ps.roundType === 'aclara';
+    var isPulsadorLike = ps.roundType === 'pulsador' || ps.roundType === 'ruleta' || ps.roundType === 'imagen' || ps.roundType === 'imagen_fija' || ps.roundType === 'aclara' || ps.roundType === 'pictionary';
     var myEntry = ps.colaPulsador && ps.colaPulsador.find(function(p) { return p.id === S.myTeamId; });
     var hasBuzzed = !!myEntry;
     var myPos = hasBuzzed ? ps.colaPulsador.indexOf(myEntry) + 1 : 0;
@@ -2457,7 +2497,7 @@ function submitAbierta() {
 var PLAY_TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
     imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary'
 };
 
 var _playMenuLevel = null;
@@ -2746,11 +2786,12 @@ function renderRevealed() {
     } else {
         // Pruebas de pulsador (pulsador, canción, imagen, imagen fija, ruleta): no hay respuesta
         // escrita; se dice quién acertó y si este equipo falló.
-        var ans = (c.answer !== undefined && c.answer !== null && String(c.answer).trim() !== '') ? c.answer : (c.phrase || '');
+        var ans = (c.answer !== undefined && c.answer !== null && String(c.answer).trim() !== '') ? c.answer : (c.word || c.phrase || '');
         textEl.textContent = ans || '-';
         var w = ps.buzzerWinner;
         var failed = (ps.buzzerFailed || []).indexOf(me) >= 0;
-        if (w && w === me) res = { cls: 'win', html: '✅ ¡ACERTASTE!' + pts(ps.buzzerPoints) };
+        if (mine && mine.drawer) res = w ? { cls: 'win', html: '✏️ ¡LO ADIVINARON!' + pts(mine.points) + '<div class="reveal-sub">Acertó el equipo ' + esc(teamName(w)) + '</div>' } : { cls: 'info', html: '✏️ Esta vez nadie lo adivinó' };
+        else if (w && w === me) res = { cls: 'win', html: '✅ ¡ACERTASTE!' + pts(ps.buzzerPoints) };
         else if (failed) res = { cls: 'lose', html: '❌ FALLASTE' + (w ? '<div class="reveal-sub">Acertó el equipo ' + esc(teamName(w)) + '</div>' : '') };
         else if (w) res = { cls: 'info', html: '🔔 Acertó el equipo ' + esc(teamName(w)) };
     }
@@ -2787,6 +2828,60 @@ function renderTimer() {
     el.textContent = String(Math.floor(t.remaining / 60)).padStart(2, '0') + ':' + String(t.remaining % 60).padStart(2, '0');
     el.className = 'q-timer ' + (t.running ? (t.remaining <= 5 ? 'danger' : 'running') : 'stopped');
     updateTimerBar(t.remaining, t.total, t.running);
+    renderPicStatus();
+}
+
+// ── Pictionary: el equipo que dibuja ──
+var _pic = { board: null, pad: null, word: null, loadedKey: null };
+function picIsDrawer(ps) {
+    var p = ps && ps.pictionary;
+    return !!(ps && ps.roundType === 'pictionary' && p && p.mode === 'equipos' && p.drawer && p.drawer === S.myTeamId);
+}
+function renderPictionary() {
+    var ps = S.ps, p = ps.pictionary || {};
+    var wait = document.getElementById('picWait'), draw = document.getElementById('picDraw');
+    if (p.step !== 'drawing') {
+        // Aún sin la palabra: que se preparen
+        draw.style.display = 'none'; wait.style.display = '';
+        var html = '<div class="pic-msg"><div class="pic-msg-icon">✏️</div><div class="pic-msg-title">¡Os toca dibujar!</div>'
+            + '<div class="pic-msg-sub">Decidid quién dibuja. La palabra aparecerá aquí cuando el coordinador dé la salida.<br>No vale escribir letras ni números.</div></div>';
+        if (wait._h !== html) { wait.innerHTML = html; wait._h = html; }
+        if (_pic.pad) _pic.pad.setEnabled(false);
+        return;
+    }
+    wait.style.display = 'none'; draw.style.display = '';
+    if (!_pic.board) {
+        _pic.board = new PicBoard.Board(document.getElementById('picArea'));
+        _pic.pad = new PicBoard.Pad(_pic.board, document.getElementById('picBar'), {
+            emit: function(ev, d) { if (socket && socket.connected) socket.emit(ev, d); },
+            getKey: function() { return S.ps && S.ps.questionKey; }
+        });
+    }
+    _pic.board.fit();
+    _pic.pad.setEnabled(true);
+    if (_pic.loadedKey !== ps.questionKey) {
+        // Pregunta nueva (o vuelta de un corte): la pizarra empieza como la tiene el servidor
+        _pic.loadedKey = ps.questionKey;
+        _pic.pad.load([]);
+        if (socket && socket.connected) socket.emit('pic:get');
+    }
+    var w = _pic.word && _pic.word.k === ps.questionKey ? _pic.word : null;
+    document.getElementById('picWord').textContent = w ? w.word : '…';
+    document.getElementById('picCat').textContent = w && w.category ? w.category : '';
+    renderPicStatus();
+}
+function renderPicStatus() {
+    var el = document.getElementById('picStatus');
+    var ps = S.ps;
+    if (!el || !ps || !picIsDrawer(ps)) return;
+    var t = ps.timer || {}, cola = ps.colaPulsador || [];
+    var html = '';
+    if (cola.length) html += '<span class="pic-buzz">🔔 ' + esc(cola[0].nombre) + ' responde…</span>';
+    if (t.total > 0) {
+        var r = Math.max(0, t.remaining || 0);
+        html += '<span class="pic-clock' + (!t.running ? ' paused' : (r <= 10 ? ' danger' : '')) + '">' + Math.floor(r / 60) + ':' + String(r % 60).padStart(2, '0') + '</span>';
+    }
+    if (el._h !== html) { el.innerHTML = html; el._h = html; }
 }
 function updateTimerBar(remaining, total, running) {
     var fill = document.getElementById('playerTimerFill');

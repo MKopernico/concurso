@@ -102,6 +102,8 @@
   .type:hover{border-color:var(--cyan-deep)}
   .type h4{margin:0 0 4px; font-size:18px}
   .type p{margin:6px 0; color:var(--muted); font-size:14.5px}
+  .type ul{margin:6px 0 6px 20px; color:var(--muted); font-size:14.5px}
+  .type li{margin:3px 0}
   .req{display:inline-flex; gap:8px; align-items:center; margin-top:10px;
     background:var(--cyan-soft); border:1px solid var(--cyan-deep); color:#bfe9ff;
     font-size:13px; padding:5px 11px; border-radius:999px}
@@ -350,6 +352,17 @@
           <span class="req"><b>Requisito</b> ≥1 subpregunta, cada una con su texto y su respuesta</span>
         </div>
         <div class="type">
+          <h4>Pictionary (dibujar y adivinar)</h4>
+          <p>Cada pregunta es <strong>una palabra o concepto</strong> que alguien dibuja mientras los demás intentan adivinarlo con el <strong>pulsador</strong>. Opcionalmente, una <strong>categoría</strong> («Películas», «Animales»…) que ven todos como pista. La palabra <strong>solo la ven el coordinador y quien dibuja</strong>; los demás, al acertar o al mostrarla. El dibujo se ve <strong>en directo</strong> en la pantalla de sala (y, sin pantalla, en el escenario de cada iPad).</p>
+          <p>En la ronda se elige <strong>quién dibuja</strong>:</p>
+          <ul>
+            <li><strong>Un equipo en cada palabra, en su iPad:</strong> los demás equipos adivinan. Los <strong>turnos</strong> pueden ser <strong>automáticos</strong> (el programa propone a quién le toca, al azar, y no repite hasta que han dibujado todos; prefiere equipos conectados y sin congelar) o los elige el coordinador. En los dos casos el coordinador puede cambiar el equipo antes de empezar.</li>
+            <li><strong>Un iPad de dibujo fijo</strong> (la «pizarra»): un iPad aparte, enlazado con un QR desde el coordinador, dibuja todas las palabras (por ejemplo, un niño que sale). <strong>Pulsan todos los equipos</strong> y quien dibuja no suma.</li>
+          </ul>
+          <p><strong>Puntos:</strong> el equipo que adivina gana los puntos base más el <strong>bonus por rapidez</strong> (cuanto antes pulse, más). Con <strong>«Puntos para el equipo que dibuja»</strong>, además, el que dibujaba se lleva esa cantidad fija cuando alguien lo adivina, para que interese dibujar bien (por ejemplo: base 100, bonus 50 y 50 para el que dibuja → quien adivina gana entre 100 y 150; el que dibuja, 50). Si nadie lo adivina, nadie suma. El <strong>tiempo</strong> es por palabra (60 s por defecto; 0 = sin límite) y <strong>se para mientras alguien responde</strong>: si falla, sigue solo.</p>
+          <span class="req"><b>Requisito</b> la palabra</span>
+        </div>
+        <div class="type">
           <h4>Karaoke</h4>
           <p>La letra de una canción en pantalla mientras suena. Cada equipo tiene asignado un color (rojo, amarillo, azul o verde). El coordinador avanza por la letra y pone de fondo un color o una combinación: <strong>solo cantan los equipos cuyo color está en pantalla</strong>. Al terminar, el coordinador da los puntos a mano al color que mejor lo haya hecho (se reparten entre sus equipos). Cada canción de la ronda empieza limpia.</p>
           <p>Si hay <strong>más equipos que colores</strong>, varios equipos comparten color y cantan juntos; el botón <strong>«🎲 Repartir automáticamente»</strong> los reparte equilibrados. En la pantalla de sala el fondo muestra <strong>solo los colores que cantan</strong> (uno ocupa toda la pantalla, dos la parten en mitades, cuatro en cuartos) y la letra se ajusta sola al espacio, con la estrofa siguiente debajo, más pequeña y en gris. Cada iPad lleva un <strong>marco de su color</strong>, encendido toda la prueba; el iPad no avisa de cuándo cantar: los equipos lo tienen que ver en la pantalla.</p>
@@ -385,6 +398,7 @@
         <li>Las imágenes, vídeos y audios se ponen con su ruta (por ejemplo <code>/uploads/images/foto.jpg</code>): súbelos antes desde <strong>📁 Medios</strong>.</li>
         <li>En <strong>Precio justo</strong>, una celda de valor vacía entra como incompleta; un <code>0</code> escrito sí vale.</li>
         <li>En <strong>Respuesta abierta</strong> va <strong>una fila por subpregunta</strong>. La primera fila de cada pregunta lleva el enunciado general (opcional), el tiempo, los puntos y el bonus; las siguientes, solo la subpregunta, su respuesta y las otras válidas (todas en una celda, separadas por <code>/</code>). <strong>Tiempo vacío = sin cuenta atrás.</strong> Para empezar otra pregunta en la misma ronda, escribe su enunciado general.</li>
+        <li>En <strong>Pictionary</strong> va <strong>una fila por palabra</strong>, con su categoría (opcional). Las columnas <code>quien_dibuja</code> (<code>equipo</code> o <code>ipad</code>), <code>turnos</code> (<code>auto</code> o <code>coordinador</code>) y <code>puntos_dibuja</code> son de la ronda: vale lo de la primera fila que las tenga. <code>tiempo</code> vacío usa el de la ronda (en la hoja Rondas, <code>0</code> = sin límite).</li>
         <li>El <strong>karaoke</strong> no va por Excel: se crea a mano en el backoffice.</li>
       </ul>
 
@@ -489,7 +503,7 @@
       </ul>
 
       <figure class="shot"><a href="img/24-play-resultado.webp" target="_blank" rel="noopener"><img src="img/24-play-resultado.webp" alt="Resultado en el iPad" loading="lazy"></a><figcaption>Al revelar, cada iPad ve la respuesta correcta, la suya y si acertó, con los puntos.</figcaption></figure>
-      <p>Atajos de teclado (con el coordinador en un ordenador): <strong>→</strong> siguiente · <strong>←</strong> anterior · <strong>Espacio</strong> arranca el tiempo · <strong>R</strong> revela · <strong>B</strong> abre el pulsador · <strong>Esc</strong> cierra el marcador o el pulsador. Solo funcionan con una pregunta en curso y se ignoran si escribes en un campo o pulsas Ctrl/Cmd (así <strong>Ctrl+R</strong> recarga la página sin revelar nada). En las pruebas sin temporizador (pulsador, ruleta, Adivina la imagen, Imagen que se aclara, imagen fija, canción, karaoke), Espacio no hace nada.</p>
+      <p>Atajos de teclado (con el coordinador en un ordenador): <strong>→</strong> siguiente · <strong>←</strong> anterior · <strong>Espacio</strong> arranca el tiempo · <strong>R</strong> revela · <strong>B</strong> abre el pulsador · <strong>Esc</strong> cierra el marcador o el pulsador. Solo funcionan con una pregunta en curso y se ignoran si escribes en un campo o pulsas Ctrl/Cmd (así <strong>Ctrl+R</strong> recarga la página sin revelar nada). En las pruebas sin temporizador (pulsador, ruleta, Adivina la imagen, Imagen que se aclara, imagen fija, canción, karaoke), Espacio no hace nada. En el Pictionary el tiempo arranca con «Empezar a dibujar»; Espacio solo lo reanuda si lo habías parado.</p>
 
       <p><strong>Identidad.</strong> Pulsa <strong>"Abrir opciones"</strong> para mostrar la columna a emparejar: en los iPads arranca una cuenta atrás de 5 segundos antes de que empiece el tiempo, y en la pantalla de sala aparece la columna desordenada. Cuando se acaba el tiempo, revela las parejas correctas una a una con cada clic en «Ir revelando», de arriba abajo.</p>
 
@@ -497,6 +511,9 @@
       <p><strong>Imagen que se aclara.</strong> En el panel ves a la vez lo que ve la sala y la imagen real. Con <strong>«▶ Aclarar»</strong> empieza a aclararse y se abre el pulsador; <strong>«⏸ Pausa»</strong> la detiene. En modo «a mano» se usa la barra (mover la barra también abre el pulsador). Al lado se ve cuántos puntos vale acertar en ese momento, y en la cola del pulsador cuántos se lleva cada equipo según cuándo pulsó. Con un fallo, si no queda nadie en la cola, sigue aclarándose sola. «Mostrar respuesta» la saca en la pantalla, igual que en Adivina la imagen.</p>
 
       <figure class="shot"><a href="img/35-director-aclara.webp" target="_blank" rel="noopener"><img src="img/35-director-aclara.webp" alt="Imagen que se aclara en el coordinador" loading="lazy"></a><figcaption>Imagen que se aclara: arriba los controles y la barra de nitidez; debajo lo que ve la sala y la imagen real.</figcaption></figure>
+      <p><strong>Pictionary.</strong> Al lanzar la palabra, el panel la muestra en grande (solo la ves tú) y la sala anuncia en grande <strong>a quién le toca dibujar</strong>. Si dibuja un equipo, debajo están todos los equipos para <strong>cambiar quién dibuja</strong> (con «✓ ya dibujó» y «sin conexión»). Con <strong>«▶ Empezar a dibujar»</strong> el que dibuja ve la palabra en su iPad, empieza el tiempo y se abre el pulsador para los demás. El panel enseña <strong>lo que se ve en la sala</strong> en pequeño. Cuando alguien pulsa, <strong>el tiempo se para</strong> («tiempo parado» en la sala y en el iPad que dibuja); con <strong>✔ Acierto</strong> se revela la palabra sobre el dibujo y se reparten los puntos; con <strong>✘ Fallo</strong> el tiempo sigue solo. Si nadie lo adivina, <strong>«🏳 Nadie lo adivina: mostrar la palabra»</strong> (o se acaba el tiempo). Volver a una palabra ya jugada la enseña con su dibujo, sin repuntuar.</p>
+      <p><strong>Pizarra (iPad de dibujo fijo).</strong> En una ronda con «iPad de dibujo», el panel dice si la pizarra está conectada. <strong>«📱 QR de la pizarra»</strong> enseña un QR (y el enlace) para escanearlo con el iPad que va a dibujar; se puede hacer en cualquier momento y se queda enlazado para todas las palabras. Ese iPad solo sirve de pizarra: entre palabras dice «Pizarra lista». Si se abre en otro iPad, el anterior deja de serlo. El QR deja de valer si cambias el código de acceso del juego.</p>
+      <p><strong>Dibujar en el iPad.</strong> A la izquierda (o abajo, con el iPad en vertical) están los <strong>colores</strong>, tres <strong>grosores</strong>, la <strong>goma</strong>, <strong>deshacer</strong> y <strong>borrar todo</strong> (pide un segundo toque para no borrar sin querer). Se dibuja con el dedo o con el <strong>Apple Pencil</strong>: en cuanto se usa el lápiz se activa «✍️ Solo lápiz» y la palma de la mano apoyada no pinta (se puede desactivar con ese botón). Si el iPad se corta o se recarga, recupera la palabra y el dibujo.</p>
       <p><strong>Boom.</strong> Igual: al acabar el tiempo el orden correcto no se ve entero. Con <strong>«Ir revelando»</strong> se destapa la posición 1, luego la 2… En la pantalla las que faltan salen como «?», y cada iPad va viendo en verde o rojo si acertó esa posición; el resultado final aparece al destapar la última. <strong>Los puntos se suman al destapar la última</strong> (también en Identidad), para mantener la emoción; si pasas a otra pregunta antes de terminar, se suman al salir.</p>
 
       <div id="s3-bonos"></div>
@@ -630,7 +647,7 @@
       <p>Si no hay proyector, cada iPad puede mostrar también lo que se vería en la pantalla. Se marca en el backoffice, al editar el juego: <strong>«Este juego va sin pantalla»</strong>. En directo, el botón <strong>«📺 Con pantalla / 📵 Sin pantalla»</strong> de la cabecera del coordinador lo cambia en cualquier momento (por ejemplo, si el proyector falla a mitad).</p>
       <figure class="shot"><a href="img/34-play-sin-pantalla.webp" target="_blank" rel="noopener"><img src="img/34-play-sin-pantalla.webp" alt="iPad sin pantalla de sala" loading="lazy"></a><figcaption>Sin pantalla: arriba, el escenario con lo que vería la sala; debajo, el pulsador.</figcaption></figure>
       <ul>
-        <li>En las pruebas en las que el iPad solo tenía el pulsador (pulsador, ruleta, Adivina la imagen, imagen fija, canción, Imagen que se aclara) aparece arriba el <strong>escenario</strong>, con lo mismo que vería la sala, y el pulsador debajo. En el karaoke la letra ocupa todo el iPad, con el marco del color del equipo alrededor.</li>
+        <li>En las pruebas en las que el iPad solo tenía el pulsador (pulsador, ruleta, Adivina la imagen, imagen fija, canción, Imagen que se aclara, Pictionary) aparece arriba el <strong>escenario</strong>, con lo mismo que vería la sala, y el pulsador debajo. En el Pictionary, el iPad del equipo que dibuja muestra su pizarra y los demás ven el dibujo en directo en el escenario. En el karaoke la letra ocupa todo el iPad, con el marco del color del equipo alrededor.</li>
         <li>En las que el iPad ya tenía la pregunta (multirespuesta, Precio justo, Boom, Identidad, Respuesta abierta) no cambia nada: el iPad ya muestra todo lo necesario.</li>
         <li><strong>Sonido</strong> de vídeos y efectos: en el backoffice eliges si sale del <strong>ordenador</strong> (la página «Pantalla» abierta con altavoces, aunque no haya proyector) o de <strong>cada iPad</strong>; el botón «🔊 Sonido» del coordinador lo cambia en directo. Los navegadores no dejan sonar nada hasta que alguien toca la página: si va en el <strong>ordenador</strong>, la página «Pantalla» muestra «Haz clic en esta página para activar el sonido» hasta el primer clic (hazlo al montar la sala); los iPads no piden nada. Si va en los <strong>iPads</strong>, cada uno muestra en el centro un aviso grande «🔊 Toca aquí para activar el sonido»: con <strong>un toque por iPad basta para toda la partida</strong> (conviene pedirlo al empezar). Después, el Play del coordinador hace sonar el vídeo en todos. Un iPad que aún no se haya tocado ve el vídeo igualmente, en silencio y a la vez que los demás, y suena en cuanto lo tocan. Apple no deja que un iPad suene sin ese primer toque. Si se recarga la página, hay que volver a tocar. El audio de «Adivina la canción» sigue saliendo del Chaos Studio, como siempre.</li>
       </ul>
@@ -695,6 +712,7 @@
         <li><span class="box"></span>El juego está en estado publicado.</li>
         <li><span class="box"></span>Tienes anotado el código de acceso (o vas a usar el QR de sala).</li>
         <li><span class="box"></span>Tienes la contraseña del coordinador a mano.</li>
+        <li><span class="box"></span>Si hay Pictionary con iPad de dibujo: la pizarra está enlazada con su QR, cargada y con la pantalla sin bloqueo automático.</li>
       </ul>
 
       <div class="grp">Ordenador y pantalla</div>

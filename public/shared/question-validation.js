@@ -82,6 +82,10 @@
         if (pairs.length >= 2 && !allItemsOk) missing.push('pair_items');
         break;
       }
+      case 'pictionary': {
+        if (!nonEmpty(c.word)) missing.push('word');
+        break;
+      }
       case 'abierta': {
         // Respuesta abierta: el enunciado general es opcional; cada subpregunta con texto y respuesta
         var subs = Array.isArray(c.subs) ? c.subs : [];
@@ -129,7 +133,8 @@
     colors: 'colores seleccionados',
     basePoints: 'puntos base (entero ≥ 0)',
     subs: 'subpreguntas (mínimo 1)',
-    sub_items: 'cada subpregunta con su texto y su respuesta'
+    sub_items: 'cada subpregunta con su texto y su respuesta',
+    word: 'palabra a dibujar'
   };
 
   // ── Respuesta abierta: comparar lo que escribe un equipo con las respuestas válidas ──
