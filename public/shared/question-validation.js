@@ -86,6 +86,12 @@
         if (!nonEmpty(c.word)) missing.push('word');
         break;
       }
+      case 'letras': {
+        // De 4 a 12 letras (A-Z y Ñ)
+        var ls = Array.isArray(c.letters) ? c.letters : [];
+        if (ls.length < 4 || ls.length > 12 || !ls.every(function (x) { return typeof x === 'string' && /^[A-ZÑ]$/.test(x); })) missing.push('letters');
+        break;
+      }
       case 'cifras': {
         // Objetivo entero positivo y de 2 a 7 números enteros positivos
         var t = Number(c.target);
@@ -144,7 +150,8 @@
     sub_items: 'cada subpregunta con su texto y su respuesta',
     word: 'palabra a dibujar',
     target: 'número objetivo',
-    numbers: 'números (de 2 a 7)'
+    numbers: 'números (de 2 a 7)',
+    letters: 'letras (de 4 a 12)'
   };
 
   // ── Respuesta abierta: comparar lo que escribe un equipo con las respuestas válidas ──

@@ -1,0 +1,13 @@
+Lista de palabras de la prueba «Letras»
+=======================================
+
+palabras.txt se ha generado con tools/letras/build-palabras.js a partir del diccionario
+ortográfico es_ES de RLA-ES (Recursos Lingüísticos Abiertos del Español), versión 2.9:
+https://github.com/sbosio/rla-es
+
+RLA-ES se distribuye a elegir entre GNU GPL 3 (o posterior), GNU LGPL 3 (o posterior) o
+MPL 1.1 (o posterior). Este archivo derivado se usa y se distribuye bajo la MPL 1.1, cuyo
+texto está en MPL-1.1.txt. Se ha modificado así: solo las entradas en minúscula (sin nombres
+propios ni siglas) más sus plurales y femeninos (reglas S y G del diccionario), escritas sin
+tildes ni diéresis para el juego (la ñ se mantiene) y, si llevaban tilde, con la forma original
+detrás de un tabulador.

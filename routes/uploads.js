@@ -292,6 +292,7 @@ const EXAMPLE_ROUNDS = [
     ['Ejemplo · Respuesta abierta', 'abierta', '', 500, 'si', 0, '', ''],
     ['Ejemplo · Pictionary', 'pictionary', 60, 500, 'si', 0, '', ''],
     ['Ejemplo · Cifras', 'cifras', 60, 500, 'si', 0, '', ''],
+    ['Ejemplo · Letras', 'letras', 60, 500, 'si', 0, '', ''],
 ];
 const EXAMPLE_ROWS = {
     multirespuesta: [['Ejemplo · Multirespuesta', '¿Cuál es el río más largo de la península ibérica?', 'Ebro', 'Tajo', 'Duero', 'Guadalquivir', '', '2', 'El Tajo mide unos 1.007 km.', 20, 500, 'si', 0]],
@@ -313,6 +314,10 @@ const EXAMPLE_ROWS = {
         ['Ejemplo · Respuesta abierta', 'Literatura y geografía: responde a las tres', '¿Quién escribió El Quijote?', 'Cervantes', 'Miguel de Cervantes / el manco de Lepanto', 90, 500, 'si'],
         ['Ejemplo · Respuesta abierta', '', '¿Cuál es la capital de Portugal?', 'Lisboa', ''],
         ['Ejemplo · Respuesta abierta', '', '¿Cuántos lados tiene un hexágono?', '6', 'seis'],
+    ],
+    letras: [
+        ['Ejemplo · Letras', 'A E R T S O L M N', ''],
+        ['Ejemplo · Letras', '', 9],
     ],
     cifras: [
         ['Ejemplo · Cifras', 345, '1 3 7 9 25 100', '', 'no'],

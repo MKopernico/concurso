@@ -6,6 +6,8 @@ const { db, DEFAULT_GAME_ID } = require('../db');
 const auth = require('../auth');
 const QV = require('../public/shared/question-validation.js');
 const Cifras = require('../public/shared/cifras.js');
+const Letras = require('../public/shared/letras.js');
+const LetrasDict = require('../letras-dict.js');
 
 const gameStates = new Map();
 
@@ -349,6 +351,7 @@ function getQuestionConfig(state) {
         time: (ds.currentRound && ds.currentRound.type === 'abierta') ? abiertaTime(q)
             : (ds.currentRound && ds.currentRound.type === 'pictionary') ? picTimeOf(ds) // 0 = sin tiempo
             : (ds.currentRound && ds.currentRound.type === 'cifras') ? cifrasTime(ds) // 0 = sin tiempo
+            : (ds.currentRound && ds.currentRound.type === 'letras') ? letrasTime(ds)
             : (qCfg.time || rCfg.time || 30),
         // Puntos = lo máximo por acertar (ver QV.questionPoints: los juegos antiguos se convierten)
         points: QV.questionPoints(type, qCfg, rCfg),
@@ -736,6 +739,137 @@ function cifrasScoresView(ds, forPlayers) {
     return out;
 }
 
+// ── Letras ──
+// content = { letters: ['A','E',...], best?: { len, count, words } }
+// Como Cifras: las letras se ven al lanzar y se juega tras «Empezar» (o ▶). El iPad manda los
+// índices de las letras usadas (borrador en cada cambio y «Enviar»; se puede reenviar, cuenta el
+// último). Al cerrar, el borrador cuenta (como el último en llegar) y empieza la corrección: cada
+// palabra distinta llega marcada según el diccionario y el coordinador la confirma o la cambia
+// (todas las iguales a la vez). Luego se revela por longitudes, de la más corta a la más larga, y
+// al final «la más larga posible». Puntos = (mitad fija + mitad rapidez) × letras ÷ letras de la
+// palabra válida más larga; no válida = 0; extra a la más larga (empate: la más rápida).
+// ds.letras = { step: 'correcting'|'revealed', marks: { palabra: bool }, inDict: { palabra: forma|null },
+//               revealStep, total, groups: [{ len, words: [palabra] }], points, winner }
+const letrasTime = cifrasTime;
+function letrasContent(ds) {
+    const q = ds.questions[ds.currentQuestionIdx];
+    return (q && q.content) || {};
+}
+function letrasWord(ds, idxs) { return Letras.wordFrom(letrasContent(ds).letters || [], idxs); }
+function letrasBest(ds) {
+    const c = letrasContent(ds);
+    if (c.best && Array.isArray(c.best.words)) return c.best;
+    return LetrasDict.best(c.letters || [], 6);
+}
+function letrasResults(state) {
+    const ds = state.director, L = ds.letras;
+    const cfg = getQuestionConfig(state);
+    const res = {};
+    let maxLen = 0;
+    for (const [tid, ans] of Object.entries(ds.answers)) {
+        if (!ans.submitted) continue;
+        const w = letrasWord(ds, ans.answer) || '';
+        const ok = !!(w && L.marks[w]);
+        res[tid] = { word: w, ok, len: w.length, points: 0 };
+        if (ok && w.length > maxLen) maxLen = w.length;
+    }
+    let winner = null;
+    for (const [tid, r] of Object.entries(res)) {
+        if (!r.ok) continue;
+        r.points = Math.round(r.len / maxLen * speedPts(cfg, ds, ds.answers[tid].timerRemaining));
+        const w = winner && res[winner], a = ds.answers[tid], b = winner && ds.answers[winner];
+        if (!w || r.len > w.len || (r.len === w.len && ((a.timerRemaining || 0) > (b.timerRemaining || 0)
+            || ((a.timerRemaining || 0) === (b.timerRemaining || 0) && (a.timestamp || 0) < (b.timestamp || 0))))) winner = tid;
+    }
+    const extra = extraPts(cfg);
+    if (winner && extra > 0) { res[winner].points += extra; res[winner].extra = extra; }
+    return { res, winner };
+}
+// Fin del tiempo (o «Cerrar y corregir»): los borradores cuentan y cada palabra se marca según el diccionario
+function closeLetras(state) {
+    const ds = state.director;
+    stopTimer(state);
+    const now = Date.now();
+    const marks = {}, inDict = {};
+    for (const [tid, ans] of Object.entries(ds.answers)) {
+        if (!ans.submitted) {
+            if (!Array.isArray(ans.draft) || ans.draft.length < 2) { delete ds.answers[tid]; continue; }
+            Object.assign(ans, { answer: ans.draft, submitted: true, timestamp: now, timerRemaining: 0, late: true });
+        }
+        const w = letrasWord(ds, ans.answer);
+        if (!w) { delete ds.answers[tid]; continue; }
+        if (!(w in inDict)) { inDict[w] = LetrasDict.has(w); marks[w] = !!inDict[w]; }
+    }
+    ds.letras = { step: 'correcting', marks, inDict, revealStep: 0, total: 0, groups: [], points: null, winner: null };
+    ds.optionsRevealed = true;
+    logAction(state, { action: 'letras_closed', answered: Object.keys(ds.answers).length, total: state.equipos.length });
+}
+// «Revelar»: puntos (esperan al final) y pasos del revelado, por longitudes de menor a mayor
+function revealLetras(state) {
+    const ds = state.director, L = ds.letras;
+    const { res, winner } = letrasResults(state);
+    L.points = {};
+    for (const [tid, r] of Object.entries(res)) { L.points[tid] = r.points; if (r.points) addPending(ds, tid, r.points); }
+    L.winner = winner;
+    const byLen = {};
+    for (const w of Object.keys(L.marks)) (byLen[w.length] = byLen[w.length] || []).push(w);
+    L.groups = Object.keys(byLen).map(Number).sort((a, b) => a - b).map(len => ({ len, words: byLen[len].sort() }));
+    L.total = L.groups.length + 1; // y al final, la más larga posible
+    L.revealStep = 0;
+    L.step = 'revealed';
+    L.best = letrasBest(ds);
+}
+// Cambiar una corrección ya revelada: se recalcula todo y al marcador solo va la diferencia
+function rectifyLetras(state, word, ok) {
+    const ds = state.director, L = ds.letras;
+    const old = L.points || {};
+    const { res, winner } = letrasResults(state);
+    const neu = {};
+    for (const [tid, r] of Object.entries(res)) neu[tid] = r.points;
+    const changes = [];
+    for (const tid of new Set([...Object.keys(old), ...Object.keys(neu)])) {
+        const d = (neu[tid] || 0) - (old[tid] || 0);
+        if (d) changes.push({ team: teamName(state, tid), pts: d, tid });
+    }
+    if (ds.pendingScores) {
+        ds.pendingScores = {};
+        for (const [tid, p] of Object.entries(neu)) if (p) ds.pendingScores[tid] = p;
+    } else {
+        for (const ch of changes) { if (!ds.scores[ch.tid]) ds.scores[ch.tid] = 0; ds.scores[ch.tid] += ch.pts; }
+    }
+    L.points = neu;
+    L.winner = winner;
+    computeLastQuestionScores(state);
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (q && ds.questionResults && ds.questionResults[q.id]) ds.questionResults[q.id].lastQuestionScores = ds.lastQuestionScores;
+    logAction(state, { action: 'letras_fix', word, ok, changes: changes.map(ch => ({ team: ch.team, pts: ch.pts })), pending: !!ds.pendingScores });
+}
+// Vista para iPads y pantalla: lo destapado (con quién la puso y si vale) y, al final, la más larga posible
+function letrasView(state) {
+    const ds = state.director, L = ds.letras;
+    if (!L) return null;
+    const v = { step: L.step, revealStep: L.revealStep || 0, total: L.total || 0 };
+    if (L.step === 'revealed') {
+        const teamsOf = (w) => Object.entries(ds.answers).filter(([, a]) => a.submitted && letrasWord(ds, a.answer) === w).map(([t]) => t);
+        v.groups = L.groups.slice(0, L.revealStep).map(g => ({ len: g.len, words: g.words.map(w => ({ w, show: L.inDict[w] || w, ok: !!L.marks[w], teams: teamsOf(w) })) }));
+        v.groupsTotal = L.groups.length;
+        if (L.revealStep >= L.total) { v.best = L.best || null; v.winner = L.winner; }
+    }
+    return v;
+}
+// Resultados por equipo para los iPads mientras se revela: lo de cada uno, solo cuando sale su longitud
+function letrasScoresView(ds, forPlayers) {
+    const lqs = ds.lastQuestionScores, L = ds.letras;
+    if (!forPlayers || !L || ds.phase !== 'answer_revealed' || !lqs || L.revealStep >= L.total) return lqs;
+    const shownLens = new Set(L.groups.slice(0, L.revealStep).map(g => g.len));
+    const out = {};
+    for (const [tid, r] of Object.entries(lqs)) {
+        if (!r || !r.letras) { out[tid] = r; continue; }
+        out[tid] = shownLens.has(r.len) ? { ...r, points: 0, extra: 0, winner: false, pending: true } : { letras: true, pending: true, noAnswer: r.noAnswer };
+    }
+    return out;
+}
+
 function clearPreCountdown(state) {
     if (state._preCountdownHandle) { clearInterval(state._preCountdownHandle); state._preCountdownHandle = null; }
     delete state.director.preCountdown;
@@ -774,6 +908,7 @@ function isNoTimerRound(ds) {
     if (ds.currentRound && ds.currentRound.type === 'abierta') return !abiertaTime(ds.questions[ds.currentQuestionIdx]);
     if (ds.currentRound && ds.currentRound.type === 'pictionary') return !picTimeOf(ds);
     if (ds.currentRound && ds.currentRound.type === 'cifras') return !cifrasTime(ds);
+    if (ds.currentRound && ds.currentRound.type === 'letras') return !letrasTime(ds);
     return !!(ds.currentRound && NO_TIMER_TYPES.has(ds.currentRound.type));
 }
 
@@ -795,6 +930,11 @@ function finalizeQuestion(state) {
         a.revealStep = 0; // se destapan una a una (los puntos, al destapar la última)
         const qa = ds.questions[ds.currentQuestionIdx];
         if (qa && ds.abiertaWip) delete ds.abiertaWip[qa.id];
+    }
+    if (type === 'letras') {
+        if (!ds.letras) { closeLetras(state); return false; }
+        if (ds.letras.step !== 'correcting') return false;
+        revealLetras(state);
     }
     if (type === 'cifras') closeCifras(state);
     if (type === 'multirespuesta') autoScoreMultirespuesta(state);
@@ -820,14 +960,14 @@ function finalizeQuestion(state) {
     if (ds.aclara) { ds.aclara.level = 1; ds.aclara.running = false; }
     if (ds.pictionary) picArchive(state);
     computeLastQuestionScores(state);
-    if (['multirespuesta', 'precio', 'boom', 'identidad', 'abierta', 'cifras'].includes(type)) {
+    if (['multirespuesta', 'precio', 'boom', 'identidad', 'abierta', 'cifras', 'letras'].includes(type)) {
         const lqs = Object.values(ds.lastQuestionScores || {});
         logAction(state, { action: 'scored', hits: lqs.filter(r => r.correct).length, answered: lqs.filter(r => !r.noAnswer).length, total: lqs.length });
     }
     const q = ds.questions[ds.currentQuestionIdx];
     if (q) {
         if (!ds.questionResults) ds.questionResults = {};
-        ds.questionResults[q.id] = { answers: ds.answers, lastQuestionScores: ds.lastQuestionScores, identidad: ds.identidad, abierta: ds.abierta || undefined, cifras: ds.cifras || undefined,
+        ds.questionResults[q.id] = { answers: ds.answers, lastQuestionScores: ds.lastQuestionScores, identidad: ds.identidad, abierta: ds.abierta || undefined, cifras: ds.cifras || undefined, letras: ds.letras || undefined,
             pictionary: ds.pictionary ? { mode: ds.pictionary.mode, drawer: ds.pictionary.drawer, drawerPts: ds.pictionary.drawerPts || 0 } : undefined,
             buzzerWinner: ds.buzzerWinner || null, buzzerPoints: ds.buzzerPoints || 0, buzzerFailed: (ds.buzzerFailed || []).slice() };
     }
@@ -846,6 +986,7 @@ function restoreQuestionResult(state) {
     if (r.identidad) ds.identidad = r.identidad;
     if (r.abierta) { ds.abierta = r.abierta; ds.abierta.step = 'revealed'; ds.abierta.revealStep = abiertaSubs(ds).length; }
     if (r.cifras) { ds.cifras = r.cifras; ds.cifras.revealStep = ds.cifras.total; }
+    if (r.letras) { ds.letras = r.letras; ds.letras.revealStep = ds.letras.total; }
     ds.buzzerWinner = r.buzzerWinner || null;
     ds.buzzerPoints = r.buzzerPoints || 0;
     ds.buzzerFailed = r.buzzerFailed || [];
@@ -1197,6 +1338,19 @@ function computeLastQuestionScores(state) {
                 entry.exact = val === cv;
                 entry.sharedWin = entry.correct && winners.length > 1; // empate: ganan todos, el extra al más rápido
             }
+        } else if (roundType === 'letras' && ds.letras && ds.letras.step === 'revealed') {
+            if (!ans.submitted) continue;
+            const w = letrasWord(ds, ans.answer) || '';
+            entry.letras = true;
+            entry.word = w;
+            entry.show = ds.letras.inDict[w] || w;
+            entry.len = w.length;
+            entry.ok = !!ds.letras.marks[w];
+            entry.correct = entry.ok;
+            entry.points = (ds.letras.points || {})[teamId] || 0;
+            entry.winner = ds.letras.winner === teamId;
+            if (entry.winner) entry.extra = extraPts(cfg);
+            entry.late = !!ans.late;
         } else if (roundType === 'cifras' && ds.cifras) {
             if (!ans.submitted) continue;
             const ev = cifrasEval(ds, ans.answer);
@@ -1280,6 +1434,7 @@ function playerView(state, forPlayers) {
             if (type === 'imagen' || type === 'aclara') { delete c.image; delete c.answer; }
         }
         if (type === 'cifras') delete c.solution; // la solución va con el revelado (ds.cifras), nunca antes
+        if (type === 'letras') delete c.best; // la más larga posible, al final del revelado (ds.letras)
         if (ds.phase === 'question' && type === 'boom' && Array.isArray(c.items)) {
             const perm = boomPerm(ds, c.items.length);
             c.items = perm.map(i => c.items[i]);
@@ -1385,7 +1540,7 @@ function playerView(state, forPlayers) {
         imagePuzzle: ds.imagePuzzle,
         optionsRevealed: ds.optionsRevealed,
         completedRounds: ds.completedRounds,
-        lastQuestionScores: ds.cifras ? cifrasScoresView(ds, forPlayers) : abiertaScoresView(ds, forPlayers),
+        lastQuestionScores: ds.cifras ? cifrasScoresView(ds, forPlayers) : ds.letras ? letrasScoresView(ds, forPlayers) : abiertaScoresView(ds, forPlayers),
         questionKey: (ds.currentRoundId || '') + ':' + ds.currentQuestionIdx + ':' + (ds.questionEpoch || 0), // cambia también al relanzar la misma pregunta
         buzzerFailed: ds.buzzerFailed || [],
         buzzerWinner: ds.buzzerWinner || null, // equipo que acertó en el pulsador (para mostrar el resultado)
@@ -1412,7 +1567,8 @@ function playerView(state, forPlayers) {
         boomStep: typeof ds.boomStep === 'number' ? ds.boomStep : null, // posiciones de Boom ya reveladas
         abierta: ds.abierta ? { step: ds.abierta.step, revealStep: ds.abierta.revealStep || 0 } : null, // paso de Respuesta abierta
         cifras: cifrasView(ds), // revelado de Cifras
-        cifrasSent: (ds.currentRound && ds.currentRound.type === 'cifras') ? Object.values(ds.answers).filter(a => a.submitted).length : 0, // equipos que ya han enviado
+        letras: letrasView(state), // corrección y revelado de Letras
+        cifrasSent: (ds.currentRound && (ds.currentRound.type === 'cifras' || ds.currentRound.type === 'letras')) ? Object.values(ds.answers).filter(a => a.submitted).length : 0, // equipos que ya han enviado
         aclara: aclaraView(ds), // nitidez actual de «Imagen que se aclara» (el cliente la anima desde aquí)
         // Pictionary: quién dibuja y en qué paso va (la palabra no: va solo a quien dibuja)
         pictionary: ds.pictionary ? { step: ds.pictionary.step, mode: ds.pictionary.mode, drawer: ds.pictionary.drawer || null,
@@ -1445,6 +1601,12 @@ function emitYourOrder(socket, state) {
     // Pictionary: si este equipo está dibujando, vuelve a recibir la palabra
     if (ds.pictionary) {
         if (ds.pictionary.mode === 'equipos' && ds.pictionary.drawer === socket.equipoId) sendPicWord(socket, state);
+        return;
+    }
+    // Letras: al volver, el equipo recupera su palabra (y si ya la había enviado)
+    if (ds.currentRound && ds.currentRound.type === 'letras') {
+        const e = ds.answers[socket.equipoId];
+        if (e && ds.phase === 'question' && !ds.letras) socket.emit('game:your_letras', { idx: e.draft || e.answer || [], sent: e.submitted ? e.answer : null });
         return;
     }
     // Cifras: al volver, el equipo recupera sus cuentas (y si ya había enviado)
@@ -1497,7 +1659,7 @@ function avanzarPregunta(state, io, gameId) {
     ds.answers = {};
     ds.revealedCells = [];
     ds.revealedLetters = [];
-    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.letras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
     ds.optionsRevealed = false; ds.optionsRevealedAt = null;
     ds.lastQuestionScores = {};
     ds.showTeamResults = false;
@@ -1998,7 +2160,7 @@ function attachSocketHandlers(io) {
             const ds = state.director;
             if (data && typeof data.k === 'string' && data.k !== questionKeyOf(ds)) return true;
             const type = ds.currentRound && ds.currentRound.type;
-            return (type === 'multirespuesta' || type === 'boom' || type === 'identidad' || type === 'cifras') && !ds.optionsRevealed;
+            return (type === 'multirespuesta' || type === 'boom' || type === 'identidad' || type === 'cifras' || type === 'letras') && !ds.optionsRevealed;
         };
 
         socket.on('player:submit_answer', (data) => {
@@ -2006,7 +2168,7 @@ function attachSocketHandlers(io) {
             const ds = state.director;
             if (ds.phase !== 'question') return;
             if (answerOutOfPlace(data)) return;
-            if (ds.currentRound && (ds.currentRound.type === 'abierta' || ds.currentRound.type === 'cifras')) return; // tienen sus propios mensajes
+            if (ds.currentRound && ['abierta', 'cifras', 'letras'].includes(ds.currentRound.type)) return; // tienen sus propios mensajes
             if (ds.answers[socket.equipoId]) return;
             ds.answers[socket.equipoId] = { answer: data.answer, ...answerTiming(state, data) };
             broadcastDirector(io, gameId, state);
@@ -2123,6 +2285,28 @@ function attachSocketHandlers(io) {
         };
         socket.on('player:cifras_draft', (data) => cifrasMsg(data, false));
         socket.on('player:cifras_submit', (data) => cifrasMsg(data, true));
+
+        // ── Letras: borrador en cada cambio y «Enviar» (se puede reenviar mientras haya tiempo) ──
+        const letrasMsg = (data, final) => {
+            const ds = state.director;
+            if (!socket.equipoId || ds.phase !== 'question' || ds.letras || !(ds.currentRound && ds.currentRound.type === 'letras')) return;
+            if (answerOutOfPlace(data)) return;
+            const eq = state.equipos.find(e => e.id === socket.equipoId);
+            if (!eq || eq.bloqueado || !data || !Array.isArray(data.idx)) return;
+            const idx = data.idx.slice(0, 12).map(Number);
+            if (letrasWord(ds, idx) === null) return;
+            const prev = ds.answers[socket.equipoId];
+            if (!final) {
+                if (prev) prev.draft = idx;
+                else ds.answers[socket.equipoId] = { answer: null, draft: idx, submitted: false, timestamp: Date.now(), timerRemaining: preciseRemaining(state) };
+                return;
+            }
+            if (idx.length < 2) return;
+            ds.answers[socket.equipoId] = { answer: idx, draft: idx, ...answerTiming(state, data), submitted: true };
+            broadcastDirector(io, gameId, state);
+        };
+        socket.on('player:letras_draft', (data) => letrasMsg(data, false));
+        socket.on('player:letras_submit', (data) => letrasMsg(data, true));
 
         socket.on('usar_bono', (data) => {
             const emisor = state.equipos.find(e => e.id === socket.equipoId);
@@ -2283,7 +2467,7 @@ function attachSocketHandlers(io) {
             ds.phase = 'round_intro';
             logAction(state, { action: 'round', name: round.name });
             ds.answers = {};
-            ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.letras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
             state.pulsadorActivo = false;
@@ -2362,7 +2546,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.letras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
                 ds.optionsRevealed = false; ds.optionsRevealedAt = null;
                 ds.lastQuestionScores = {};
                 ds.showTeamResults = false;
@@ -2398,7 +2582,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.letras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
@@ -2444,7 +2628,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.letras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
                 ds.optionsRevealed = false; ds.optionsRevealedAt = null;
                 initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds); initPictionaryState(state);
                 if (isNoTimerRound(ds)) {
@@ -2466,6 +2650,7 @@ function attachSocketHandlers(io) {
             if (ds.phase !== 'question' || isNoTimerRound(ds)) return;
             // Respuesta abierta: el tiempo arranca con «Abrir respuestas»; aquí solo se reanuda
             if (ds.abierta && ds.abierta.step !== 'open') return;
+            if (ds.letras) return; // Letras ya cerrada: se está corrigiendo
             // Pictionary: el tiempo arranca con «Empezar a dibujar»; aquí solo se reanuda
             if (ds.pictionary && ds.pictionary.step !== 'drawing') return;
             if (ds.pictionary) ds.pictionary.pausedByBuzz = false;
@@ -2473,7 +2658,7 @@ function attachSocketHandlers(io) {
             if (ds.timer.running || ds.timer.remaining <= 0) return;
             ds.timer.running = true;
             // Al arrancar el tiempo se muestran las opciones/elementos a los equipos
-            if (ds.currentRound && ['multirespuesta', 'precio', 'boom', 'identidad', 'cifras'].includes(ds.currentRound.type)) {
+            if (ds.currentRound && ['multirespuesta', 'precio', 'boom', 'identidad', 'cifras', 'letras'].includes(ds.currentRound.type)) {
                 if (!ds.optionsRevealed) ds.optionsRevealedAt = Date.now();
                 ds.optionsRevealed = true;
             }
@@ -2766,6 +2951,18 @@ function attachSocketHandlers(io) {
             finalizeQuestion(state);
             broadcastDirector(io, gameId, state);
         });
+        // Letras: dar por buena o mala una palabra (todas las iguales a la vez); ya revelada, rectifica
+        socket.on('director:letras_mark', (data) => {
+            const ds = state.director, L = ds.letras;
+            if (!L || !data || typeof data.word !== 'string' || !(data.word in L.marks)) return;
+            const ok = !!data.ok;
+            if (L.marks[data.word] === ok) return;
+            if (L.step === 'correcting' && ds.phase === 'question') { L.marks[data.word] = ok; }
+            else if (L.step === 'revealed' && ds.phase === 'answer_revealed') { L.marks[data.word] = ok; rectifyLetras(state, data.word, ok); }
+            else return;
+            broadcastDirector(io, gameId, state);
+        });
+
         // Corregir (o rectificar ya revelada): { sub, teamIds, ok } — un grupo de respuestas iguales de una vez
         socket.on('director:abierta_mark', (data) => {
             const ds = state.director, a = ds.abierta;
@@ -2799,6 +2996,16 @@ function attachSocketHandlers(io) {
                 a.revealStep++;
                 if (a.revealStep >= n) applyPendingScores(state);
                 io.to(roomOf(gameId)).emit('game:pair_revealed', { index: a.revealStep - 1 });
+                broadcastDirector(io, gameId, state);
+                return;
+            }
+            // Letras: siguiente longitud (de la más corta a la más larga) y al final la más larga posible
+            if (ds.currentRound && ds.currentRound.type === 'letras') {
+                const L = ds.letras;
+                if (ds.phase !== 'answer_revealed' || !L || L.step !== 'revealed' || L.revealStep >= L.total) return;
+                L.revealStep++;
+                if (L.revealStep >= L.total) applyPendingScores(state);
+                io.to(roomOf(gameId)).emit('game:pair_revealed', { index: L.revealStep - 1 });
                 broadcastDirector(io, gameId, state);
                 return;
             }
@@ -3076,7 +3283,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.letras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.phase = 'lobby';
             ds.menuLevel = 'home';
@@ -3101,7 +3308,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.letras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
@@ -3147,7 +3354,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.letras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};

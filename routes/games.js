@@ -8,6 +8,8 @@ const auth = require('../auth');
 
 const QuestionValidation = require('../public/shared/question-validation.js');
 const Cifras = require('../public/shared/cifras.js');
+const Letras = require('../public/shared/letras.js');
+const LetrasDict = require('../letras-dict.js');
 
 const router = express.Router();
 
@@ -238,6 +240,8 @@ function contentToRow(typeDef, roundName, question, round) {
             return [roundName, c.statement || '', c.answer || '', c.image || '', c.audio || '', c.initial_chaos ?? 100, c.preset || 'default', ownPts(typeDef.type, qCfg, round)];
         case 'aclara':
             return [roundName, c.statement || '', c.image || '', c.answer || '', c.effect === 'blur' ? 'desenfoque' : 'pixelado', c.mode === 'manual' ? 'a mano' : 'sola', c.duration || 30, ownPts(typeDef.type, qCfg, round)];
+        case 'letras':
+            return [roundName, Array.isArray(c.letters) ? c.letters.join(' ') : '', Array.isArray(c.letters) ? c.letters.length : '', qCfg.time || '', ownPts(typeDef.type, qCfg, round), ownExtra(qCfg)];
         case 'cifras':
             return [roundName, c.target ?? '', Array.isArray(c.numbers) ? c.numbers.join(' ') : '', c.level || '', c.useAll ? 'si' : 'no', qCfg.time || '', ownPts(typeDef.type, qCfg, round), ownExtra(qCfg)];
         case 'pictionary': {
@@ -271,7 +275,7 @@ function contentToRow(typeDef, roundName, question, round) {
 }
 
 // ── Shared instruction rows for template & export ──
-const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'identidad', 'aclara', 'abierta', 'pictionary', 'cifras'];
+const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'identidad', 'aclara', 'abierta', 'pictionary', 'cifras', 'letras'];
 
 function buildInstructionRows() {
     const rows = [
@@ -335,6 +339,9 @@ function buildInstructionRows() {
     rows.push(['    "otras_validas": todas en una celda separadas por / (ej: Miguel de Cervantes / el manco de Lepanto). Da igual mayúsculas, tildes y signos.']);
     rows.push(['    "tiempo" vacío = sin cuenta atrás (modo «Lo sabe no lo sabe»). Para otra pregunta en la misma ronda, escribe su enunciado general.']);
     rows.push(['    Puntos: cada equipo se lleva la parte proporcional de lo que acierta; el que más acierta (empate: el que envió antes) gana además el extra (+10 %).']);
+    rows.push(['  Letras: una fila por pregunta. "letras" = de 4 a 12 letras (ej: A E R T S O L M N o AERTSOLMN). Con "letras" vacía y "num_letras" (4-12), el programa las inventa al importar.']);
+    rows.push(['    Vale cualquier palabra del diccionario (también plurales y femeninos; no los verbos conjugados). El coordinador confirma cada palabra al corregir.']);
+    rows.push(['    Puntos: (mitad fija + mitad por rapidez) × letras ÷ letras de la palabra válida más larga; la más larga gana el extra. "tiempo" vacío = el de la ronda (60 s por defecto).']);
     rows.push(['  Cifras: una fila por pregunta. "objetivo" = número al que hay que llegar; "numeros" = de 2 a 7 números separados por espacio o coma (ej: 1 4 7 9 25 100).']);
     rows.push(['    Con "objetivo" y "numeros" vacíos y "nivel" (facil, medio o dificil), el programa los inventa al importar (siempre con solución exacta).']);
     rows.push(['    "usar_todas": si = hay que usar todos los números (por defecto no). "tiempo" vacío = el de la ronda (por defecto 60; en la hoja Rondas, 0 = sin límite).']);
@@ -695,6 +702,7 @@ const EXCEL_TYPE_DEFS = [
     { sheet: 'Identidad',      type: 'identidad',       columns: ['ronda', 'enunciado', 'izq_imagen', 'izq_texto', 'der_imagen', 'der_texto', 'explicacion', 'puntos', 'tiempo'] },
     { sheet: 'Imagen se aclara', type: 'aclara',        columns: ['ronda', 'enunciado', 'imagen', 'respuesta', 'efecto', 'modo', 'segundos', 'puntos'] },
     { sheet: 'Respuesta abierta', type: 'abierta',      columns: ['ronda', 'enunciado', 'subpregunta', 'respuesta', 'otras_validas', 'tiempo', 'puntos', 'extra_mas_rapido'] },
+    { sheet: 'Letras',         type: 'letras',          columns: ['ronda', 'letras', 'num_letras', 'tiempo', 'puntos', 'extra_mas_rapido'] },
     { sheet: 'Cifras',         type: 'cifras',          columns: ['ronda', 'objetivo', 'numeros', 'nivel', 'usar_todas', 'tiempo', 'puntos', 'extra_mas_rapido'] },
     { sheet: 'Pictionary',     type: 'pictionary',      columns: ['ronda', 'palabra', 'categoria', 'quien_dibuja', 'turnos', 'puntos_dibuja', 'tiempo', 'puntos', 'sin_uso'] },
 ];
@@ -984,6 +992,21 @@ function parseExcelSheet(rows, type) {
                 if (String(r[8] || '').trim()) rounds[roundName].config.background = String(r[8]).trim();
                 break;
             }
+            case 'letras': {
+                const letters = Letras.cleanLetters(r[1]);
+                const n = Number(r[2]);
+                if (!letters.length && !(n > 0)) break;
+                content = { letters };
+                // Sin letras pero con cuántas: el programa las inventa (con una buena palabra posible)
+                if (!letters.length && n >= 4) {
+                    const g = LetrasDict.generate(n);
+                    if (g) Object.assign(content, { letters: g.letters, best: g.best });
+                } else if (Letras.validLetters(letters)) content.best = LetrasDict.best(letters, 6);
+                if (r[3] !== '' && r[3] != null && Number(r[3]) > 0) qConfig.time = Number(r[3]);
+                if (r[4] !== '' && r[4] != null && isFinite(Number(r[4]))) qConfig.basePoints = Number(r[4]);
+                setExtraCell(qConfig, r[5]);
+                break;
+            }
             case 'cifras': {
                 const plain = (v) => String(v == null ? '' : v).trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
                 const nums = String(r[2] == null ? '' : r[2]).split(/[^0-9]+/).filter(Boolean).map(Number);
@@ -1169,7 +1192,7 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
                         roundConfig = { ...roundDefs[roundName].config };
                     } else {
                         // Legacy: build config from first question + fondo_ronda from parser
-                        roundConfig = { time: (type === 'pictionary' || type === 'cifras') ? 60 : 30, penalty: 0 };
+                        roundConfig = { time: (type === 'pictionary' || type === 'cifras' || type === 'letras') ? 60 : 30, penalty: 0 };
                         const firstQ = roundData.questions[0];
                         if (firstQ.config) {
                             if (firstQ.config.time) roundConfig.time = firstQ.config.time;
@@ -1332,6 +1355,19 @@ router.get('/games/:id/team-by-device/:deviceId', (req, res) => {
     const team = db.prepare('SELECT * FROM teams WHERE session_id = ? AND device_id = ?').get(session.id, req.params.deviceId);
     if (!team) return res.status(404).json({ error: 'no team' });
     res.json(team);
+});
+
+// ── Letras (backoffice): inventar letras y ver la palabra más larga posible ──
+router.post('/letras/generate', (req, res) => {
+    const n = Math.max(4, Math.min(12, Math.round(Number(req.body && req.body.count) || 9)));
+    const g = LetrasDict.generate(n);
+    if (!g) return res.status(500).json({ error: 'no se pudieron generar' });
+    res.json({ letters: g.letters, best: g.best });
+});
+router.post('/letras/check', (req, res) => {
+    const letters = Letras.cleanLetters(req.body && req.body.letters);
+    if (!Letras.validLetters(letters)) return res.status(400).json({ error: 'De 4 a 12 letras' });
+    res.json({ letters, best: LetrasDict.best(letters, 6) });
 });
 
 module.exports = router;

@@ -25,7 +25,7 @@ const KIT_NODE = { version: '24.14.0', abi: '137' }; // abi = process.versions.m
 const ROOT = 'GameShow-Offline';
 
 // Archivos de la app que se leen en marcha (no se pueden empaquetar)
-const RUNTIME_DIRS = ['public', 'node_modules/socket.io/client-dist'];
+const RUNTIME_DIRS = ['public', 'data', 'node_modules/socket.io/client-dist']; // data/: diccionario de Letras
 const RUNTIME_FILES = ['db/schema.sql', 'kit/start.js', 'kit/net.js'];
 // Módulo nativo: va tal cual, con lo justo para que require('better-sqlite3') lo encuentre
 const NATIVE = [
@@ -191,7 +191,7 @@ function kitFingerprint() {
     const sources = new Set();
     for (const rel of [...RUNTIME_DIRS, ...RUNTIME_FILES, 'kit']) listFiles(rel).forEach(f => sources.add(f));
     // Código que acaba dentro de server.js: el de la app (los módulos de node_modules los fija package-lock)
-    for (const rel of ['server.js', 'auth.js', 'paths.js', 'package-lock.json', 'db', 'routes', 'sockets']) listFiles(rel).forEach(f => sources.add(f));
+    for (const rel of ['server.js', 'auth.js', 'paths.js', 'letras-dict.js', 'package-lock.json', 'db', 'routes', 'sockets']) listFiles(rel).forEach(f => sources.add(f));
     for (const rel of [...sources].sort()) { h.update(rel + '\0'); h.update(fs.readFileSync(path.join(REPO, rel))); }
     return h.digest('hex').slice(0, 16);
 }
