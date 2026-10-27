@@ -78,12 +78,89 @@ function applyScreenDefaults(s) {
     s.director.audioOn = t.audio === 'ipads' ? 'ipads' : 'sala';
 }
 
+// ───────────────── Sintonías y música de fondo ─────────────────
+// Suenan en la pantalla de sala. El backoffice elige la sintonía de cada tipo (theme.types[t].jingle)
+// y, si quiere, otra por ronda (config.jingle; 'none' = sin sintonía), la lista de fondo
+// (theme.music) y cómo suenan (theme.sound: max, fadeIn, fadeOut). En directo manda el panel 🎵
+// del coordinador (ds.sound: volúmenes, automáticas, fundidos, fondo en marcha y qué canción).
+const JINGLE_REPEAT_MS = 30000; // la misma sintonía no se repite sola antes de esto (categoría → ronda)
+const JINGLE_MAX_DEFAULT = 20;
+
+function isSoundUrl(u) { return typeof u === 'string' && /^\/(uploads|shared)\//.test(u) && u.length < 500; }
+function volOf(v, def) { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : def; }
+
+function applySoundDefaults(s, keep) {
+    const t = (s._gameTheme && s._gameTheme.sound) || {};
+    const k = keep || {};
+    s.director.sound = {
+        jingleVol: volOf(k.jingleVol, 80), bgVol: volOf(k.bgVol, 35),
+        auto: typeof k.auto === 'boolean' ? k.auto : true,
+        fadeIn: typeof k.fadeIn === 'boolean' ? k.fadeIn : t.fadeIn !== false,
+        fadeOut: typeof k.fadeOut === 'boolean' ? k.fadeOut : t.fadeOut !== false,
+        bg: { playing: false, idx: 0, seq: 0 },
+        jingle: null, // última sintonía lanzada: { id, url, at }
+    };
+}
+
+function musicList(state) {
+    const m = (state._gameTheme || {}).music;
+    return Array.isArray(m) ? m.filter(isSoundUrl) : [];
+}
+
+// Sintonía que toca: la de la ronda (si tiene, o ninguna si dice 'none') o la de su tipo
+function jingleUrlFor(theme, type, roundCfg) {
+    if (roundCfg && roundCfg.jingle === 'none') return null;
+    if (roundCfg && isSoundUrl(roundCfg.jingle)) return roundCfg.jingle;
+    const t = type && theme && theme.types && theme.types[type];
+    return t && isSoundUrl(t.jingle) ? t.jingle : null;
+}
+
+// La del momento: ronda lanzada o, en el menú, la categoría elegida
+function currentJingleUrl(state) {
+    const ds = state.director, theme = state._gameTheme || {};
+    if (ds.phase === 'lobby' && ds.selectedCategory) return jingleUrlFor(theme, ds.selectedCategory, null);
+    if (ds.currentRound) return jingleUrlFor(theme, ds.currentRound.type, parseJson(ds.currentRound.config));
+    return null;
+}
+
+function playJingle(io, gameId, state, url, force) {
+    const snd = state.director.sound;
+    if (!snd || !isSoundUrl(url)) return false;
+    const now = Date.now(), last = snd.jingle;
+    if (!force && last && last.url === url && now - last.at < JINGLE_REPEAT_MS) return false;
+    snd.jingle = { id: (last ? last.id : 0) + 1, url, at: now };
+    io.to(`screens:${gameId}`).emit('game:jingle', { id: snd.jingle.id, url });
+    return true;
+}
+
+function stopJingle(io, gameId, state) {
+    const snd = state.director.sound;
+    if (snd) snd.jingle = null;
+    io.to(`screens:${gameId}`).emit('game:jingle_stop');
+}
+
+// Lo que necesita la pantalla para sonar (y el coordinador para pintar el panel)
+function soundView(state) {
+    const snd = state.director.sound;
+    if (!snd) return null;
+    const t = (state._gameTheme && state._gameTheme.sound) || {};
+    const list = musicList(state);
+    const idx = list.length ? snd.bg.idx % list.length : 0;
+    const max = Number(t.max);
+    return {
+        jingleVol: snd.jingleVol, bgVol: snd.bgVol, auto: snd.auto, fadeIn: snd.fadeIn, fadeOut: snd.fadeOut,
+        max: Number.isFinite(max) && max > 0 ? Math.max(3, Math.min(120, max)) : JINGLE_MAX_DEFAULT,
+        bg: { playing: snd.bg.playing && list.length > 0, idx, seq: snd.bg.seq, url: list[idx] || null, count: list.length },
+    };
+}
+
 function getOrCreateState(gameId) {
     let s = gameStates.get(gameId);
     if (!s) {
         s = createGameState();
         s._gameTheme = loadGameTheme(gameId);
         applyScreenDefaults(s);
+        applySoundDefaults(s);
         s._rounds = db.prepare('SELECT id, name, type, config FROM rounds WHERE game_id = ? ORDER BY sort_order, id').all(gameId);
         // Load teams from active session in DB
         const session = db.prepare('SELECT id, state FROM sessions WHERE game_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(gameId);
@@ -120,6 +197,7 @@ function snapshotOf(state) {
         bloqueoGlobal: !!state.bloqueoGlobal,
         noScreen: !!ds.noScreen,
         audioOn: ds.audioOn || 'sala',
+        sound: ds.sound ? { jingleVol: ds.sound.jingleVol, bgVol: ds.sound.bgVol, auto: ds.sound.auto, fadeIn: ds.sound.fadeIn, fadeOut: ds.sound.fadeOut, idx: ds.sound.bg.idx } : null,
         pendingScores: ds.pendingScores || null,
         abiertaWip: ds.abiertaWip || {}, // respuestas abiertas a medio corregir
         pic: { done: ds.picDone || [], rank: ds.picRank || {}, last: ds.picLast || null }, // rueda de turnos del Pictionary
@@ -143,6 +221,10 @@ function restoreSnapshot(s, json) {
     s.bloqueoGlobal = !!snap.bloqueoGlobal;
     if (typeof snap.noScreen === 'boolean') s.director.noScreen = snap.noScreen;
     if (snap.audioOn === 'ipads' || snap.audioOn === 'sala') s.director.audioOn = snap.audioOn;
+    if (snap.sound && typeof snap.sound === 'object') {
+        applySoundDefaults(s, snap.sound);
+        if (Number.isInteger(snap.sound.idx) && snap.sound.idx >= 0) s.director.sound.bg.idx = snap.sound.idx;
+    }
     if (snap.pendingScores && typeof snap.pendingScores === 'object') s.director.pendingScores = snap.pendingScores;
     if (snap.abiertaWip && typeof snap.abiertaWip === 'object') s.director.abiertaWip = snap.abiertaWip;
     if (snap.pic && typeof snap.pic === 'object') {
@@ -180,6 +262,9 @@ function resetGameForNewSession(gameId, sessionId) {
     if (s.precioTimeoutHandle) clearTimeout(s.precioTimeoutHandle);
     clearPreCountdown(s);
     if (s._timerHandle) clearInterval(s._timerHandle);
+    // Los volúmenes y «automáticas» del panel 🎵 siguen igual (se ajustan a la sala); los fundidos vuelven a los del backoffice
+    const prevSound = s.director && s.director.sound;
+    const keepSound = prevSound ? { jingleVol: prevSound.jingleVol, bgVol: prevSound.bgVol, auto: prevSound.auto } : null;
     const fresh = createGameState();
     for (const k of Object.keys(s)) delete s[k];
     Object.assign(s, fresh, {
@@ -189,7 +274,9 @@ function resetGameForNewSession(gameId, sessionId) {
         _rounds: db.prepare('SELECT id, name, type, config FROM rounds WHERE game_id = ? ORDER BY sort_order, id').all(gameId),
     });
     applyScreenDefaults(s);
+    applySoundDefaults(s, keepSound);
     if (_io) {
+        _io.to(`screens:${gameId}`).emit('game:jingle_stop');
         _io.to(roomOf(gameId)).emit('game:reset_full');
         broadcastDirector(_io, gameId, s);
     }
@@ -1205,6 +1292,7 @@ function playerView(state, forPlayers) {
         padConnected: !!ds.padConnected, // pizarra fija enlazada
         noScreen: !!ds.noScreen,          // modo sin pantalla: los iPads llevan el escenario
         audioOn: ds.audioOn || 'sala',    // dónde suena (vídeo y efectos): 'sala' (ordenador) o 'ipads'
+        sound: forPlayers ? null : soundView(state), // sintonías y música de fondo (solo pantallas)
         karaoke: ds.karaoke ? { blocks: ds.karaoke.blocks, blockIdx: ds.karaoke.blockIdx, activeCombo: ds.karaoke.activeCombo, finished: ds.karaoke.finished, winnerColor: ds.karaoke.winnerColor, teamsByColor: ds.karaoke.teamsByColor } : null,
     };
 }
@@ -2043,6 +2131,67 @@ function attachSocketHandlers(io) {
             ds.qrVisible = false;
             state.pulsadorActivo = false;
             state.colaPulsador = [];
+            // Sintonía de la ronda (o de su tipo). Si es la misma que acaba de sonar al elegir la categoría, no se repite.
+            if (ds.sound && ds.sound.auto) {
+                state._gameTheme = loadGameTheme(gameId);
+                playJingle(io, gameId, state, jingleUrlFor(state._gameTheme, round.type, parseJson(round.config)), false);
+            }
+            broadcastDirector(io, gameId, state);
+        });
+
+        // ═══════════════════════ SONIDO: sintonías y música de fondo (panel 🎵) ═══════════════════════
+
+        socket.on('director:sound', (data) => {
+            const ds = state.director, snd = ds.sound;
+            if (!snd || !data) return;
+            state._gameTheme = loadGameTheme(gameId); // la lista de fondo puede haber cambiado en el backoffice
+            const len = musicList(state).length;
+            switch (data.action) {
+                case 'jingle': playJingle(io, gameId, state, currentJingleUrl(state), true); break;
+                case 'jingle_stop': stopJingle(io, gameId, state); break;
+                case 'bg_play': if (!len) return; snd.bg.playing = true; break;
+                case 'bg_pause': snd.bg.playing = false; break;
+                case 'bg_next': case 'bg_prev': case 'bg_pick': {
+                    if (!len) return;
+                    const cur = snd.bg.idx % len;
+                    const i = data.action === 'bg_pick' ? Number(data.idx) : cur + (data.action === 'bg_next' ? 1 : -1);
+                    if (!Number.isInteger(i)) return;
+                    snd.bg.idx = ((i % len) + len) % len;
+                    snd.bg.seq++;
+                    snd.bg.playing = true;
+                    break;
+                }
+                case 'silence': stopJingle(io, gameId, state); snd.bg.playing = false; break;
+                case 'set': {
+                    if (data.jingleVol !== undefined) snd.jingleVol = volOf(data.jingleVol, snd.jingleVol);
+                    if (data.bgVol !== undefined) snd.bgVol = volOf(data.bgVol, snd.bgVol);
+                    ['auto', 'fadeIn', 'fadeOut'].forEach(k => { if (typeof data[k] === 'boolean') snd[k] = data[k]; });
+                    break;
+                }
+                default: return;
+            }
+            broadcastDirector(io, gameId, state);
+        });
+
+        // La pantalla avisa al acabar una canción del fondo: pasa a la siguiente (solo si sigue siendo
+        // la misma canción: con dos pantallas abiertas no se salta dos)
+        socket.on('screen:bg_ended', (data) => {
+            const snd = state.director.sound;
+            if (!socket.isScreen || socket.isEmbed || !snd || !data) return;
+            const len = musicList(state).length;
+            if (!len || data.idx !== snd.bg.idx % len || data.seq !== snd.bg.seq) return;
+            snd.bg.idx = (snd.bg.idx + 1) % len;
+            snd.bg.seq++;
+            broadcastDirector(io, gameId, state);
+        });
+
+        // ¿Puede sonar la pantalla? Los navegadores no dejan sonar nada hasta el primer clic en ella
+        socket.on('screen:sound_state', (data) => {
+            if (!socket.isScreen || socket.isEmbed) return;
+            if (!state.director.screensSound) state.director.screensSound = {};
+            const v = data && data.blocked ? 'blocked' : 'ok';
+            if (state.director.screensSound[socket.id] === v) return;
+            state.director.screensSound[socket.id] = v;
             broadcastDirector(io, gameId, state);
         });
 
@@ -2644,7 +2793,13 @@ function attachSocketHandlers(io) {
             ds.selectedCategory = null;
             broadcastDirector(io, gameId, state);
         });
-        socket.on('director:select_category', (data) => { if (!data || !data.category) return; state.director.phase = 'lobby'; state.director.menuLevel = 'category'; state.director.selectedCategory = data.category; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false; broadcastDirector(io, gameId, state); });
+        socket.on('director:select_category', (data) => { if (!data || !data.category) return; state.director.phase = 'lobby'; state.director.menuLevel = 'category'; state.director.selectedCategory = data.category; state.director.scoreboardVisible = false; state.director.qrVisible = false; state.director.premioAnuncioVisible = false; state.director.premioGanadorVisible = false;
+            // Sintonía del tipo elegido (si las automáticas están puestas)
+            if (state.director.sound && state.director.sound.auto) {
+                state._gameTheme = loadGameTheme(gameId);
+                playJingle(io, gameId, state, jingleUrlFor(state._gameTheme, String(data.category), null), false);
+            }
+            broadcastDirector(io, gameId, state); });
 
         socket.on('director:block_team', (data) => {
             if (!data || !data.teamId) return;
@@ -3112,6 +3267,10 @@ function attachSocketHandlers(io) {
             }
             if (state.director.screensPreload && state.director.screensPreload[socket.id]) {
                 delete state.director.screensPreload[socket.id];
+                broadcastDirector(io, gameId, state);
+            }
+            if (state.director.screensSound && state.director.screensSound[socket.id]) {
+                delete state.director.screensSound[socket.id];
                 broadcastDirector(io, gameId, state);
             }
             if (!socket.equipoId) return;

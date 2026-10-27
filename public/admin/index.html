@@ -158,6 +158,11 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .media-item .media-size { font-size: 10px; color: var(--text2); }
 .media-item .media-delete { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.7); border: none; color: var(--danger); font-size: 14px; width: 24px; height: 24px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; }
 .media-item:hover .media-delete { opacity: 1; }
+.music-list { display: flex; flex-direction: column; gap: 4px; }
+.music-item { display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+.music-num { font-size: 11px; color: var(--text2); width: 18px; text-align: right; flex-shrink: 0; }
+.music-name { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-empty { font-size: 12px; color: var(--text2); padding: 6px 0; }
 .audio-list { display: flex; flex-direction: column; gap: 8px; }
 .audio-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: border .15s; }
 .audio-item:hover { border-color: var(--accent); }
@@ -444,8 +449,26 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 </div>
             </div>
 
-            <div class="section-label">Logos y fondos por categoría</div>
+            <div class="section-label">Logos, fondos y sintonías por categoría</div>
+            <p style="font-size:12px; color:var(--text2); margin:-4px 0 10px; line-height:1.5">La sintonía suena en la sala al elegir la categoría en el menú del coordinador y al lanzar una ronda de ese tipo (cada ronda puede llevar la suya). Lo ideal: piezas cortas de 10-15 s.</p>
             <div id="type-logos-container"></div>
+
+            <div class="section-label">Sonido en sala</div>
+            <div class="field"><label>Música de fondo <span style="font-weight:400; color:var(--text2); text-transform:none; letter-spacing:0">(la pones y la paras desde el panel 🎵 del coordinador)</span></label>
+                <div id="music-list" class="music-list"></div>
+                <div class="upload-row" style="margin-top:6px">
+                    <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">+ Subir canción<input type="file" accept="audio/*" multiple style="display:none" onchange="uploadMusicFiles(this)"></label>
+                    <button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker('audio', function(url){ musicAdd(url); })">&#128193; Añadir de la biblioteca</button>
+                </div>
+                <input type="hidden" name="theme_music">
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Cortar las sintonías a los… (segundos)</label><input type="number" name="theme_jingle_max" min="3" max="120" placeholder="20"></div>
+                <div class="field"><label>Fundidos por defecto</label>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; text-transform:none; letter-spacing:0; font-weight:400; color:var(--text)"><input type="checkbox" name="theme_fade_in" checked style="width:auto; accent-color:var(--accent)"> De entrada</label>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; text-transform:none; letter-spacing:0; font-weight:400; color:var(--text)"><input type="checkbox" name="theme_fade_out" checked style="width:auto; accent-color:var(--accent)"> De salida</label>
+                </div>
+            </div>
 
             <div class="section-label">Configuración de juego</div>
             <div class="field"><label>Modo de congelación</label>
@@ -565,6 +588,10 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                     <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'cfg_background')"></label>
                     <button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker('images', function(url){ document.querySelector('[name=cfg_background]').value = url; })">&#128193;</button>
                 </div>
+            </div>
+            <div class="field"><label>Sintonía de la ronda <span style="font-weight:400; color:var(--text2); text-transform:none; letter-spacing:0">(vacía = la de su tipo, del juego)</span></label>
+                <div id="round-jingle-row"></div>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; text-transform:none; letter-spacing:0; font-weight:400; color:var(--text); margin-top:6px"><input type="checkbox" name="cfg_jingle_none" style="width:auto; accent-color:var(--accent)"> Esta ronda va sin sintonía</label>
             </div>
 
             <input type="hidden" name="id">
@@ -1173,6 +1200,7 @@ function renderRounds() {
                 ${QuestionValidation.fastestExtraOf({}, r.config) && !NO_EXTRA_TYPES[r.type] ? '<span>⚡ extra al más rápido</span>' : ''}
                 ${r.config.logo ? `<span>🖼️ Logo</span>` : ''}
                 ${r.config.background ? `<span>🎨 Fondo</span>` : ''}
+                ${r.config.jingle === 'none' ? `<span>🔇 Sin sintonía</span>` : r.config.jingle ? `<span>🎵 Sintonía propia</span>` : ''}
             </div>
         </div>`;
     }).join('');
@@ -1234,10 +1262,14 @@ function openRoundModal(round = null) {
         form.cfg_penalty.value = cfg.penalty ?? 0;
         form.cfg_logo.value = cfg.logo || '';
         form.cfg_background.value = cfg.background || '';
+        document.getElementById('round-jingle-row').innerHTML = jingleRow('cfg_jingle', cfg.jingle && cfg.jingle !== 'none' ? cfg.jingle : '', 'Sintonía de esta ronda');
+        form.cfg_jingle_none.checked = cfg.jingle === 'none';
         form.id.value = round.id;
     } else {
         document.getElementById('modal-round-title').textContent = 'Nueva ronda';
         form.id.value = '';
+        document.getElementById('round-jingle-row').innerHTML = jingleRow('cfg_jingle', '', 'Sintonía de esta ronda');
+        form.cfg_jingle_none.checked = false;
     }
     toggleTimeField(form.type.value);
     form.type.onchange = function() {
@@ -1261,6 +1293,7 @@ async function saveRound(e) {
         penalty: numOr(form.cfg_penalty.value, 0),
         logo: form.cfg_logo.value.trim() || undefined,
         background: form.cfg_background.value.trim() || undefined,
+        jingle: form.cfg_jingle_none.checked ? 'none' : (form.cfg_jingle.value.trim() || undefined),
     };
     if (isPic) {
         config.picMode = form.cfg_picMode.value === 'ipad' ? 'ipad' : 'equipos';
@@ -2320,8 +2353,10 @@ function renderTypeLogos(typesObj) {
     container.innerHTML = Object.keys(TYPE_LABELS).map(function(t) {
         const logoVal = (typesObj[t] && typesObj[t].logo) || '';
         const bgVal = (typesObj[t] && typesObj[t].background) || '';
+        const jingleVal = (typesObj[t] && typesObj[t].jingle) || '';
         const logoField = 'type_logo_' + t;
         const bgField = 'type_bg_' + t;
+        const jingleField = 'type_jingle_' + t;
         return '<div class="field" style="margin-bottom:10px">' +
             '<label>' + esc(TYPE_LABELS[t]) + '</label>' +
             '<div class="upload-row" style="margin-bottom:4px">' +
@@ -2334,8 +2369,95 @@ function renderTypeLogos(typesObj) {
                 '<label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,\'' + bgField + '\')"></label>' +
                 '<button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker(\'images\', function(url){ document.querySelector(\'[name=' + bgField + ']\').value = url; })">&#128193;</button>' +
             '</div>' +
+            jingleRow(jingleField, jingleVal, 'Sintonía ' + TYPE_LABELS[t]) +
         '</div>';
     }).join('');
+}
+
+// ─── Sonido: sintonías (por tipo y por ronda) y música de fondo ───
+// Fila de sintonía: URL + Subir + biblioteca + escuchar. El nombre del campo va en data-*, no dentro del onclick.
+function jingleRow(field, val, placeholder) {
+    return '<div class="upload-row" style="margin-top:4px">' +
+        '<input type="text" name="' + field + '" placeholder="' + esc(placeholder) + ' (audio)" value="' + esc(val) + '">' +
+        '<label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="audio/*" style="display:none" data-field="' + field + '" onchange="uploadAudioFile(this, this.dataset.field)"></label>' +
+        '<button type="button" class="btn-ghost btn-sm" data-field="' + field + '" onclick="pickAudioInto(this.dataset.field)" title="Elegir de la biblioteca">&#128193;</button>' +
+        '<button type="button" class="btn-ghost btn-sm" data-field="' + field + '" onclick="previewSound(this, document.querySelector(\'[name=\' + this.dataset.field + \']\').value)" title="Escuchar">&#9654;</button>' +
+    '</div>';
+}
+
+function pickAudioInto(field) {
+    openMediaPicker('audio', function(url) { const f = document.querySelector('[name="' + field + '"]'); if (f) f.value = url; });
+}
+
+async function postAudio(file) {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(API + '/upload/audio', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    return data.url;
+}
+
+async function uploadAudioFile(fileInput, targetFieldName) {
+    const file = fileInput.files[0];
+    if (!file) return;
+    fileInput.value = '';
+    try {
+        const url = await postAudio(file);
+        const field = document.querySelector(`[name="${targetFieldName}"]`);
+        if (field) field.value = url;
+        toast('Audio subido');
+    } catch (e) { toast('Error subiendo: ' + e.message); }
+}
+
+// Escuchar un audio desde el backoffice (un solo reproductor: el segundo clic lo para)
+let _previewAudio = null, _previewBtn = null;
+function previewSound(btn, url) {
+    if (_previewAudio) { _previewAudio.pause(); if (_previewBtn) _previewBtn.innerHTML = '&#9654;'; }
+    if (_previewBtn === btn || !url) { _previewAudio = null; _previewBtn = null; return; }
+    _previewAudio = new Audio(url);
+    _previewBtn = btn;
+    btn.innerHTML = '&#9632;';
+    _previewAudio.addEventListener('ended', () => { btn.innerHTML = '&#9654;'; _previewAudio = null; _previewBtn = null; });
+    _previewAudio.play().catch(() => { toast('No se puede reproducir ese audio'); btn.innerHTML = '&#9654;'; _previewBtn = null; });
+}
+
+function soundFileName(url) {
+    let n = String(url || '').split('/').pop();
+    try { n = decodeURIComponent(n); } catch (e) {}
+    return n;
+}
+
+// Lista de música de fondo del juego (se guarda en theme.music; el campo oculto lleva el JSON)
+let _music = [];
+function musicRender() {
+    document.querySelector('[name="theme_music"]').value = JSON.stringify(_music);
+    const el = document.getElementById('music-list');
+    if (!_music.length) { el.innerHTML = '<div class="music-empty">Sin música de fondo.</div>'; return; }
+    el.innerHTML = _music.map((u, i) => `<div class="music-item">
+        <span class="music-num">${i + 1}</span>
+        <span class="music-name" title="${esc(u)}">${esc(soundFileName(u))}</span>
+        <button type="button" class="btn-icon btn-sm" data-i="${i}" onclick="previewSound(this, _music[this.dataset.i])" title="Escuchar">&#9654;</button>
+        <button type="button" class="btn-icon btn-sm" data-i="${i}" onclick="musicMove(+this.dataset.i, -1)" title="Subir" ${i === 0 ? 'disabled' : ''}>&#8593;</button>
+        <button type="button" class="btn-icon btn-sm" data-i="${i}" onclick="musicMove(+this.dataset.i, 1)" title="Bajar" ${i === _music.length - 1 ? 'disabled' : ''}>&#8595;</button>
+        <button type="button" class="btn-icon btn-sm" data-i="${i}" onclick="musicRemove(+this.dataset.i)" title="Quitar de la lista">&#10005;</button>
+    </div>`).join('');
+}
+function musicAdd(url) { if (url && !_music.includes(url)) { _music.push(url); musicRender(); } }
+function musicRemove(i) { _music.splice(i, 1); musicRender(); }
+function musicMove(i, d) {
+    const j = i + d;
+    if (j < 0 || j >= _music.length) return;
+    [_music[i], _music[j]] = [_music[j], _music[i]];
+    musicRender();
+}
+async function uploadMusicFiles(input) {
+    const files = Array.from(input.files || []);
+    input.value = '';
+    for (const f of files) {
+        try { musicAdd(await postAudio(f)); toast('Subida: ' + f.name); }
+        catch (e) { toast('Error subiendo ' + f.name + ': ' + e.message); }
+    }
 }
 
 function buildThemeFromForm(form) {
@@ -2367,15 +2489,26 @@ function buildThemeFromForm(form) {
     Object.keys(TYPE_LABELS).forEach(function(t) {
         const logoField = document.querySelector('[name="type_logo_' + t + '"]');
         const bgField = document.querySelector('[name="type_bg_' + t + '"]');
+        const jingleField = document.querySelector('[name="type_jingle_' + t + '"]');
         const logo = logoField && logoField.value.trim();
         const bg = bgField && bgField.value.trim();
-        if (logo || bg) {
+        const jingle = jingleField && jingleField.value.trim();
+        if (logo || bg || jingle) {
             types[t] = {};
             if (logo) types[t].logo = logo;
             if (bg) types[t].background = bg;
+            if (jingle) types[t].jingle = jingle;
         }
     });
     if (Object.keys(types).length) theme.types = types;
+    // Sonido en sala: música de fondo y cómo suenan las sintonías
+    if (_music.length) theme.music = _music.slice();
+    const sound = {};
+    const max = Number(form.theme_jingle_max.value);
+    if (form.theme_jingle_max.value !== '' && Number.isFinite(max) && max > 0) sound.max = Math.max(3, Math.min(120, Math.round(max)));
+    if (!form.theme_fade_in.checked) sound.fadeIn = false;
+    if (!form.theme_fade_out.checked) sound.fadeOut = false;
+    if (Object.keys(sound).length) theme.sound = sound;
     const freezeMode = form.freeze_mode.value;
     if (freezeMode && freezeMode !== 'coordinador') theme.freezeMode = freezeMode;
     return Object.keys(theme).length ? theme : null;
@@ -2422,6 +2555,12 @@ function populateThemeForm(form, theme) {
     form.theme_audio.value = theme.audio === 'ipads' ? 'ipads' : 'sala';
     // Render per-type logo and background fields
     renderTypeLogos(theme.types || {});
+    _music = Array.isArray(theme.music) ? theme.music.filter(u => typeof u === 'string' && u) : [];
+    musicRender();
+    const snd = theme.sound || {};
+    form.theme_jingle_max.value = snd.max || '';
+    form.theme_fade_in.checked = snd.fadeIn !== false;
+    form.theme_fade_out.checked = snd.fadeOut !== false;
     form.freeze_mode.value = theme.freezeMode || 'coordinador';
 }
 

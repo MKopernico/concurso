@@ -48,6 +48,7 @@ function uniqueName(dest, base, ext) {
 const EXT_BY_MIME = {
     'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp', 'image/svg+xml': '.svg',
     'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/wav': '.wav', 'audio/ogg': '.ogg', 'audio/aac': '.aac', 'audio/mp4': '.m4a',
+    'audio/x-m4a': '.m4a', 'audio/x-wav': '.wav', 'audio/wave': '.wav', // así los marca Windows
     'video/mp4': '.mp4', 'video/webm': '.webm',
 };
 
@@ -91,8 +92,8 @@ const audioUpload = multer({
     storage: makeStorage('audio'),
     limits: { fileSize: 30 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-        if (/^audio\/(mpeg|mp3|wav|ogg|aac|mp4)$/.test(file.mimetype)) cb(null, true);
-        else cb(new Error('Solo se admiten audios (mp3, wav, ogg, aac)'));
+        if (/^audio\/(mpeg|mp3|wav|x-wav|wave|ogg|aac|mp4|x-m4a)$/.test(file.mimetype)) cb(null, true);
+        else cb(new Error('Solo se admiten audios (mp3, m4a, wav, ogg, aac)'));
     }
 });
 
@@ -231,6 +232,21 @@ function gameUploadUrls(gameId) {
     return urls;
 }
 
+// Sintonías (por tipo y por ronda) y música de fondo: la pantalla de sala las precarga aunque no
+// precargue el resto del audio (las canciones de «Adivina la canción» suenan en el coordinador).
+function gameSoundUrls(gameId) {
+    const parse = (s) => { try { return JSON.parse(s) || {}; } catch { return {}; } };
+    const g = db.prepare('SELECT theme FROM games WHERE id = ?').get(gameId);
+    const urls = new Set();
+    if (!g) return urls;
+    const add = (u) => { if (typeof u === 'string' && u.startsWith('/uploads/')) urls.add(u); };
+    const theme = parse(g.theme);
+    Object.values(theme.types || {}).forEach(t => add(t && t.jingle));
+    (Array.isArray(theme.music) ? theme.music : []).forEach(add);
+    db.prepare('SELECT config FROM rounds WHERE game_id = ?').all(gameId).forEach(r => add(parse(r.config).jingle));
+    return urls;
+}
+
 router.get('/games/:id/assets', (req, res) => {
     const role = req.query.role;
     if (!ROLE_KINDS[role]) return res.status(400).json({ error: 'role inválido (play|screen|director)' });
@@ -242,10 +258,11 @@ router.get('/games/:id/assets', (req, res) => {
     if (role === 'director') readPlaylist().forEach(u => { if (String(u).startsWith('/uploads/')) urls.add(u); });
 
     const kinds = ROLE_KINDS[role];
+    const sounds = role === 'screen' ? gameSoundUrls(req.params.id) : new Set();
     const files = [], missing = [];
     for (const url of urls) {
         const kind = kindOf(url);
-        if (!kinds.includes(kind)) continue;
+        if (!kinds.includes(kind) && !(kind === 'audio' && sounds.has(url))) continue;
         let rel;
         try { rel = decodeURIComponent(url.slice('/uploads/'.length)); } catch { missing.push(url); continue; }
         const abs = path.join(UPLOADS_DIR, rel);

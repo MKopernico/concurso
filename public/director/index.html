@@ -345,6 +345,24 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .bl-panel .bl-icon { flex-shrink: 0; font-size: 14px; }
 .bl-panel .bl-text { flex: 1; color: var(--text); line-height: 1.4; }
 .bl-panel .bl-time { flex-shrink: 0; font-size: 10px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.snd-panel { width: min(360px, calc(100vw - 16px)); }
+.snd-panel.active { gap: 10px; }
+.snd-sec { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: var(--surface2); border-radius: 8px; }
+.snd-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); }
+.snd-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.snd-name { font-size: 12px; color: var(--text2); min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snd-vol { display: grid; grid-template-columns: auto 1fr 34px; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); }
+.snd-vol input { width: 100%; accent-color: var(--accent); }
+.snd-vol b { font-size: 12px; color: var(--text); text-align: right; }
+.snd-check { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+.snd-check input { width: auto; accent-color: var(--accent); }
+.snd-track { width: 100%; font-size: 13px; padding: 6px 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; }
+.snd-play { flex: 1; }
+.snd-note { font-size: 11px; color: var(--text2); line-height: 1.4; }
+.snd-note:empty { display: none; }
+.snd-warn { font-size: 12px; line-height: 1.4; padding: 6px 8px; border-radius: 6px; background: rgba(250,204,21,.12); border: 1px solid rgba(250,204,21,.4); color: var(--gold); }
+.header-actions .hdr-btn.snd-on { background: rgba(34,197,94,.14); border-color: var(--success); color: var(--success); }
+.header-actions .hdr-btn.snd-alert { background: rgba(250,204,21,.15); border-color: #facc15; color: #facc15; }
 .bl-panel .bl-cancel { background: none; border: none; color: var(--text2); font-size: 11px; cursor: pointer; font-family: inherit; padding: 2px; }
 .bl-panel .bl-cancel:hover { color: var(--text); }
 .bl-badge { background: var(--accent); color: #fff; font-size: 9px; font-weight: 700; border-radius: 8px; padding: 1px 5px; margin-left: 3px; vertical-align: top; }
@@ -681,6 +699,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
         <button class="btn-ghost hdr-btn" onclick="emit('director:show_waiting')" title="Espera"><span>&#9208;</span><span class="hdr-label">Espera</span></button>
         <button class="btn-ghost hdr-btn" id="btnNoScreen" onclick="toggleNoScreen()" title="Modo sin pantalla: los iPads muestran también lo de la pantalla de sala"><span id="noScreenIcon">&#128250;</span><span class="hdr-label" id="noScreenLabel">Con pantalla</span></button>
         <button class="btn-ghost hdr-btn" id="btnAudioOn" onclick="toggleAudioOn()" title="Dónde suenan los vídeos y efectos sin pantalla" style="display:none"><span>&#128266;</span><span class="hdr-label" id="audioOnLabel">Sonido: ordenador</span></button>
+        <button class="btn-ghost hdr-btn" id="btnSound" onclick="toggleSoundPanel(this)" title="Sintonías y música de fondo"><span id="sndIcon">&#127925;</span><span class="hdr-label" id="sndLabel">M&uacute;sica</span></button>
         <button class="btn-ghost hdr-btn" id="btnRefreshContent" onclick="refreshContent()" title="Aplicar cambios en caliente"><span>&#128259;</span><span class="hdr-label">Cargar</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_premio_anuncio')" title="Anuncio de premio en pantalla"><span>&#127873;</span><span class="hdr-label">Bono</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_premio_ganador')" title="Anuncio de ganador del bono"><span>&#127941;</span><span class="hdr-label">Ganador bono</span></button>
@@ -1187,6 +1206,41 @@ body.round-type-karaoke #headerTimer { display: none !important; }
     <div id="blBody"></div>
 </div>
 
+<!-- Panel de sonido (🎵): sintonías y música de fondo. Suena en la pantalla de sala. -->
+<div class="bl-panel snd-panel" id="sndPanel">
+    <div class="bl-header">
+        <span class="bl-label">&#127925; Sonido en sala</span>
+        <button class="bl-cancel" onclick="closeSoundPanel()">Cerrar</button>
+    </div>
+    <div class="snd-warn" id="sndWarn" style="display:none"></div>
+    <div class="snd-sec">
+        <div class="snd-title">Sintonías</div>
+        <div class="snd-row">
+            <button class="btn-success btn-sm" data-snd="jingle" id="sndJingleBtn">&#9654; Sintonía</button>
+            <button class="btn-ghost btn-sm" data-snd="jingle_stop" title="Cortar la sintonía">&#9632;</button>
+            <span class="snd-name" id="sndJingleName"></span>
+        </div>
+        <label class="snd-vol"><span>Volumen</span><input type="range" min="0" max="100" step="1" id="sndJingleVol" data-key="jingleVol"><b id="sndJingleVolTxt"></b></label>
+        <label class="snd-check"><input type="checkbox" id="sndAuto" data-key="auto"> Suenan solas al elegir tipo y al lanzar ronda</label>
+        <div class="snd-row">
+            <label class="snd-check"><input type="checkbox" id="sndFadeIn" data-key="fadeIn"> Fundido de entrada</label>
+            <label class="snd-check"><input type="checkbox" id="sndFadeOut" data-key="fadeOut"> Fundido de salida</label>
+        </div>
+    </div>
+    <div class="snd-sec">
+        <div class="snd-title">M&uacute;sica de fondo</div>
+        <select id="sndTrack" class="snd-track"></select>
+        <div class="snd-row">
+            <button class="btn-ghost btn-sm" data-snd="bg_prev" title="Anterior">&#9198;</button>
+            <button class="btn-success btn-sm snd-play" data-snd="bg_toggle" id="sndBgBtn">&#9654; Reproducir</button>
+            <button class="btn-ghost btn-sm" data-snd="bg_next" title="Siguiente">&#9197;</button>
+        </div>
+        <label class="snd-vol"><span>Volumen</span><input type="range" min="0" max="100" step="1" id="sndBgVol" data-key="bgVol"><b id="sndBgVolTxt"></b></label>
+        <div class="snd-note" id="sndBgNote"></div>
+    </div>
+    <button class="btn-danger btn-sm" data-snd="silence">&#128263; Silencio total</button>
+</div>
+
 <div id="toast"></div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/shared/staff-session.js"></script>
@@ -1280,8 +1334,10 @@ function onSync(state) {
     S.pulsadorActivo = state.pulsadorActivo;
     S.colaPulsador = state.colaPulsador || [];
     S.bloqueoGlobal = state.bloqueoGlobal;
+    S.gameTheme = state.gameTheme || {};
     render();
     renderNoScreen();
+    renderSound();
     updateBonoLogBadge();
     if (document.getElementById('blPanel').classList.contains('active') && S.director && S.director.logCount !== _blFetched) requestLog();
 }
@@ -3436,6 +3492,8 @@ document.addEventListener('mousedown', function(e) {
     if (pop.classList.contains('active') && !pop.contains(e.target)) closeBonusMenu();
     var blp = document.getElementById('blPanel');
     if (blp.classList.contains('active') && !blp.contains(e.target) && e.target.id !== 'btnBonoLog') closeBonoLog();
+    var snp = document.getElementById('sndPanel');
+    if (snp.classList.contains('active') && !snp.contains(e.target) && !(e.target.closest && e.target.closest('#btnSound'))) closeSoundPanel();
 });
 
 // ── Bono Log panel ──
@@ -3477,6 +3535,146 @@ function toggleBonoLog(btnEl) {
 function closeBonoLog() {
     document.getElementById('blPanel').classList.remove('active');
 }
+
+// ═══════════════ Panel 🎵: sintonías y música de fondo ═══════════════
+// Las órdenes van al servidor ('director:sound') y suenan en la pantalla de sala.
+function toggleSoundPanel(btnEl) {
+    var panel = document.getElementById('sndPanel');
+    if (panel.classList.contains('active')) { closeSoundPanel(); return; }
+    panel.classList.add('active');
+    renderSound();
+    var rect = btnEl.getBoundingClientRect();
+    var left = rect.left + rect.width / 2 - panel.offsetWidth / 2;
+    if (left < 4) left = 4;
+    if (left + panel.offsetWidth > window.innerWidth - 4) left = window.innerWidth - panel.offsetWidth - 4;
+    panel.style.left = left + 'px';
+    panel.style.top = (rect.bottom + 8) + 'px';
+}
+function closeSoundPanel() { document.getElementById('sndPanel').classList.remove('active'); }
+
+// Nombre legible de un archivo subido: «/uploads/audio/Intro_Boom-2.mp3» → «Intro Boom»
+function soundName(url) {
+    var n = String(url || '').split('/').pop();
+    try { n = decodeURIComponent(n); } catch (e) {}
+    return n.replace(/\.[a-z0-9]+$/i, '').replace(/-\d+$/, '').replace(/[_-]+/g, ' ').trim() || 'audio';
+}
+function soundMusic() {
+    var m = (S.gameTheme || {}).music;
+    return Array.isArray(m) ? m.filter(function(u) { return typeof u === 'string' && u; }) : [];
+}
+// La sintonía que sonaría ahora con «▶ Sintonía» (misma regla que el servidor)
+function currentJingle() {
+    var ds = S.director || {}, theme = S.gameTheme || {};
+    var type = null, cfg = null;
+    if (ds.phase === 'lobby' && ds.selectedCategory) type = ds.selectedCategory;
+    else if (ds.currentRound) {
+        type = ds.currentRound.type;
+        try { cfg = JSON.parse(ds.currentRound.config || '{}') || {}; } catch (e) { cfg = {}; }
+    }
+    if (cfg && cfg.jingle === 'none') return { none: true };
+    if (cfg && cfg.jingle) return { url: cfg.jingle, from: 'la ronda' };
+    var t = type && theme.types && theme.types[type];
+    if (t && t.jingle) return { url: t.jingle, from: TYPE_LABELS[type] || type };
+    return null;
+}
+
+var _sndDrag = null, _sndSendT = null;
+function sndSet(key, val) {
+    var d = { action: 'set' }; d[key] = val;
+    if (key === 'jingleVol' || key === 'bgVol') {
+        // Al arrastrar el deslizador: como mucho una orden cada 120 ms (y la última siempre)
+        clearTimeout(_sndSendT);
+        _sndSendT = setTimeout(function() { emit('director:sound', d); }, 120);
+    } else emit('director:sound', d);
+}
+
+function renderSound() {
+    var ds = S.director || {}, snd = ds.sound;
+    var btn = document.getElementById('btnSound');
+    if (!snd) { btn.style.display = 'none'; return; }
+    btn.style.display = '';
+    var music = soundMusic();
+    var playing = !!(snd.bg && snd.bg.playing && music.length);
+    var screens = ds.screensSound || {};
+    var blocked = Object.keys(screens).some(function(k) { return screens[k] === 'blocked'; });
+    btn.classList.toggle('snd-on', playing && !blocked);
+    btn.classList.toggle('snd-alert', blocked);
+    document.getElementById('sndLabel').textContent = blocked ? 'Sin sonido' : playing ? 'Sonando' : 'Música';
+
+    var panel = document.getElementById('sndPanel');
+    if (!panel.classList.contains('active')) return;
+
+    // Avisos: pantalla sin permiso para sonar, sin pantalla conectada, sonido en los iPads
+    var warn = [];
+    var ipads = ds.noScreen && ds.audioOn === 'ipads';
+    if (blocked) warn.push('La pantalla de sala aún no puede sonar: haz un clic en ella (el navegador lo exige).');
+    if (!ipads && !Object.keys(ds.screensPreload || {}).length) warn.push('No hay ninguna pantalla de sala abierta: no sonará nada.');
+    if (ipads) warn.push('Con «Sonido: iPads» las sintonías suenan en cada iPad y la música de fondo no suena.');
+    var w = document.getElementById('sndWarn');
+    w.style.display = warn.length ? '' : 'none';
+    w.textContent = warn.join(' ');
+
+    var cj = currentJingle();
+    document.getElementById('sndJingleBtn').disabled = !(cj && cj.url);
+    document.getElementById('sndJingleName').textContent = !cj ? 'Esta prueba no tiene sintonía'
+        : cj.none ? 'Esta ronda va sin sintonía' : soundName(cj.url) + ' · de ' + cj.from;
+
+    [['sndJingleVol', 'jingleVol'], ['sndBgVol', 'bgVol']].forEach(function(p) {
+        var el = document.getElementById(p[0]);
+        if (_sndDrag !== el) el.value = snd[p[1]];
+        document.getElementById(p[0] + 'Txt').textContent = el.value + '%';
+    });
+    document.getElementById('sndAuto').checked = !!snd.auto;
+    document.getElementById('sndFadeIn').checked = !!snd.fadeIn;
+    document.getElementById('sndFadeOut').checked = !!snd.fadeOut;
+
+    var sel = document.getElementById('sndTrack');
+    var idx = music.length ? snd.bg.idx % music.length : 0;
+    var key = music.join('|');
+    if (sel.dataset.key !== key) {
+        sel.dataset.key = key;
+        sel.innerHTML = '';
+        music.forEach(function(u, i) {
+            var o = document.createElement('option');
+            o.value = i; o.textContent = (i + 1) + '. ' + soundName(u);
+            sel.appendChild(o);
+        });
+    }
+    sel.value = idx;
+    sel.disabled = !music.length;
+    var bb = document.getElementById('sndBgBtn');
+    bb.innerHTML = playing ? '&#10074;&#10074; Pausa' : '&#9654; Reproducir';
+    bb.className = (playing ? 'btn-ghost' : 'btn-success') + ' btn-sm snd-play';
+    bb.disabled = !music.length;
+    document.getElementById('sndBgNote').textContent = !music.length
+        ? 'Este juego no tiene música de fondo. Se añade en el backoffice (editar juego › Sonido).'
+        : playing && (ds.currentRound && (ds.currentRound.type === 'cancion' || ds.currentRound.type === 'karaoke') && ds.phase !== 'lobby' && ds.phase !== 'waiting')
+            ? 'En pausa automática mientras dura esta prueba (lleva su propia música).'
+            : 'Baja sola mientras suena una sintonía y se para con vídeos, «Adivina la canción» y karaoke.';
+}
+
+document.getElementById('sndPanel').addEventListener('click', function(e) {
+    var b = e.target.closest('[data-snd]');
+    if (!b || b.disabled) return;
+    var a = b.dataset.snd;
+    if (a === 'bg_toggle') a = (S.director && S.director.sound && S.director.sound.bg.playing) ? 'bg_pause' : 'bg_play';
+    emit('director:sound', { action: a });
+});
+document.getElementById('sndPanel').addEventListener('change', function(e) {
+    var el = e.target;
+    if (el.id === 'sndTrack') { emit('director:sound', { action: 'bg_pick', idx: Number(el.value) }); return; }
+    if (el.type === 'checkbox' && el.dataset.key) sndSet(el.dataset.key, el.checked);
+});
+['sndJingleVol', 'sndBgVol'].forEach(function(id) {
+    var el = document.getElementById(id);
+    el.addEventListener('pointerdown', function() { _sndDrag = el; });
+    el.addEventListener('input', function() {
+        document.getElementById(id + 'Txt').textContent = el.value + '%';
+        sndSet(el.dataset.key, Number(el.value));
+    });
+    el.addEventListener('change', function() { _sndDrag = null; sndSet(el.dataset.key, Number(el.value)); });
+});
+document.addEventListener('pointerup', function() { _sndDrag = null; });
 
 // Qué filtro incluye cada tipo de entrada del registro
 var _blFilter = 'all';

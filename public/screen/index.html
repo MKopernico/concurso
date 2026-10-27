@@ -815,6 +815,7 @@ function playVideo(vid) {
 }
 function unlockSound() {
     _ifUserGesture = true;
+    if (typeof GSnd !== 'undefined' && soundAllowed()) GSnd.bless(); // reproductor de sintonías listo para sonar (iOS)
     if (_soundUnlocked || !soundAllowed()) return;
     _soundUnlocked = true;
     initAudioCtx(); try { if (audioCtx && audioCtx.resume) audioCtx.resume(); } catch (e) {}
@@ -852,6 +853,146 @@ function applyMediaSound() {
     var mute = videoMuted();
     if (vid.muted !== mute) vid.muted = mute;
 }
+// ═══════════════ SINTONÍAS Y MÚSICA DE FONDO ═══════════════
+// El servidor manda 'game:jingle' al lanzar una ronda o elegir categoría (y con «▶ Sintonía» del
+// panel 🎵); el fondo sigue ps.sound.bg. Cada 50 ms los volúmenes se acercan a su objetivo: así
+// salen los fundidos, el fondo baja mientras suena una sintonía y se para solo con «Adivina la
+// canción», el karaoke o un vídeo con sonido. El fondo solo suena en la pantalla de verdad.
+var GSnd = (function() {
+    var J = new Audio(), BG = new Audio();
+    J.preload = 'auto'; BG.preload = 'auto';
+    var jOn = false, jStop = false, jStart = 0, jVol = 0;   // sintonía: sonando, apagándose, inicio, volumen actual (0-1)
+    var bgVol = 0, bgKey = '', bgWant = false;                // fondo: volumen actual, canción cargada, ¿debe sonar?
+    var blocked = false, reported = null;
+    var FADE_IN = 1000, FADE_OUT = 1500, BG_FADE = 1200, DUCK = 0.25;
+
+    function cfg() { return (ps && ps.sound) || null; }
+    // Curva del deslizador: el oído no es lineal; al cuadrado se nota igual en todo el recorrido
+    function curve(v) { return Math.max(0, Math.min(1, v)) * Math.max(0, Math.min(1, v)); }
+    function report(isBlocked) {
+        blocked = isBlocked;
+        renderHint();
+        if (EMBED || !socket || reported === isBlocked) return;
+        reported = isBlocked;
+        socket.emit('screen:sound_state', { blocked: isBlocked });
+    }
+    function renderHint() {
+        if (EMBED) return;
+        var h = document.getElementById('sndHint');
+        if (blocked && !h) {
+            h = document.createElement('div');
+            h.id = 'sndHint'; h.className = 'sound-hint';
+            h.textContent = '🔊 Haz clic en esta página para activar la música';
+            document.body.appendChild(h);
+        } else if (!blocked && h) h.remove();
+    }
+    function tryPlay(el) {
+        var p = el.play();
+        if (p && p.then) p.then(function() { if (blocked || reported !== false) report(false); })
+            .catch(function(e) { if (e && e.name === 'NotAllowedError') report(true); });
+    }
+    // Música parada sola: «Adivina la canción» y karaoke (la música es la prueba) o un vídeo con sonido
+    function autoPaused() {
+        if (!ps) return false;
+        var inRound = ps.phase === 'question' || ps.phase === 'answer_revealed' || ps.phase === 'round_intro';
+        if (inRound && (ps.roundType === 'cancion' || ps.roundType === 'karaoke')) return true;
+        var v = document.getElementById('ifVideo');
+        return !!(v && v.isConnected && !v.paused && !v.muted && !v.ended);
+    }
+    function jingle(d) {
+        var c = cfg();
+        if (!c || !d || !d.url || !soundAllowed()) return;
+        J.pause();
+        J.src = d.url;
+        try { J.currentTime = 0; } catch (e) {}
+        jVol = c.fadeIn ? 0 : 1; J.volume = curve(c.jingleVol / 100) * jVol;
+        jOn = true; jStop = false; jStart = Date.now();
+        tryPlay(J);
+    }
+    function stopJingle() { if (jOn) jStop = true; }
+    J.addEventListener('ended', function() { jOn = false; jStop = false; });
+    J.addEventListener('error', function() { jOn = false; jStop = false; });
+
+    function bgEnded() {
+        var c = cfg();
+        if (c && c.bg && socket) socket.emit('screen:bg_ended', { idx: c.bg.idx, seq: c.bg.seq });
+    }
+    BG.addEventListener('ended', bgEnded);
+    // Archivo que falta o no se puede leer: se salta (con pausa, para no dar vueltas sin parar)
+    BG.addEventListener('error', function() { if (bgKey) setTimeout(bgEnded, 2000); });
+
+    // Con cada estado nuevo del servidor: qué canción de fondo toca y si debe sonar
+    function sync() {
+        var c = cfg();
+        var b = c && c.bg;
+        bgWant = !!(b && b.playing && b.url) && !EMBED && soundAllowed();
+        if (b && b.url) {
+            var key = b.url + '|' + b.idx + '|' + b.seq;
+            if (key !== bgKey) {
+                bgKey = key;
+                BG.pause(); BG.src = b.url; bgVol = 0; BG.volume = 0;
+            }
+        }
+        if (!soundAllowed()) { J.pause(); jOn = false; }
+    }
+
+    setInterval(function() {
+        var c = cfg();
+        if (!c) return;
+        var now = Date.now();
+        // Sintonía: sube al empezar, baja al cortarla o al llegar al tope de segundos
+        if (jOn) {
+            var maxMs = (c.max || 20) * 1000;
+            if (!jStop && now - jStart >= maxMs - (c.fadeOut ? FADE_OUT : 0)) jStop = true;
+            if (jStop) {
+                jVol = c.fadeOut ? jVol - 50 / FADE_OUT : 0;
+                if (jVol <= 0) { jVol = 0; J.pause(); jOn = false; jStop = false; }
+            } else if (jVol < 1) jVol = c.fadeIn ? Math.min(1, jVol + 50 / FADE_IN) : 1;
+            J.volume = curve(c.jingleVol / 100) * jVol;
+        }
+        // Fondo: objetivo según su volumen, la sintonía (lo baja) y las pausas automáticas
+        var target = bgWant && !autoPaused() ? (jOn && !jStop ? DUCK : 1) : 0;
+        var step = 50 / BG_FADE;
+        if (bgVol < target) bgVol = Math.min(target, bgVol + step);
+        else if (bgVol > target) bgVol = Math.max(target, bgVol - step);
+        BG.volume = curve(c.bgVol / 100) * bgVol;
+        if (target > 0 && BG.paused && BG.getAttribute('src')) tryPlay(BG);
+        else if (target === 0 && bgVol === 0 && !BG.paused) BG.pause();
+    }, 50);
+
+    // iOS solo deja sonar después a un reproductor que ya sonó dentro de un toque: con el primero se
+    // le hace sonar un instante de silencio (como el vídeo en unlockSound). El iPad lo llama al tocar.
+    var blessed = false, silent = null;
+    function bless() {
+        if (blessed || jOn) return;
+        blessed = true;
+        try {
+            if (!silent) {
+                var n = 800, b = new DataView(new ArrayBuffer(44 + n * 2));
+                [[0, 'RIFF'], [8, 'WAVE'], [12, 'fmt '], [36, 'data']].forEach(function(p) { for (var i = 0; i < 4; i++) b.setUint8(p[0] + i, p[1].charCodeAt(i)); });
+                b.setUint32(4, 36 + n * 2, true); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
+                b.setUint32(24, 8000, true); b.setUint32(28, 16000, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); b.setUint32(40, n * 2, true);
+                silent = URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+            }
+            J.src = silent;
+            var p = J.play();
+            if (p && p.then) p.then(function() { if (J.src === silent) J.pause(); }).catch(function() { blessed = false; });
+        } catch (e) { blessed = false; }
+    }
+
+    // Primer clic en la página: ya se puede sonar; si algo se quedó esperando, arranca
+    function gesture() {
+        bless();
+        if (!blocked) return;
+        if (jOn) tryPlay(J);
+        if (bgWant && BG.paused && BG.getAttribute('src')) tryPlay(BG);
+        else report(false);
+    }
+    ['pointerup', 'click', 'keydown'].forEach(function(ev) { document.addEventListener(ev, gesture, true); });
+
+    return { jingle: jingle, stop: stopJingle, sync: sync, bless: bless };
+})();
+
 var socket = null;
 var prevPhaseKey = 'lobby';
 var prevOptionsRevealed = false;
@@ -882,6 +1023,8 @@ function connect() {
     });
 
     socket.on('game:player_sync', onSync);
+    socket.on('game:jingle', GSnd.jingle);
+    socket.on('game:jingle_stop', GSnd.stop);
     socket.on('game:timer_tick', function(d) {
         if (ps) { ps.timer.remaining = d.remaining; ps.timer.total = d.total; }
         renderTimer();
@@ -1026,6 +1169,7 @@ function onSync(data) {
     var prevOptRevealed = ps ? ps.optionsRevealed : false;
     var prevQIdx = ps ? ps.questionIdx : -1;
     ps = data;
+    GSnd.sync();
     if (data.gameTheme) applyTheme(data.gameTheme);
     if (data.roundTheme) applyRoundTheme(data.roundTheme);
 
