@@ -4,7 +4,7 @@
 //   (shared/asset-preloader.js) en su propia caché; aquí solo se sirve desde ella.
 importScripts('/shared/media-sw-core.js');
 
-const CACHE_NAME = 'gameshow-play-v64';
+const CACHE_NAME = 'gameshow-play-v65';
 const SHELL = [
     '/play/',
     '/play/index.html',
@@ -15,6 +15,7 @@ const SHELL = [
     '/shared/asset-preloader.js',
     '/shared/pictionary-board.js',
     '/shared/pictionary-board.css',
+    '/shared/image-shrink.js',
 ];
 
 self.addEventListener('install', (event) => {

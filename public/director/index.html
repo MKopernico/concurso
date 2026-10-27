@@ -1198,6 +1198,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 <script src="/shared/pictionary-board.js"></script>
 <script src="/shared/qrcode.min.js"></script>
 <script src="/shared/question-validation.js"></script>
+<script src="/shared/image-shrink.js"></script>
 <script>
 const S = {
     gameId: null, game: null, rounds: [],
@@ -1660,8 +1661,9 @@ function submitEditTeam() {
 document.getElementById('editTeamPhotoFile').addEventListener('change', async function() {
     var file = this.files[0];
     if (!file) return;
+    var shr = await ImageShrink.shrink(file, { maxSide: 1024 }); // foto de equipo = avatar
     var form = new FormData();
-    form.append('file', file);
+    form.append('file', shr.file);
     try {
         var res = await fetch('/api/upload/image', { method: 'POST', body: form });
         var data = await res.json();
@@ -1669,7 +1671,7 @@ document.getElementById('editTeamPhotoFile').addEventListener('change', async fu
         document.getElementById('editTeamPhoto').value = data.url;
         var preview = document.getElementById('editTeamPhotoPreview');
         preview.src = data.url; preview.style.display = '';
-        toast('Foto subida');
+        toast(shr.reduced ? 'Foto subida · ' + shr.note : 'Foto subida');
     } catch(e) { toast('Error: ' + e.message); }
     this.value = '';
 });

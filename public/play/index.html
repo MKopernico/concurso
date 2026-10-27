@@ -787,6 +787,7 @@ body.karaoke-active .player-timer-bar { display: none !important; }
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
 <script src="/shared/pictionary-board.js"></script>
+<script src="/shared/image-shrink.js"></script>
 <script>
 // ═══════════════ State ═══════════════
 var S = {
@@ -1031,18 +1032,24 @@ function prepareRegisterScreen() {
 // ═══════════════ Screen 3: Register team ═══════════════
 function uploadPhoto(input) {
     if (!input.files || !input.files[0]) return;
-    var formData = new FormData();
-    formData.append('file', input.files[0]);
-    fetch('/api/upload/image', { method: 'POST', body: formData, headers: { 'X-Game': S.gameId || '', 'X-Game-Pass': getPass(S.gameId) || '' } })
+    var file = input.files[0];
+    input.value = '';
+    document.getElementById('photoPreview').innerHTML = '&#8987;';
+    // La foto de la cámara (3-5 MB) se reduce en el iPad antes de subir: es un avatar (lado ≤ 1024)
+    var shrunk = window.ImageShrink ? ImageShrink.shrink(file, { maxSide: 1024 }) : Promise.resolve({ file: file });
+    shrunk.then(function(shr) {
+        var formData = new FormData();
+        formData.append('file', shr.file);
+        return fetch('/api/upload/image', { method: 'POST', body: formData, headers: { 'X-Game': S.gameId || '', 'X-Game-Pass': getPass(S.gameId) || '' } });
+    })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.url) {
                 S.photoUrl = data.url;
                 document.getElementById('photoPreview').innerHTML = '<img src="' + esc(data.url) + '">';
-            }
+            } else document.getElementById('photoPreview').innerHTML = '&#128247;';
         })
-        .catch(function() { toast('Error al subir foto'); });
-    input.value = '';
+        .catch(function() { document.getElementById('photoPreview').innerHTML = '&#128247;'; toast('Error al subir foto'); });
 }
 
 function toggleRecover() {

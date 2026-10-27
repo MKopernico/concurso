@@ -194,6 +194,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 <script src="/shared/question-validation.js"></script>
 <script src="/shared/aclara-fx.js"></script>
 <script src="/shared/staff-session.js"></script>
+<script src="/shared/image-shrink.js"></script>
 </head>
 <body>
 <header>
@@ -1576,7 +1577,7 @@ function fieldsPrecio(c) {
         <div class="field"><label>Imagen (obligatoria)</label>
             <div class="upload-row">
                 <input name="c_image" value="${esc(imgSrc)}" placeholder="Sube una imagen o elige de la biblioteca" onchange="updatePrecioPreview(this.value)">
-                <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_image'); setTimeout(function(){updatePrecioPreview(document.querySelector('[name=c_image]').value)},500)"></label>
+                <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'c_image').then(function(){updatePrecioPreview(document.querySelector('[name=c_image]').value)})"></label>
                 ${libBtn('c_image','images')}
             </div>
             <img id="precio-img-preview" src="${esc(imgSrc || '/shared/placeholder-precio.svg')}" style="margin-top:8px; max-width:200px; max-height:150px; border-radius:8px; border:1px solid var(--border); object-fit:contain; background:#1a1a2e; display:block;">
@@ -1708,11 +1709,13 @@ function aclaraAdminPreview() {
     if (_aclaraPrevImg) AclaraFX.draw(canvas, _aclaraPrevImg, effect, level);
 }
 
-function uploadImagenFile(fileInput) {
+async function uploadImagenFile(fileInput) {
     const file = fileInput.files[0];
     if (!file) return;
+    fileInput.value = '';
+    const shr = await ImageShrink.shrink(file);
     const form = new FormData();
-    form.append('file', file);
+    form.append('file', shr.file);
     fetch('/api/upload/image', { method: 'POST', body: form })
         .then(r => r.json())
         .then(data => {
@@ -1724,10 +1727,9 @@ function uploadImagenFile(fileInput) {
             if (data.height) document.querySelector('[name="c_image_height"]').value = data.height;
             document.getElementById('imagen-grid-preview').style.display = 'block';
             updateImagenGrid();
-            toast('Imagen subida');
+            toast(uploadedMsg('Imagen subida', shr), shr.reduced ? 4500 : 3000);
         })
         .catch(e => toast('Error subiendo: ' + e.message));
-    fileInput.value = '';
 }
 
 function calcImagenGrid(N, imgW, imgH) {
@@ -2243,11 +2245,19 @@ function val(form, name) {
 
 // ─────────────────── THEME HELPERS ───────────────────
 
+// Aviso tras subir: «Imagen subida · Foto reducida: 2,7 MB → 380 KB» si se ha reducido
+function uploadedMsg(msg, shr) {
+    return shr && shr.reduced ? msg + ' · ' + shr.note : msg;
+}
+
 async function uploadFile(fileInput, targetFieldName) {
     const file = fileInput.files[0];
     if (!file) return;
+    fileInput.value = '';
+    // Las fotos se reducen en el navegador antes de subir (shared/image-shrink.js); audio y SVG pasan tal cual
+    const shr = await ImageShrink.shrink(file);
     const form = new FormData();
-    form.append('file', file);
+    form.append('file', shr.file);
     try {
         const res = await fetch('/api/upload/image', { method: 'POST', body: form });
         const data = await res.json();
@@ -2256,9 +2266,8 @@ async function uploadFile(fileInput, targetFieldName) {
         if (field) field.value = data.url;
         const preview = document.getElementById('preview-game-logo');
         if (targetFieldName === 'theme_logo' && preview) { preview.src = data.url; preview.style.display = ''; }
-        toast('Archivo subido');
+        toast(uploadedMsg('Archivo subido', shr), shr.reduced ? 4500 : 3000);
     } catch (e) { toast('Error subiendo: ' + e.message); }
-    fileInput.value = '';
 }
 
 function syncColor(hexInput, colorFieldName) {
@@ -2536,25 +2545,30 @@ async function uploadMediaFiles(input) {
     const endpoint = mediaType === 'images' ? '/upload/image' : '/upload/audio';
     const prog = document.getElementById('mediaUploadProgress');
     const total = files.length;
-    let done = 0, errors = 0;
+    let done = 0, errors = 0, reduced = 0, before = 0, after = 0;
+    input.value = '';
     prog.style.display = '';
     prog.textContent = 'Subiendo 0/' + total + '...';
     for (const file of files) {
+        const shr = mediaType === 'images' ? await ImageShrink.shrink(file) : { file };
         const form = new FormData();
-        form.append('file', file);
+        form.append('file', shr.file);
         try {
             const res = await fetch(API + endpoint, { method: 'POST', body: form });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
+            if (shr.reduced) { reduced++; before += shr.before; after += shr.after; }
             done++;
         } catch (e) { errors++; done++; }
         prog.textContent = 'Subiendo ' + done + '/' + total + (errors ? ' (' + errors + ' error' + (errors > 1 ? 'es' : '') + ')' : '') + '...';
     }
     prog.textContent = total + ' archivo' + (total > 1 ? 's' : '') + ' subido' + (total > 1 ? 's' : '') + (errors ? ' (' + errors + ' con error)' : '');
     setTimeout(function() { prog.style.display = 'none'; }, 3000);
-    toast(done - errors + ' archivo' + (done - errors > 1 ? 's' : '') + ' subido' + (done - errors > 1 ? 's' : ''));
+    const ok = done - errors;
+    let msg = ok + ' archivo' + (ok > 1 ? 's' : '') + ' subido' + (ok > 1 ? 's' : '');
+    if (reduced) msg += ' · ' + (reduced > 1 ? reduced + ' fotos reducidas: ' : 'Foto reducida: ') + ImageShrink.formatBytes(before) + ' → ' + ImageShrink.formatBytes(after);
+    toast(msg, reduced ? 4500 : 3000);
     loadMediaFiles();
-    input.value = '';
 }
 
 // ─────────────────── MEDIA PICKER MODAL ───────────────────
@@ -2628,16 +2642,17 @@ async function uploadPickerFile(input) {
     const file = input.files[0];
     if (!file) return;
     const endpoint = pickerType === 'images' ? '/upload/image' : '/upload/audio';
+    input.value = '';
+    const shr = pickerType === 'images' ? await ImageShrink.shrink(file) : { file };
     const form = new FormData();
-    form.append('file', file);
+    form.append('file', shr.file);
     try {
         const res = await fetch(API + endpoint, { method: 'POST', body: form });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        toast('Archivo subido');
+        toast(uploadedMsg('Archivo subido', shr), shr.reduced ? 4500 : 3000);
         loadPickerFiles();
     } catch (e) { toast('Error: ' + e.message); }
-    input.value = '';
 }
 
 // Helper: make a "Choose from library" button for a field
