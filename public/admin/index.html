@@ -108,6 +108,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .type-aclara { background: #3b2f63; color: #c4b5fd; }
 .type-pictionary { background: #5b3a12; color: #fcd34d; }
 .type-cifras { background: #0f4c5c; color: #67e8f9; }
+.type-letras { background: #3b2a6b; color: #c4b5fd; }
 .cf-gen { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
 .cf-gen select { width: auto; }
 .cf-check { font-size: 13px; line-height: 1.5; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); margin-top: 8px; }
@@ -204,6 +205,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 </style>
 <script src="/shared/question-validation.js"></script>
 <script src="/shared/cifras.js"></script>
+<script src="/shared/letras.js"></script>
 <script src="/shared/aclara-fx.js"></script>
 <script src="/shared/staff-session.js"></script>
 <script src="/shared/image-shrink.js"></script>
@@ -548,6 +550,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                     <option value="abierta">Respuesta abierta (subpreguntas)</option>
                     <option value="pictionary">Pictionary (dibujar y adivinar)</option>
                     <option value="cifras">Cifras (llegar al número)</option>
+                    <option value="letras">Letras (la palabra más larga)</option>
                     <option value="karaoke">Karaoke</option>
                 </select>
             </div>
@@ -792,7 +795,7 @@ const TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador rápido', precio: 'Precio justo',
     imagen: 'Adivina imagen', cancion: 'Adivina canción', boom: 'Boom (ordenar)',
     ruleta: 'Ruleta de la suerte', imagen_fija: 'Imagen fija', identidad: 'Identidad',
-    karaoke: 'Karaoke', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary', cifras: 'Cifras'
+    karaoke: 'Karaoke', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary', cifras: 'Cifras', letras: 'Letras'
 };
 
 function statusBadge(s) {
@@ -1222,11 +1225,11 @@ function toggleTimeField(type) {
     // Pictionary: sus opciones y el tiempo puede ser 0 (sin límite)
     document.getElementById('pic-round-fields').style.display = type === 'pictionary' ? '' : 'none';
     syncPicRoundFields();
-    if (type === 'pictionary' || type === 'cifras') {
+    if (type === 'pictionary' || type === 'cifras' || type === 'letras') {
         el.style.opacity = ''; el.title = '';
         el.querySelector('input').disabled = false;
         el.querySelector('input').min = 0;
-        el.querySelector('label').textContent = type === 'cifras' ? 'Tiempo para las cuentas (seg, 0 = sin límite)' : 'Tiempo por palabra (seg, 0 = sin límite)';
+        el.querySelector('label').textContent = type === 'cifras' ? 'Tiempo para las cuentas (seg, 0 = sin límite)' : type === 'letras' ? 'Tiempo para la palabra (seg, 0 = sin límite)' : 'Tiempo por palabra (seg, 0 = sin límite)';
         return;
     }
     el.querySelector('input').min = 5;
@@ -1261,7 +1264,7 @@ function openRoundModal(round = null) {
         form.name.value = round.name || '';
         form.type.value = round.type || 'multirespuesta';
         const cfg = round.config || {};
-        form.cfg_time.value = (round.type === 'pictionary' || round.type === 'cifras') ? (cfg.time ?? 60) : (cfg.time || 30);
+        form.cfg_time.value = (round.type === 'pictionary' || round.type === 'cifras' || round.type === 'letras') ? (cfg.time ?? 60) : (cfg.time || 30);
         form.cfg_picMode.value = cfg.picMode === 'ipad' ? 'ipad' : 'equipos';
         form.cfg_picTurns.value = cfg.picTurns === 'manual' ? 'manual' : 'auto';
         form.cfg_picDrawerPoints.value = cfg.picDrawerPoints || 0;
@@ -1282,7 +1285,7 @@ function openRoundModal(round = null) {
     toggleTimeField(form.type.value);
     form.type.onchange = function() {
         // Pictionary empieza con 60 s por palabra (si no se había tocado el tiempo)
-        if ((this.value === 'pictionary' || this.value === 'cifras') && !form.id.value && form.cfg_time.value === '30') form.cfg_time.value = 60;
+        if ((this.value === 'pictionary' || this.value === 'cifras' || this.value === 'letras') && !form.id.value && form.cfg_time.value === '30') form.cfg_time.value = 60;
         toggleTimeField(this.value);
     };
     openModal('modal-round-overlay');
@@ -1293,7 +1296,7 @@ async function saveRound(e) {
     const form = document.getElementById('form-round');
     const noTimer = form.type.value === 'pulsador' || form.type.value === 'imagen' || form.type.value === 'abierta';
     const isPic = form.type.value === 'pictionary';
-    const zeroOk = isPic || form.type.value === 'cifras'; // tiempo 0 = sin límite
+    const zeroOk = isPic || form.type.value === 'cifras' || form.type.value === 'letras'; // tiempo 0 = sin límite
     const config = {
         time: noTimer ? 0 : zeroOk ? Math.max(0, Math.min(600, numOr(form.cfg_time.value, 60))) : (Number(form.cfg_time.value) || 30),
         // 0 es un valor válido (p. ej. ronda sin bonus); solo el campo vacío toma el valor por defecto
@@ -1463,6 +1466,7 @@ function renderQuestions() {
         const preview = Array.isArray(c.subs)
             ? (c.statement ? c.statement + ' · ' : '') + c.subs.length + (c.subs.length === 1 ? ' subpregunta' : ' subpreguntas') + (c.subs[0] && c.subs[0].text ? ' (' + c.subs[0].text + (c.subs.length > 1 ? '…' : '') + ')' : '') + (Number(c.time) > 0 ? ' · ⏱ ' + c.time + 's' : '')
             : c.word !== undefined ? '✏️ ' + c.word + (c.category ? ' · ' + c.category : '')
+            : Array.isArray(c.letters) ? '🔤 ' + c.letters.join(' ') + (c.best && c.best.len ? ' · la más larga: ' + c.best.len + ' letras' : '')
             : Array.isArray(c.numbers) ? '🔢 ' + (c.target || '?') + ' con ' + c.numbers.join(' ') + (c.useAll ? ' · usar todas' : '') + (c.level ? ' · ' + (Cifras.LEVEL_NAMES[c.level] || c.level) : '')
             : (c.statement || c.phrase || c.answer || (c.image ? c.image.split('/').pop() : null) || JSON.stringify(c).slice(0, 80));
         const vResult = QuestionValidation.isComplete(currentRound.type, c);
@@ -1579,6 +1583,7 @@ function buildFieldsForType(type, c) {
         case 'abierta':        return fieldsAbierta(c);
         case 'pictionary':     return fieldsPictionary(c);
         case 'cifras':         return fieldsCifras(c);
+        case 'letras':         return fieldsLetras(c);
         default:               return `<div class="field"><label>Contenido (JSON)</label><textarea name="raw_json">${esc(JSON.stringify(c, null, 2))}</textarea></div>`;
     }
 }
@@ -1696,6 +1701,59 @@ function fieldsPictionary(c) {
         <div class="field"><label>Palabra o concepto a dibujar</label><input name="c_word" value="${esc(c.word || '')}" required placeholder="Ej: Torre Eiffel"></div>
         <div class="field"><label>Categoría (opcional: la ven todos, como pista)</label><input name="c_category" value="${esc(c.category || '')}" placeholder="Ej: Monumentos"></div>
         <p style="font-size:12px; color:var(--text2); line-height:1.5">La palabra solo la ven el coordinador y quien dibuja; los demás, al acertar o al mostrarla. El tiempo vacío usa el de la ronda.</p>`;
+}
+
+// ── Letras ──
+// Letras a mano o con «🎲 Generar» (el servidor las inventa con su diccionario y busca la palabra
+// más larga posible). Mientras se escriben se comprueba cuál es la más larga; se guarda para el final.
+function fieldsLetras(c) {
+    setTimeout(letrasCheck, 0);
+    const n = Array.isArray(c.letters) && c.letters.length ? c.letters.length : 9;
+    let opts = '';
+    for (let k = 6; k <= 12; k++) opts += '<option value="' + k + '"' + (k === n ? ' selected' : '') + '>' + k + ' letras</option>';
+    return `
+        <div class="cf-gen">
+            <select name="c_lt_count">${opts}</select>
+            <button type="button" class="btn-ghost btn-sm" onclick="letrasGenerate()">🎲 Generar</button>
+            <span style="font-size:12px; color:var(--text2)">Las inventa con las letras más frecuentes del castellano y siempre con una buena palabra posible. 9 es lo de la tele; 6-7 para los peques.</span>
+        </div>
+        <div class="field"><label>Letras (de 4 a 12)</label><input name="c_letters" value="${esc(Array.isArray(c.letters) ? c.letters.join(' ') : '')}" placeholder="Ej: A E R T S O L M N" oninput="letrasEdited()" required style="font-size:20px; font-weight:700; letter-spacing:2px"></div>
+        <input type="hidden" name="c_lt_best" value="${esc(c.best ? JSON.stringify(c.best) : '')}">
+        <div id="lt-check" class="cf-check"></div>
+        <p style="font-size:12px; color:var(--text2); line-height:1.5">Vale cualquier palabra del diccionario (también plurales y femeninos; no los verbos conjugados). Al cerrar, cada palabra llega marcada según el diccionario y el coordinador la confirma. Puntos: (mitad fija + mitad por rapidez) × letras ÷ letras de la palabra válida más larga; la más larga gana el extra. El tiempo vacío usa el de la ronda (60 s por defecto).</p>`;
+}
+function letrasEdited() {
+    document.querySelector('[name="c_lt_best"]').value = '';
+    clearTimeout(letrasEdited._t);
+    letrasEdited._t = setTimeout(letrasCheck, 400);
+}
+function letrasShowBest(best) {
+    const box = document.getElementById('lt-check');
+    if (!box) return;
+    if (!best || !best.len) { box.className = 'cf-check warn'; box.textContent = 'Con estas letras no sale ninguna palabra del diccionario.'; return; }
+    box.className = 'cf-check ok';
+    box.textContent = '✅ La más larga posible: ' + best.len + ' letras — ' + best.words.map(Letras.upper).join(' · ') + (best.count > best.words.length ? ' (y ' + (best.count - best.words.length) + ' más)' : '');
+}
+async function letrasGenerate() {
+    try {
+        const r = await api('/letras/generate', { method: 'POST', body: { count: Number(document.querySelector('[name="c_lt_count"]').value) } });
+        document.querySelector('[name="c_letters"]').value = r.letters.join(' ');
+        document.querySelector('[name="c_lt_best"]').value = JSON.stringify(r.best);
+        letrasShowBest(r.best);
+    } catch (e) { toast('Error: ' + e.message); }
+}
+async function letrasCheck() {
+    const box = document.getElementById('lt-check');
+    const input = document.querySelector('[name="c_letters"]');
+    if (!box || !input) return;
+    const letters = Letras.cleanLetters(input.value);
+    if (!Letras.validLetters(letters)) { box.className = 'cf-check'; box.textContent = 'Escribe de 4 a 12 letras, o pulsa 🎲 Generar.'; return; }
+    try {
+        const r = await api('/letras/check', { method: 'POST', body: { letters: letters.join('') } });
+        if (Letras.cleanLetters(input.value).join('') !== r.letters.join('')) return; // ya han cambiado
+        document.querySelector('[name="c_lt_best"]').value = JSON.stringify(r.best);
+        letrasShowBest(r.best);
+    } catch (e) { box.className = 'cf-check warn'; box.textContent = 'No se pudo comprobar: ' + e.message; }
 }
 
 // ── Cifras ──
@@ -2313,6 +2371,12 @@ function extractContent(type, form) {
         }
         case 'pictionary':
             return { word: val(form, 'c_word'), category: val(form, 'c_category') || undefined };
+        case 'letras': {
+            const letters = Letras.cleanLetters(val(form, 'c_letters'));
+            let best;
+            try { best = JSON.parse(val(form, 'c_lt_best') || 'null') || undefined; } catch (e) { best = undefined; }
+            return { letters, best };
+        }
         case 'cifras': {
             const numbers = cifrasNumbers();
             const target = Math.round(Number(val(form, 'c_target'))) || undefined;

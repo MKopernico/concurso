@@ -552,6 +552,30 @@ html.embed .psq-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; 
 html.embed #phase-question.abierta-mode.ab-subs { padding-top: 12px; }
 html.embed .abs-list.two { grid-template-columns: 1fr; }
 
+/* ═══════════════ LETRAS ═══════════════ */
+#letrasScreenWrap { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: clamp(10px, 2vh, 24px); }
+#letrasScreenWrap:not(.rev) .lts-letters { margin: auto 0; }
+.lts-letters { display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(8px, 1.2vw, 18px); flex-shrink: 0; }
+.lts-l { width: clamp(70px, 8.5vw, 140px); height: clamp(84px, 16vh, 160px); display: flex; align-items: center; justify-content: center; border-radius: 18px; background: rgba(255,255,255,.94); color: #111;
+    font-size: clamp(3rem, 10vh, 6.5rem); font-weight: 900; box-shadow: 0 6px 0 rgba(0,0,0,.35), 0 0 24px rgba(0,0,0,.4); }
+.lts-l.in { animation: cfsIn .5s cubic-bezier(.34,1.56,.64,1) both; }
+#letrasScreenWrap.rev .lts-l { width: clamp(40px, 4.4vw, 70px); height: clamp(46px, 7vh, 80px); font-size: clamp(1.6rem, 4.6vh, 3rem); border-radius: 12px; }
+.lts-list { flex: 1; min-height: 0; width: min(1400px, 100%); display: flex; flex-direction: column; justify-content: center; gap: clamp(8px, 1.4vh, 16px); overflow: hidden; }
+.lts-row { display: flex; align-items: center; gap: clamp(14px, 2vw, 30px); padding: clamp(8px, 1.4vh, 18px) clamp(16px, 2vw, 30px); flex-shrink: 0;
+    background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.15); border-radius: 16px; backdrop-filter: blur(6px); color: #fff; }
+.lts-row.last { border-color: var(--cyan); box-shadow: 0 0 24px rgba(0,212,255,.3); animation: boomStepIn .5s ease; }
+.lts-len { flex-shrink: 0; text-align: center; min-width: 3.4em; font-size: clamp(1.1rem, 2.6vh, 1.8rem); font-weight: 800; color: rgba(255,255,255,.7); line-height: 1; }
+.lts-len b { display: block; font-size: 2em; color: #fff; }
+.lts-words { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: clamp(8px, 1.2vw, 16px); }
+.lts-w { padding: 6px 16px; border-radius: 12px; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.2); }
+.lts-w .ww { display: block; font-size: clamp(1.4rem, 4.4vh, 3rem); font-weight: 900; letter-spacing: 3px; }
+.lts-w .wt { display: block; font-size: clamp(.9rem, 2.2vh, 1.5rem); font-weight: 700; color: rgba(255,255,255,.8); }
+.lts-w .wt .cfs-pts { margin-left: 6px; }
+.lts-w.ok { border-color: var(--green); background: rgba(34,197,94,.22); }
+.lts-w.bad { border-color: rgba(239,68,68,.7); background: rgba(239,68,68,.15); }
+.lts-w.bad .ww { text-decoration: line-through; color: rgba(255,255,255,.7); }
+@media (prefers-reduced-motion: reduce) { .lts-l.in, .lts-row.last { animation: none; } }
+
 /* ═══════════════ CIFRAS ═══════════════ */
 #phase-question.cifras-mode { justify-content: flex-start; padding-top: clamp(16px, 3vh, 40px); }
 #cifrasScreenWrap { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: clamp(10px, 2vh, 24px); }
@@ -678,6 +702,7 @@ body.karaoke-screen-active .round-logo { display: none !important; }
         <div id="imagenFijaWrap" style="display:none"></div>
         <div id="cancionScreenWrap" style="display:none"></div>
         <div id="identidadScreenWrap" style="display:none"></div>
+        <div id="letrasScreenWrap" style="display:none"></div>
         <div id="cifrasScreenWrap" style="display:none"></div>
         <div id="abiertaScreenWrap" style="display:none"><div class="abs-list" id="absList"></div><div class="abs-band" id="absBand"></div></div>
         <div id="karaokeScreenWrap" style="display:none"></div>
@@ -788,6 +813,7 @@ body.karaoke-screen-active .round-logo { display: none !important; }
 <script src="/shared/roulette-panel.js"></script>
 <script src="/shared/pictionary-board.js"></script>
 <script src="/shared/cifras.js"></script>
+<script src="/shared/letras.js"></script>
 <script>
 (function() {
 'use strict';
@@ -1350,7 +1376,7 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
     } else if (phase === 'question') {
         showPhase('question');
         var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'karaoke' || type === 'aclara'
-            || ((type === 'abierta' || type === 'pictionary' || type === 'cifras') && !(ps.timer && ps.timer.total > 0)) // Respuesta abierta / Pictionary / Cifras sin cuenta atrás
+            || ((type === 'abierta' || type === 'pictionary' || type === 'cifras' || type === 'letras') && !(ps.timer && ps.timer.total > 0)) || (type === 'letras' && ps.letras) // Respuesta abierta / Pictionary / Cifras sin cuenta atrás
             || (type === 'pictionary' && !(ps.pictionary && ps.pictionary.step === 'drawing')); // Pictionary: el reloj, al empezar a dibujar
         timerStrip.style.display = hideTimer ? 'none' : '';
         timerBig.style.display = (hideTimer || type === 'identidad') ? 'none' : '';
@@ -1438,7 +1464,8 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     document.getElementById('abiertaScreenWrap').style.display = 'none';
     document.getElementById('phase-question').classList.remove('abierta-mode', 'ab-subs');
     document.getElementById('cifrasScreenWrap').style.display = 'none';
-    document.getElementById('phase-question').classList.toggle('cifras-mode', type === 'cifras');
+    document.getElementById('letrasScreenWrap').style.display = 'none';
+    document.getElementById('phase-question').classList.toggle('cifras-mode', type === 'cifras' || type === 'letras');
     document.getElementById('karaokeScreenWrap').style.display = 'none';
     document.getElementById('picScreenWrap').style.display = 'none';
     document.getElementById('phase-question').classList.toggle('karaoke-mode', type === 'karaoke');
@@ -1498,6 +1525,8 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
         renderAbiertaScreen(c, q, false);
     } else if (type === 'cifras') {
         renderCifrasScreen(c, false);
+    } else if (type === 'letras') {
+        renderLetrasScreen(c, false);
     }
 }
 
@@ -2008,6 +2037,70 @@ function renderAbiertaScreen(c, q, revealed) {
     setHtmlIfChanged(band, bandHtml);
 }
 
+// ═══════════════ LETRAS — SCREEN ═══════════════
+// Pregunta: las letras en grande y cuántos equipos han enviado; cerrada, «Corrigiendo…». Revelado:
+// una fila por longitud (de la más corta a la más larga) con las palabras, quién las puso y si
+// valen; al final, la más larga posible, el 🏆 y los puntos.
+var _ltsKey = null;
+function renderLetrasScreen(c, revealed) {
+    var pq = document.getElementById('phase-question');
+    pq.classList.add('cifras-mode');
+    document.getElementById('qStatement').style.display = 'none';
+    document.getElementById('qMedia').style.display = 'none';
+    document.getElementById('roundLogo').style.display = 'none';
+    var wrap = document.getElementById('letrasScreenWrap');
+    wrap.style.display = 'flex';
+    var L = ps.letras;
+    var rev = !!(revealed && L && L.step === 'revealed');
+    wrap.classList.toggle('rev', rev);
+    var animate = _ltsKey !== ps.questionKey;
+    _ltsKey = ps.questionKey;
+    var letters = '<div class="lts-letters">' + (c.letters || []).map(function(l, i) {
+        return '<div class="lts-l' + (animate && !rev ? ' in' : '') + '" style="animation-delay:' + (i * 0.1) + 's">' + esc(l) + '</div>';
+    }).join('') + '</div>';
+    var html;
+    if (!rev) {
+        var band;
+        if (L) band = '<div class="abs-band correcting">✍️ Corrigiendo…</div>';
+        else if (!ps.optionsRevealed) band = '<div class="abs-band">🔤 Mirad bien las letras…</div>';
+        else {
+            var active = (ps.equipos || []).filter(function(e) { return !e.bloqueado; });
+            var sent = ps.cifrasSent || 0;
+            band = '<div class="abs-band' + (active.length && sent >= active.length ? ' done' : '') + '">🔤 <b>' + sent + '</b> de ' + active.length + ' equipos han enviado</div>';
+        }
+        html = letters + band;
+        // Las letras se quedan quietas mientras llegan envíos: solo cambia la banda
+        if (!animate && wrap._letters === letters && wrap.querySelector('.abs-band')) {
+            var b = wrap.querySelector('.abs-band');
+            if (b.outerHTML !== band) b.outerHTML = band;
+        } else { wrap.innerHTML = html; wrap._letters = letters; }
+        wrap._html = null;
+        return;
+    }
+    wrap._letters = null;
+    var lqs = ps.lastQuestionScores || {};
+    var done = L.revealStep >= L.total;
+    var teamName = function(id) { var e = (ps.equipos || []).find(function(x) { return x.id === id; }); return e ? e.nombre : '?'; };
+    var groups = L.groups || [];
+    var MAX = 4;
+    var rows = groups.slice(-MAX).map(function(g, k, arr) {
+        var last = k === arr.length - 1 && !done;
+        return '<div class="lts-row' + (last ? ' last' : '') + '"><span class="lts-len"><b>' + g.len + '</b>letras</span><span class="lts-words">'
+            + g.words.map(function(x) {
+                var teams = x.teams.map(function(t) {
+                    var r = lqs[t] || {};
+                    return (done && L.winner === t ? '🏆 ' : '') + esc(teamName(t)) + (done && r.points > 0 ? '<span class="cfs-pts">+' + r.points + '</span>' : '');
+                }).join(', ');
+                return '<span class="lts-w ' + (x.ok ? 'ok' : 'bad') + '"><span class="ww">' + esc(Letras.upper(x.show || x.w)) + '</span><span class="wt">' + teams + '</span></span>';
+            }).join('') + '</span></div>';
+    }).join('');
+    if (!groups.length) rows = '<div class="cfs-wait">' + ((L.groupsTotal || 0) ? '👀 ¿Quién ha encontrado la más larga?' : 'Nadie envió ninguna palabra') + '</div>';
+    var best = L.best && L.best.words && L.best.words.length
+        ? '<div class="cfs-sol"><b>LA MÁS LARGA POSIBLE · ' + L.best.len + ' LETRAS</b>' + esc(L.best.words.slice(0, 4).map(Letras.upper).join('   ·   ')) + '</div>' : '';
+    var full = letters + '<div class="lts-list">' + rows + '</div>' + best;
+    if (wrap._html !== full) { wrap.innerHTML = full; wrap._html = full; }
+}
+
 // ═══════════════ CIFRAS — SCREEN ═══════════════
 // Pregunta: el objetivo en grande, los números y cuántos equipos han enviado. Revelado: los grupos
 // (mismo resultado) del más lejano al más cercano según el coordinador los destapa; el último, con
@@ -2509,6 +2602,8 @@ function renderRevealedInPlace() {
         renderAbiertaScreen(c, ps.question, true);
     } else if (type === 'cifras') {
         renderCifrasScreen(c, true);
+    } else if (type === 'letras') {
+        renderLetrasScreen(c, true);
     } else if (type === 'ruleta') {
         // El panel se queda en pantalla con la frase completa
         var rc = document.getElementById('ruletaScreenPanel');
@@ -2960,7 +3055,7 @@ document.addEventListener('click', function(e) {
 var TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
     imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary', cifras: 'Cifras'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary', cifras: 'Cifras', letras: 'Letras'
 };
 
 function renderScreenLobbyDefault() {

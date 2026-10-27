@@ -74,6 +74,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .type-aclara { background: #3b2f63; color: #c4b5fd; }
 .type-pictionary { background: #5b3a12; color: #fcd34d; }
 .type-cifras { background: #0f4c5c; color: #67e8f9; }
+.type-letras { background: #3b2a6b; color: #c4b5fd; }
 .type-abierta { background: #134e4a; color: #5eead4; }
 .type-identidad { background: #4a1942; color: #f0abfc; }
 /* Respuesta abierta: pasos, envíos y corrección por subpregunta */
@@ -364,6 +365,16 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .snd-warn { font-size: 12px; line-height: 1.4; padding: 6px 8px; border-radius: 6px; background: rgba(250,204,21,.12); border: 1px solid rgba(250,204,21,.4); color: var(--gold); }
 .header-actions .hdr-btn.snd-on { background: rgba(34,197,94,.14); border-color: var(--success); color: var(--success); }
 .header-actions .hdr-btn.snd-alert { background: rgba(250,204,21,.15); border-color: #facc15; color: #facc15; }
+.lt-dir-group { margin-top: 10px; text-align: left; }
+.lt-dir-group h5 { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); margin: 0 0 4px; }
+.lt-dir-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; background: var(--surface2); margin-bottom: 4px; font-size: 13px; }
+.lt-dir-row .w { font-size: 17px; font-weight: 800; letter-spacing: 1px; min-width: 7em; }
+.lt-dir-row.ok .w { color: var(--success); } .lt-dir-row.bad .w { color: var(--danger); text-decoration: line-through; }
+.lt-dir-row .t { flex: 1; min-width: 0; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lt-dir-row .d { font-size: 11px; color: var(--text2); white-space: nowrap; }
+.lt-dir-row button { padding: 4px 10px; font-size: 13px; }
+.lt-dir-row button.on.yes { background: var(--success); color: #000; border-color: var(--success); }
+.lt-dir-row button.on.no { background: var(--danger); color: #fff; border-color: var(--danger); }
 .cf-dir-nums { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 4px 0 10px; }
 .cf-dir-nums span { min-width: 44px; padding: 6px 10px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); font-size: 20px; font-weight: 800; text-align: center; }
 .cf-dir-teams { display: flex; flex-direction: column; gap: 4px; text-align: left; }
@@ -1009,7 +1020,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
             </div>
             <div id="questionDefaultActions" style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;">
                 <button class="btn-accent" id="btnRevealOptions" style="display:none" onclick="emit('director:reveal_options')">&#128065; Abrir opciones</button>
-                <button class="btn-accent" onclick="emit('director:reveal_answer')">&#128064; Revelar respuesta</button>
+                <button class="btn-accent" id="btnRevealAnswer" onclick="emit('director:reveal_answer')">&#128064; Revelar respuesta</button>
                 <button class="btn-orange btn-sm" id="btnRevealNext" style="display:none" onclick="revealNext()">&#128065; Siguiente cuadrado</button>
                 <button class="btn-ghost btn-sm" id="btnRevealAll" style="display:none" onclick="revealAll()">Revelar todo</button>
                 <button class="btn-ghost btn-sm" onclick="markRoundComplete()">&#10004; Marcar ronda completada</button>
@@ -1038,6 +1049,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
                 <span id="identidadRevealCount" style="margin-left:8px; font-size:13px; color:var(--text2);"></span>
             </div>
             <div id="abiertaAnswerPanel" style="display:none; margin-top:10px;"></div>
+            <div id="letrasAnswerPanel" style="display:none; margin-top:10px;"></div>
             <div id="teamResultsPanel"></div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:8px;">
                 <button class="btn-success" id="btnAnswerNextBig" onclick="handleNextQuestion()">Siguiente pregunta &#9654;</button>
@@ -1258,6 +1270,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
 <script src="/shared/cifras.js"></script>
+<script src="/shared/letras.js"></script>
 <script src="/shared/aclara-fx.js"></script>
 <script src="/shared/pictionary-board.js"></script>
 <script src="/shared/qrcode.min.js"></script>
@@ -1523,7 +1536,7 @@ function renderLobby() {
 const TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio justo',
     imagen: 'Adivina imagen', cancion: 'Adivina cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen fija', aclara: 'Imagen que se aclara', identidad: 'Identidad', abierta: 'Respuesta abierta', pictionary: 'Pictionary', cifras: 'Cifras'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen fija', aclara: 'Imagen que se aclara', identidad: 'Identidad', abierta: 'Respuesta abierta', pictionary: 'Pictionary', cifras: 'Cifras', letras: 'Letras'
 };
 
 function getCategories() {
@@ -2573,8 +2586,8 @@ function renderQuestion() {
     // Show/hide "Abrir opciones" button for multirespuesta, boom (precio uses its own panel)
     var roundType2 = ds.currentRound ? ds.currentRound.type : '';
     var btnRevealOpts = document.getElementById('btnRevealOptions');
-    btnRevealOpts.innerHTML = roundType2 === 'cifras' ? '&#128065; Empezar las cuentas' : '&#128065; Abrir opciones';
-    if ((roundType2 === 'multirespuesta' || roundType2 === 'boom' || roundType2 === 'identidad' || roundType2 === 'cifras') && !ds.optionsRevealed) {
+    btnRevealOpts.innerHTML = roundType2 === 'cifras' ? '&#128065; Empezar las cuentas' : roundType2 === 'letras' ? '&#128065; Empezar' : '&#128065; Abrir opciones';
+    if ((roundType2 === 'multirespuesta' || roundType2 === 'boom' || roundType2 === 'identidad' || roundType2 === 'cifras' || roundType2 === 'letras') && !ds.optionsRevealed) {
         btnRevealOpts.style.display = '';
     } else {
         btnRevealOpts.style.display = 'none';
@@ -2595,10 +2608,16 @@ function renderQuestion() {
     }
 
     if (roundType2 === 'cifras') renderCifrasQuestion(ds, c);
+    if (roundType2 === 'letras') renderLetrasQuestion(ds, c);
+    var btnRA = document.getElementById('btnRevealAnswer');
+    btnRA.innerHTML = roundType2 !== 'letras' ? '&#128064; Revelar respuesta' : ds.letras ? '&#128064; Revelar (de la más corta a la más larga)' : '&#9209; Cerrar y corregir';
 
     var ansDiv = document.getElementById('questionAnswer');
     ansDiv.style.display = 'block';
-    if (roundType2 === 'cifras') {
+    if (roundType2 === 'letras') {
+        var lb = c.best || null;
+        ansDiv.innerHTML = lb && lb.words && lb.words.length ? 'La más larga posible (' + lb.len + '): <strong>' + esc(lb.words.map(Letras.upper).join(' · ')) + '</strong>' : 'La más larga posible: se calcula al revelar';
+    } else if (roundType2 === 'cifras') {
         var csol = Array.isArray(c.solution) ? c.solution : [];
         ansDiv.innerHTML = csol.length ? 'Solución: <strong>' + esc(csol.map(Cifras.fmtStep).join('  ·  ')) + '</strong>' : 'Solución: se calcula al cerrar';
     } else if (c.correct !== undefined && c.options) {
@@ -2979,7 +2998,18 @@ function renderAnswerRevealed() {
     }).join(' | ');
     document.getElementById('answerText').textContent = ans || '-';
 
-    if (roundType === 'cifras') {
+    var ltPanel = document.getElementById('letrasAnswerPanel');
+    if (roundType === 'letras' && ds.letras) {
+        document.getElementById('answerStatement').innerHTML = '🔤 ' + esc((c.letters || []).join(' '));
+        var lbest = ds.letras.best || c.best;
+        document.getElementById('answerText').textContent = lbest && lbest.words && lbest.words.length ? lbest.words.map(Letras.upper).join(' · ') + ' (' + lbest.len + ')' : '-';
+        document.querySelector('#phase-answer .answer-card h3').textContent = 'La más larga posible';
+        ltPanel.style.display = '';
+        ltPanel.innerHTML = '<div style="font-size:12px; color:var(--text2); text-align:center">¿Te equivocaste al corregir? Cámbialo aquí: los puntos se recalculan solos.</div>' + letrasCorrectionHtml(ds, c);
+    } else ltPanel.style.display = 'none';
+    if (roundType === 'letras') {
+        // (ya pintado arriba)
+    } else if (roundType === 'cifras') {
         document.getElementById('answerStatement').innerHTML = '🎯 ' + esc(c.target) + ' con ' + esc((c.numbers || []).join(' '));
         var dsol = (ds.cifras && ds.cifras.solution) || c.solution || [];
         document.getElementById('answerText').textContent = dsol.length ? dsol.map(Cifras.fmtStep).join('  ·  ') : '-';
@@ -3015,7 +3045,19 @@ function renderAnswerRevealed() {
         var boomSteps = roundType === 'boom' && ds.phase === 'answer_revealed' && typeof ds.boomStep === 'number';
         var abSteps = isAbierta && !!ds.abierta;
         var cfSteps = roundType === 'cifras' && ds.phase === 'answer_revealed' && !!ds.cifras;
-        if (cfSteps) {
+        var ltSteps = roundType === 'letras' && ds.phase === 'answer_revealed' && !!ds.letras && ds.letras.step === 'revealed';
+        if (ltSteps) {
+            // Letras: longitudes de la más corta a la más larga y al final la más larga posible
+            var Lr = ds.letras, lrs = Lr.revealStep || 0;
+            idRevPanel.style.display = '';
+            var lnext = lrs < Lr.groups.length ? Lr.groups[lrs] : null;
+            document.getElementById('identidadRevealCount').textContent = lrs + ' / ' + Lr.total
+                + (lnext ? ' · siguiente: ' + lnext.len + ' letras (' + lnext.words.length + (lnext.words.length === 1 ? ' palabra)' : ' palabras)') : lrs < Lr.total ? ' · siguiente: la más larga posible' : '')
+                + (lrs < Lr.total ? ' · los puntos se suman al terminar' : ' · puntos sumados');
+            var btnLt = document.getElementById('btnRevealNextPair');
+            btnLt.disabled = lrs >= Lr.total;
+            btnLt.innerHTML = lrs >= Lr.total ? '&#10003; Todo revelado' : '&#128065; Ir revelando';
+        } else if (cfSteps) {
             // Cifras: grupos del más lejano al más cercano y, si nadie la clavó, la solución
             var cf = ds.cifras, rs = cf.revealStep || 0;
             idRevPanel.style.display = '';
@@ -3065,6 +3107,63 @@ function renderAnswerRevealed() {
             );
         }
     }
+}
+
+// ── Letras ──
+function ltDirWord(c, idx) { return Array.isArray(idx) ? Letras.wordFrom(c.letters || [], idx) : null; }
+function ltTeamNames(ids) { return ids.map(function(t) { var e = S.equipos.find(function(x) { return x.id === t; }); return e ? e.nombre : '?'; }).join(', '); }
+// Palabras enviadas agrupadas por longitud (de la más larga a la más corta), con ✓ / ✗ para corregir
+function letrasCorrectionHtml(ds, c) {
+    var L = ds.letras, byWord = {};
+    Object.keys(ds.answers || {}).forEach(function(t) {
+        var a = ds.answers[t];
+        var w = a && a.submitted ? ltDirWord(c, a.answer) : null;
+        if (w) (byWord[w] = byWord[w] || []).push(t);
+    });
+    var words = Object.keys(L.marks);
+    if (!words.length) return '<div style="color:var(--text2); font-size:13px; text-align:center; margin-top:8px">Nadie ha enviado ninguna palabra</div>';
+    var lens = {};
+    words.forEach(function(w) { (lens[w.length] = lens[w.length] || []).push(w); });
+    return Object.keys(lens).map(Number).sort(function(a, b) { return b - a; }).map(function(len) {
+        return '<div class="lt-dir-group"><h5>' + len + ' letras</h5>' + lens[len].sort().map(function(w) {
+            var ok = !!L.marks[w], dict = L.inDict[w];
+            return '<div class="lt-dir-row ' + (ok ? 'ok' : 'bad') + '"><span class="w">' + esc(Letras.upper(dict || w)) + '</span>'
+                + '<span class="t">' + esc(ltTeamNames(byWord[w] || [])) + '</span>'
+                + '<span class="d">' + (dict ? '📖 en diccionario' : '❓ no encontrada') + '</span>'
+                + '<button class="btn-ghost btn-sm yes' + (ok ? ' on' : '') + '" data-ltmark="1" data-word="' + esc(w) + '" data-ok="1">✓</button>'
+                + '<button class="btn-ghost btn-sm no' + (!ok ? ' on' : '') + '" data-ltmark="1" data-word="' + esc(w) + '" data-ok="0">✗</button></div>';
+        }).join('') + '</div>';
+    }).join('');
+}
+document.addEventListener('click', function(e) {
+    var b = e.target.closest && e.target.closest('[data-ltmark]');
+    if (!b) return;
+    emit('director:letras_mark', { word: b.dataset.word, ok: b.dataset.ok === '1' });
+});
+function renderLetrasQuestion(ds, c) {
+    var L = ds.letras;
+    document.getElementById('questionStatement').innerHTML = L ? '✍️ Corrige: ✓ vale · ✗ no vale' : '🔤 Letras';
+    var tiles = '<div class="cf-dir-nums">' + (c.letters || []).map(function(l) { return '<span>' + esc(l) + '</span>'; }).join('') + '</div>';
+    if (L) {
+        document.getElementById('questionOptions').innerHTML = '<div style="grid-column:1/-1">' + tiles
+            + '<div style="font-size:13px; color:var(--text2); text-align:center">Cada palabra llega marcada según el diccionario. Tú decides: lo que marques vale para todos los equipos que la pusieron.</div>'
+            + letrasCorrectionHtml(ds, c) + '</div>';
+        return;
+    }
+    var answers = ds.answers || {};
+    var rows = S.equipos.map(function(eq) {
+        var a = answers[eq.id];
+        var sw = a && a.submitted ? ltDirWord(c, a.answer) : null, dw = a ? ltDirWord(c, a.draft) : null;
+        var v, st, cls = '';
+        if (sw) { v = Letras.upper(sw) + ' (' + sw.length + ')'; st = 'enviada'; cls = ' sent'; }
+        else if (dw) { v = Letras.upper(dw) + ' (' + dw.length + ')'; st = 'escribiendo'; }
+        else { v = '—'; st = ds.optionsRevealed ? 'nada aún' : ''; }
+        return '<div class="cf-dir-team' + cls + '"><span class="n">' + esc(eq.nombre) + '</span><span class="v">' + esc(v) + '</span><span class="st">' + st + '</span></div>';
+    }).join('');
+    var sent = Object.values(answers).filter(function(a) { return a.submitted; }).length;
+    document.getElementById('questionOptions').innerHTML = '<div style="grid-column:1/-1">' + tiles
+        + (ds.optionsRevealed ? '<div style="font-size:13px; color:var(--text2); margin-bottom:6px; text-align:center">&#10003; <strong>' + sent + ' de ' + S.equipos.length + '</strong> equipos han enviado · al cerrar, lo que tengan sin enviar cuenta</div>' : '')
+        + '<div class="cf-dir-teams">' + rows + '</div></div>';
 }
 
 // ── Cifras (pregunta en curso): objetivo, números y qué lleva cada equipo ──
@@ -3120,6 +3219,9 @@ function renderTeamResults() {
         } else if (roundType === 'boom' && c.items) {
             var order = Array.isArray(r.answer) ? r.answer : [];
             ansText = order.map(function(i) { return c.items[i] || i; }).join(' → ');
+        } else if (roundType === 'letras' && r.letras) {
+            ansText = Letras.upper(r.show || r.word) + ' (' + r.len + ') · ' + (r.ok ? '✓ vale' : '✗ no vale') + (r.winner ? '  ·  🏆 extra' : '') + (r.late ? '  ·  sin enviar' : '');
+            if (!r.noAnswer) icon = r.ok ? '&#9989;' : '&#10060;';
         } else if (roundType === 'cifras' && r.cifras) {
             ansText = r.value == null ? 'sin resultado' : r.value + (r.dist === 0 ? ' · ¡exacto!' : ' · a ' + r.dist)
                 + ((r.path || []).length ? '  ·  ' + r.path.map(Cifras.fmtStep).join(', ') : '') + (r.winner ? '  ·  🏆 extra' : '') + (r.late ? '  ·  sin enviar' : '');
@@ -3174,7 +3276,8 @@ function renderTimer() {
     if (!ds || !ds.timer) { el.textContent = '--:--'; el.className = 'timer-display stopped'; return; }
     var t0 = ds.timer;
     var noTimer = ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'ruleta' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'imagen_fija' || ds.currentRound.type === 'aclara'
-        || ((ds.currentRound.type === 'abierta' || ds.currentRound.type === 'pictionary' || ds.currentRound.type === 'cifras') && !(t0 && t0.total > 0))); // Respuesta abierta / Pictionary sin cuenta atrás
+        || ((ds.currentRound.type === 'abierta' || ds.currentRound.type === 'pictionary' || ds.currentRound.type === 'cifras' || ds.currentRound.type === 'letras') && !(t0 && t0.total > 0))
+        || (ds.currentRound.type === 'letras' && ds.letras)); // Letras cerrada: corrigiendo, ya no hay reloj // Respuesta abierta / Pictionary sin cuenta atrás
     if (noTimer) {
         el.textContent = '--:--'; el.className = 'timer-display stopped';
         document.getElementById('btnStartTimer').disabled = true;

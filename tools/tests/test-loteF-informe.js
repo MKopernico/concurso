@@ -95,13 +95,13 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     const tplBuf = Buffer.from(await tplRes.arrayBuffer());
     check('La plantilla con ejemplos se descarga con su nombre', /con_ejemplos/.test(tplRes.headers.get('content-disposition') || ''));
     const twb = XLSX.read(tplBuf);
-    check('Trae ejemplos en Rondas y en cada pestaña', XLSX.utils.sheet_to_json(twb.Sheets['Rondas'], { header: 1 }).length === 16);
+    check('Trae ejemplos en Rondas y en cada pestaña', XLSX.utils.sheet_to_json(twb.Sheets['Rondas'], { header: 1 }).length === 17);
     const gEj = (await api('/games', { method: 'POST', body: { name: 'Ejemplos' } })).data;
     const fEj = new FormData(); fEj.append('file', new Blob([tplBuf]), 'ej.xlsx');
     const impEj = await (await fetch(B + `/api/games/${gEj.id}/import-excel`, { method: 'POST', body: fEj, headers: { cookie } })).json();
     const tEj = (await api(`/games/${gEj.id}`)).data;
     const tipos = tEj.rounds.map(r => r.type).sort().join(',');
-    check('Al importarla se crean 13 rondas, una de cada tipo, sin errores', tEj.rounds.length === 13 && tipos === 'abierta,aclara,boom,cancion,cifras,identidad,imagen,imagen_fija,multirespuesta,pictionary,precio,pulsador,ruleta' && !impEj.errors.length, { tipos, errores: impEj.errors });
+    check('Al importarla se crean 14 rondas, una de cada tipo, sin errores', tEj.rounds.length === 14 && tipos === 'abierta,aclara,boom,cancion,cifras,identidad,imagen,imagen_fija,letras,multirespuesta,pictionary,precio,pulsador,ruleta' && !impEj.errors.length, { tipos, errores: impEj.errors });
     const rq = (t) => tEj.rounds.find(r => r.type === t).questions[0].content;
     check('Ejemplos correctos: Multirespuesta (Tajo), Boom (rueda primero), Identidad (4 parejas)', rq('multirespuesta').options[rq('multirespuesta').correct[0]] === 'Tajo' && rq('boom').items[rq('boom').correct_order[0]] === 'Rueda' && rq('identidad').pairs.length === 4);
     const img = await fetch(B + '/shared/ejemplo-paisaje.svg');

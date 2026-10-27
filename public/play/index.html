@@ -288,6 +288,28 @@ input:focus { border-color: var(--accent); }
 .reveal-result.win { color: #fff; background: rgba(34,197,94,.35); border: 2px solid #22c55e; }
 .reveal-result.lose { color: #fff; background: rgba(239,68,68,.3); border: 2px solid #ef4444; }
 
+/* ── Letras: letras arriba, huecos debajo ── */
+.gp-letras { padding: 14px 14px 10px; gap: 14px; justify-content: flex-start; }
+.lt-letters { display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(6px, 1.2vw, 12px); flex-shrink: 0; }
+.lt-l { width: clamp(56px, 9vw, 84px); height: clamp(64px, 10vw, 92px); border-radius: 14px; font-size: clamp(30px, 5.4vw, 48px); font-weight: 900;
+    background: rgba(255,255,255,.92); color: #111; box-shadow: 0 4px 0 rgba(0,0,0,.35); }
+.lt-l.used { opacity: .18; box-shadow: none; }
+.lt-l:disabled:not(.used) { opacity: .5; }
+.lt-slots { display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(5px, 1vw, 10px); flex-shrink: 0; padding: 12px; background: rgba(0,0,0,.55); border-radius: 18px; backdrop-filter: blur(6px); }
+.lt-s { width: clamp(48px, 7.6vw, 72px); height: clamp(56px, 8.6vw, 80px); border-radius: 12px; border: 3px dashed rgba(255,255,255,.3); display: flex; align-items: center; justify-content: center;
+    font-size: clamp(26px, 4.6vw, 42px); font-weight: 900; color: #000; background: transparent; }
+.lt-s.full { border: 3px solid var(--accent); background: var(--accent); }
+.lt-s.just { animation: cfIn .35s ease; }
+.lt-info { font-size: clamp(18px, 3vw, 24px); font-weight: 800; color: #fff; text-align: center; text-shadow: 0 1px 4px rgba(0,0,0,.9); }
+.lt-info b { color: var(--gold); }
+.lt-mid { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
+.lt-word { font-size: clamp(34px, 7vw, 64px); font-weight: 900; letter-spacing: 4px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
+.lt-word.ok { color: #4ade80; } .lt-word.bad { color: #f87171; text-decoration: line-through; }
+.lt-best { font-size: clamp(16px, 2.6vw, 22px); font-weight: 700; color: var(--text2); }
+.lt-best b { color: var(--gold); letter-spacing: 2px; }
+.lt-big { font-size: clamp(48px, 10vw, 84px); animation: abPulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .lt-s.just, .lt-big { animation: none; } }
+
 /* ── Cifras: fichas con los números, operaciones y cuentas ── */
 .gp-cifras { padding: 10px 14px 10px; gap: 10px; justify-content: flex-start; }
 .cf-target { display: flex; align-items: center; justify-content: center; gap: 14px; flex-shrink: 0; background: rgba(0,0,0,.6); border-radius: 16px; padding: 8px 18px; backdrop-filter: blur(6px); }
@@ -742,6 +764,20 @@ body.karaoke-active .player-timer-bar { display: none !important; }
                 <button class="hz-send" id="idBtn" onclick="submitIdentidad()" style="display:none">Enviar</button>
             </div>
         </div>
+        <div class="gphase gp-letras" id="gp-letras">
+            <div class="lt-letters" id="ltLetters"></div>
+            <div class="lt-slots" id="ltSlots"></div>
+            <div class="lt-mid" id="ltMid"></div>
+            <div class="cf-foot">
+                <div class="lt-info" id="ltInfo"></div>
+                <div class="cf-btns" id="ltBtns">
+                    <button class="cf-btn" type="button" id="ltBack">⌫ Borrar</button>
+                    <button class="cf-btn" type="button" id="ltClear">Empezar de nuevo</button>
+                    <button class="cf-send" type="button" id="ltSend">Enviar</button>
+                </div>
+                <div class="cf-status" id="ltStatus"></div>
+            </div>
+        </div>
         <div class="gphase gp-cifras" id="gp-cifras">
             <div class="cf-target"><span class="cf-tl">Objetivo</span><span class="cf-tv" id="cfTarget"></span></div>
             <div class="cf-tiles" id="cfTiles"></div>
@@ -846,6 +882,7 @@ body.karaoke-active .player-timer-bar { display: none !important; }
 <script src="/shared/pictionary-board.js"></script>
 <script src="/shared/image-shrink.js"></script>
 <script src="/shared/cifras.js"></script>
+<script src="/shared/letras.js"></script>
 <script>
 // ═══════════════ State ═══════════════
 var S = {
@@ -855,6 +892,7 @@ var S = {
     identidad: { myOrder: null, mySubmitted: false },
     ab: { texts: [], submitted: false }, // Respuesta abierta: lo escrito por este equipo
     cf: { steps: [], sel: null, op: null, sent: null, just: -1 }, // Cifras: cuentas de este equipo, ficha y operación elegidas, lo enviado
+    lt: { idx: [], sent: null }, // Letras: letras elegidas (índices, en orden) y lo enviado
 };
 var socket = null;
 var deviceId = localStorage.getItem('gs_deviceId') || (function() {
@@ -1327,10 +1365,19 @@ function connectSocket(onReady) {
 
     socket.on('game:pair_revealed', function() {
         if (S.ps && S.ps.roundType === 'cifras' && S.ps.phase === 'answer_revealed') renderCifras();
+        if (S.ps && S.ps.roundType === 'letras' && S.ps.phase === 'answer_revealed') renderLetras();
         if (S.ps && S.ps.roundType === 'abierta' && S.ps.phase === 'answer_revealed') renderAbierta();
         if (S.ps && S.ps.roundType === 'identidad' && S.ps.phase === 'answer_revealed') {
             renderIdentidad();
         }
+    });
+
+    // Letras: la palabra de este equipo (al volver de un corte o desde otro iPad)
+    socket.on('game:your_letras', function(d) {
+        if (!S.lt.idx.length) S.lt.idx = Array.isArray(d.idx) ? d.idx.slice() : [];
+        else ltQueueDraft();
+        S.lt.sent = Array.isArray(d.sent) ? d.sent : null;
+        if (S.ps && S.ps.roundType === 'letras') renderLetras();
     });
 
     // Cifras: las cuentas de este equipo (al volver de un corte o desde otro iPad)
@@ -1379,8 +1426,8 @@ function connectSocket(onReady) {
 // para que cuente con el tiempo que quedaba al pulsar, no con el de llegada.
 var _pendingAnswers = {};
 var _lastAnswer = null;
-var _QUEUEABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:update_order': 1, 'player:abierta_draft': 1, 'player:abierta_submit': 1, 'player:cifras_draft': 1, 'player:cifras_submit': 1 };
-var _RESENDABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:abierta_submit': 1, 'player:cifras_submit': 1 };
+var _QUEUEABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:update_order': 1, 'player:abierta_draft': 1, 'player:abierta_submit': 1, 'player:cifras_draft': 1, 'player:cifras_submit': 1, 'player:letras_draft': 1, 'player:letras_submit': 1 };
+var _RESENDABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:abierta_submit': 1, 'player:cifras_submit': 1, 'player:letras_submit': 1 };
 function _nowMs() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
 function _withAgo(x) {
     var d = {}; for (var k in x.data) d[k] = x.data[k];
@@ -1396,7 +1443,7 @@ function emit(ev, data) {
     if (socket && socket.connected && S.myTeamId) { socket.emit(ev, data || {}); return; }
     if (_QUEUEABLE[ev]) {
         _pendingAnswers[ev] = entry;
-        if (ev !== 'player:abierta_draft' && ev !== 'player:cifras_draft') toast('Reconectando… tu respuesta se enviará al volver');
+        if (ev !== 'player:abierta_draft' && ev !== 'player:cifras_draft' && ev !== 'player:letras_draft') toast('Reconectando… tu respuesta se enviará al volver');
     } else if (ev === 'pulsar_boton') {
         toast('Sin conexión: espera a que vuelva');
     }
@@ -1501,6 +1548,7 @@ function onPlayerSync(ps) {
         S.identidad = { myOrder: null, mySubmitted: false };
         S.ab = { texts: [], submitted: false }; _abKey = null; clearTimeout(_abDraftT);
         S.cf = { steps: [], sel: null, op: null, sent: null, just: -1 }; clearTimeout(_cfDraftT);
+        S.lt = { idx: [], sent: null }; clearTimeout(_ltDraftT);
         applyYourOrder();
         var _pi = document.getElementById('precioInput'); if (_pi) _pi.value = '';
         hzCancelDrag();
@@ -1737,6 +1785,8 @@ function renderGamePhase() {
             renderAbierta(); document.getElementById('gp-abierta').classList.add('active');
         } else if (type === 'cifras') {
             renderCifras(); document.getElementById('gp-cifras').classList.add('active');
+        } else if (type === 'letras') {
+            renderLetras(); document.getElementById('gp-letras').classList.add('active');
         } else {
             renderRevealed(); document.getElementById('gp-revealed').classList.add('active');
         }
@@ -1772,6 +1822,9 @@ function renderGamePhase() {
             // Cuenta atrás opcional: sin ella no se ve el reloj
             timerBar.style.display = (ps.timer && ps.timer.total > 0) ? 'flex' : 'none';
             renderAbierta(); document.getElementById('gp-abierta').classList.add('active');
+        } else if (type === 'letras') {
+            timerBar.style.display = (ps.timer && ps.timer.total > 0 && !ps.letras) ? 'flex' : 'none';
+            renderLetras(); document.getElementById('gp-letras').classList.add('active');
         } else if (type === 'cifras') {
             timerBar.style.display = (ps.timer && ps.timer.total > 0) ? 'flex' : 'none';
             renderCifras(); document.getElementById('gp-cifras').classList.add('active');
@@ -2434,6 +2487,115 @@ function submitIdentidad() {
     renderIdentidad();
 }
 
+// ── Letras ──
+// Se tocan letras y van a los huecos en orden; tocar una letra de los huecos la quita. Cada cambio
+// va al servidor como borrador (si se acaba el tiempo, cuenta) y «Enviar» manda la palabra; se
+// puede reenviar mientras haya tiempo (cuenta la última).
+var _ltDraftT = null;
+function ltLetters() { var c = (S.ps && S.ps.question && S.ps.question.content) || {}; return c.letters || []; }
+function ltCanPlay() {
+    var ps = S.ps;
+    return !!(ps && ps.phase === 'question' && !ps.letras && ps.optionsRevealed && !(ps.preCountdown > 0) && !(ps.timer && ps.timer.total > 0 && ps.timer.remaining <= 0));
+}
+function ltQueueDraft() {
+    clearTimeout(_ltDraftT);
+    _ltDraftT = setTimeout(function() { if (ltCanPlay()) emit('player:letras_draft', { idx: S.lt.idx.slice() }); }, 250);
+}
+function ltWord(idx) { return Letras.upper(Letras.wordFrom(ltLetters(), idx || S.lt.idx) || ''); }
+function ltSameAsSent() { return !!S.lt.sent && S.lt.sent.join(',') === S.lt.idx.join(','); }
+function renderLetras() {
+    var ps = S.ps; if (!ps || !ps.question) return;
+    var letters = ltLetters();
+    var lettersEl = document.getElementById('ltLetters'), slotsEl = document.getElementById('ltSlots'), mid = document.getElementById('ltMid');
+    var info = document.getElementById('ltInfo'), btns = document.getElementById('ltBtns'), status = document.getElementById('ltStatus');
+    status.className = 'cf-status'; status.textContent = ''; info.innerHTML = ''; mid.innerHTML = '';
+    var L = ps.letras;
+
+    if (L) {
+        // Cerrada: corrigiendo o revelando
+        btns.style.display = 'none'; slotsEl.style.display = 'none';
+        lettersEl.innerHTML = letters.map(function(l) { return '<button class="lt-l" type="button" disabled>' + esc(l) + '</button>'; }).join(''); lettersEl._html = null;
+        var mineW = S.lt.sent ? ltWord(S.lt.sent) : ltWord();
+        if (L.step === 'correcting') {
+            mid.innerHTML = '<div class="lt-big">✍️</div><div class="lt-info">Corrigiendo…</div>' + (mineW ? '<div class="lt-word">' + esc(mineW) + '</div>' : '<div class="lt-best">No llegó ninguna palabra de vuestro equipo</div>');
+            return;
+        }
+        var mine = (ps.lastQuestionScores || {})[S.myTeamId];
+        var html = '';
+        if (!mine || mine.noAnswer) html = '<div class="lt-best">No enviasteis ninguna palabra</div>';
+        else if (mine.word === undefined) html = (mineW ? '<div class="lt-word">' + esc(mineW) + '</div>' : '') + '<div class="lt-info">👀 Revelando… aún no os toca</div>';
+        else {
+            html = '<div class="lt-word ' + (mine.ok ? 'ok' : 'bad') + '">' + esc(Letras.upper(mine.show || mine.word)) + '</div>'
+                + '<div class="lt-info">' + mine.len + ' letras · ' + (mine.ok ? '✓ vale' : '✗ no vale') + '</div>';
+            if (!mine.pending) {
+                status.textContent = (mine.points > 0 ? '+' : '') + (mine.points || 0) + ' puntos' + (mine.winner ? ' · 🏆 ¡La más larga!' : '');
+                status.className = 'cf-status final' + (mine.points > 0 ? ' ok' : '');
+            }
+        }
+        if (L.best && L.best.words && L.best.words.length) html += '<div class="lt-best">La más larga posible (' + L.best.len + '): <b>' + esc(L.best.words.slice(0, 3).map(Letras.upper).join(' · ')) + '</b></div>';
+        mid.innerHTML = html;
+        return;
+    }
+
+    btns.style.display = ''; slotsEl.style.display = '';
+    var play = ltCanPlay();
+    // Si algún índice ya no vale (no debería), se quita
+    if (Letras.wordFrom(letters, S.lt.idx) === null) S.lt.idx = [];
+    var used = {};
+    S.lt.idx.forEach(function(k) { used[k] = true; });
+    var lh = letters.map(function(l, i) {
+        return '<button class="lt-l' + (used[i] ? ' used' : '') + '" type="button" data-i="' + i + '"' + (play && !used[i] ? '' : ' disabled') + '>' + esc(l) + '</button>';
+    }).join('');
+    // Solo si cambia: rehacerlas en cada actualización del servidor se comería toques
+    if (lettersEl._html !== lh) { lettersEl.innerHTML = lh; lettersEl._html = lh; }
+    var sh = '';
+    for (var p = 0; p < letters.length; p++) {
+        var k = S.lt.idx[p];
+        sh += k === undefined ? '<div class="lt-s"></div>' : '<button class="lt-s full' + (p === S.lt.idx.length - 1 ? ' just' : '') + '" type="button" data-p="' + p + '"' + (play ? '' : ' disabled') + '>' + esc(letters[k]) + '</button>';
+    }
+    if (slotsEl._html !== sh) { slotsEl.innerHTML = sh; slotsEl._html = sh; }
+    var w = ltWord();
+    info.innerHTML = w ? '<b>' + w.length + '</b> letras' : '';
+    document.getElementById('ltBack').disabled = !play || !S.lt.idx.length;
+    document.getElementById('ltClear').disabled = !play || !S.lt.idx.length;
+    var send = document.getElementById('ltSend');
+    var same = ltSameAsSent();
+    send.disabled = !play || S.lt.idx.length < 2 || same;
+    send.className = 'cf-send' + (S.lt.sent && !same ? ' again' : '');
+    send.textContent = S.lt.sent ? 'Volver a enviar' : 'Enviar palabra';
+    if (!ps.optionsRevealed || ps.preCountdown > 0) status.textContent = 'Mirad las letras: enseguida podréis formar la palabra';
+    else if (!play) status.textContent = 'Se acabó el tiempo';
+    else if (S.lt.sent) { status.textContent = '✓ Enviada: ' + ltWord(S.lt.sent) + (same ? '' : ' · si encontráis otra mejor, volved a enviar'); status.className = 'cf-status ok'; }
+    else status.textContent = 'Tocad las letras en orden para formar la palabra más larga';
+}
+(function() {
+    document.getElementById('ltLetters').addEventListener('click', function(e) {
+        var b = e.target.closest('.lt-l'); if (!b || b.disabled || !ltCanPlay()) return;
+        var i = Number(b.dataset.i);
+        if (S.lt.idx.indexOf(i) >= 0) return;
+        S.lt.idx.push(i); ltQueueDraft(); renderLetras();
+    });
+    document.getElementById('ltSlots').addEventListener('click', function(e) {
+        var b = e.target.closest('.lt-s.full'); if (!b || b.disabled || !ltCanPlay()) return;
+        S.lt.idx.splice(Number(b.dataset.p), 1); ltQueueDraft(); renderLetras();
+    });
+    document.getElementById('ltBack').addEventListener('click', function() {
+        if (!ltCanPlay() || !S.lt.idx.length) return;
+        S.lt.idx.pop(); ltQueueDraft(); renderLetras();
+    });
+    document.getElementById('ltClear').addEventListener('click', function() {
+        if (!ltCanPlay() || !S.lt.idx.length) return;
+        S.lt.idx = []; ltQueueDraft(); renderLetras();
+    });
+    document.getElementById('ltSend').addEventListener('click', function() {
+        if (!ltCanPlay() || S.lt.idx.length < 2 || ltSameAsSent()) return;
+        clearTimeout(_ltDraftT);
+        S.lt.sent = S.lt.idx.slice();
+        emit('player:letras_submit', { idx: S.lt.sent.slice() });
+        renderLetras();
+    });
+})();
+
 // ── Cifras ──
 // Se toca un número, una operación y otro número: el resultado aparece como ficha nueva y los dos
 // usados desaparecen. Cada cuenta va al servidor como borrador (si se acaba el tiempo, cuenta) y
@@ -2735,7 +2897,7 @@ function submitAbierta() {
 var PLAY_TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
     imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary', cifras: 'Cifras'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary', cifras: 'Cifras', letras: 'Letras'
 };
 
 var _playMenuLevel = null;

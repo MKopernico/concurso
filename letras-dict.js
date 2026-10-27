@@ -17,7 +17,7 @@ function load() {
     _dict = new Map();
     let text = '';
     try { text = fs.readFileSync(FILE, 'utf8'); } catch (e) { console.error('[letras] no se pudo leer el diccionario:', e.message); }
-    for (const line of text.split('\n')) {
+    for (const line of text.split(/\r?\n/)) { // en Windows Git lo deja con CRLF
         if (!line) continue;
         const tab = line.indexOf('\t');
         if (tab < 0) _dict.set(line, '');
