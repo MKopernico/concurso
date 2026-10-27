@@ -608,6 +608,12 @@ function finalizeQuestion(state) {
         }
         autoScoreIdentidad(state);
     } else if (type === 'boom') {
+        // Orden colocado entero pero sin pulsar «Enviar»: cuenta, pero solo la parte fija (sin
+        // rapidez) y como el último en llegar (no le quita el extra a quien sí envió)
+        const closedAt = Date.now();
+        for (const ans of Object.values(ds.answers)) {
+            if (!ans.submitted) { ans.submitted = true; ans.timerRemaining = 0; ans.timestamp = closedAt; ans.late = true; }
+        }
         autoScoreBoom(state);
         ds.boomStep = 0; // el coordinador revela el orden posición a posición («Ir revelando»)
     }
@@ -1763,10 +1769,21 @@ function attachSocketHandlers(io) {
             broadcastDirector(io, gameId, state);
         });
 
+        // Respuesta fuera de sitio: de otra pregunta (un mensaje que llega tarde tras pasar a la
+        // siguiente) o antes de abrir las opciones. El iPad manda en "k" la pregunta a la que
+        // responde; los iPads sin actualizar no la mandan y solo se mira lo de las opciones.
+        const answerOutOfPlace = (data) => {
+            const ds = state.director;
+            if (data && typeof data.k === 'string' && data.k !== questionKeyOf(ds)) return true;
+            const type = ds.currentRound && ds.currentRound.type;
+            return (type === 'multirespuesta' || type === 'boom' || type === 'identidad') && !ds.optionsRevealed;
+        };
+
         socket.on('player:submit_answer', (data) => {
             if (!socket.equipoId) return;
             const ds = state.director;
             if (ds.phase !== 'question') return;
+            if (answerOutOfPlace(data)) return;
             if (ds.currentRound && ds.currentRound.type === 'abierta') return; // tiene sus propios mensajes
             if (ds.answers[socket.equipoId]) return;
             ds.answers[socket.equipoId] = { answer: data.answer, ...answerTiming(state, data) };
@@ -1777,6 +1794,7 @@ function attachSocketHandlers(io) {
             if (!socket.equipoId) return;
             const ds = state.director;
             if (ds.phase !== 'question') return;
+            if (answerOutOfPlace(data)) return;
             if (ds.answers[socket.equipoId]) return;
             const val = Number(data && data.value);
             if (!isFinite(val)) return;
@@ -1788,15 +1806,16 @@ function attachSocketHandlers(io) {
             if (!socket.equipoId) return;
             const ds = state.director;
             if (ds.phase !== 'question') return;
+            if (answerOutOfPlace(data)) return;
             if (!data || !Array.isArray(data.order)) return;
             const order = toCanonicalOrder(ds, data.order);
             if (!order) return;
             const timing = answerTiming(state, data);
             data = { order };
             const existing = ds.answers[socket.equipoId];
-            // For identidad: allow promoting provisional to definitive
+            // Identidad y Boom: el orden provisional pasa a definitivo al pulsar «Enviar»
             if (existing) {
-                if (ds.currentRound && ds.currentRound.type === 'identidad' && !existing.submitted) {
+                if (!existing.submitted) {
                     existing.answer = data.order;
                     existing.timestamp = timing.timestamp;
                     existing.timerRemaining = timing.timerRemaining;
@@ -1814,11 +1833,14 @@ function attachSocketHandlers(io) {
             if (!socket.equipoId) return;
             const ds = state.director;
             if (ds.phase !== 'question') return;
-            if (!ds.optionsRevealed) return;
-            if (!(ds.currentRound && ds.currentRound.type === 'identidad')) return;
+            if (answerOutOfPlace(data)) return;
+            const type = ds.currentRound && ds.currentRound.type;
+            if (type !== 'identidad' && type !== 'boom') return;
             if (!data || !Array.isArray(data.order)) return;
             const order = toCanonicalOrder(ds, data.order);
             if (!order) return;
+            // Boom: solo cuenta un orden completo (todas las posiciones colocadas)
+            if (type === 'boom' && (order.length !== ds.questions[ds.currentQuestionIdx].content.items.length || order.some(k => k === null))) return;
             const existing = ds.answers[socket.equipoId];
             if (existing && existing.submitted) return;
             ds.answers[socket.equipoId] = { answer: order, timestamp: Date.now(), timerRemaining: preciseRemaining(state), submitted: false };
@@ -1830,6 +1852,7 @@ function attachSocketHandlers(io) {
         const abiertaTexts = (data) => {
             const ds = state.director;
             if (!socket.equipoId || ds.phase !== 'question' || !ds.abierta || ds.abierta.step !== 'open') return null;
+            if (answerOutOfPlace(data)) return null;
             const eq = state.equipos.find(e => e.id === socket.equipoId);
             if (!eq || eq.bloqueado) return null;
             const prev = ds.answers[socket.equipoId];

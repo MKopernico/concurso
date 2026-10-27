@@ -603,7 +603,7 @@ body.karaoke-active .player-timer-bar { display: none !important; }
             <div class="photo-buttons">
                 <label for="photoCamera">&#128248; Hacer foto</label>
                 <input type="file" id="photoCamera" accept="image/*" capture="environment" onchange="uploadPhoto(this)">
-                <label for="photoFile">&#128193; Elegir de galeria</label>
+                <label for="photoFile">&#128193; Elegir de galería</label>
                 <input type="file" id="photoFile" accept="image/*" onchange="uploadPhoto(this)">
             </div>
         </div>
@@ -1313,6 +1313,9 @@ function _withAgo(x) {
 }
 function emit(ev, data) {
     var entry = { data: data || {}, key: S.ps && S.ps.questionKey, at: _nowMs() };
+    // La respuesta lleva la pregunta a la que va: si llega tarde a otra, el servidor la descarta
+    if (_QUEUEABLE[ev] && entry.key && entry.data.k === undefined) entry.data.k = entry.key;
+    data = entry.data;
     if (_RESENDABLE[ev]) _lastAnswer = { ev: ev, data: entry.data, key: entry.key, at: entry.at };
     if (socket && socket.connected && S.myTeamId) { socket.emit(ev, data || {}); return; }
     if (_QUEUEABLE[ev]) {
@@ -1351,7 +1354,7 @@ function applyPlayerTheme(theme) {
     if (!theme) return;
     var root = document.documentElement;
     if (theme.primaryColor) { root.style.setProperty('--accent', theme.primaryColor); root.style.setProperty('--accent-dim', theme.primaryColor + 'cc'); }
-    if (theme.secondaryColor) root.style.setProperty('--gold', theme.secondaryColor);
+    if (theme.secondaryColor) root.style.setProperty('--gold', GameShowShared.Theme.readableOnDark(theme.secondaryColor));
 }
 
 function paintPlayBgLayer(resolved) {
@@ -1373,6 +1376,7 @@ function paintPlayBgLayer(resolved) {
     }
 }
 
+function isOutOfRound(ps) { return !ps || ps.phase === 'waiting' || ps.phase === 'lobby'; }
 function applyPlayerRoundTheme(ps) {
     var gt = ps.gameTheme || {};
     var rc = ps.roundTheme || {};
@@ -1381,7 +1385,9 @@ function applyPlayerRoundTheme(ps) {
     paintPlayBgLayer(resolved);
 
     // Round logo in top bar: roundTheme.logo → typeTheme.logo → gameTheme.logo
-    var logo = (rc.logo) || (ps.typeTheme && ps.typeTheme.logo) || (gt.logo) || null;
+    // En la espera y en la sala de entrada no hay ronda en juego: el logo del juego, no el de la última ronda
+    var outOfRound = isOutOfRound(ps);
+    var logo = outOfRound ? (gt.logo || null) : ((rc.logo) || (ps.typeTheme && ps.typeTheme.logo) || (gt.logo) || null);
     var logoEl = document.getElementById('playerRoundLogo');
     if (logoEl) {
         if (logo) { logoEl.src = logo; logoEl.style.display = ''; }
@@ -1430,7 +1436,7 @@ function onPlayerSync(ps) {
     renderPlayerPreCountdown(ps);
     var scores = ps.scores || {};
     document.getElementById('myScore').textContent = S.myTeamId ? (scores[S.myTeamId] || 0) : 0;
-    document.getElementById('roundLabel').textContent = ps.roundName || '';
+    document.getElementById('roundLabel').textContent = isOutOfRound(ps) ? '' : (ps.roundName || '');
     if (S.myTeamId && ps.equipos) {
         var me = ps.equipos.find(function(e) { return e.id === S.myTeamId; });
         if (me) document.getElementById('blockedOverlay').classList.toggle('active', me.bloqueado);
@@ -2046,7 +2052,8 @@ function hzLocked() {
 }
 function hzChanged(justSlot) {
     HZ.selected = null; HZ.just = justSlot;
-    if (HZ.type === 'identidad') emit('player:update_order', { order: HZ.slots.slice() }); // provisional: cuenta si se acaba el tiempo
+    // Provisional: cuenta si se acaba el tiempo sin pulsar «Enviar» (en Boom, solo con todo colocado)
+    if (HZ.type === 'identidad' || (HZ.type === 'boom' && HZ.slots.every(function(v) { return v !== null; }))) emit('player:update_order', { order: HZ.slots.slice() });
     hzRerender();
 }
 function hzPlace(k, slotIdx) {

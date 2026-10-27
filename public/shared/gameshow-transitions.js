@@ -294,6 +294,26 @@ function renderScoreboardHTML(equipos, scores, opts) {
 function _esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
 
+// ═══════════════ COLOR LEGIBLE ═══════════════
+// Los colores del juego se usan como letra sobre fondo oscuro (y como fondo con letra negra).
+// Si son muy oscuros (p. ej. azul marino) no se leen: se mezclan con blanco hasta que la
+// luminancia da contraste suficiente (≈ 4,5:1 contra negro). Los claros se devuelven tal cual.
+function _luminance(r, g, b) {
+    var c = [r, g, b].map(function(v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+function readableOnDark(hex) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+    if (!m) return hex;
+    var n = parseInt(m[1], 16), r0 = n >> 16, g0 = (n >> 8) & 255, b0 = n & 255;
+    var rgb = [r0, g0, b0];
+    for (var mix = 0.05; _luminance(rgb[0], rgb[1], rgb[2]) < 0.2 && mix <= 1; mix += 0.05) {
+        rgb = [r0, g0, b0].map(function(v) { return Math.round(v + (255 - v) * mix); });
+    }
+    if (rgb[0] === r0 && rgb[1] === g0 && rgb[2] === b0) return hex;
+    return '#' + rgb.map(function(v) { return ('0' + v.toString(16)).slice(-2); }).join('');
+}
+
 // ═══════════════ EXPORTS ═══════════════
 window.GameShowShared = {
     Transitions: {
@@ -311,6 +331,7 @@ window.GameShowShared = {
         resolveBackground: resolveEffectiveBackground,
         resolveMenuBackground: resolveMenuBackground,
         GRADIENT_PRESETS: _GRADIENT_PRESETS_SHARED,
+        readableOnDark: readableOnDark,
     },
     Scoreboard: {
         renderHTML: renderScoreboardHTML,
