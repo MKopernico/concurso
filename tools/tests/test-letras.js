@@ -41,7 +41,7 @@ function idxOf(letters, word) {
 
 (async () => {
     // ── Diccionario y motor (sin servidor) ──
-    const D = require(path.join(APP, 'letras-dict.js'));
+    const D = require(path.join(REPO, 'letras-dict.js')); // en el kit va dentro de app/server.js: allí se prueba por la partida
     const L = require(path.join(REPO, 'public/shared/letras.js'));
     check('Diccionario cargado (más de 90.000 palabras)', D.size() > 90000, D.size());
     check('Plurales, femeninos e infinitivos sí', ['casas', 'abogada', 'abogadas', 'canciones', 'lapices', 'examenes', 'felices', 'comer'].every(w => D.has(w)));
