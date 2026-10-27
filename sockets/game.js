@@ -2102,7 +2102,8 @@ function attachSocketHandlers(io) {
         });
 
         // ── Cifras: borrador en cada cuenta y «Enviar» (se puede reenviar mientras haya tiempo) ──
-        socket.on('player:cifras', (data) => {
+        // Dos mensajes distintos: en un corte el iPad guarda el último de cada uno, y un borrador no puede pisar un envío
+        const cifrasMsg = (data, final) => {
             const ds = state.director;
             if (!socket.equipoId || ds.phase !== 'question' || !(ds.currentRound && ds.currentRound.type === 'cifras')) return;
             if (answerOutOfPlace(data)) return;
@@ -2110,7 +2111,7 @@ function attachSocketHandlers(io) {
             if (!eq || eq.bloqueado || !data || !Array.isArray(data.steps)) return;
             const steps = cleanCifrasSteps(ds, data.steps);
             const prev = ds.answers[socket.equipoId];
-            if (!data.final) {
+            if (!final) {
                 // Borrador: no cambia lo ya enviado ni se difunde a nadie
                 if (prev) prev.draft = steps;
                 else ds.answers[socket.equipoId] = { answer: null, draft: steps, submitted: false, timestamp: Date.now(), timerRemaining: preciseRemaining(state) };
@@ -2119,7 +2120,9 @@ function attachSocketHandlers(io) {
             if (!cifrasEval(ds, steps).best) return; // con «usar todas» y sin usarlas todas no hay resultado que enviar
             ds.answers[socket.equipoId] = { answer: steps, draft: steps, ...answerTiming(state, data), submitted: true };
             broadcastDirector(io, gameId, state);
-        });
+        };
+        socket.on('player:cifras_draft', (data) => cifrasMsg(data, false));
+        socket.on('player:cifras_submit', (data) => cifrasMsg(data, true));
 
         socket.on('usar_bono', (data) => {
             const emisor = state.equipos.find(e => e.id === socket.equipoId);

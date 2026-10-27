@@ -73,6 +73,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .type-karaoke { background: #831843; color: #f9a8d4; }
 .type-aclara { background: #3b2f63; color: #c4b5fd; }
 .type-pictionary { background: #5b3a12; color: #fcd34d; }
+.type-cifras { background: #0f4c5c; color: #67e8f9; }
 .type-abierta { background: #134e4a; color: #5eead4; }
 .type-identidad { background: #4a1942; color: #f0abfc; }
 /* Respuesta abierta: pasos, envíos y corrección por subpregunta */
@@ -363,6 +364,14 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .snd-warn { font-size: 12px; line-height: 1.4; padding: 6px 8px; border-radius: 6px; background: rgba(250,204,21,.12); border: 1px solid rgba(250,204,21,.4); color: var(--gold); }
 .header-actions .hdr-btn.snd-on { background: rgba(34,197,94,.14); border-color: var(--success); color: var(--success); }
 .header-actions .hdr-btn.snd-alert { background: rgba(250,204,21,.15); border-color: #facc15; color: #facc15; }
+.cf-dir-nums { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 4px 0 10px; }
+.cf-dir-nums span { min-width: 44px; padding: 6px 10px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); font-size: 20px; font-weight: 800; text-align: center; }
+.cf-dir-teams { display: flex; flex-direction: column; gap: 4px; text-align: left; }
+.cf-dir-team { display: flex; gap: 8px; align-items: center; font-size: 13px; padding: 4px 8px; border-radius: 6px; background: var(--surface2); }
+.cf-dir-team .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.cf-dir-team .v { font-weight: 800; font-variant-numeric: tabular-nums; }
+.cf-dir-team.sent .v { color: var(--success); }
+.cf-dir-team .st { color: var(--text2); font-size: 12px; }
 .bl-panel .bl-cancel { background: none; border: none; color: var(--text2); font-size: 11px; cursor: pointer; font-family: inherit; padding: 2px; }
 .bl-panel .bl-cancel:hover { color: var(--text); }
 .bl-badge { background: var(--accent); color: #fff; font-size: 9px; font-weight: 700; border-radius: 8px; padding: 1px 5px; margin-left: 3px; vertical-align: top; }
@@ -1248,6 +1257,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 <script src="/shared/karaoke-colors.js"></script>
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
+<script src="/shared/cifras.js"></script>
 <script src="/shared/aclara-fx.js"></script>
 <script src="/shared/pictionary-board.js"></script>
 <script src="/shared/qrcode.min.js"></script>
@@ -1513,7 +1523,7 @@ function renderLobby() {
 const TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio justo',
     imagen: 'Adivina imagen', cancion: 'Adivina cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen fija', aclara: 'Imagen que se aclara', identidad: 'Identidad', abierta: 'Respuesta abierta', pictionary: 'Pictionary'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen fija', aclara: 'Imagen que se aclara', identidad: 'Identidad', abierta: 'Respuesta abierta', pictionary: 'Pictionary', cifras: 'Cifras'
 };
 
 function getCategories() {
@@ -2563,7 +2573,8 @@ function renderQuestion() {
     // Show/hide "Abrir opciones" button for multirespuesta, boom (precio uses its own panel)
     var roundType2 = ds.currentRound ? ds.currentRound.type : '';
     var btnRevealOpts = document.getElementById('btnRevealOptions');
-    if ((roundType2 === 'multirespuesta' || roundType2 === 'boom' || roundType2 === 'identidad') && !ds.optionsRevealed) {
+    btnRevealOpts.innerHTML = roundType2 === 'cifras' ? '&#128065; Empezar las cuentas' : '&#128065; Abrir opciones';
+    if ((roundType2 === 'multirespuesta' || roundType2 === 'boom' || roundType2 === 'identidad' || roundType2 === 'cifras') && !ds.optionsRevealed) {
         btnRevealOpts.style.display = '';
     } else {
         btnRevealOpts.style.display = 'none';
@@ -2583,9 +2594,14 @@ function renderQuestion() {
         }
     }
 
+    if (roundType2 === 'cifras') renderCifrasQuestion(ds, c);
+
     var ansDiv = document.getElementById('questionAnswer');
     ansDiv.style.display = 'block';
-    if (c.correct !== undefined && c.options) {
+    if (roundType2 === 'cifras') {
+        var csol = Array.isArray(c.solution) ? c.solution : [];
+        ansDiv.innerHTML = csol.length ? 'Solución: <strong>' + esc(csol.map(Cifras.fmtStep).join('  ·  ')) + '</strong>' : 'Solución: se calcula al cerrar';
+    } else if (c.correct !== undefined && c.options) {
         var letters2 = 'ABCDEFGHIJKLMNOP';
         var corr = (Array.isArray(c.correct) ? c.correct : [c.correct]).map(function(i) { return letters2[i] + ' — ' + c.options[i]; }).join(', ');
         ansDiv.innerHTML = 'Correcta: <strong>' + esc(corr) + '</strong>';
@@ -2963,6 +2979,15 @@ function renderAnswerRevealed() {
     }).join(' | ');
     document.getElementById('answerText').textContent = ans || '-';
 
+    if (roundType === 'cifras') {
+        document.getElementById('answerStatement').innerHTML = '🎯 ' + esc(c.target) + ' con ' + esc((c.numbers || []).join(' '));
+        var dsol = (ds.cifras && ds.cifras.solution) || c.solution || [];
+        document.getElementById('answerText').textContent = dsol.length ? dsol.map(Cifras.fmtStep).join('  ·  ') : '-';
+        document.querySelector('#phase-answer .answer-card h3').textContent = 'Una solución';
+    } else {
+        document.querySelector('#phase-answer .answer-card h3').textContent = 'Respuesta correcta';
+    }
+
     // Respuesta abierta: las respuestas están en el panel de corrección (que sirve para rectificar)
     var isAbierta = roundType === 'abierta';
     document.querySelector('#phase-answer .answer-card').style.display = isAbierta ? 'none' : '';
@@ -2989,7 +3014,19 @@ function renderAnswerRevealed() {
     if (idRevPanel) {
         var boomSteps = roundType === 'boom' && ds.phase === 'answer_revealed' && typeof ds.boomStep === 'number';
         var abSteps = isAbierta && !!ds.abierta;
-        if ((roundType === 'identidad' && ds.identidad) || boomSteps || abSteps) {
+        var cfSteps = roundType === 'cifras' && ds.phase === 'answer_revealed' && !!ds.cifras;
+        if (cfSteps) {
+            // Cifras: grupos del más lejano al más cercano y, si nadie la clavó, la solución
+            var cf = ds.cifras, rs = cf.revealStep || 0;
+            idRevPanel.style.display = '';
+            var next = rs < cf.groups.length ? cf.groups[rs] : null;
+            var nextTxt = next ? ' · siguiente: ' + (next.dist === null ? 'sin resultado' : next.dist === 0 ? '¡exactos!' : 'a ' + next.dist) + ' (' + next.teams.map(function(t) { var e = S.equipos.find(function(x) { return x.id === t; }); return e ? e.nombre : '?'; }).join(', ') + ')'
+                : rs < cf.total ? ' · siguiente: la solución' : '';
+            document.getElementById('identidadRevealCount').textContent = rs + ' / ' + cf.total + nextTxt + (rs < cf.total ? ' · los puntos se suman al terminar' : ' · puntos sumados');
+            var btnCf = document.getElementById('btnRevealNextPair');
+            btnCf.disabled = rs >= cf.total;
+            btnCf.innerHTML = rs >= cf.total ? '&#10003; Todo revelado' : '&#128065; Ir revelando';
+        } else if ((roundType === 'identidad' && ds.identidad) || boomSteps || abSteps) {
             // Identidad: parejas una a una · Boom: posiciones del orden una a una · Abierta: subpreguntas
             var totalPairs = abSteps ? (c.subs ? c.subs.length : 0) : boomSteps ? (c.items ? c.items.length : 0) : (c.pairs ? c.pairs.length : 0);
             var revIdx = abSteps ? (ds.abierta.revealStep || 0) : boomSteps ? ds.boomStep : (ds.identidad.revealIndex || 0);
@@ -3030,6 +3067,31 @@ function renderAnswerRevealed() {
     }
 }
 
+// ── Cifras (pregunta en curso): objetivo, números y qué lleva cada equipo ──
+function cfDirBest(c, steps) {
+    if (!Array.isArray(steps)) return null;
+    return Cifras.evaluate(c.numbers, steps, c.target, !!c.useAll).best;
+}
+function renderCifrasQuestion(ds, c) {
+    document.getElementById('questionStatement').innerHTML = '🎯 Objetivo <strong style="color:var(--gold); font-size:1.4em">' + esc(c.target) + '</strong>' + (c.useAll ? ' <span style="font-size:13px; color:var(--text2)">(usando todos)</span>' : '');
+    var nums = '<div class="cf-dir-nums">' + (c.numbers || []).map(function(v) { return '<span>' + esc(v) + '</span>'; }).join('') + '</div>';
+    var answers = ds.answers || {};
+    var rows = S.equipos.map(function(eq) {
+        var a = answers[eq.id];
+        var sentB = a && a.submitted ? cfDirBest(c, a.answer) : null;
+        var draftB = a ? cfDirBest(c, a.draft) : null;
+        var v, st, cls = '';
+        if (sentB) { v = sentB.value + (sentB.dist === 0 ? ' ✓' : ' (a ' + sentB.dist + ')'); st = 'enviado'; cls = ' sent'; }
+        else if (draftB && a.draft.length) { v = draftB.value + (draftB.dist === 0 ? ' ✓' : ' (a ' + draftB.dist + ')'); st = 'haciendo cuentas'; }
+        else { v = '—'; st = ds.optionsRevealed ? 'sin cuentas aún' : ''; }
+        return '<div class="cf-dir-team' + cls + '"><span class="n">' + esc(eq.nombre) + '</span><span class="v">' + esc(v) + '</span><span class="st">' + st + '</span></div>';
+    }).join('');
+    var sent = Object.values(answers).filter(function(a) { return a.submitted; }).length;
+    document.getElementById('questionOptions').innerHTML = '<div style="grid-column:1/-1">' + nums
+        + (ds.optionsRevealed ? '<div style="font-size:13px; color:var(--text2); margin-bottom:6px; text-align:center">&#10003; <strong>' + sent + ' de ' + S.equipos.length + '</strong> equipos han enviado · al cerrar, lo que tengan sin enviar cuenta</div>' : '')
+        + '<div class="cf-dir-teams">' + rows + '</div></div>';
+}
+
 function renderTeamResults() {
     var ds = S.director;
     var el = document.getElementById('teamResultsPanel');
@@ -3058,6 +3120,10 @@ function renderTeamResults() {
         } else if (roundType === 'boom' && c.items) {
             var order = Array.isArray(r.answer) ? r.answer : [];
             ansText = order.map(function(i) { return c.items[i] || i; }).join(' → ');
+        } else if (roundType === 'cifras' && r.cifras) {
+            ansText = r.value == null ? 'sin resultado' : r.value + (r.dist === 0 ? ' · ¡exacto!' : ' · a ' + r.dist)
+                + ((r.path || []).length ? '  ·  ' + r.path.map(Cifras.fmtStep).join(', ') : '') + (r.winner ? '  ·  🏆 extra' : '') + (r.late ? '  ·  sin enviar' : '');
+            if (!r.noAnswer) icon = r.dist === 0 ? '&#9989;' : r.points > 0 ? '&#127919;' : '&#10060;';
         } else if (roundType === 'abierta' && Array.isArray(r.marks)) {
             ansText = r.marks.map(function(m) { return m ? '✓' : '✗'; }).join(' ') + '  ·  ' + r.correctCount + ' de ' + r.totalSubs
                 + (r.winner ? '  ·  🏆 extra' : '') + (r.late ? '  ·  sin enviar' : '');
@@ -3108,7 +3174,7 @@ function renderTimer() {
     if (!ds || !ds.timer) { el.textContent = '--:--'; el.className = 'timer-display stopped'; return; }
     var t0 = ds.timer;
     var noTimer = ds.currentRound && (ds.currentRound.type === 'pulsador' || ds.currentRound.type === 'ruleta' || ds.currentRound.type === 'imagen' || ds.currentRound.type === 'imagen_fija' || ds.currentRound.type === 'aclara'
-        || ((ds.currentRound.type === 'abierta' || ds.currentRound.type === 'pictionary') && !(t0 && t0.total > 0))); // Respuesta abierta / Pictionary sin cuenta atrás
+        || ((ds.currentRound.type === 'abierta' || ds.currentRound.type === 'pictionary' || ds.currentRound.type === 'cifras') && !(t0 && t0.total > 0))); // Respuesta abierta / Pictionary sin cuenta atrás
     if (noTimer) {
         el.textContent = '--:--'; el.className = 'timer-display stopped';
         document.getElementById('btnStartTimer').disabled = true;

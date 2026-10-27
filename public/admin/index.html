@@ -107,6 +107,12 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .type-karaoke { background: #7c3aed; color: #e9d5ff; }
 .type-aclara { background: #3b2f63; color: #c4b5fd; }
 .type-pictionary { background: #5b3a12; color: #fcd34d; }
+.type-cifras { background: #0f4c5c; color: #67e8f9; }
+.cf-gen { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.cf-gen select { width: auto; }
+.cf-check { font-size: 13px; line-height: 1.5; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); margin-top: 8px; }
+.cf-check.ok { border-color: rgba(34,197,94,.5); }
+.cf-check.warn { border-color: rgba(250,204,21,.5); color: var(--gold); }
 .type-abierta { background: #134e4a; color: #5eead4; }
 .ab-sub { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
 .ab-sub-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
@@ -197,6 +203,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .picker-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
 </style>
 <script src="/shared/question-validation.js"></script>
+<script src="/shared/cifras.js"></script>
 <script src="/shared/aclara-fx.js"></script>
 <script src="/shared/staff-session.js"></script>
 <script src="/shared/image-shrink.js"></script>
@@ -540,6 +547,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                     <option value="identidad">Identidad (emparejar)</option>
                     <option value="abierta">Respuesta abierta (subpreguntas)</option>
                     <option value="pictionary">Pictionary (dibujar y adivinar)</option>
+                    <option value="cifras">Cifras (llegar al número)</option>
                     <option value="karaoke">Karaoke</option>
                 </select>
             </div>
@@ -784,7 +792,7 @@ const TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador rápido', precio: 'Precio justo',
     imagen: 'Adivina imagen', cancion: 'Adivina canción', boom: 'Boom (ordenar)',
     ruleta: 'Ruleta de la suerte', imagen_fija: 'Imagen fija', identidad: 'Identidad',
-    karaoke: 'Karaoke', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary'
+    karaoke: 'Karaoke', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary', cifras: 'Cifras'
 };
 
 function statusBadge(s) {
@@ -1214,11 +1222,11 @@ function toggleTimeField(type) {
     // Pictionary: sus opciones y el tiempo puede ser 0 (sin límite)
     document.getElementById('pic-round-fields').style.display = type === 'pictionary' ? '' : 'none';
     syncPicRoundFields();
-    if (type === 'pictionary') {
+    if (type === 'pictionary' || type === 'cifras') {
         el.style.opacity = ''; el.title = '';
         el.querySelector('input').disabled = false;
         el.querySelector('input').min = 0;
-        el.querySelector('label').textContent = 'Tiempo por palabra (seg, 0 = sin límite)';
+        el.querySelector('label').textContent = type === 'cifras' ? 'Tiempo para las cuentas (seg, 0 = sin límite)' : 'Tiempo por palabra (seg, 0 = sin límite)';
         return;
     }
     el.querySelector('input').min = 5;
@@ -1253,7 +1261,7 @@ function openRoundModal(round = null) {
         form.name.value = round.name || '';
         form.type.value = round.type || 'multirespuesta';
         const cfg = round.config || {};
-        form.cfg_time.value = round.type === 'pictionary' ? (cfg.time ?? 60) : (cfg.time || 30);
+        form.cfg_time.value = (round.type === 'pictionary' || round.type === 'cifras') ? (cfg.time ?? 60) : (cfg.time || 30);
         form.cfg_picMode.value = cfg.picMode === 'ipad' ? 'ipad' : 'equipos';
         form.cfg_picTurns.value = cfg.picTurns === 'manual' ? 'manual' : 'auto';
         form.cfg_picDrawerPoints.value = cfg.picDrawerPoints || 0;
@@ -1274,7 +1282,7 @@ function openRoundModal(round = null) {
     toggleTimeField(form.type.value);
     form.type.onchange = function() {
         // Pictionary empieza con 60 s por palabra (si no se había tocado el tiempo)
-        if (this.value === 'pictionary' && !form.id.value && form.cfg_time.value === '30') form.cfg_time.value = 60;
+        if ((this.value === 'pictionary' || this.value === 'cifras') && !form.id.value && form.cfg_time.value === '30') form.cfg_time.value = 60;
         toggleTimeField(this.value);
     };
     openModal('modal-round-overlay');
@@ -1285,8 +1293,9 @@ async function saveRound(e) {
     const form = document.getElementById('form-round');
     const noTimer = form.type.value === 'pulsador' || form.type.value === 'imagen' || form.type.value === 'abierta';
     const isPic = form.type.value === 'pictionary';
+    const zeroOk = isPic || form.type.value === 'cifras'; // tiempo 0 = sin límite
     const config = {
-        time: noTimer ? 0 : isPic ? Math.max(0, Math.min(600, numOr(form.cfg_time.value, 60))) : (Number(form.cfg_time.value) || 30),
+        time: noTimer ? 0 : zeroOk ? Math.max(0, Math.min(600, numOr(form.cfg_time.value, 60))) : (Number(form.cfg_time.value) || 30),
         // 0 es un valor válido (p. ej. ronda sin bonus); solo el campo vacío toma el valor por defecto
         points: Math.max(0, Math.round(numOr(form.cfg_points.value, QuestionValidation.DEFAULT_POINTS))),
         fastestExtra: form.cfg_fastestExtra.value !== 'no',
@@ -1454,6 +1463,7 @@ function renderQuestions() {
         const preview = Array.isArray(c.subs)
             ? (c.statement ? c.statement + ' · ' : '') + c.subs.length + (c.subs.length === 1 ? ' subpregunta' : ' subpreguntas') + (c.subs[0] && c.subs[0].text ? ' (' + c.subs[0].text + (c.subs.length > 1 ? '…' : '') + ')' : '') + (Number(c.time) > 0 ? ' · ⏱ ' + c.time + 's' : '')
             : c.word !== undefined ? '✏️ ' + c.word + (c.category ? ' · ' + c.category : '')
+            : Array.isArray(c.numbers) ? '🔢 ' + (c.target || '?') + ' con ' + c.numbers.join(' ') + (c.useAll ? ' · usar todas' : '') + (c.level ? ' · ' + (Cifras.LEVEL_NAMES[c.level] || c.level) : '')
             : (c.statement || c.phrase || c.answer || (c.image ? c.image.split('/').pop() : null) || JSON.stringify(c).slice(0, 80));
         const vResult = QuestionValidation.isComplete(currentRound.type, c);
         const incompleteBadge = vResult.complete ? '' : `<span class="badge-incomplete" title="Falta: ${vResult.missing.map(k => QuestionValidation.LABELS[k] || k).join(', ')}">⚠ Incompleta</span>`;
@@ -1568,6 +1578,7 @@ function buildFieldsForType(type, c) {
         case 'karaoke':        return fieldsKaraoke(c);
         case 'abierta':        return fieldsAbierta(c);
         case 'pictionary':     return fieldsPictionary(c);
+        case 'cifras':         return fieldsCifras(c);
         default:               return `<div class="field"><label>Contenido (JSON)</label><textarea name="raw_json">${esc(JSON.stringify(c, null, 2))}</textarea></div>`;
     }
 }
@@ -1685,6 +1696,63 @@ function fieldsPictionary(c) {
         <div class="field"><label>Palabra o concepto a dibujar</label><input name="c_word" value="${esc(c.word || '')}" required placeholder="Ej: Torre Eiffel"></div>
         <div class="field"><label>Categoría (opcional: la ven todos, como pista)</label><input name="c_category" value="${esc(c.category || '')}" placeholder="Ej: Monumentos"></div>
         <p style="font-size:12px; color:var(--text2); line-height:1.5">La palabra solo la ven el coordinador y quien dibuja; los demás, al acertar o al mostrarla. El tiempo vacío usa el de la ronda.</p>`;
+}
+
+// ── Cifras ──
+// Objetivo y números a mano o con «🎲 Generar» (siempre con solución exacta). Mientras se escribe se
+// comprueba si hay solución exacta y cuál; al guardar se guarda la mejor para enseñarla al final.
+function fieldsCifras(c) {
+    setTimeout(cifrasCheck, 0);
+    const lv = c.level || 'medio';
+    return `
+        <div class="cf-gen">
+            <select name="c_level">${Object.keys(Cifras.LEVELS).map(k => '<option value="' + k + '"' + (k === lv ? ' selected' : '') + '>' + Cifras.LEVEL_NAMES[k] + '</option>').join('')}</select>
+            <button type="button" class="btn-ghost btn-sm" onclick="cifrasGenerate()">🎲 Generar</button>
+            <span style="font-size:12px; color:var(--text2)">Fácil: 4 números y objetivo de 2 cifras · Medio: 5 números, 100-500 · Difícil: 6 números, 101-999 (como en la tele)</span>
+        </div>
+        <div class="field-row">
+            <div class="field"><label>Número objetivo</label><input name="c_target" type="number" min="1" step="1" value="${esc(c.target ?? '')}" oninput="cifrasEdited()" required></div>
+            <div class="field"><label>Números (de 2 a 7, separados por espacios)</label><input name="c_numbers" value="${esc(Array.isArray(c.numbers) ? c.numbers.join(' ') : '')}" placeholder="Ej: 1 3 7 9 25 100" oninput="cifrasEdited()" required></div>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; text-transform:none; letter-spacing:0; font-weight:400; color:var(--text)"><input type="checkbox" name="c_useAll" style="width:auto; accent-color:var(--accent)" ${c.useAll ? 'checked' : ''} onchange="cifrasCheck()"> Hay que usar todos los números</label>
+        <input type="hidden" name="c_level_used" value="${esc(c.level || '')}">
+        <div id="cf-check" class="cf-check"></div>
+        <p style="font-size:12px; color:var(--text2); line-height:1.5">Los equipos operan con + − × ÷ (resultados enteros y positivos; cada número una vez). Exacto = todos los puntos (mitad fija + mitad por rapidez); cada unidad de distancia quita un 10 % y el más cercano gana el extra. El tiempo vacío usa el de la ronda (60 s por defecto).</p>`;
+}
+function cifrasNumbers() {
+    const el = document.querySelector('[name="c_numbers"]');
+    return el ? el.value.split(/[^0-9]+/).filter(Boolean).map(Number) : [];
+}
+function cifrasEdited() {
+    const lv = document.querySelector('[name="c_level_used"]');
+    if (lv) lv.value = ''; // retocado a mano: ya no es «generado con nivel»
+    clearTimeout(cifrasEdited._t);
+    cifrasEdited._t = setTimeout(cifrasCheck, 250);
+}
+function cifrasGenerate() {
+    const level = document.querySelector('[name="c_level"]').value;
+    const g = Cifras.generate(level);
+    if (!g) { toast('No ha salido ninguna: prueba otra vez'); return; }
+    document.querySelector('[name="c_target"]').value = g.target;
+    document.querySelector('[name="c_numbers"]').value = g.numbers.join(' ');
+    document.querySelector('[name="c_level_used"]').value = level;
+    cifrasCheck();
+}
+function cifrasCheck() {
+    const box = document.getElementById('cf-check');
+    if (!box) return;
+    const nums = cifrasNumbers();
+    const target = Number((document.querySelector('[name="c_target"]') || {}).value);
+    const useAll = !!(document.querySelector('[name="c_useAll"]') || {}).checked;
+    if (!Cifras.cleanNumbers(nums) || !Cifras.validTarget(target)) {
+        box.className = 'cf-check'; box.textContent = 'Escribe el objetivo y de 2 a 7 números (enteros positivos), o pulsa 🎲 Generar.';
+        return;
+    }
+    const sol = Cifras.solve(nums, target, useAll, 1500000);
+    if (!sol) { box.className = 'cf-check warn'; box.textContent = 'No se puede llegar a nada con esos números.'; return; }
+    const lines = sol.steps.map(Cifras.fmtStep).join('   ·   ') || 'basta con el ' + sol.value;
+    box.className = 'cf-check ' + (sol.dist === 0 ? 'ok' : 'warn');
+    box.textContent = (sol.dist === 0 ? '✅ Tiene solución exacta: ' : '⚠ No hay solución exacta. Lo más cerca, ' + sol.value + ' (a ' + sol.dist + '): ') + lines;
 }
 
 // ── Imagen que se aclara ──
@@ -2245,6 +2313,13 @@ function extractContent(type, form) {
         }
         case 'pictionary':
             return { word: val(form, 'c_word'), category: val(form, 'c_category') || undefined };
+        case 'cifras': {
+            const numbers = cifrasNumbers();
+            const target = Math.round(Number(val(form, 'c_target'))) || undefined;
+            const useAll = !!form.querySelector('[name="c_useAll"]').checked;
+            const sol = Cifras.cleanNumbers(numbers) && target ? Cifras.solve(numbers, target, useAll, 1500000) : null;
+            return { target, numbers, useAll: useAll || undefined, level: val(form, 'c_level_used') || undefined, solution: sol ? sol.steps : undefined };
+        }
         case 'aclara':
             return {
                 statement: val(form, 'c_statement') || undefined,

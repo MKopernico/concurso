@@ -552,6 +552,46 @@ html.embed .psq-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; 
 html.embed #phase-question.abierta-mode.ab-subs { padding-top: 12px; }
 html.embed .abs-list.two { grid-template-columns: 1fr; }
 
+/* ═══════════════ CIFRAS ═══════════════ */
+#phase-question.cifras-mode { justify-content: flex-start; padding-top: clamp(16px, 3vh, 40px); }
+#cifrasScreenWrap { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: clamp(10px, 2vh, 24px); }
+.cfs-top { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.cfs-tl { font-size: clamp(1rem, 1.8vw, 1.6rem); font-weight: 800; letter-spacing: 6px; color: rgba(255,255,255,.75); }
+.cfs-target { font-size: clamp(6rem, 18vh, 14rem); font-weight: 900; line-height: 1; color: var(--gold); text-shadow: 0 0 40px rgba(251,191,36,.45), 0 4px 18px rgba(0,0,0,.7); font-variant-numeric: tabular-nums; }
+.cfs-nums { display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(10px, 1.6vw, 22px); flex-shrink: 0; }
+.cfs-num { min-width: clamp(80px, 9vw, 150px); padding: clamp(10px, 2vh, 22px) clamp(14px, 1.6vw, 26px); border-radius: 18px; background: rgba(255,255,255,.92); color: #111;
+    font-size: clamp(2.4rem, 6vh, 5rem); font-weight: 900; text-align: center; box-shadow: 0 6px 0 rgba(0,0,0,.35), 0 0 24px rgba(0,0,0,.4); font-variant-numeric: tabular-nums; }
+.cfs-num.in { animation: cfsIn .5s cubic-bezier(.34,1.56,.64,1) both; }
+@keyframes cfsIn { from { opacity: 0; transform: translateY(-30px) scale(.7); } to { opacity: 1; transform: none; } }
+/* Durante la pregunta: objetivo y números en el centro, la banda de envíos abajo */
+#cifrasScreenWrap:not(.rev) .cfs-top { margin: auto 0; }
+#cifrasScreenWrap:not(.rev) .cfs-wait { display: none; }
+#cifrasScreenWrap.rev .cfs-target { font-size: clamp(3.4rem, 9vh, 7rem); }
+#cifrasScreenWrap.rev .cfs-tl { display: none; }
+#cifrasScreenWrap.rev .cfs-top { flex-direction: row; gap: 24px; align-items: center; }
+#cifrasScreenWrap.rev .cfs-num { min-width: clamp(54px, 5vw, 90px); font-size: clamp(1.4rem, 3.4vh, 2.6rem); padding: 6px 12px; border-radius: 12px; }
+.cfs-list { flex: 1; min-height: 0; width: min(1300px, 100%); display: flex; flex-direction: column; justify-content: center; gap: clamp(8px, 1.4vh, 16px); overflow: hidden; }
+.cfs-older { text-align: center; color: rgba(255,255,255,.7); font-size: clamp(1.1rem, 2.6vh, 1.8rem); font-weight: 600; flex-shrink: 0; }
+.cfs-row { display: flex; align-items: center; gap: clamp(14px, 2vw, 32px); padding: clamp(10px, 1.8vh, 22px) clamp(18px, 2.2vw, 36px); flex-shrink: 0;
+    background: rgba(0,0,0,.60); border: 2px solid rgba(255,255,255,.15); border-radius: 16px; color: #fff; backdrop-filter: blur(6px); }
+.cfs-val { flex-shrink: 0; min-width: 2.6em; text-align: center; font-size: clamp(2.4rem, 7vh, 5rem); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.cfs-dist { flex-shrink: 0; font-size: clamp(1.3rem, 3.4vh, 2.4rem); font-weight: 800; color: rgba(255,255,255,.75); min-width: 4.2em; }
+.cfs-teams { flex: 1; min-width: 0; font-size: clamp(1.4rem, 4vh, 2.8rem); font-weight: 800; line-height: 1.2; }
+.cfs-teams > span.blk { display: block; }
+.cfs-teams > span.blk + span.blk { margin-top: .3em; }
+.cfs-teams > span.inl + span.inl::before { content: ', '; }
+.cfs-teams .cfs-pts { color: var(--gold); font-weight: 800; margin-left: 6px; }
+.cfs-steps { display: block; font-size: clamp(1.1rem, 3vh, 2.1rem); font-weight: 600; color: rgba(255,255,255,.88); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.cfs-row.last { border-color: var(--cyan); box-shadow: 0 0 24px rgba(0,212,255,.3); animation: boomStepIn .5s ease; }
+.cfs-row.exact { border-color: var(--green); background: linear-gradient(rgba(34,197,94,.30),rgba(34,197,94,.30)),rgba(0,0,0,.60); box-shadow: 0 0 28px rgba(34,197,94,.4); }
+.cfs-row.exact .cfs-dist { color: #bbf7d0; }
+.cfs-sol { flex-shrink: 0; text-align: center; padding: clamp(10px, 1.8vh, 20px) clamp(24px, 3vw, 48px); border-radius: 18px; background: rgba(0,0,0,.65); border: 2px solid var(--gold);
+    color: #fff; font-size: clamp(1.3rem, 3.6vh, 2.6rem); font-weight: 700; animation: boomStepIn .5s ease; }
+.cfs-sol b { color: var(--gold); letter-spacing: 3px; font-size: .8em; display: block; }
+.cfs-wait { flex: 1; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,.8); font-size: clamp(1.4rem, 3vh, 2.6rem); font-weight: 800; }
+@media (prefers-reduced-motion: reduce) { .cfs-num.in, .cfs-row.last, .cfs-sol { animation: none; } }
+html.embed .cfs-target { font-size: clamp(3.4rem, 12vh, 7rem); }
+
 #phase-question.identidad-mode { padding-top: clamp(16px, 2vh, 24px); }
 #phase-question.identidad-mode .q-statement { display: none; }
 .id-explanation { flex-shrink: 0; text-align: center;
@@ -638,6 +678,7 @@ body.karaoke-screen-active .round-logo { display: none !important; }
         <div id="imagenFijaWrap" style="display:none"></div>
         <div id="cancionScreenWrap" style="display:none"></div>
         <div id="identidadScreenWrap" style="display:none"></div>
+        <div id="cifrasScreenWrap" style="display:none"></div>
         <div id="abiertaScreenWrap" style="display:none"><div class="abs-list" id="absList"></div><div class="abs-band" id="absBand"></div></div>
         <div id="karaokeScreenWrap" style="display:none"></div>
         <div id="picScreenWrap" style="display:none">
@@ -746,6 +787,7 @@ body.karaoke-screen-active .round-logo { display: none !important; }
 <script src="/shared/gameshow-transitions.js"></script>
 <script src="/shared/roulette-panel.js"></script>
 <script src="/shared/pictionary-board.js"></script>
+<script src="/shared/cifras.js"></script>
 <script>
 (function() {
 'use strict';
@@ -1308,7 +1350,7 @@ function renderPhase(phaseChanged, newQuestion, optionsJustRevealed) {
     } else if (phase === 'question') {
         showPhase('question');
         var hideTimer = type === 'pulsador' || type === 'ruleta' || type === 'imagen' || type === 'imagen_fija' || type === 'cancion' || type === 'karaoke' || type === 'aclara'
-            || ((type === 'abierta' || type === 'pictionary') && !(ps.timer && ps.timer.total > 0)) // Respuesta abierta / Pictionary sin cuenta atrás
+            || ((type === 'abierta' || type === 'pictionary' || type === 'cifras') && !(ps.timer && ps.timer.total > 0)) // Respuesta abierta / Pictionary / Cifras sin cuenta atrás
             || (type === 'pictionary' && !(ps.pictionary && ps.pictionary.step === 'drawing')); // Pictionary: el reloj, al empezar a dibujar
         timerStrip.style.display = hideTimer ? 'none' : '';
         timerBig.style.display = (hideTimer || type === 'identidad') ? 'none' : '';
@@ -1395,6 +1437,8 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
     document.getElementById('identidadScreenWrap').style.display = 'none';
     document.getElementById('abiertaScreenWrap').style.display = 'none';
     document.getElementById('phase-question').classList.remove('abierta-mode', 'ab-subs');
+    document.getElementById('cifrasScreenWrap').style.display = 'none';
+    document.getElementById('phase-question').classList.toggle('cifras-mode', type === 'cifras');
     document.getElementById('karaokeScreenWrap').style.display = 'none';
     document.getElementById('picScreenWrap').style.display = 'none';
     document.getElementById('phase-question').classList.toggle('karaoke-mode', type === 'karaoke');
@@ -1452,6 +1496,8 @@ function renderQuestion(type, newQuestion, optionsJustRevealed) {
         renderIdentidadScreen(c, q);
     } else if (type === 'abierta') {
         renderAbiertaScreen(c, q, false);
+    } else if (type === 'cifras') {
+        renderCifrasScreen(c, false);
     }
 }
 
@@ -1962,6 +2008,75 @@ function renderAbiertaScreen(c, q, revealed) {
     setHtmlIfChanged(band, bandHtml);
 }
 
+// ═══════════════ CIFRAS — SCREEN ═══════════════
+// Pregunta: el objetivo en grande, los números y cuántos equipos han enviado. Revelado: los grupos
+// (mismo resultado) del más lejano al más cercano según el coordinador los destapa; el último, con
+// las cuentas de cada equipo; si nadie la clavó, al final la solución. Los puntos, al terminar.
+var _cfsKey = null;
+function renderCifrasScreen(c, revealed) {
+    var pq = document.getElementById('phase-question');
+    pq.classList.add('cifras-mode');
+    document.getElementById('qStatement').style.display = 'none';
+    document.getElementById('qMedia').style.display = 'none';
+    document.getElementById('roundLogo').style.display = 'none';
+    var wrap = document.getElementById('cifrasScreenWrap');
+    wrap.style.display = 'flex';
+    wrap.classList.toggle('rev', !!revealed);
+    var animate = _cfsKey !== ps.questionKey;
+    _cfsKey = ps.questionKey;
+    var nums = (c.numbers || []).map(function(v, i) {
+        return '<div class="cfs-num' + (animate && !revealed ? ' in' : '') + '" style="animation-delay:' + (i * 0.12) + 's">' + esc(v) + '</div>';
+    }).join('');
+    var top = '<div class="cfs-top"><div class="cfs-tl">OBJETIVO</div><div class="cfs-target">' + esc(c.target) + '</div><div class="cfs-nums">' + nums + '</div></div>';
+    if (!revealed) {
+        var band;
+        if (!ps.optionsRevealed) band = '<div class="abs-band">🔢 Mirad bien los números…</div>';
+        else {
+            var active = (ps.equipos || []).filter(function(e) { return !e.bloqueado; });
+            var sent = ps.cifrasSent || 0;
+            band = '<div class="abs-band' + (active.length && sent >= active.length ? ' done' : '') + '">🔢 <b>' + sent + '</b> de ' + active.length + ' equipos han enviado</div>';
+        }
+        // Las fichas se quedan quietas mientras llegan envíos: solo cambia la banda
+        if (animate || !wrap.querySelector('.cfs-top') || wrap.classList.contains('was-rev')) { wrap.innerHTML = top + '<div class="cfs-wait"></div>' + band; wrap.classList.remove('was-rev'); }
+        else { var b = wrap.querySelector('.abs-band'); if (b && b.outerHTML !== band) b.outerHTML = band; }
+        return;
+    }
+    wrap.classList.add('was-rev');
+    var cv = ps.cifras || { revealStep: 0, total: 0, groups: [] };
+    var lqs = ps.lastQuestionScores || {};
+    var done = cv.revealStep >= cv.total;
+    var teamName = function(id) { var e = (ps.equipos || []).find(function(x) { return x.id === id; }); return e ? e.nombre : '?'; };
+    var shown = cv.groups.slice(0, cv.revealStep);
+    var MAX = 5;
+    var older = shown.length > MAX ? shown.slice(0, shown.length - MAX) : [];
+    var visible = shown.slice(-MAX);
+    var html = '';
+    if (older.length) html += '<div class="cfs-older">Más lejos: ' + older.map(function(g) {
+        var r = lqs[g.teams[0]] || {};
+        return (r.value == null ? '—' : esc(r.value)) + ' (' + g.teams.map(function(t) { return esc(teamName(t)); }).join(', ') + ')';
+    }).join(' · ') + '</div>';
+    visible.forEach(function(g, k) {
+        var last = k === visible.length - 1 && !done;
+        var r0 = lqs[g.teams[0]] || {};
+        var teams = g.teams.map(function(t) {
+            var r = lqs[t] || {};
+            var pts = done && r.points > 0 ? '<span class="cfs-pts">+' + r.points + '</span>' : '';
+            var steps = (last || g.dist === 0) && (r.path || []).length ? '<span class="cfs-steps">' + esc(r.path.map(Cifras.fmtStep).join('   ·   ')) + '</span>' : '';
+            return '<span class="' + (steps ? 'blk' : 'inl') + '">' + (done && cv.winner === t ? '🏆 ' : '') + esc(teamName(t)) + pts + steps + '</span>';
+        }).join('');
+        var win = done && cv.winner && g.teams.indexOf(cv.winner) >= 0;
+        html += '<div class="cfs-row' + (last ? ' last' : '') + (g.dist === 0 ? ' exact' : '') + (win ? ' win' : '') + '">'
+            + '<span class="cfs-val">' + (r0.value == null ? '—' : esc(r0.value)) + '</span>'
+            + '<span class="cfs-dist">' + (g.dist === null ? 'sin resultado' : g.dist === 0 ? '¡EXACTO!' : 'a ' + g.dist) + '</span>'
+            + '<span class="cfs-teams">' + teams + '</span></div>';
+    });
+    if (!shown.length) html = '<div class="cfs-wait">' + (cv.groups.length ? '👀 ¿Quién se ha acercado más?' : 'Nadie envió ningún número') + '</div>';
+    var sol = Array.isArray(cv.solution) && cv.solution.length && !(cv.groups.length && cv.groups[cv.groups.length - 1].dist === 0)
+        ? '<div class="cfs-sol"><b>SE PODÍA ASÍ</b>' + esc(cv.solution.map(Cifras.fmtStep).join('   ·   ')) + '</div>' : '';
+    var full = top + '<div class="cfs-list">' + html + '</div>' + sol;
+    if (wrap._html !== full) { wrap.innerHTML = full; wrap._html = full; }
+}
+
 // ═══════════════ IDENTIDAD (Emparejar) — SCREEN ═══════════════
 
 function renderIdentidadScreen(c, q) {
@@ -2392,6 +2507,8 @@ function renderRevealedInPlace() {
         renderIdentidadReveal();
     } else if (type === 'abierta') {
         renderAbiertaScreen(c, ps.question, true);
+    } else if (type === 'cifras') {
+        renderCifrasScreen(c, true);
     } else if (type === 'ruleta') {
         // El panel se queda en pantalla con la frase completa
         var rc = document.getElementById('ruletaScreenPanel');
@@ -2843,7 +2960,7 @@ document.addEventListener('click', function(e) {
 var TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
     imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary', cifras: 'Cifras'
 };
 
 function renderScreenLobbyDefault() {

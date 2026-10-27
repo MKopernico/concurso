@@ -87,7 +87,7 @@ const connected = (s) => new Promise(r => s.connected ? r() : s.once('connect', 
     const T = d.state.equipos.map(e => e.id);
     const ds = () => d.state.director;
     const score = (i) => ds().scores[T[i]] || 0;
-    const send = (i, steps, final) => P[i].emit('player:cifras', { steps, final: !!final });
+    const send = (i, steps, final) => P[i].emit(final ? 'player:cifras_submit' : 'player:cifras_draft', { steps });
 
     d.emit('director:launch_round', { roundId: r.id }); await wait(200);
     d.emit('director:launch_question', { idx: 0 }); await wait(300);

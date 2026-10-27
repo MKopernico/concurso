@@ -288,6 +288,46 @@ input:focus { border-color: var(--accent); }
 .reveal-result.win { color: #fff; background: rgba(34,197,94,.35); border: 2px solid #22c55e; }
 .reveal-result.lose { color: #fff; background: rgba(239,68,68,.3); border: 2px solid #ef4444; }
 
+/* ── Cifras: fichas con los números, operaciones y cuentas ── */
+.gp-cifras { padding: 10px 14px 10px; gap: 10px; justify-content: flex-start; }
+.cf-target { display: flex; align-items: center; justify-content: center; gap: 14px; flex-shrink: 0; background: rgba(0,0,0,.6); border-radius: 16px; padding: 8px 18px; backdrop-filter: blur(6px); }
+.cf-target .cf-tl { font-size: clamp(14px, 2vw, 18px); font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; }
+.cf-target .cf-tv { font-size: clamp(44px, 9vw, 80px); font-weight: 900; color: var(--gold); line-height: 1; font-variant-numeric: tabular-nums; text-shadow: 0 2px 12px rgba(0,0,0,.6); }
+.cf-tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; flex-shrink: 0; min-height: 76px; }
+.cf-tile { min-width: clamp(64px, 12vw, 104px); height: clamp(64px, 11vw, 92px); padding: 0 12px; border-radius: 16px; font-size: clamp(26px, 5vw, 42px); font-weight: 900;
+    background: rgba(255,255,255,.92); color: #111; border: 3px solid transparent; box-shadow: 0 4px 0 rgba(0,0,0,.35); font-variant-numeric: tabular-nums; transition: transform .1s; }
+.cf-tile.res { background: #cffafe; color: #0e7490; }
+.cf-tile.sel { border-color: var(--accent); background: var(--accent); color: #000; transform: translateY(-3px); }
+.cf-tile.just { animation: cfIn .45s ease; }
+.cf-tile:disabled { opacity: .45; box-shadow: none; }
+@keyframes cfIn { 0% { transform: scale(.6); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+.cf-ops { display: flex; justify-content: center; gap: 12px; flex-shrink: 0; }
+.cf-op { width: clamp(60px, 11vw, 84px); height: clamp(56px, 9vw, 72px); border-radius: 14px; font-size: clamp(30px, 5vw, 42px); font-weight: 900; background: rgba(0,0,0,.6); color: #fff; border: 2px solid rgba(255,255,255,.3); }
+.cf-op.sel { background: var(--gold); color: #000; border-color: var(--gold); }
+.cf-op:disabled { opacity: .35; }
+.cf-steps { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 2px; }
+.cf-step { font-size: clamp(20px, 3.4vw, 28px); font-weight: 800; color: #fff; background: rgba(0,0,0,.55); border-radius: 12px; padding: 6px 18px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.cf-step.cur { color: var(--accent); border: 2px dashed rgba(0,212,255,.6); }
+.cf-step.best { border: 2px solid var(--success); }
+.cf-step.sol { color: #d1fae5; }
+.cf-step .cf-n { color: var(--text2); font-size: .7em; margin-right: 8px; }
+.cf-foot { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; }
+.cf-best { font-size: clamp(18px, 3vw, 24px); font-weight: 800; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.9); text-align: center; }
+.cf-best b { color: var(--gold); }
+.cf-best.exact b { color: var(--success); }
+.cf-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.cf-btn { padding: 12px 18px; font-size: 18px; font-weight: 700; border-radius: 12px; background: rgba(0,0,0,.6); color: #fff; border: 2px solid rgba(255,255,255,.3); }
+.cf-btn:disabled { opacity: .35; }
+.cf-send { padding: 12px 28px; font-size: 20px; font-weight: 800; border-radius: 12px; background: var(--accent); color: #000; min-width: 180px; }
+.cf-send.again { background: var(--gold); }
+.cf-send:disabled { opacity: .35; }
+.cf-status { font-size: 16px; font-weight: 700; color: #fff; text-align: center; text-shadow: 0 1px 4px rgba(0,0,0,.9); min-height: 18px; }
+.cf-status.ok { color: var(--success); }
+.cf-status.final { font-size: clamp(20px, 3.2vw, 28px); font-weight: 800; padding: 10px 20px; border-radius: 14px; background: rgba(0,0,0,.6); border: 2px solid rgba(255,255,255,.2); }
+.cf-status.final.ok { border-color: var(--success); background: rgba(34,197,94,.25); color: #fff; }
+.cf-sol-title { font-size: 15px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-top: 6px; }
+@media (prefers-reduced-motion: reduce) { .cf-tile.just { animation: none; } }
+
 /* ── Respuesta abierta: una caja de texto por subpregunta ── */
 .gp-abierta { padding: 12px 16px 10px; gap: 10px; justify-content: flex-start; }
 .gp-abierta .q-statement { font-size: clamp(17px, 2.6vw, 22px); font-weight: 600; line-height: 1.35; text-align: center;
@@ -702,6 +742,23 @@ body.karaoke-active .player-timer-bar { display: none !important; }
                 <button class="hz-send" id="idBtn" onclick="submitIdentidad()" style="display:none">Enviar</button>
             </div>
         </div>
+        <div class="gphase gp-cifras" id="gp-cifras">
+            <div class="cf-target"><span class="cf-tl">Objetivo</span><span class="cf-tv" id="cfTarget"></span></div>
+            <div class="cf-tiles" id="cfTiles"></div>
+            <div class="cf-ops" id="cfOps">
+                <button class="cf-op" type="button" data-op="+">+</button><button class="cf-op" type="button" data-op="-">−</button><button class="cf-op" type="button" data-op="*">×</button><button class="cf-op" type="button" data-op="/">÷</button>
+            </div>
+            <div class="cf-steps" id="cfSteps"></div>
+            <div class="cf-foot">
+                <div class="cf-best" id="cfBest"></div>
+                <div class="cf-btns" id="cfBtns">
+                    <button class="cf-btn" type="button" id="cfUndo">↶ Deshacer</button>
+                    <button class="cf-btn" type="button" id="cfClear">Empezar de nuevo</button>
+                    <button class="cf-send" type="button" id="cfSend">Enviar</button>
+                </div>
+                <div class="cf-status" id="cfStatus"></div>
+            </div>
+        </div>
         <div class="gphase gp-abierta" id="gp-abierta">
             <div class="q-statement" id="abStatement"></div>
             <div class="ab-list" id="abList"></div>
@@ -788,6 +845,7 @@ body.karaoke-active .player-timer-bar { display: none !important; }
 <script src="/shared/roulette-panel.js"></script>
 <script src="/shared/pictionary-board.js"></script>
 <script src="/shared/image-shrink.js"></script>
+<script src="/shared/cifras.js"></script>
 <script>
 // ═══════════════ State ═══════════════
 var S = {
@@ -796,6 +854,7 @@ var S = {
     photoUrl: null,
     identidad: { myOrder: null, mySubmitted: false },
     ab: { texts: [], submitted: false }, // Respuesta abierta: lo escrito por este equipo
+    cf: { steps: [], sel: null, op: null, sent: null, just: -1 }, // Cifras: cuentas de este equipo, ficha y operación elegidas, lo enviado
 };
 var socket = null;
 var deviceId = localStorage.getItem('gs_deviceId') || (function() {
@@ -1267,10 +1326,20 @@ function connectSocket(onReady) {
     });
 
     socket.on('game:pair_revealed', function() {
+        if (S.ps && S.ps.roundType === 'cifras' && S.ps.phase === 'answer_revealed') renderCifras();
         if (S.ps && S.ps.roundType === 'abierta' && S.ps.phase === 'answer_revealed') renderAbierta();
         if (S.ps && S.ps.roundType === 'identidad' && S.ps.phase === 'answer_revealed') {
             renderIdentidad();
         }
+    });
+
+    // Cifras: las cuentas de este equipo (al volver de un corte o desde otro iPad)
+    socket.on('game:your_cifras', function(d) {
+        // Lo hecho aquí sin conexión es más reciente: se queda y se manda
+        if (!S.cf.steps.length) S.cf.steps = Array.isArray(d.steps) ? d.steps.slice() : [];
+        else cfQueueDraft();
+        S.cf.sent = Array.isArray(d.sent) ? d.sent : null;
+        if (S.ps && S.ps.roundType === 'cifras') renderCifras();
     });
 
     // Respuesta abierta: lo que este equipo tenía escrito (al volver de un corte o desde otro iPad)
@@ -1310,8 +1379,8 @@ function connectSocket(onReady) {
 // para que cuente con el tiempo que quedaba al pulsar, no con el de llegada.
 var _pendingAnswers = {};
 var _lastAnswer = null;
-var _QUEUEABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:update_order': 1, 'player:abierta_draft': 1, 'player:abierta_submit': 1 };
-var _RESENDABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:abierta_submit': 1 };
+var _QUEUEABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:update_order': 1, 'player:abierta_draft': 1, 'player:abierta_submit': 1, 'player:cifras_draft': 1, 'player:cifras_submit': 1 };
+var _RESENDABLE = { 'player:submit_answer': 1, 'player:submit_price': 1, 'player:submit_order': 1, 'player:abierta_submit': 1, 'player:cifras_submit': 1 };
 function _nowMs() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
 function _withAgo(x) {
     var d = {}; for (var k in x.data) d[k] = x.data[k];
@@ -1327,7 +1396,7 @@ function emit(ev, data) {
     if (socket && socket.connected && S.myTeamId) { socket.emit(ev, data || {}); return; }
     if (_QUEUEABLE[ev]) {
         _pendingAnswers[ev] = entry;
-        if (ev !== 'player:abierta_draft') toast('Reconectando… tu respuesta se enviará al volver');
+        if (ev !== 'player:abierta_draft' && ev !== 'player:cifras_draft') toast('Reconectando… tu respuesta se enviará al volver');
     } else if (ev === 'pulsar_boton') {
         toast('Sin conexión: espera a que vuelva');
     }
@@ -1431,6 +1500,7 @@ function onPlayerSync(ps) {
         S.selectedOptions = []; S.submitted = false; S._precioSubmittedValue = undefined; lastQIdx = qKey;
         S.identidad = { myOrder: null, mySubmitted: false };
         S.ab = { texts: [], submitted: false }; _abKey = null; clearTimeout(_abDraftT);
+        S.cf = { steps: [], sel: null, op: null, sent: null, just: -1 }; clearTimeout(_cfDraftT);
         applyYourOrder();
         var _pi = document.getElementById('precioInput'); if (_pi) _pi.value = '';
         hzCancelDrag();
@@ -1665,6 +1735,8 @@ function renderGamePhase() {
             renderIdentidad(); document.getElementById('gp-identidad').classList.add('active');
         } else if (type === 'abierta') {
             renderAbierta(); document.getElementById('gp-abierta').classList.add('active');
+        } else if (type === 'cifras') {
+            renderCifras(); document.getElementById('gp-cifras').classList.add('active');
         } else {
             renderRevealed(); document.getElementById('gp-revealed').classList.add('active');
         }
@@ -1700,6 +1772,9 @@ function renderGamePhase() {
             // Cuenta atrás opcional: sin ella no se ve el reloj
             timerBar.style.display = (ps.timer && ps.timer.total > 0) ? 'flex' : 'none';
             renderAbierta(); document.getElementById('gp-abierta').classList.add('active');
+        } else if (type === 'cifras') {
+            timerBar.style.display = (ps.timer && ps.timer.total > 0) ? 'flex' : 'none';
+            renderCifras(); document.getElementById('gp-cifras').classList.add('active');
         } else if (type === 'karaoke') {
             renderKaraokePlay(); document.getElementById('gp-karaoke').classList.add('active');
         } else if (type === 'pictionary') {
@@ -2359,6 +2434,153 @@ function submitIdentidad() {
     renderIdentidad();
 }
 
+// ── Cifras ──
+// Se toca un número, una operación y otro número: el resultado aparece como ficha nueva y los dos
+// usados desaparecen. Cada cuenta va al servidor como borrador (si se acaba el tiempo, cuenta) y
+// «Enviar» manda el número más cercano al que se ha llegado; se puede reenviar si se mejora.
+var _cfDraftT = null;
+function cfContent() { return (S.ps && S.ps.question && S.ps.question.content) || {}; }
+function cfEval() { var c = cfContent(); return Cifras.evaluate(c.numbers, S.cf.steps, c.target, !!c.useAll); }
+function cfCanPlay() {
+    var ps = S.ps;
+    return !!(ps && ps.phase === 'question' && ps.optionsRevealed && !(ps.preCountdown > 0) && !(ps.timer && ps.timer.total > 0 && ps.timer.remaining <= 0));
+}
+function cfQueueDraft() {
+    clearTimeout(_cfDraftT);
+    _cfDraftT = setTimeout(function() { if (cfCanPlay()) emit('player:cifras_draft', { steps: S.cf.steps.slice() }); }, 250);
+}
+function cfSameAsSent() { return !!S.cf.sent && JSON.stringify(S.cf.sent) === JSON.stringify(S.cf.steps); }
+function cfStepHtml(s, i, cls) {
+    return '<div class="cf-step' + (cls ? ' ' + cls : '') + '">' + (i !== null ? '<span class="cf-n">' + (i + 1) + '</span>' : '') + esc(Cifras.fmtStep(s)) + '</div>';
+}
+function renderCifras() {
+    var ps = S.ps; if (!ps || !ps.question) return;
+    var c = cfContent();
+    document.getElementById('cfTarget').textContent = c.target || '';
+    var tilesEl = document.getElementById('cfTiles'), stepsEl = document.getElementById('cfSteps');
+    var opsEl = document.getElementById('cfOps'), btns = document.getElementById('cfBtns');
+    var best = document.getElementById('cfBest'), status = document.getElementById('cfStatus');
+    status.className = 'cf-status'; status.textContent = '';
+    best.className = 'cf-best';
+
+    if (ps.phase === 'answer_revealed') {
+        // Revelado: vuestras cuentas y resultado según se destapan; al final, los puntos y la solución
+        opsEl.style.display = 'none'; btns.style.display = 'none';
+        tilesEl.innerHTML = (c.numbers || []).map(function(v) { return '<button class="cf-tile" type="button" disabled>' + v + '</button>'; }).join(''); tilesEl._html = null;
+        var mine = (ps.lastQuestionScores || {})[S.myTeamId];
+        var cv = ps.cifras || {};
+        var html = '';
+        if (!mine || mine.noAnswer) {
+            best.textContent = 'No enviasteis ningún número';
+        } else if (mine.pending && mine.value === undefined) {
+            best.textContent = '👀 Revelando… aún no os toca';
+        } else {
+            (mine.path || []).forEach(function(s, i) { html += cfStepHtml(s, i, i === mine.path.length - 1 ? 'best' : ''); });
+            if (!(mine.path || []).length && mine.value != null) html += '<div class="cf-step best">' + mine.value + '</div>';
+            best.innerHTML = mine.value == null ? 'Sin resultado' : 'Llegasteis al <b>' + mine.value + '</b>' + (mine.dist === 0 ? ' · ¡Exacto!' : ' · a ' + mine.dist);
+            if (mine.dist === 0) best.className = 'cf-best exact';
+            if (!mine.pending) {
+                status.textContent = (mine.points > 0 ? '+' : '') + (mine.points || 0) + ' puntos' + (mine.winner ? ' · 🏆 ¡Los más cercanos!' : '');
+                status.className = 'cf-status final' + (mine.points > 0 ? ' ok' : '');
+            }
+        }
+        if (Array.isArray(cv.solution) && cv.solution.length && !(mine && mine.dist === 0)) {
+            html += '<div class="cf-sol-title">Se podía así</div>' + cv.solution.map(function(s) { return cfStepHtml(s, null, 'sol'); }).join('');
+        }
+        stepsEl.innerHTML = html; stepsEl._html = null;
+        return;
+    }
+
+    opsEl.style.display = ''; btns.style.display = '';
+    var ev = cfEval();
+    // Si un paso guardado ya no vale (no debería), se quitan los que sobran
+    if (ev.steps.length !== S.cf.steps.length) S.cf.steps = S.cf.steps.slice(0, ev.steps.length);
+    var used = {};
+    ev.steps.forEach(function(s) { used[s.ia] = used[s.ib] = true; });
+    var play = cfCanPlay();
+    var n = (c.numbers || []).length;
+    var tiles = '';
+    ev.values.forEach(function(v, i) {
+        if (used[i]) return;
+        tiles += '<button class="cf-tile' + (i >= n ? ' res' : '') + (S.cf.sel === i ? ' sel' : '') + (S.cf.just === i ? ' just' : '') + '" type="button" data-t="' + i + '"' + (play ? '' : ' disabled') + '>' + v + '</button>';
+    });
+    // Solo si cambia: rehacer las fichas en cada actualización del servidor se comería toques
+    if (tilesEl._html !== tiles) { tilesEl.innerHTML = tiles; tilesEl._html = tiles; }
+    S.cf.just = -1;
+    opsEl.querySelectorAll('.cf-op').forEach(function(b) { b.disabled = !play; b.classList.toggle('sel', S.cf.op === b.dataset.op); });
+    var html = ev.steps.map(function(s, i) { return cfStepHtml(s, i, ev.best && ev.best.tile === n + i ? 'best' : ''); }).join('');
+    if (S.cf.sel !== null && S.cf.sel !== undefined && ev.values[S.cf.sel] !== undefined) {
+        html += '<div class="cf-step cur">' + ev.values[S.cf.sel] + (S.cf.op ? ' ' + Cifras.SYMBOL[S.cf.op] + ' …' : ' …') + '</div>';
+    }
+    if (stepsEl._html !== html) { stepsEl.innerHTML = html; stepsEl._html = html; stepsEl.scrollTop = stepsEl.scrollHeight; }
+
+    if (ev.best) {
+        best.innerHTML = ev.best.dist === 0 ? '¡Exacto! <b>' + ev.best.value + '</b>' : 'Lo más cerca: <b>' + ev.best.value + '</b> · a ' + ev.best.dist;
+        if (ev.best.dist === 0) best.className = 'cf-best exact';
+    } else best.textContent = c.useAll ? 'Hay que usar todos los números' : '';
+    document.getElementById('cfUndo').disabled = !play || !S.cf.steps.length;
+    document.getElementById('cfClear').disabled = !play || !S.cf.steps.length;
+    var send = document.getElementById('cfSend');
+    var same = cfSameAsSent();
+    send.disabled = !play || !ev.best || same;
+    send.className = 'cf-send' + (S.cf.sent && !same ? ' again' : '');
+    send.textContent = ev.best ? (S.cf.sent ? 'Volver a enviar ' : 'Enviar ') + ev.best.value : 'Enviar';
+    if (!ps.optionsRevealed || ps.preCountdown > 0) status.textContent = 'Mirad los números: enseguida podréis hacer cuentas';
+    else if (!play) status.textContent = 'Se acabó el tiempo';
+    else if (S.cf.sent) {
+        var se = Cifras.evaluate(c.numbers, S.cf.sent, c.target, !!c.useAll).best;
+        status.textContent = '✓ Enviado: ' + (se ? se.value : '') + (same ? '' : ' · si mejoráis, volved a enviar');
+        status.className = 'cf-status ok';
+    } else status.textContent = 'Tocad un número, una operación y otro número';
+}
+function cfTapTile(i) {
+    if (!cfCanPlay()) return;
+    var ev = cfEval();
+    if (S.cf.sel === null || S.cf.sel === undefined) { S.cf.sel = i; S.cf.op = null; }
+    else if (S.cf.sel === i) { S.cf.sel = null; S.cf.op = null; }
+    else if (!S.cf.op) { S.cf.sel = i; }
+    else {
+        var a = ev.values[S.cf.sel], b = ev.values[i];
+        if (Cifras.apply(a, S.cf.op, b) === null) { toast(Cifras.whyNot(a, S.cf.op, b)); return; }
+        S.cf.steps.push([S.cf.sel, S.cf.op, i]);
+        S.cf.just = ev.values.length; // la ficha nueva
+        S.cf.sel = null; S.cf.op = null;
+        cfQueueDraft();
+    }
+    renderCifras();
+}
+function cfTapOp(op) {
+    if (!cfCanPlay()) return;
+    if (S.cf.sel === null || S.cf.sel === undefined) { toast('Primero tocad un número'); return; }
+    S.cf.op = S.cf.op === op ? null : op;
+    renderCifras();
+}
+(function() {
+    document.getElementById('cfTiles').addEventListener('click', function(e) {
+        var b = e.target.closest('.cf-tile'); if (b && !b.disabled) cfTapTile(Number(b.dataset.t));
+    });
+    document.getElementById('cfOps').addEventListener('click', function(e) {
+        var b = e.target.closest('.cf-op'); if (b && !b.disabled) cfTapOp(b.dataset.op);
+    });
+    document.getElementById('cfUndo').addEventListener('click', function() {
+        if (!cfCanPlay() || !S.cf.steps.length) return;
+        S.cf.steps.pop(); S.cf.sel = null; S.cf.op = null;
+        cfQueueDraft(); renderCifras();
+    });
+    document.getElementById('cfClear').addEventListener('click', function() {
+        if (!cfCanPlay() || !S.cf.steps.length) return;
+        S.cf.steps = []; S.cf.sel = null; S.cf.op = null;
+        cfQueueDraft(); renderCifras();
+    });
+    document.getElementById('cfSend').addEventListener('click', function() {
+        if (!cfCanPlay() || !cfEval().best || cfSameAsSent()) return;
+        clearTimeout(_cfDraftT);
+        S.cf.sent = S.cf.steps.slice();
+        emit('player:cifras_submit', { steps: S.cf.sent.slice() });
+        renderCifras();
+    });
+})();
+
 // ── Respuesta abierta: una caja de texto por subpregunta ──
 // Lo escrito se guarda en el servidor mientras se teclea (borrador): si se acaba el tiempo cuenta
 // igual, y si el iPad se corta lo recupera. Las cajas no se vuelven a crear mientras se escribe
@@ -2513,7 +2735,7 @@ function submitAbierta() {
 var PLAY_TYPE_LABELS = {
     multirespuesta: 'Multirespuesta', pulsador: 'Pulsador', precio: 'Precio Justo',
     imagen: 'Adivina Imagen', cancion: 'Cancion', boom: 'Boom',
-    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary'
+    ruleta: 'Ruleta', imagen_fija: 'Imagen Fija', identidad: 'Identidad', aclara: 'Imagen que se aclara', abierta: 'Respuesta abierta', pictionary: 'Pictionary', cifras: 'Cifras'
 };
 
 var _playMenuLevel = null;
