@@ -86,6 +86,14 @@
         if (!nonEmpty(c.word)) missing.push('word');
         break;
       }
+      case 'cifras': {
+        // Objetivo entero positivo y de 2 a 7 números enteros positivos
+        var t = Number(c.target);
+        if (!(t > 0 && t % 1 === 0)) missing.push('target');
+        var ns = Array.isArray(c.numbers) ? c.numbers : [];
+        if (ns.length < 2 || ns.length > 7 || !ns.every(function (v) { v = Number(v); return v > 0 && v % 1 === 0; })) missing.push('numbers');
+        break;
+      }
       case 'abierta': {
         // Respuesta abierta: el enunciado general es opcional; cada subpregunta con texto y respuesta
         var subs = Array.isArray(c.subs) ? c.subs : [];
@@ -134,7 +142,9 @@
     basePoints: 'puntos base (entero ≥ 0)',
     subs: 'subpreguntas (mínimo 1)',
     sub_items: 'cada subpregunta con su texto y su respuesta',
-    word: 'palabra a dibujar'
+    word: 'palabra a dibujar',
+    target: 'número objetivo',
+    numbers: 'números (de 2 a 7)'
   };
 
   // ── Respuesta abierta: comparar lo que escribe un equipo con las respuestas válidas ──

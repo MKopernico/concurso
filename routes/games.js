@@ -7,6 +7,7 @@ const { db, DEFAULT_GAME_ID } = require('../db');
 const auth = require('../auth');
 
 const QuestionValidation = require('../public/shared/question-validation.js');
+const Cifras = require('../public/shared/cifras.js');
 
 const router = express.Router();
 
@@ -237,6 +238,8 @@ function contentToRow(typeDef, roundName, question, round) {
             return [roundName, c.statement || '', c.answer || '', c.image || '', c.audio || '', c.initial_chaos ?? 100, c.preset || 'default', ownPts(typeDef.type, qCfg, round)];
         case 'aclara':
             return [roundName, c.statement || '', c.image || '', c.answer || '', c.effect === 'blur' ? 'desenfoque' : 'pixelado', c.mode === 'manual' ? 'a mano' : 'sola', c.duration || 30, ownPts(typeDef.type, qCfg, round)];
+        case 'cifras':
+            return [roundName, c.target ?? '', Array.isArray(c.numbers) ? c.numbers.join(' ') : '', c.level || '', c.useAll ? 'si' : 'no', qCfg.time || '', ownPts(typeDef.type, qCfg, round), ownExtra(qCfg)];
         case 'pictionary': {
             const rc = (round && round.config) || {};
             return [roundName, c.word || '', c.category || '', rc.picMode === 'ipad' ? 'ipad' : 'equipo', rc.picTurns === 'manual' ? 'coordinador' : 'auto',
@@ -268,7 +271,7 @@ function contentToRow(typeDef, roundName, question, round) {
 }
 
 // ── Shared instruction rows for template & export ──
-const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'identidad', 'aclara', 'abierta', 'pictionary'];
+const ALL_TYPES = ['multirespuesta', 'pulsador', 'precio', 'boom', 'ruleta', 'imagen', 'imagen_fija', 'cancion', 'identidad', 'aclara', 'abierta', 'pictionary', 'cifras'];
 
 function buildInstructionRows() {
     const rows = [
@@ -332,6 +335,10 @@ function buildInstructionRows() {
     rows.push(['    "otras_validas": todas en una celda separadas por / (ej: Miguel de Cervantes / el manco de Lepanto). Da igual mayúsculas, tildes y signos.']);
     rows.push(['    "tiempo" vacío = sin cuenta atrás (modo «Lo sabe no lo sabe»). Para otra pregunta en la misma ronda, escribe su enunciado general.']);
     rows.push(['    Puntos: cada equipo se lleva la parte proporcional de lo que acierta; el que más acierta (empate: el que envió antes) gana además el extra (+10 %).']);
+    rows.push(['  Cifras: una fila por pregunta. "objetivo" = número al que hay que llegar; "numeros" = de 2 a 7 números separados por espacio o coma (ej: 1 4 7 9 25 100).']);
+    rows.push(['    Con "objetivo" y "numeros" vacíos y "nivel" (facil, medio o dificil), el programa los inventa al importar (siempre con solución exacta).']);
+    rows.push(['    "usar_todas": si = hay que usar todos los números (por defecto no). "tiempo" vacío = el de la ronda (por defecto 60; en la hoja Rondas, 0 = sin límite).']);
+    rows.push(['    Puntos: exacto = todos (mitad fija + mitad por rapidez); cada unidad de distancia quita un 10 % (a 10 o más, nada). El más cercano gana el extra.']);
     rows.push(['  Pictionary: una fila por palabra (cada pregunta es una palabra y dibuja un equipo distinto). "categoria" es opcional y la ven todos.']);
     rows.push(['    "quien_dibuja": equipo (cada palabra la dibuja un equipo en su iPad; los demás adivinan) o ipad (una pizarra fija enlazada por QR; adivinan todos y quien dibuja no suma).']);
     rows.push(['    "turnos": auto (el programa propone a quién le toca: todos dibujan antes de repetir) o coordinador (lo elige el coordinador en cada palabra).']);
@@ -688,6 +695,7 @@ const EXCEL_TYPE_DEFS = [
     { sheet: 'Identidad',      type: 'identidad',       columns: ['ronda', 'enunciado', 'izq_imagen', 'izq_texto', 'der_imagen', 'der_texto', 'explicacion', 'puntos', 'tiempo'] },
     { sheet: 'Imagen se aclara', type: 'aclara',        columns: ['ronda', 'enunciado', 'imagen', 'respuesta', 'efecto', 'modo', 'segundos', 'puntos'] },
     { sheet: 'Respuesta abierta', type: 'abierta',      columns: ['ronda', 'enunciado', 'subpregunta', 'respuesta', 'otras_validas', 'tiempo', 'puntos', 'extra_mas_rapido'] },
+    { sheet: 'Cifras',         type: 'cifras',          columns: ['ronda', 'objetivo', 'numeros', 'nivel', 'usar_todas', 'tiempo', 'puntos', 'extra_mas_rapido'] },
     { sheet: 'Pictionary',     type: 'pictionary',      columns: ['ronda', 'palabra', 'categoria', 'quien_dibuja', 'turnos', 'puntos_dibuja', 'tiempo', 'puntos', 'sin_uso'] },
 ];
 
@@ -976,6 +984,27 @@ function parseExcelSheet(rows, type) {
                 if (String(r[8] || '').trim()) rounds[roundName].config.background = String(r[8]).trim();
                 break;
             }
+            case 'cifras': {
+                const plain = (v) => String(v == null ? '' : v).trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+                const nums = String(r[2] == null ? '' : r[2]).split(/[^0-9]+/).filter(Boolean).map(Number);
+                const lvRaw = plain(r[3]);
+                const level = /^f/.test(lvRaw) ? 'facil' : /^m/.test(lvRaw) ? 'medio' : /^d/.test(lvRaw) ? 'dificil' : '';
+                const useAll = /^s/.test(plain(r[4]));
+                if (String(r[1] == null ? '' : r[1]).trim() === '' && !nums.length && !level) break;
+                content = { target: Number(r[1]) || undefined, numbers: nums, useAll: useAll || undefined, level: level || undefined };
+                // Sin números ni objetivo pero con nivel: el programa se los inventa (con solución exacta)
+                if (!content.target && !nums.length && level) {
+                    const g = Cifras.generate(level);
+                    if (g) Object.assign(content, { target: g.target, numbers: g.numbers, solution: g.solution });
+                } else if (Cifras.cleanNumbers(nums) && Cifras.validTarget(content.target)) {
+                    const sol = Cifras.solve(nums, content.target, useAll, 1500000);
+                    if (sol) content.solution = sol.steps;
+                }
+                if (r[5] !== '' && r[5] != null && Number(r[5]) > 0) qConfig.time = Number(r[5]);
+                if (r[6] !== '' && r[6] != null && isFinite(Number(r[6]))) qConfig.basePoints = Number(r[6]);
+                setExtraCell(qConfig, r[7]);
+                break;
+            }
             case 'pictionary': {
                 const word = String(r[1] || '').trim();
                 const category = String(r[2] || '').trim();
@@ -1140,7 +1169,7 @@ router.post('/games/:id/import-excel', xlsxUpload.single('file'), (req, res) => 
                         roundConfig = { ...roundDefs[roundName].config };
                     } else {
                         // Legacy: build config from first question + fondo_ronda from parser
-                        roundConfig = { time: type === 'pictionary' ? 60 : 30, penalty: 0 };
+                        roundConfig = { time: (type === 'pictionary' || type === 'cifras') ? 60 : 30, penalty: 0 };
                         const firstQ = roundData.questions[0];
                         if (firstQ.config) {
                             if (firstQ.config.time) roundConfig.time = firstQ.config.time;

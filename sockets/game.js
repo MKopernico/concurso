@@ -5,6 +5,7 @@ const { db, DEFAULT_GAME_ID } = require('../db');
 
 const auth = require('../auth');
 const QV = require('../public/shared/question-validation.js');
+const Cifras = require('../public/shared/cifras.js');
 
 const gameStates = new Map();
 
@@ -347,6 +348,7 @@ function getQuestionConfig(state) {
         // Respuesta abierta: la cuenta atrás es de la pregunta y es opcional (0 = sin cuenta atrás)
         time: (ds.currentRound && ds.currentRound.type === 'abierta') ? abiertaTime(q)
             : (ds.currentRound && ds.currentRound.type === 'pictionary') ? picTimeOf(ds) // 0 = sin tiempo
+            : (ds.currentRound && ds.currentRound.type === 'cifras') ? cifrasTime(ds) // 0 = sin tiempo
             : (qCfg.time || rCfg.time || 30),
         // Puntos = lo máximo por acertar (ver QV.questionPoints: los juegos antiguos se convierten)
         points: QV.questionPoints(type, qCfg, rCfg),
@@ -627,6 +629,113 @@ function rectifyAbierta(state, teamIds, subIdx, ok) {
         changes: changes.map(ch => ({ team: ch.team, pts: ch.pts })), pending: !!ds.pendingScores });
 }
 
+// ── Cifras ──
+// content = { target, numbers: [..], useAll?, level?, solution?: [{a,op,b,r}] }
+// Los números y el objetivo se ven al lanzar la pregunta; «Abrir» (o ▶ del tiempo) deja operar.
+// El iPad manda sus pasos ([fichaA, op, fichaB], ver shared/cifras.js) como borrador en cada cuenta
+// y al pulsar «Enviar»; se puede volver a enviar mientras haya tiempo (cuenta el último envío y su
+// hora). Al cerrar, quien no envió cuenta con su borrador, como el último en llegar.
+// Puntos = (mitad fija + mitad rapidez) × cercanía; cercanía = 100 % exacto y un 10 % menos por
+// cada unidad de distancia (a 10 o más, nada). Extra (+10 %) al más cercano (empate: el más rápido).
+// ds.cifras (al cerrar) = { revealStep, total, groups: [{ dist, teams }] (del más lejano al más
+// cercano), points, winner, solution }: «Ir revelando» destapa un grupo cada vez y, si nadie la
+// clavó, al final la solución; los puntos esperan hasta el último paso.
+const CIFRAS_RANGE = 10;
+function cifrasContent(ds) {
+    const q = ds.questions[ds.currentQuestionIdx];
+    return (q && q.content) || {};
+}
+function cifrasTime(ds) {
+    const q = ds.questions[ds.currentQuestionIdx];
+    const qc = (q && q.config) || {}, rc = ds.currentRound ? parseJson(ds.currentRound.config) : {};
+    if (Number(qc.time) > 0) return Math.min(3600, Math.round(qc.time));
+    if (rc.time !== undefined && rc.time !== null && rc.time !== '' && Number(rc.time) === 0) return 0;
+    return Number(rc.time) > 0 ? Math.min(3600, Math.round(rc.time)) : 60;
+}
+// Pasos que manda un iPad, limpios: solo los válidos y como [a, op, b]
+function cleanCifrasSteps(ds, raw) {
+    const c = cifrasContent(ds);
+    const ev = Cifras.evaluate(c.numbers, raw, c.target, !!c.useAll);
+    return ev.steps.map(s => [s.ia, s.op, s.ib]);
+}
+function cifrasEval(ds, steps) {
+    const c = cifrasContent(ds);
+    return Cifras.evaluate(c.numbers, steps, c.target, !!c.useAll);
+}
+function cifrasSolution(ds) {
+    const c = cifrasContent(ds);
+    if (Array.isArray(c.solution) && c.solution.length) return c.solution;
+    const s = Cifras.solve(c.numbers, c.target, !!c.useAll, 1500000);
+    return s ? s.steps : [];
+}
+function cifrasResults(state) {
+    const ds = state.director;
+    const cfg = getQuestionConfig(state);
+    const res = {};
+    let winner = null;
+    for (const [tid, ans] of Object.entries(ds.answers)) {
+        if (!ans.submitted) continue;
+        const ev = cifrasEval(ds, ans.answer);
+        if (!ev.best) { res[tid] = { value: null, dist: null, path: [], points: 0 }; continue; }
+        const near = Math.max(0, 1 - ev.best.dist / CIFRAS_RANGE);
+        const pts = Math.round(near * speedPts(cfg, ds, ans.timerRemaining));
+        res[tid] = { value: ev.best.value, dist: ev.best.dist, path: ev.path, points: pts };
+        if (near > 0) {
+            const w = winner && res[winner];
+            const a = ans, b = winner && ds.answers[winner];
+            if (!w || ev.best.dist < w.dist || (ev.best.dist === w.dist && ((a.timerRemaining || 0) > (b.timerRemaining || 0)
+                || ((a.timerRemaining || 0) === (b.timerRemaining || 0) && (a.timestamp || 0) < (b.timestamp || 0))))) winner = tid;
+        }
+    }
+    const extra = extraPts(cfg);
+    if (winner && extra > 0) { res[winner].points += extra; res[winner].extra = extra; }
+    return { res, winner };
+}
+// Al cerrar: los borradores cuentan (como el último en llegar), se puntúa y se preparan los pasos del revelado
+function closeCifras(state) {
+    const ds = state.director;
+    const now = Date.now();
+    for (const [tid, ans] of Object.entries(ds.answers)) {
+        if (ans.submitted) continue;
+        if (!Array.isArray(ans.draft) || !ans.draft.length) { delete ds.answers[tid]; continue; }
+        Object.assign(ans, { answer: ans.draft, submitted: true, timestamp: now, timerRemaining: 0, late: true });
+    }
+    const { res, winner } = cifrasResults(state);
+    const byDist = {};
+    const noResult = [];
+    for (const [tid, r] of Object.entries(res)) {
+        if (r.dist === null) { noResult.push(tid); continue; }
+        (byDist[r.dist] = byDist[r.dist] || []).push(tid);
+    }
+    const groups = Object.keys(byDist).map(Number).sort((a, b) => b - a).map(d => ({ dist: d, teams: byDist[d] }));
+    if (noResult.length) groups.unshift({ dist: null, teams: noResult });
+    const exact = !!byDist[0];
+    const points = {};
+    for (const [tid, r] of Object.entries(res)) { points[tid] = r.points; if (r.points) addPending(ds, tid, r.points); }
+    ds.cifras = { revealStep: 0, total: groups.length + (exact ? 0 : 1), groups, points, winner, solution: cifrasSolution(ds) };
+}
+// Vista del revelado para iPads y pantalla
+function cifrasView(ds) {
+    const c = ds.cifras;
+    if (!c) return null;
+    const done = c.revealStep >= c.total;
+    return { revealStep: c.revealStep, total: c.total, groups: c.groups, winner: done ? c.winner : null,
+        solution: (done || c.revealStep >= c.groups.length) ? c.solution : null };
+}
+// Resultados por equipo para los iPads mientras se revela: solo lo ya destapado, y sin puntos hasta el final
+function cifrasScoresView(ds, forPlayers) {
+    const lqs = ds.lastQuestionScores;
+    const c = ds.cifras;
+    if (!forPlayers || !c || ds.phase !== 'answer_revealed' || !lqs || c.revealStep >= c.total) return lqs;
+    const shown = new Set();
+    c.groups.slice(0, c.revealStep).forEach(g => g.teams.forEach(t => shown.add(t)));
+    const out = {};
+    for (const [tid, r] of Object.entries(lqs)) {
+        out[tid] = (r && r.cifras && !shown.has(tid)) ? { cifras: true, pending: true, noAnswer: r.noAnswer } : (r && r.cifras ? { ...r, points: 0, extra: 0, winner: false, pending: true } : r);
+    }
+    return out;
+}
+
 function clearPreCountdown(state) {
     if (state._preCountdownHandle) { clearInterval(state._preCountdownHandle); state._preCountdownHandle = null; }
     delete state.director.preCountdown;
@@ -664,6 +773,7 @@ function teamName(state, id) { const e = state.equipos.find(x => x.id === id); r
 function isNoTimerRound(ds) {
     if (ds.currentRound && ds.currentRound.type === 'abierta') return !abiertaTime(ds.questions[ds.currentQuestionIdx]);
     if (ds.currentRound && ds.currentRound.type === 'pictionary') return !picTimeOf(ds);
+    if (ds.currentRound && ds.currentRound.type === 'cifras') return !cifrasTime(ds);
     return !!(ds.currentRound && NO_TIMER_TYPES.has(ds.currentRound.type));
 }
 
@@ -686,6 +796,7 @@ function finalizeQuestion(state) {
         const qa = ds.questions[ds.currentQuestionIdx];
         if (qa && ds.abiertaWip) delete ds.abiertaWip[qa.id];
     }
+    if (type === 'cifras') closeCifras(state);
     if (type === 'multirespuesta') autoScoreMultirespuesta(state);
     else if (type === 'precio') autoScorePrecio(state);
     else if (type === 'identidad') {
@@ -709,14 +820,14 @@ function finalizeQuestion(state) {
     if (ds.aclara) { ds.aclara.level = 1; ds.aclara.running = false; }
     if (ds.pictionary) picArchive(state);
     computeLastQuestionScores(state);
-    if (['multirespuesta', 'precio', 'boom', 'identidad', 'abierta'].includes(type)) {
+    if (['multirespuesta', 'precio', 'boom', 'identidad', 'abierta', 'cifras'].includes(type)) {
         const lqs = Object.values(ds.lastQuestionScores || {});
         logAction(state, { action: 'scored', hits: lqs.filter(r => r.correct).length, answered: lqs.filter(r => !r.noAnswer).length, total: lqs.length });
     }
     const q = ds.questions[ds.currentQuestionIdx];
     if (q) {
         if (!ds.questionResults) ds.questionResults = {};
-        ds.questionResults[q.id] = { answers: ds.answers, lastQuestionScores: ds.lastQuestionScores, identidad: ds.identidad, abierta: ds.abierta || undefined,
+        ds.questionResults[q.id] = { answers: ds.answers, lastQuestionScores: ds.lastQuestionScores, identidad: ds.identidad, abierta: ds.abierta || undefined, cifras: ds.cifras || undefined,
             pictionary: ds.pictionary ? { mode: ds.pictionary.mode, drawer: ds.pictionary.drawer, drawerPts: ds.pictionary.drawerPts || 0 } : undefined,
             buzzerWinner: ds.buzzerWinner || null, buzzerPoints: ds.buzzerPoints || 0, buzzerFailed: (ds.buzzerFailed || []).slice() };
     }
@@ -734,6 +845,7 @@ function restoreQuestionResult(state) {
     ds.lastQuestionScores = r.lastQuestionScores || {};
     if (r.identidad) ds.identidad = r.identidad;
     if (r.abierta) { ds.abierta = r.abierta; ds.abierta.step = 'revealed'; ds.abierta.revealStep = abiertaSubs(ds).length; }
+    if (r.cifras) { ds.cifras = r.cifras; ds.cifras.revealStep = ds.cifras.total; }
     ds.buzzerWinner = r.buzzerWinner || null;
     ds.buzzerPoints = r.buzzerPoints || 0;
     ds.buzzerFailed = r.buzzerFailed || [];
@@ -1085,6 +1197,19 @@ function computeLastQuestionScores(state) {
                 entry.exact = val === cv;
                 entry.sharedWin = entry.correct && winners.length > 1; // empate: ganan todos, el extra al más rápido
             }
+        } else if (roundType === 'cifras' && ds.cifras) {
+            if (!ans.submitted) continue;
+            const ev = cifrasEval(ds, ans.answer);
+            entry.cifras = true;
+            entry.value = ev.best ? ev.best.value : null;
+            entry.dist = ev.best ? ev.best.dist : null;
+            entry.exact = entry.dist === 0;
+            entry.correct = entry.exact;
+            entry.path = ev.path;
+            entry.points = (ds.cifras.points || {})[teamId] || 0;
+            entry.winner = ds.cifras.winner === teamId;
+            if (entry.winner) entry.extra = extraPts(cfg);
+            entry.late = !!ans.late;
         } else if (roundType === 'abierta' && ds.abierta) {
             if (!ans.submitted) continue;
             const n = Array.isArray(c.subs) ? c.subs.length : 0;
@@ -1154,6 +1279,7 @@ function playerView(state, forPlayers) {
             if (type === 'ruleta' && !ds.rouletteSolved && typeof c.phrase === 'string') c.phrase = maskPhrase(c.phrase, ds.rouletteRevealed || []);
             if (type === 'imagen' || type === 'aclara') { delete c.image; delete c.answer; }
         }
+        if (type === 'cifras') delete c.solution; // la solución va con el revelado (ds.cifras), nunca antes
         if (ds.phase === 'question' && type === 'boom' && Array.isArray(c.items)) {
             const perm = boomPerm(ds, c.items.length);
             c.items = perm.map(i => c.items[i]);
@@ -1259,7 +1385,7 @@ function playerView(state, forPlayers) {
         imagePuzzle: ds.imagePuzzle,
         optionsRevealed: ds.optionsRevealed,
         completedRounds: ds.completedRounds,
-        lastQuestionScores: abiertaScoresView(ds, forPlayers),
+        lastQuestionScores: ds.cifras ? cifrasScoresView(ds, forPlayers) : abiertaScoresView(ds, forPlayers),
         questionKey: (ds.currentRoundId || '') + ':' + ds.currentQuestionIdx + ':' + (ds.questionEpoch || 0), // cambia también al relanzar la misma pregunta
         buzzerFailed: ds.buzzerFailed || [],
         buzzerWinner: ds.buzzerWinner || null, // equipo que acertó en el pulsador (para mostrar el resultado)
@@ -1285,6 +1411,8 @@ function playerView(state, forPlayers) {
         identidad: ds.identidad ? { revealIndex: ds.identidad.revealIndex } : null,
         boomStep: typeof ds.boomStep === 'number' ? ds.boomStep : null, // posiciones de Boom ya reveladas
         abierta: ds.abierta ? { step: ds.abierta.step, revealStep: ds.abierta.revealStep || 0 } : null, // paso de Respuesta abierta
+        cifras: cifrasView(ds), // revelado de Cifras
+        cifrasSent: (ds.currentRound && ds.currentRound.type === 'cifras') ? Object.values(ds.answers).filter(a => a.submitted).length : 0, // equipos que ya han enviado
         aclara: aclaraView(ds), // nitidez actual de «Imagen que se aclara» (el cliente la anima desde aquí)
         // Pictionary: quién dibuja y en qué paso va (la palabra no: va solo a quien dibuja)
         pictionary: ds.pictionary ? { step: ds.pictionary.step, mode: ds.pictionary.mode, drawer: ds.pictionary.drawer || null,
@@ -1317,6 +1445,12 @@ function emitYourOrder(socket, state) {
     // Pictionary: si este equipo está dibujando, vuelve a recibir la palabra
     if (ds.pictionary) {
         if (ds.pictionary.mode === 'equipos' && ds.pictionary.drawer === socket.equipoId) sendPicWord(socket, state);
+        return;
+    }
+    // Cifras: al volver, el equipo recupera sus cuentas (y si ya había enviado)
+    if (ds.currentRound && ds.currentRound.type === 'cifras') {
+        const e = ds.answers[socket.equipoId];
+        if (e && ds.phase === 'question') socket.emit('game:your_cifras', { steps: e.draft || e.answer || [], sent: e.submitted ? e.answer : null });
         return;
     }
     // Respuesta abierta: al volver (corte, otro iPad) el equipo recupera lo que tenía escrito
@@ -1363,7 +1497,7 @@ function avanzarPregunta(state, io, gameId) {
     ds.answers = {};
     ds.revealedCells = [];
     ds.revealedLetters = [];
-    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+    ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
     ds.optionsRevealed = false; ds.optionsRevealedAt = null;
     ds.lastQuestionScores = {};
     ds.showTeamResults = false;
@@ -1864,7 +1998,7 @@ function attachSocketHandlers(io) {
             const ds = state.director;
             if (data && typeof data.k === 'string' && data.k !== questionKeyOf(ds)) return true;
             const type = ds.currentRound && ds.currentRound.type;
-            return (type === 'multirespuesta' || type === 'boom' || type === 'identidad') && !ds.optionsRevealed;
+            return (type === 'multirespuesta' || type === 'boom' || type === 'identidad' || type === 'cifras') && !ds.optionsRevealed;
         };
 
         socket.on('player:submit_answer', (data) => {
@@ -1872,7 +2006,7 @@ function attachSocketHandlers(io) {
             const ds = state.director;
             if (ds.phase !== 'question') return;
             if (answerOutOfPlace(data)) return;
-            if (ds.currentRound && ds.currentRound.type === 'abierta') return; // tiene sus propios mensajes
+            if (ds.currentRound && (ds.currentRound.type === 'abierta' || ds.currentRound.type === 'cifras')) return; // tienen sus propios mensajes
             if (ds.answers[socket.equipoId]) return;
             ds.answers[socket.equipoId] = { answer: data.answer, ...answerTiming(state, data) };
             broadcastDirector(io, gameId, state);
@@ -1964,6 +2098,26 @@ function attachSocketHandlers(io) {
             // Cuando han enviado todos los equipos (los congelados no cuentan) empieza la corrección
             const need = state.equipos.filter(e => !e.bloqueado);
             if (need.length && need.every(e => ds.answers[e.id] && ds.answers[e.id].submitted)) closeAbierta(state);
+            broadcastDirector(io, gameId, state);
+        });
+
+        // ── Cifras: borrador en cada cuenta y «Enviar» (se puede reenviar mientras haya tiempo) ──
+        socket.on('player:cifras', (data) => {
+            const ds = state.director;
+            if (!socket.equipoId || ds.phase !== 'question' || !(ds.currentRound && ds.currentRound.type === 'cifras')) return;
+            if (answerOutOfPlace(data)) return;
+            const eq = state.equipos.find(e => e.id === socket.equipoId);
+            if (!eq || eq.bloqueado || !data || !Array.isArray(data.steps)) return;
+            const steps = cleanCifrasSteps(ds, data.steps);
+            const prev = ds.answers[socket.equipoId];
+            if (!data.final) {
+                // Borrador: no cambia lo ya enviado ni se difunde a nadie
+                if (prev) prev.draft = steps;
+                else ds.answers[socket.equipoId] = { answer: null, draft: steps, submitted: false, timestamp: Date.now(), timerRemaining: preciseRemaining(state) };
+                return;
+            }
+            if (!cifrasEval(ds, steps).best) return; // con «usar todas» y sin usarlas todas no hay resultado que enviar
+            ds.answers[socket.equipoId] = { answer: steps, draft: steps, ...answerTiming(state, data), submitted: true };
             broadcastDirector(io, gameId, state);
         });
 
@@ -2126,7 +2280,7 @@ function attachSocketHandlers(io) {
             ds.phase = 'round_intro';
             logAction(state, { action: 'round', name: round.name });
             ds.answers = {};
-            ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.scoreboardVisible = false;
             ds.qrVisible = false;
             state.pulsadorActivo = false;
@@ -2205,7 +2359,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
                 ds.optionsRevealed = false; ds.optionsRevealedAt = null;
                 ds.lastQuestionScores = {};
                 ds.showTeamResults = false;
@@ -2241,7 +2395,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
             ds.showTeamResults = false;
@@ -2287,7 +2441,7 @@ function attachSocketHandlers(io) {
                 ds.answers = {};
                 ds.revealedCells = [];
                 ds.revealedLetters = [];
-                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+                ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
                 ds.optionsRevealed = false; ds.optionsRevealedAt = null;
                 initIdentidadState(ds); initAclaraState(ds); initAbiertaState(ds); initPictionaryState(state);
                 if (isNoTimerRound(ds)) {
@@ -2316,7 +2470,7 @@ function attachSocketHandlers(io) {
             if (ds.timer.running || ds.timer.remaining <= 0) return;
             ds.timer.running = true;
             // Al arrancar el tiempo se muestran las opciones/elementos a los equipos
-            if (ds.currentRound && ['multirespuesta', 'precio', 'boom', 'identidad'].includes(ds.currentRound.type)) {
+            if (ds.currentRound && ['multirespuesta', 'precio', 'boom', 'identidad', 'cifras'].includes(ds.currentRound.type)) {
                 if (!ds.optionsRevealed) ds.optionsRevealedAt = Date.now();
                 ds.optionsRevealed = true;
             }
@@ -2645,6 +2799,16 @@ function attachSocketHandlers(io) {
                 broadcastDirector(io, gameId, state);
                 return;
             }
+            // Cifras: siguiente grupo (del más lejano al más cercano) y, si nadie la clavó, la solución
+            if (ds.currentRound && ds.currentRound.type === 'cifras') {
+                const c = ds.cifras;
+                if (ds.phase !== 'answer_revealed' || !c || c.revealStep >= c.total) return;
+                c.revealStep++;
+                if (c.revealStep >= c.total) applyPendingScores(state); // último paso: ahora cuentan los puntos
+                io.to(roomOf(gameId)).emit('game:pair_revealed', { index: c.revealStep - 1 });
+                broadcastDirector(io, gameId, state);
+                return;
+            }
             // Boom: siguiente posición del orden correcto
             if (ds.currentRound && ds.currentRound.type === 'boom') {
                 const qb = ds.questions[ds.currentQuestionIdx];
@@ -2909,7 +3073,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.phase = 'lobby';
             ds.menuLevel = 'home';
@@ -2934,7 +3098,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
@@ -2980,7 +3144,7 @@ function attachSocketHandlers(io) {
             ds.answers = {};
             ds.revealedCells = [];
             ds.revealedLetters = [];
-            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
+            ds.rouletteRevealed = []; ds.rouletteSolved = false; ds.roulettePanelVisible = false; ds.imagePuzzle = { questionId: null, revealedTiles: [], answerVisible: false }; ds.karaoke = null; ds.buzzerFailed = []; ds.buzzerWinner = null; ds.buzzerPoints = 0; ds.boomStep = null; ds.aclara = null; ds.abierta = null; ds.pictionary = null; ds.cifras = null; ds.videoState = null; ds.resumePhase = null; ds.questionEpoch = (ds.questionEpoch || 0) + 1;
             ds.identidad = null;
             ds.optionsRevealed = false; ds.optionsRevealedAt = null;
             ds.lastQuestionScores = {};
