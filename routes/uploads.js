@@ -137,8 +137,10 @@ router.get('/media/:type', (req, res) => {
         .filter(f => !f.startsWith('.'))
         .map(f => {
             const stat = fs.statSync(path.join(dir, f));
+            if (!stat.isFile()) return null; // images/_originales (copias de «Reducir fotos pesadas»)
             return { name: f, url: `/uploads/${type}/${f}`, size: stat.size, modified: stat.mtimeMs };
         })
+        .filter(Boolean)
         .sort((a, b) => b.modified - a.modified);
     res.json(files);
 });
@@ -151,7 +153,7 @@ router.delete('/media/:type/:filename', (req, res) => {
     // Sanitize filename to prevent path traversal
     const safe = path.basename(filename);
     const filePath = path.join(UPLOADS_DIR, type, safe);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'archivo no encontrado' });
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return res.status(404).json({ error: 'archivo no encontrado' });
     // ¿Lo usa algún juego o la playlist? Entonces hace falta confirmación (?force=1)
     if (!req.query.force) {
         const url = '/uploads/' + type + '/' + safe;

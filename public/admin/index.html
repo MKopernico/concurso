@@ -267,6 +267,8 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 <button class="filter-tab" data-val="audio" onclick="switchMediaType('audio')">&#127925; Audio</button>
             </div>
             <div class="toolbar-right">
+                <button class="btn-ghost btn-sm" id="btnRestoreOriginals" style="display:none" onclick="restoreOriginals()" title="Deshace «Reducir fotos pesadas»: vuelve a poner las fotos originales">&#8617; Recuperar originales</button>
+                <button class="btn-ghost" id="btnShrinkHeavy" onclick="openShrinkHeavy()" title="Reduce las fotos de los juegos que pesan más de 500 KB o pasan de 1920 px">&#128476; Reducir fotos pesadas</button>
                 <label class="btn-primary" style="cursor:pointer">+ Subir archivos<input type="file" id="mediaUploadInput" style="display:none" multiple onchange="uploadMediaFiles(this)"></label>
                 <span id="mediaUploadProgress" style="display:none; margin-left:10px; font-size:13px; color:var(--accent);"></span>
             </div>
@@ -459,6 +461,18 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 <button type="submit" class="btn-primary">Guardar</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- ============ MODAL: Reducir fotos pesadas (biblioteca) ============ -->
+<div id="modal-shrink-overlay" class="modal-overlay">
+    <div class="modal" style="max-width:640px">
+        <h2>Reducir fotos pesadas</h2>
+        <div id="shrink-body"></div>
+        <div class="modal-footer">
+            <button type="button" class="btn-ghost" id="btnShrinkCancel" onclick="closeShrinkHeavy()">Cancelar</button>
+            <button type="button" class="btn-primary" id="btnShrinkGo" style="display:none" onclick="applyShrinkHeavy()">Reducir</button>
+        </div>
     </div>
 </div>
 
@@ -2459,6 +2473,7 @@ async function loadMediaFiles() {
     try {
         mediaFiles = await api(`/media/${mediaType}`);
         renderMediaFiles(el);
+        refreshShrinkButtons();
     } catch (e) { el.innerHTML = '<div class="empty"><p>Error: ' + esc(e.message) + '</p></div>'; }
 }
 
@@ -2568,6 +2583,126 @@ async function uploadMediaFiles(input) {
     let msg = ok + ' archivo' + (ok > 1 ? 's' : '') + ' subido' + (ok > 1 ? 's' : '');
     if (reduced) msg += ' · ' + (reduced > 1 ? reduced + ' fotos reducidas: ' : 'Foto reducida: ') + ImageShrink.formatBytes(before) + ' → ' + ImageShrink.formatBytes(after);
     toast(msg, reduced ? 4500 : 3000);
+    loadMediaFiles();
+}
+
+// ─── «🗜 Reducir fotos pesadas»: las fotos subidas antes de reducirse al subir (routes/media-reduce.js).
+// El servidor no sabe reducirlas: se descargan, se pasan por ImageShrink aquí y se suben de vuelta.
+let _shrinkPlan = [], _shrinkRun = 0, _shrinkBusy = false;
+const extOf = (name) => (String(name).match(/\.([a-z0-9]+)$/i) || ['', ''])[1].toLowerCase().replace('jpeg', 'jpg');
+
+async function refreshShrinkButtons() {
+    const restore = document.getElementById('btnRestoreOriginals');
+    const reduce = document.getElementById('btnShrinkHeavy');
+    if (mediaType !== 'images') { restore.style.display = 'none'; reduce.style.display = 'none'; return; }
+    reduce.style.display = '';
+    try {
+        const d = await api('/media/images/heavy');
+        reduce.innerHTML = '&#128476; Reducir fotos pesadas' + (d.files.length ? ' (' + d.files.length + ')' : '');
+        restore.style.display = d.undo ? '' : 'none';
+        restore.innerHTML = '&#8617; Recuperar originales (' + d.undo + ')';
+    } catch (e) { /* los botones siguen funcionando */ }
+}
+
+function closeShrinkHeavy() {
+    if (_shrinkBusy) return; // subiendo: no se deja a medias
+    _shrinkRun++; // corta el análisis si estaba en marcha
+    _shrinkPlan = [];
+    closeModal('modal-shrink-overlay');
+}
+
+async function openShrinkHeavy() {
+    const run = ++_shrinkRun;
+    const body = document.getElementById('shrink-body');
+    const go = document.getElementById('btnShrinkGo');
+    go.style.display = 'none';
+    document.getElementById('btnShrinkCancel').textContent = 'Cancelar';
+    _shrinkPlan = [];
+    body.innerHTML = '<p>Buscando fotos pesadas en los juegos…</p>';
+    openModal('modal-shrink-overlay');
+    let d;
+    try { d = await api('/media/images/heavy'); } catch (e) { body.innerHTML = '<p>Error: ' + esc(e.message) + '</p>'; return; }
+    if (!d.files.length) {
+        body.innerHTML = '<p>&#9989; Ninguna foto de los juegos pesa más de 500 KB ni pasa de 1920 px (' + d.referenced + ' revisadas). No hay nada que reducir.</p>';
+        return;
+    }
+    const rows = [];
+    for (let i = 0; i < d.files.length; i++) {
+        const f = d.files[i];
+        body.innerHTML = '<p>Analizando ' + (i + 1) + ' de ' + d.files.length + ': <strong>' + esc(f.name) + '</strong>…</p><p style="font-size:13px;color:var(--text2)">Se descarga cada foto y se reduce en este navegador para ver cuánto se ahorra. Todavía no se cambia nada.</p>';
+        let r;
+        try {
+            const res = await fetch(f.url, { cache: 'no-store' });
+            if (!res.ok) throw new Error('no se pudo descargar');
+            const blob = await res.blob();
+            r = await ImageShrink.shrink(new File([blob], f.name, { type: blob.type }));
+        } catch (e) { r = { reduced: false, reason: e.message }; }
+        if (run !== _shrinkRun) return; // cancelado
+        rows.push({ f, r });
+        if (r.reduced) _shrinkPlan.push({ url: f.url, name: f.name, file: r.file, before: f.size, after: r.after });
+    }
+    const fmt = ImageShrink.formatBytes;
+    const before = _shrinkPlan.reduce((a, p) => a + p.before, 0), after = _shrinkPlan.reduce((a, p) => a + p.after, 0);
+    const list = rows.map(({ f, r }) => '<tr><td style="padding:4px 8px 4px 0; word-break:break-all"><strong>' + esc(f.name) + '</strong>'
+        + (f.width ? ' <span style="color:var(--text2)">' + f.width + '×' + f.height + '</span>' : '')
+        + '<div style="font-size:11px;color:var(--text2)">' + esc(f.games.join(' · ')) + '</div></td>'
+        + '<td style="padding:4px 0; white-space:nowrap; text-align:right">' + (r.reduced
+            ? fmt(f.size) + ' → <strong>' + fmt(r.after) + '</strong>' + (extOf(r.file.name) !== extOf(f.name) ? ' <span style="color:var(--text2)">(pasa a ' + esc(extOf(r.file.name).toUpperCase()) + ')</span>' : '')
+            : '<span style="color:var(--text2)">se queda igual</span>') + '</td></tr>').join('');
+    body.innerHTML = (_shrinkPlan.length
+            ? '<p><strong>' + _shrinkPlan.length + ' foto' + (_shrinkPlan.length > 1 ? 's' : '') + ': ' + fmt(before) + ' → ' + fmt(after) + '</strong> (se ahorran ' + fmt(before - after) + ' en la precarga de cada iPad).</p>'
+            : '<p>Ninguna de estas fotos pesaría menos reduciéndola: se quedan como están.</p>')
+        + '<div style="max-height:46vh; overflow-y:auto; margin:10px 0; font-size:13px"><table style="width:100%; border-collapse:collapse">' + list + '</table></div>'
+        + (_shrinkPlan.length ? '<p style="font-size:13px;color:var(--text2)">Se guarda una copia de cada original: se puede deshacer con «&#8617; Recuperar originales». Si cambia el formato (PNG → JPEG o WebP), la foto pasa a tener otro nombre y los juegos se actualizan solos. Los iPads volverán a descargar estas fotos en la próxima precarga: mejor hacerlo sin partidas en marcha.</p>' : '');
+    if (_shrinkPlan.length) {
+        go.textContent = 'Reducir ' + _shrinkPlan.length + ' foto' + (_shrinkPlan.length > 1 ? 's' : '');
+        go.style.display = '';
+    }
+}
+
+async function applyShrinkHeavy() {
+    if (_shrinkBusy || !_shrinkPlan.length) return;
+    _shrinkBusy = true;
+    const body = document.getElementById('shrink-body');
+    const go = document.getElementById('btnShrinkGo'), cancel = document.getElementById('btnShrinkCancel');
+    go.style.display = 'none'; cancel.disabled = true;
+    const plan = _shrinkPlan;
+    let ok = 0, before = 0, after = 0;
+    const errors = [];
+    for (let i = 0; i < plan.length; i++) {
+        const p = plan[i];
+        body.innerHTML = '<p>Guardando ' + (i + 1) + ' de ' + plan.length + ': <strong>' + esc(p.name) + '</strong>…</p>';
+        const form = new FormData();
+        form.append('url', p.url);
+        form.append('file', p.file);
+        try {
+            const res = await fetch(API + '/media/images/replace', { method: 'POST', body: form });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'error del servidor');
+            ok++; before += data.before; after += data.after;
+        } catch (e) { errors.push(p.name + ': ' + e.message); }
+    }
+    _shrinkBusy = false; cancel.disabled = false;
+    _shrinkPlan = [];
+    if (errors.length) {
+        body.innerHTML = '<p>' + ok + ' reducida' + (ok !== 1 ? 's' : '') + '. No se pudieron reducir:</p><ul style="font-size:13px">' + errors.map(e => '<li>' + esc(e) + '</li>').join('') + '</ul>';
+        cancel.textContent = 'Cerrar';
+    } else {
+        closeModal('modal-shrink-overlay');
+    }
+    if (ok) toast(ok + ' foto' + (ok > 1 ? 's reducidas' : ' reducida') + ': ' + ImageShrink.formatBytes(before) + ' → ' + ImageShrink.formatBytes(after), 5000);
+    loadMediaFiles();
+}
+
+async function restoreOriginals() {
+    let d;
+    try { d = await api('/media/images/heavy'); } catch (e) { toast('Error: ' + e.message); return; }
+    if (!d.undo) { toast('No hay originales guardadas'); refreshShrinkButtons(); return; }
+    if (!confirm('¿Volver a poner las ' + d.undo + ' fotos originales?\n\nSe deshace todo lo que hizo «Reducir fotos pesadas»: los juegos vuelven a usar las fotos grandes (' + ImageShrink.formatBytes(d.undoBytes) + ' más en la precarga).')) return;
+    try {
+        const r = await api('/media/images/restore', { method: 'POST' });
+        toast(r.restored + ' foto' + (r.restored !== 1 ? 's' : '') + ' original' + (r.restored !== 1 ? 'es' : '') + ' recuperada' + (r.restored !== 1 ? 's' : '') + (r.pending ? ' · ' + r.pending + ' no se pudieron' : ''), 4000);
+    } catch (e) { toast('Error: ' + e.message); }
     loadMediaFiles();
 }
 

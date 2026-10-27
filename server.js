@@ -22,6 +22,7 @@ const uploadRoutes = require('./routes/uploads');
 const authRoutes = require('./routes/auth');
 const transferRoutes = require('./routes/transfer');
 const kitRoutes = require('./routes/kit');
+const mediaReduceRoutes = require('./routes/media-reduce');
 const auth = require('./auth');
 const { attachSocketHandlers } = require('./sockets/game');
 
@@ -41,6 +42,7 @@ app.use('/api', authRoutes);
 app.use('/api', apiRoutes);
 app.use('/api', transferRoutes); // exportar/importar juego completo (.zip)
 app.use('/api', kitRoutes.router); // kit offline descargable (⬇ Descargas del backoffice)
+app.use('/api', mediaReduceRoutes); // «🗜 Reducir fotos pesadas» de la biblioteca
 app.use('/api', uploadRoutes);
 
 // Health-check para keepalive en Render (los WebSockets no cuentan como tráfico HTTP).
@@ -75,7 +77,7 @@ app.get('/screen/:gameId', (req, res) => {
 });
 app.use('/admin',    express.static(path.join(__dirname, 'public', 'admin')));
 app.use('/shared',   express.static(path.join(__dirname, 'public', 'shared')));
-app.use('/uploads',  express.static(UPLOADS_DIR));
+app.use('/uploads',  express.static(UPLOADS_DIR), mediaReduceRoutes.movedRedirect); // foto reducida con otro formato → URL nueva
 app.use(express.static(path.join(__dirname, 'public'))); // legacy `/` y assets sueltos (espera.jpg, etc.)
 
 // Handlers de Socket.io (los listeners se enganchan al objeto io una sola vez al arrancar).
