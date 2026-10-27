@@ -268,7 +268,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
             </div>
             <div class="toolbar-right">
                 <button class="btn-ghost btn-sm" id="btnRestoreOriginals" style="display:none" onclick="restoreOriginals()" title="Deshace «Reducir fotos pesadas»: vuelve a poner las fotos originales">&#8617; Recuperar originales</button>
-                <button class="btn-ghost" id="btnShrinkHeavy" onclick="openShrinkHeavy()" title="Reduce las fotos de los juegos que pesan más de 500 KB o pasan de 1920 px">&#128476; Reducir fotos pesadas</button>
+                <button class="btn-ghost" id="btnShrinkHeavy" style="display:none" onclick="openShrinkHeavy()" title="Reduce las fotos de los juegos que pesan más de 500 KB o pasan de 1920 px">&#128476; Reducir fotos pesadas</button>
                 <label class="btn-primary" style="cursor:pointer">+ Subir archivos<input type="file" id="mediaUploadInput" style="display:none" multiple onchange="uploadMediaFiles(this)"></label>
                 <span id="mediaUploadProgress" style="display:none; margin-left:10px; font-size:13px; color:var(--accent);"></span>
             </div>
@@ -2591,17 +2591,19 @@ async function uploadMediaFiles(input) {
 let _shrinkPlan = [], _shrinkRun = 0, _shrinkBusy = false;
 const extOf = (name) => (String(name).match(/\.([a-z0-9]+)$/i) || ['', ''])[1].toLowerCase().replace('jpeg', 'jpg');
 
+// Cada botón solo aparece si sirve: «Reducir» si hay fotos pesadas, «Recuperar» si hay originales guardadas
 async function refreshShrinkButtons() {
     const restore = document.getElementById('btnRestoreOriginals');
     const reduce = document.getElementById('btnShrinkHeavy');
     if (mediaType !== 'images') { restore.style.display = 'none'; reduce.style.display = 'none'; return; }
-    reduce.style.display = '';
     try {
         const d = await api('/media/images/heavy');
-        reduce.innerHTML = '&#128476; Reducir fotos pesadas' + (d.files.length ? ' (' + d.files.length + ')' : '');
+        if (mediaType !== 'images') return; // cambió de pestaña mientras tanto
+        reduce.style.display = d.files.length ? '' : 'none';
+        reduce.innerHTML = '&#128476; Reducir fotos pesadas (' + d.files.length + ')';
         restore.style.display = d.undo ? '' : 'none';
         restore.innerHTML = '&#8617; Recuperar originales (' + d.undo + ')';
-    } catch (e) { /* los botones siguen funcionando */ }
+    } catch (e) { reduce.style.display = 'none'; restore.style.display = 'none'; }
 }
 
 function closeShrinkHeavy() {

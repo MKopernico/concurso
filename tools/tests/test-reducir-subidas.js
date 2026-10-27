@@ -129,7 +129,7 @@ const assets = (id) => `return await (await fetch('/api/games/${id}/assets?role=
         const heavy2 = await page.eval(`return await (await fetch('/api/media/images/heavy')).json();`);
         check('Ya no queda ninguna pesada (la JPEG de 1920 px con mucho detalle no se vuelve a ofrecer); 3 se pueden deshacer', heavy2.files.length === 0 && heavy2.undo === 3, { quedan: heavy2.files.map(f => f.name), undo: heavy2.undo });
         await cdp.waitFor(page, '/\\(3\\)/.test(document.getElementById("btnRestoreOriginals").textContent) && document.getElementById("btnRestoreOriginals").style.display !== "none"');
-        check('Botón «↩ Recuperar originales (3)» visible', true);
+        check('Botón «↩ Recuperar originales (3)» visible y «Reducir» oculto (ya no hay nada que reducir)', await page.eval('return document.getElementById("btnShrinkHeavy").style.display === "none";'));
 
         // ── Protecciones del servidor
         const noSession = await fetch(B + '/api/media/images/heavy');
@@ -157,6 +157,18 @@ const assets = (id) => `return await (await fetch('/api/games/${id}/assets?role=
         const heavy3 = await page.eval(`return await (await fetch('/api/media/images/heavy')).json();`);
         const back = await fetch(B + S.u.cartel, { redirect: 'manual' });
         check('…sin copias ni registro pendientes, sin redirección y otra vez 3 pesadas', fs.readdirSync(BACKUPS).length === 0 && heavy3.undo === 0 && heavy3.files.length === 3 && back.status === 200, { copias: fs.readdirSync(BACKUPS), undo: heavy3.undo, pesadas: heavy3.files.length, url: back.status });
+        await cdp.waitFor(page, '/\\(3\\)/.test(document.getElementById("btnShrinkHeavy").textContent) && document.getElementById("btnShrinkHeavy").style.display !== "none"');
+        check('…«Reducir fotos pesadas (3)» vuelve a aparecer y «Recuperar» se oculta', await page.eval('return document.getElementById("btnRestoreOriginals").style.display === "none";'));
+
+        // ── Sin fotos pesadas, el botón no aparece al entrar en la biblioteca
+        await page.eval(`for (const id of [${JSON.stringify(S.gA)}, ${JSON.stringify(S.gB)}]) await fetch('/api/games/' + id, { method: 'DELETE' }); return true;`);
+        await page.go(B + '/admin/', 1500);
+        await cdp.waitFor(page, 'typeof showMediaLibrary === "function"');
+        await page.eval('showMediaLibrary(); return true;');
+        await cdp.waitFor(page, 'document.querySelector("#media-grid .media-item")');
+        await wait(800);
+        const hidden = await page.eval('return [document.getElementById("btnShrinkHeavy").style.display, document.getElementById("btnRestoreOriginals").style.display];');
+        check('Sin fotos pesadas en los juegos: ni «Reducir» ni «Recuperar» se ven', hidden[0] === 'none' && hidden[1] === 'none', hidden);
     } finally {
         await cdp.closeAll();
     }
