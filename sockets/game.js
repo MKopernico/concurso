@@ -8,6 +8,7 @@ const QV = require('../public/shared/question-validation.js');
 const Cifras = require('../public/shared/cifras.js');
 const Letras = require('../public/shared/letras.js');
 const LetrasDict = require('../letras-dict.js');
+const Spotify = require('../routes/spotify');
 
 const gameStates = new Map();
 
@@ -86,16 +87,26 @@ function applyScreenDefaults(s) {
 // y, si quiere, otra por ronda (config.jingle; 'none' = sin sintonía), la lista de fondo
 // (theme.music) y cómo suenan (theme.sound: max, fadeIn, fadeOut). En directo manda el panel 🎵
 // del coordinador (ds.sound: volúmenes, automáticas, fundidos, fondo en marcha y qué canción).
+// El fondo puede ser la música propia (mp3, suena en la pantalla) o Spotify (ds.sound.source,
+// ver routes/spotify.js): con una sintonía, el fondo se funde hasta callar, la sintonía entra
+// entera y el fondo vuelve con fundido al acabar.
 const JINGLE_REPEAT_MS = 30000; // la misma sintonía no se repite sola antes de esto (categoría → ronda)
 const JINGLE_MAX_DEFAULT = 20;
 
 function isSoundUrl(u) { return typeof u === 'string' && /^\/(uploads|shared)\//.test(u) && u.length < 500; }
 function volOf(v, def) { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : def; }
 
+function soundSourceOf(k, theme) {
+    if (!Spotify.enabled()) return 'own';
+    if (k.source === 'spotify' || k.source === 'own') return k.source;
+    return theme && theme.musicSource === 'spotify' ? 'spotify' : 'own';
+}
+
 function applySoundDefaults(s, keep) {
     const t = (s._gameTheme && s._gameTheme.sound) || {};
     const k = keep || {};
     s.director.sound = {
+        source: soundSourceOf(k, s._gameTheme),
         jingleVol: volOf(k.jingleVol, 80), bgVol: volOf(k.bgVol, 35),
         auto: typeof k.auto === 'boolean' ? k.auto : true,
         fadeIn: typeof k.fadeIn === 'boolean' ? k.fadeIn : t.fadeIn !== false,
@@ -132,14 +143,60 @@ function playJingle(io, gameId, state, url, force) {
     const now = Date.now(), last = snd.jingle;
     if (!force && last && last.url === url && now - last.at < JINGLE_REPEAT_MS) return false;
     snd.jingle = { id: (last ? last.id : 0) + 1, url, at: now };
-    io.to(`screens:${gameId}`).emit('game:jingle', { id: snd.jingle.id, url });
+    const id = snd.jingle.id;
+    // cut: el fondo ya está callado (Spotify fundido y en pausa): la sintonía entra entera, sin fundido
+    const send = (cut) => {
+        const cur = state.director.sound && state.director.sound.jingle;
+        if (cur && cur.id === id) io.to(`screens:${gameId}`).emit('game:jingle', { id, url, cut: !!cut });
+    };
+    if (snd.source === 'spotify' && Spotify.isConnected()) {
+        armJingleHold(gameId, state);
+        Spotify.duck(`${gameId}:jingle`).then(send, () => send(false));
+    } else send(false);
     return true;
+}
+
+// Spotify vuelve cuando la pantalla avisa de que acabó la sintonía (screen:jingle_end), al cortarla
+// o, si no llega el aviso (sin pantalla), pasado su tope de segundos
+const _jingleHoldT = new Map();
+function armJingleHold(gameId, state) {
+    clearTimeout(_jingleHoldT.get(gameId));
+    const v = soundView(state);
+    const ms = ((v && v.max) || JINGLE_MAX_DEFAULT) * 1000 + 6000;
+    const t = setTimeout(() => releaseJingleHold(gameId), ms);
+    t.unref();
+    _jingleHoldT.set(gameId, t);
+}
+function releaseJingleHold(gameId) {
+    clearTimeout(_jingleHoldT.get(gameId));
+    _jingleHoldT.delete(gameId);
+    Spotify.release(`${gameId}:jingle`);
 }
 
 function stopJingle(io, gameId, state) {
     const snd = state.director.sound;
     if (snd) snd.jingle = null;
     io.to(`screens:${gameId}`).emit('game:jingle_stop');
+    releaseJingleHold(gameId);
+}
+
+// Con Spotify como fuente: se consulta lo que suena y se calla solo con «Adivina la canción», el
+// karaoke o un vídeo con sonido en la pantalla (la sintonía la retiene playJingle)
+function syncSpotify(gameId, state) {
+    if (!Spotify.enabled()) return;
+    const ds = state.director, snd = ds && ds.sound;
+    const on = !!snd && snd.source === 'spotify';
+    Spotify.setUser(gameId, on);
+    if (!on) { Spotify.releaseAll(gameId + ':'); return; }
+    const inRound = ds.phase === 'question' || ds.phase === 'answer_revealed' || ds.phase === 'round_intro';
+    const type = ds.currentRound && ds.currentRound.type;
+    const holds = {
+        round: inRound && (type === 'cancion' || type === 'karaoke'),
+        screen: Object.values(ds.screensHold || {}).some(Boolean),
+    };
+    for (const [k, v] of Object.entries(holds)) {
+        if (v) Spotify.hold(`${gameId}:${k}`); else Spotify.release(`${gameId}:${k}`);
+    }
 }
 
 // Lo que necesita la pantalla para sonar (y el coordinador para pintar el panel)
@@ -153,7 +210,8 @@ function soundView(state) {
     return {
         jingleVol: snd.jingleVol, bgVol: snd.bgVol, auto: snd.auto, fadeIn: snd.fadeIn, fadeOut: snd.fadeOut,
         max: Number.isFinite(max) && max > 0 ? Math.max(3, Math.min(120, max)) : JINGLE_MAX_DEFAULT,
-        bg: { playing: snd.bg.playing && list.length > 0, idx, seq: snd.bg.seq, url: list[idx] || null, count: list.length },
+        src: snd.source,
+        bg: { playing: snd.bg.playing && list.length > 0 && snd.source !== 'spotify', idx, seq: snd.bg.seq, url: list[idx] || null, count: list.length },
     };
 }
 
@@ -200,7 +258,7 @@ function snapshotOf(state) {
         bloqueoGlobal: !!state.bloqueoGlobal,
         noScreen: !!ds.noScreen,
         audioOn: ds.audioOn || 'sala',
-        sound: ds.sound ? { jingleVol: ds.sound.jingleVol, bgVol: ds.sound.bgVol, auto: ds.sound.auto, fadeIn: ds.sound.fadeIn, fadeOut: ds.sound.fadeOut, idx: ds.sound.bg.idx } : null,
+        sound: ds.sound ? { jingleVol: ds.sound.jingleVol, bgVol: ds.sound.bgVol, auto: ds.sound.auto, fadeIn: ds.sound.fadeIn, fadeOut: ds.sound.fadeOut, idx: ds.sound.bg.idx, source: ds.sound.source } : null,
         pendingScores: ds.pendingScores || null,
         abiertaWip: ds.abiertaWip || {}, // respuestas abiertas a medio corregir
         pic: { done: ds.picDone || [], rank: ds.picRank || {}, last: ds.picLast || null }, // rueda de turnos del Pictionary
@@ -308,6 +366,7 @@ function publicView(state) {
     const log = Array.isArray(bonoLog) ? bonoLog : [];
     ds.logCount = typeof ds.logCount === 'number' ? ds.logCount : log.length;
     ds.bonoLog = log.slice(-5);
+    rest.spotify = Spotify.view(); // estado de Spotify (sin llaves): solo coordinadores
     if (ds.aclara) ds.aclara = aclaraView(state.director); // nitidez calculada ahora (el reloj del iPad puede ir distinto)
     if (ds && ds.answers) {
         ds.answeredCount = Object.values(ds.answers).filter(a => a.submitted !== false).length;
@@ -1763,6 +1822,7 @@ function broadcastDirector(io, gameId, state) {
 }
 
 function broadcastNow(io, gameId, state) {
+    syncSpotify(gameId, state);
     io.to(`directors:${gameId}`).emit('game:director_sync', publicView(state));
     io.to(roomOf(gameId)).except(`screens:${gameId}`).emit('game:player_sync', playerView(state, true));
     io.to(`screens:${gameId}`).emit('game:player_sync', playerView(state, false));
@@ -1804,6 +1864,12 @@ function takeOverTeam(eq, socket) {
 
 function attachSocketHandlers(io) {
     _io = io;
+    // Cambia lo que suena en Spotify (o su conexión): los coordinadores de los juegos que lo usan lo ven
+    Spotify.onChange(() => {
+        for (const [gid, st] of gameStates) {
+            if (st.director && st.director.sound && st.director.sound.source === 'spotify') broadcastDirector(io, gid, st);
+        }
+    });
     io.on('connection', (socket) => {
         const requested = socket.handshake.query && socket.handshake.query.gameId;
         const gameId = resolveGameId(requested);
@@ -2502,7 +2568,26 @@ function attachSocketHandlers(io) {
                     snd.bg.playing = true;
                     break;
                 }
-                case 'silence': stopJingle(io, gameId, state); snd.bg.playing = false; break;
+                case 'silence':
+                    stopJingle(io, gameId, state); snd.bg.playing = false;
+                    if (snd.source === 'spotify') Spotify.command('stop');
+                    break;
+                case 'source': {
+                    const v = data.value === 'spotify' && Spotify.enabled() ? 'spotify' : 'own';
+                    if (v === snd.source) return;
+                    snd.source = v;
+                    if (v === 'spotify') snd.bg.playing = false; // una sola fuente a la vez
+                    else { Spotify.releaseAll(gameId + ':'); Spotify.command('stop'); }
+                    break;
+                }
+                case 'sp_play': case 'sp_pause': case 'sp_next': case 'sp_prev': case 'sp_toggle': case 'sp_vol': case 'sp_playlist': {
+                    if (snd.source !== 'spotify') return;
+                    let a = data.action.slice(3);
+                    if (a === 'toggle') a = Spotify.isPlaying() ? 'pause' : 'play';
+                    if (a === 'vol') a = 'volume';
+                    Spotify.command(a, a === 'volume' ? data.value : a === 'playlist' ? data.uri : undefined);
+                    return; // el estado nuevo llega con onChange
+                }
                 case 'set': {
                     if (data.jingleVol !== undefined) snd.jingleVol = volOf(data.jingleVol, snd.jingleVol);
                     if (data.bgVol !== undefined) snd.bgVol = volOf(data.bgVol, snd.bgVol);
@@ -2511,6 +2596,29 @@ function attachSocketHandlers(io) {
                 }
                 default: return;
             }
+            broadcastDirector(io, gameId, state);
+        });
+
+        // Listas de la cuenta de Spotify para el desplegable del panel 🎵
+        socket.on('director:spotify_lists', async () => {
+            try { socket.emit('game:spotify_lists', { items: await Spotify.playlists() }); }
+            catch (e) { socket.emit('game:spotify_lists', { error: e.message }); }
+        });
+
+        // La pantalla avisa al acabar (o cortarse) una sintonía: Spotify vuelve con fundido
+        socket.on('screen:jingle_end', (data) => {
+            if (!socket.isScreen || socket.isEmbed || !data) return;
+            const j = state.director.sound && state.director.sound.jingle;
+            if (!j || j.id === data.id) releaseJingleHold(gameId);
+        });
+
+        // La pantalla tiene un vídeo con sonido (o una prueba con su música): Spotify se calla
+        socket.on('screen:bg_hold', (data) => {
+            if (!socket.isScreen || socket.isEmbed) return;
+            if (!state.director.screensHold) state.director.screensHold = {};
+            const v = !!(data && data.on);
+            if (!!state.director.screensHold[socket.id] === v) return;
+            state.director.screensHold[socket.id] = v;
             broadcastDirector(io, gameId, state);
         });
 
@@ -3645,6 +3753,10 @@ function attachSocketHandlers(io) {
             }
             if (state.director.screensSound && state.director.screensSound[socket.id]) {
                 delete state.director.screensSound[socket.id];
+                broadcastDirector(io, gameId, state);
+            }
+            if (state.director.screensHold && socket.id in state.director.screensHold) {
+                delete state.director.screensHold[socket.id];
                 broadcastDirector(io, gameId, state);
             }
             if (!socket.equipoId) return;

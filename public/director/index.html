@@ -362,6 +362,16 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .snd-play { flex: 1; }
 .snd-note { font-size: 11px; color: var(--text2); line-height: 1.4; }
 .snd-note:empty { display: none; }
+.snd-src { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; background: var(--surface2); border-radius: 8px; }
+.snd-src button { padding: 7px 6px; font-size: 13px; font-weight: 600; border: none; border-radius: 6px; background: transparent; color: var(--text2); cursor: pointer; }
+.snd-src button.on { background: var(--accent); color: #fff; }
+.sp-now { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.sp-now img { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; flex-shrink: 0; background: var(--surface); }
+.sp-now img:not([src]), .sp-now img[src=""] { visibility: hidden; }
+.sp-now div { min-width: 0; display: flex; flex-direction: column; }
+.sp-now b, .sp-now small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-now b { font-size: 13px; }
+.sp-now small { font-size: 11px; color: var(--text2); }
 .snd-warn { font-size: 12px; line-height: 1.4; padding: 6px 8px; border-radius: 6px; background: rgba(250,204,21,.12); border: 1px solid rgba(250,204,21,.4); color: var(--gold); }
 .header-actions .hdr-btn.snd-on { background: rgba(34,197,94,.14); border-color: var(--success); color: var(--success); }
 .header-actions .hdr-btn.snd-alert { background: rgba(250,204,21,.15); border-color: #facc15; color: #facc15; }
@@ -1248,7 +1258,24 @@ body.round-type-karaoke #headerTimer { display: none !important; }
             <label class="snd-check"><input type="checkbox" id="sndFadeOut" data-key="fadeOut"> Fundido de salida</label>
         </div>
     </div>
-    <div class="snd-sec">
+    <div class="snd-src" id="sndSrc" style="display:none">
+        <button type="button" data-snd-src="own">M&uacute;sica propia</button>
+        <button type="button" data-snd-src="spotify">Spotify</button>
+    </div>
+    <div class="snd-sec" id="sndSpSec" style="display:none">
+        <div class="snd-title">Spotify</div>
+        <div class="snd-warn" id="sndSpWarn" style="display:none"></div>
+        <div class="sp-now"><img id="sndSpImg" alt=""><div><b id="sndSpTrack"></b><small id="sndSpArtist"></small></div></div>
+        <select id="sndSpList" class="snd-track"><option value="">Elegir lista…</option></select>
+        <div class="snd-row">
+            <button class="btn-ghost btn-sm" data-snd="sp_prev" title="Anterior">&#9198;</button>
+            <button class="btn-success btn-sm snd-play" data-snd="sp_toggle" id="sndSpBtn">&#9654; Reproducir</button>
+            <button class="btn-ghost btn-sm" data-snd="sp_next" title="Siguiente">&#9197;</button>
+        </div>
+        <label class="snd-vol"><span>Volumen</span><input type="range" min="0" max="100" step="1" id="sndSpVol"><b id="sndSpVolTxt"></b></label>
+        <div class="snd-note" id="sndSpNote"></div>
+    </div>
+    <div class="snd-sec" id="sndOwnSec">
         <div class="snd-title">M&uacute;sica de fondo</div>
         <select id="sndTrack" class="snd-track"></select>
         <div class="snd-row">
@@ -1324,6 +1351,7 @@ function connectSocket() {
     socket.on('director:log', onLogData);
     socket.on('director:recovery_code', onRecoveryCode);
     socket.on('director:pic_pad_link', onPicPadLink);
+    socket.on('game:spotify_lists', onSpotifyLists);
     socket.on('game:timer_tick', (d) => {
         if (S.director) { S.director.timer.remaining = d.remaining; S.director.timer.total = d.total; }
         renderTimer();
@@ -1358,6 +1386,7 @@ function onSync(state) {
     S.colaPulsador = state.colaPulsador || [];
     S.bloqueoGlobal = state.bloqueoGlobal;
     S.gameTheme = state.gameTheme || {};
+    S.spotify = state.spotify || null;
     render();
     renderNoScreen();
     renderSound();
@@ -3763,7 +3792,9 @@ function renderSound() {
     if (!snd) { btn.style.display = 'none'; return; }
     btn.style.display = '';
     var music = soundMusic();
-    var playing = !!(snd.bg && snd.bg.playing && music.length);
+    var sp = S.spotify || {};
+    var useSp = !!sp.enabled && snd.source === 'spotify';
+    var playing = useSp ? !!((sp.player && sp.player.playing) || sp.held) : !!(snd.bg && snd.bg.playing && music.length);
     var screens = ds.screensSound || {};
     var blocked = Object.keys(screens).some(function(k) { return screens[k] === 'blocked'; });
     btn.classList.toggle('snd-on', playing && !blocked);
@@ -3819,8 +3850,90 @@ function renderSound() {
         ? 'Este juego no tiene música de fondo. Se añade en el backoffice (editar juego › Sonido).'
         : playing && (ds.currentRound && (ds.currentRound.type === 'cancion' || ds.currentRound.type === 'karaoke') && ds.phase !== 'lobby' && ds.phase !== 'waiting')
             ? 'En pausa automática mientras dura esta prueba (lleva su propia música).'
-            : 'Baja sola mientras suena una sintonía y se para con vídeos, «Adivina la canción» y karaoke.';
+            : 'Con una sintonía se calla con un fundido y vuelve al acabar; se para con vídeos, «Adivina la canción» y karaoke.';
+    renderSpotify(snd, sp, useSp);
 }
+
+// Spotify (opcional): solo aparece si el servidor lo ofrece (no en el kit offline)
+function renderSpotify(snd, sp, useSp) {
+    document.getElementById('sndSrc').style.display = sp.enabled ? '' : 'none';
+    document.querySelectorAll('[data-snd-src]').forEach(function(b) { b.classList.toggle('on', b.dataset.sndSrc === (useSp ? 'spotify' : 'own')); });
+    document.getElementById('sndOwnSec').style.display = useSp ? 'none' : '';
+    document.getElementById('sndSpSec').style.display = useSp ? '' : 'none';
+    if (!useSp) return;
+    var p = sp.player;
+    var warn = !sp.connected
+        ? (sp.expired ? 'La conexión con Spotify ha caducado: vuelve a conectarla en el backoffice (🎵 Spotify). Mientras, usa la música propia.'
+                      : 'Spotify no está conectado: se conecta en el backoffice (🎵 Spotify). Mientras, usa la música propia.')
+        : sp.error ? sp.error.text
+        : !p ? 'Abre Spotify en el ordenador de sala con la cuenta conectada y pon algo un momento (o elige una lista aquí).'
+        : p.restricted ? 'Ese reproductor de Spotify no deja que lo manejen desde fuera.' : '';
+    var w = document.getElementById('sndSpWarn');
+    w.style.display = warn ? '' : 'none';
+    w.textContent = warn;
+    var img = document.getElementById('sndSpImg');
+    var src = (p && p.image) || '';
+    if (img.getAttribute('src') !== src) img.setAttribute('src', src);
+    document.getElementById('sndSpTrack').textContent = p && p.track ? p.track : (sp.connected ? 'Nada sonando' : '—');
+    document.getElementById('sndSpArtist').textContent = p ? [p.artist, p.deviceName ? 'en ' + p.deviceName : ''].filter(Boolean).join(' · ') : '';
+    var on = !!((p && p.playing) || sp.held);
+    var b = document.getElementById('sndSpBtn');
+    b.innerHTML = on ? '&#10074;&#10074; Pausa' : '&#9654; Reproducir';
+    b.className = (on ? 'btn-ghost' : 'btn-success') + ' btn-sm snd-play';
+    document.querySelectorAll('#sndSpSec [data-snd], #sndSpList').forEach(function(el) { el.disabled = !sp.connected; });
+    var vol = document.getElementById('sndSpVol');
+    vol.disabled = !sp.connected || !p || !p.supportsVolume;
+    if (_sndDrag !== vol && p && p.volume !== null && p.volume !== undefined) vol.value = p.volume;
+    document.getElementById('sndSpVolTxt').textContent = p && p.supportsVolume ? vol.value + '%' : '—';
+    // Lista del juego (backoffice) siempre a mano, aunque no se hayan pedido las de la cuenta
+    var sel = document.getElementById('sndSpList');
+    var gl = (S.gameTheme || {}).spotifyPlaylist;
+    if (gl && !sel.querySelector('option[data-game]')) {
+        var o = document.createElement('option');
+        o.value = gl; o.dataset.game = '1'; o.textContent = '★ Lista del juego';
+        sel.insertBefore(o, sel.options[1] || null);
+    }
+    document.getElementById('sndSpNote').textContent = sp.held
+        ? 'En pausa automática (sintonía, vídeo, «Adivina la canción» o karaoke): vuelve sola con un fundido.'
+        : 'Suena en el Spotify del ordenador de sala. Con una sintonía se calla con un fundido y vuelve al acabar.';
+}
+var _spListsAsked = false;
+function onSpotifyLists(d) {
+    var sel = document.getElementById('sndSpList');
+    if (!d || d.error) { _spListsAsked = false; toast((d && d.error) || 'Spotify no responde'); return; }
+    Array.prototype.slice.call(sel.querySelectorAll('option[data-acc]')).forEach(function(o) { o.remove(); });
+    (d.items || []).forEach(function(p) {
+        var o = document.createElement('option');
+        o.value = p.uri; o.dataset.acc = '1'; o.textContent = p.name;
+        sel.appendChild(o);
+    });
+}
+document.getElementById('sndSpList').addEventListener('focus', function() {
+    if (_spListsAsked || !socket) return;
+    _spListsAsked = true;
+    socket.emit('director:spotify_lists');
+});
+document.getElementById('sndSpList').addEventListener('change', function(e) {
+    var v = e.target.value;
+    if (!v) return;
+    emit('director:sound', { action: 'sp_playlist', uri: v });
+    e.target.value = '';
+});
+document.getElementById('sndSrc').addEventListener('click', function(e) {
+    var b = e.target.closest('[data-snd-src]');
+    if (b) emit('director:sound', { action: 'source', value: b.dataset.sndSrc });
+});
+(function() {
+    var el = document.getElementById('sndSpVol'), t = null;
+    var send = function() { emit('director:sound', { action: 'sp_vol', value: Number(el.value) }); };
+    el.addEventListener('pointerdown', function() { _sndDrag = el; });
+    el.addEventListener('input', function() {
+        document.getElementById('sndSpVolTxt').textContent = el.value + '%';
+        // Spotify no aguanta una orden por cada píxel: como mucho una cada 300 ms (y la última siempre)
+        clearTimeout(t); t = setTimeout(send, 300);
+    });
+    el.addEventListener('change', function() { _sndDrag = null; clearTimeout(t); send(); });
+})();
 
 document.getElementById('sndPanel').addEventListener('click', function(e) {
     var b = e.target.closest('[data-snd]');

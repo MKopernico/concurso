@@ -170,6 +170,17 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
 .music-num { font-size: 11px; color: var(--text2); width: 18px; text-align: right; flex-shrink: 0; }
 .music-name { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .music-empty { font-size: 12px; color: var(--text2); padding: 6px 0; }
+#modal-spotify-overlay button:disabled { opacity: .45; cursor: not-allowed; }
+.sp-intro { font-size: 13px; color: var(--text2); line-height: 1.5; margin: -8px 0 12px; }
+.sp-status { font-size: 14px; padding: 10px 12px; border-radius: 8px; background: var(--surface2); margin-bottom: 10px; line-height: 1.45; }
+.sp-status.ok { border: 1px solid rgba(34,197,94,.5); }
+.sp-status.bad { border: 1px solid rgba(250,204,21,.5); }
+.sp-warn { font-size: 12px; line-height: 1.4; padding: 8px 10px; border-radius: 6px; background: rgba(250,204,21,.12); border: 1px solid rgba(250,204,21,.4); color: #facc15; margin-bottom: 10px; }
+.sp-steps { font-size: 13px; margin-bottom: 12px; }
+.sp-steps summary { cursor: pointer; color: var(--accent); font-weight: 600; margin-bottom: 6px; }
+.sp-steps ol { padding-left: 20px; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; color: var(--text2); }
+.sp-steps a { color: var(--accent); }
+.sp-steps code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; color: var(--text); word-break: break-all; }
 .audio-list { display: flex; flex-direction: column; gap: 8px; }
 .audio-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: border .15s; }
 .audio-item:hover { border-color: var(--accent); }
@@ -217,6 +228,7 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
     <div style="margin-left:auto; display:flex; gap:6px;">
         <button class="btn-ghost btn-sm" onclick="showMediaLibrary()">&#128193; Medios</button>
         <a href="/manual/" target="_blank" class="btn-ghost btn-sm" style="text-decoration:none;">&#128214; Manual</a>
+        <button class="btn-ghost btn-sm" id="btnSpotify" style="display:none" onclick="openSpotifyModal()" title="Conectar Spotify para la música de fondo (opcional)">&#127925; Spotify</button>
         <button class="btn-ghost btn-sm" onclick="openPasswordModal()" title="Cambiar la contraseña general">&#128273; Contraseña</button>
         <button class="btn-ghost btn-sm" onclick="GSStaff.logout()">Salir</button>
     </div>
@@ -317,6 +329,35 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 <button type="submit" class="btn-primary">Guardar</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- ============ MODAL: Spotify (opcional) ============ -->
+<div id="modal-spotify-overlay" class="modal-overlay">
+    <div class="modal" style="max-width:560px;">
+        <h2>&#127925; Spotify (opcional)</h2>
+        <p class="sp-intro">Con Spotify conectado, el panel 🎵 del coordinador maneja el Spotify que suena en el ordenador de sala: reproducir, pausa, siguiente, volumen y elegir lista. Con una sintonía se funde hasta callar y vuelve con fundido al acabar. Hace falta una cuenta <b>Premium</b> e internet; si no hay, todo sigue igual con la música propia.</p>
+        <div id="sp-status" class="sp-status"></div>
+        <div id="sp-warn" class="sp-warn" style="display:none"></div>
+        <details class="sp-steps" id="sp-steps">
+            <summary>Cómo se prepara (una sola vez, unos 15 minutos)</summary>
+            <ol>
+                <li>Entra en <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> con la cuenta Premium de la empresa y pulsa «Create app».</li>
+                <li>Nombre y descripción, los que quieras (por ejemplo «GameShow»). En «Redirect URIs» pega esta dirección y pulsa «Add»:<br><code id="sp-redirect"></code> <button type="button" class="btn-ghost btn-sm" onclick="copySpotifyRedirect()">Copiar</button></li>
+                <li>Marca «Web API», acepta las condiciones y pulsa «Save».</li>
+                <li>Copia el «Client ID» de la app, pégalo aquí abajo y pulsa «Guardar».</li>
+                <li>Pulsa «Conectar con Spotify», entra con la misma cuenta y acepta. La conexión dura unos 6 meses; luego se vuelve a conectar desde aquí.</li>
+                <li>En cada evento: abre Spotify en el ordenador de sala con esa cuenta y pon algo un momento. Desde el panel 🎵 eliges «Spotify» como música de fondo.</li>
+            </ol>
+        </details>
+        <div class="field"><label>Client ID</label>
+            <div style="display:flex; gap:6px;"><input id="sp-client" maxlength="40" placeholder="32 letras y números" autocomplete="off" spellcheck="false" style="flex:1"><button type="button" class="btn-ghost" onclick="saveSpotifyClient()">Guardar</button></div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-ghost" id="sp-disconnect" onclick="disconnectSpotify()" style="margin-right:auto">Desconectar</button>
+            <button type="button" class="btn-ghost" onclick="closeModal('modal-spotify-overlay')">Cerrar</button>
+            <button type="button" class="btn-primary" id="sp-connect" onclick="connectSpotify()">Conectar con Spotify</button>
+        </div>
     </div>
 </div>
 
@@ -476,6 +517,18 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                 <div class="field"><label>Fundidos por defecto</label>
                     <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; text-transform:none; letter-spacing:0; font-weight:400; color:var(--text)"><input type="checkbox" name="theme_fade_in" checked style="width:auto; accent-color:var(--accent)"> De entrada</label>
                     <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; text-transform:none; letter-spacing:0; font-weight:400; color:var(--text)"><input type="checkbox" name="theme_fade_out" checked style="width:auto; accent-color:var(--accent)"> De salida</label>
+                </div>
+            </div>
+            <div class="field-row sp-only" style="display:none">
+                <div class="field"><label>Música de fondo al empezar</label>
+                    <select name="theme_music_source" style="width:100%">
+                        <option value="own">Música propia (la lista de arriba)</option>
+                        <option value="spotify">Spotify</option>
+                    </select>
+                </div>
+                <div class="field"><label>Lista de Spotify <span style="font-weight:400; color:var(--text2); text-transform:none; letter-spacing:0">(opcional)</span></label>
+                    <input name="theme_spotify_playlist" placeholder="Enlace de la lista (Compartir › Copiar enlace)" autocomplete="off" spellcheck="false">
+                    <select id="sp-pick" style="width:100%; margin-top:6px" onfocus="loadSpotifyPick()" onchange="pickSpotifyList(this)"><option value="">— o elige una de tus listas —</option></select>
                 </div>
             </div>
 
@@ -829,6 +882,104 @@ async function savePassword(e) {
     } catch (err) { toast(err.message); }
     return false;
 }
+
+// ─────────────────── SPOTIFY (opcional) ───────────────────
+// Una cuenta Premium se conecta una vez (la conexión queda en el servidor, cifrada). En el kit
+// offline no existe y no se ve nada de esto.
+let _sp = null;
+function spContextUri(s) {
+    const m = String(s || '').trim().match(/^(?:spotify:|https?:\/\/open\.spotify\.com\/(?:intl-[a-z]{2}\/)?)(playlist|album)[:/]([A-Za-z0-9]{10,40})/);
+    return m ? `spotify:${m[1]}:${m[2]}` : null;
+}
+async function loadSpotifyStatus() {
+    try { _sp = await api('/spotify/status'); } catch (e) { _sp = null; }
+    const on = !!(_sp && _sp.enabled);
+    document.getElementById('btnSpotify').style.display = on ? '' : 'none';
+    document.querySelectorAll('.sp-only').forEach(el => { el.style.display = on ? '' : 'none'; });
+    return _sp;
+}
+function renderSpotifyModal() {
+    const sp = _sp || {};
+    const st = document.getElementById('sp-status');
+    const day = (ms) => new Date(ms).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+    let html, ok = false;
+    if (sp.connected) {
+        ok = true;
+        html = '✅ <b>Conectado</b>' + (sp.user ? ' con la cuenta «' + esc(sp.user) + '»' : '') + '.';
+        if (sp.expiresAt) {
+            const left = Math.round((sp.expiresAt - Date.now()) / 86400000);
+            html += left < 15 ? '<br>⚠️ La conexión caduca en ' + Math.max(0, left) + ' días: vuelve a conectar pronto.' : '<br>La conexión dura hasta más o menos el ' + day(sp.expiresAt) + '.';
+            if (left < 15) ok = false;
+        }
+    } else if (sp.expired) {
+        html = '⚠️ <b>La conexión ha caducado</b> (Spotify la pide cada 6 meses): pulsa «Conectar con Spotify».';
+    } else if (sp.clientId) {
+        html = 'Falta conectar: pulsa «Conectar con Spotify» y acepta con la cuenta Premium.';
+    } else {
+        html = 'Sin preparar. Sigue los pasos de abajo (una sola vez).';
+    }
+    st.innerHTML = html;
+    st.className = 'sp-status ' + (ok ? 'ok' : 'bad');
+    const w = document.getElementById('sp-warn');
+    w.style.display = sp.warning ? '' : 'none';
+    w.textContent = sp.warning || '';
+    document.getElementById('sp-redirect').textContent = sp.redirectUri || '';
+    document.getElementById('sp-steps').open = !sp.connected;
+    const ci = document.getElementById('sp-client');
+    if (document.activeElement !== ci) ci.value = sp.clientId || '';
+    document.getElementById('sp-connect').textContent = sp.connected ? 'Volver a conectar' : 'Conectar con Spotify';
+    document.getElementById('sp-connect').disabled = !sp.clientId || !!sp.warning;
+    document.getElementById('sp-disconnect').style.display = sp.connected ? '' : 'none';
+}
+async function openSpotifyModal() {
+    await loadSpotifyStatus();
+    renderSpotifyModal();
+    openModal('modal-spotify-overlay');
+}
+async function saveSpotifyClient() {
+    try {
+        await api('/spotify/config', { method: 'PUT', body: { clientId: document.getElementById('sp-client').value.trim() } });
+        toast('Client ID guardado');
+        await loadSpotifyStatus();
+        renderSpotifyModal();
+    } catch (err) { toast(err.message, 5000); }
+}
+function copySpotifyRedirect() {
+    const t = document.getElementById('sp-redirect').textContent;
+    if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Dirección copiada'), () => toast('Cópiala a mano'));
+    else toast('Cópiala a mano');
+}
+function connectSpotify() { location.href = '/api/spotify/login'; }
+async function disconnectSpotify() {
+    if (!confirm('¿Desconectar Spotify? El panel 🎵 dejará de manejarlo hasta que se vuelva a conectar.')) return;
+    try { await api('/spotify/disconnect', { method: 'POST' }); toast('Spotify desconectado'); } catch (err) { toast(err.message); }
+    await loadSpotifyStatus();
+    renderSpotifyModal();
+}
+// Listas de la cuenta para el campo «Lista de Spotify» del juego (se piden al abrir el desplegable)
+let _spPickLoaded = false;
+async function loadSpotifyPick() {
+    if (_spPickLoaded) return;
+    const sel = document.getElementById('sp-pick');
+    try {
+        const d = await api('/spotify/playlists');
+        _spPickLoaded = true;
+        (d.items || []).forEach(p => { const o = document.createElement('option'); o.value = p.uri; o.textContent = p.name; sel.appendChild(o); });
+        if (!(d.items || []).length) sel.options[0].textContent = '— esta cuenta no tiene listas —';
+    } catch (err) { sel.options[0].textContent = '— ' + (err.message || 'Spotify no responde') + ' —'; }
+}
+function pickSpotifyList(sel) {
+    if (!sel.value) return;
+    document.querySelector('[name="theme_spotify_playlist"]').value = sel.value;
+    sel.value = '';
+}
+// Vuelta de Spotify tras dar permiso (?spotify=ok o el motivo del fallo)
+(function spotifyReturn() {
+    const q = new URLSearchParams(location.search).get('spotify');
+    if (q === null) return;
+    history.replaceState(null, '', location.pathname + location.hash);
+    openSpotifyModal().then(() => toast(q === 'ok' ? 'Spotify conectado' : q, 7000));
+})();
 
 // ─────────────────── DESCARGAS ───────────────────
 // El kit se monta en el servidor (en Render, al desplegar): mientras no está listo se consulta cada 5 s.
@@ -2648,6 +2799,14 @@ function buildThemeFromForm(form) {
     if (!form.theme_fade_in.checked) sound.fadeIn = false;
     if (!form.theme_fade_out.checked) sound.fadeOut = false;
     if (Object.keys(sound).length) theme.sound = sound;
+    // Spotify (opcional): fuente al empezar y lista del juego
+    if (form.theme_music_source.value === 'spotify') theme.musicSource = 'spotify';
+    const spl = form.theme_spotify_playlist.value.trim();
+    if (spl) {
+        const uri = spContextUri(spl);
+        if (uri) theme.spotifyPlaylist = uri;
+        else toast('El enlace de Spotify no es de una lista ni de un álbum: no se ha guardado', 5000);
+    }
     const freezeMode = form.freeze_mode.value;
     if (freezeMode && freezeMode !== 'coordinador') theme.freezeMode = freezeMode;
     return Object.keys(theme).length ? theme : null;
@@ -2700,6 +2859,8 @@ function populateThemeForm(form, theme) {
     form.theme_jingle_max.value = snd.max || '';
     form.theme_fade_in.checked = snd.fadeIn !== false;
     form.theme_fade_out.checked = snd.fadeOut !== false;
+    form.theme_music_source.value = theme.musicSource === 'spotify' ? 'spotify' : 'own';
+    form.theme_spotify_playlist.value = theme.spotifyPlaylist || '';
     form.freeze_mode.value = theme.freezeMode || 'coordinador';
 }
 
@@ -3220,6 +3381,7 @@ function plDrop(e, dropIdx) {
 
 // ─── Init ───
 loadGames();
+loadSpotifyStatus();
 </script>
 </body>
 </html>

@@ -930,9 +930,10 @@ var GSnd = (function() {
     var J = new Audio(), BG = new Audio();
     J.preload = 'auto'; BG.preload = 'auto';
     var jOn = false, jStop = false, jStart = 0, jVol = 0;   // sintonía: sonando, apagándose, inicio, volumen actual (0-1)
+    var jWait = 0, jId = 0;                                   // esperando a que el fondo se calle (hora de inicio) · id de la sintonía
     var bgVol = 0, bgKey = '', bgWant = false;                // fondo: volumen actual, canción cargada, ¿debe sonar?
-    var blocked = false, reported = null;
-    var FADE_IN = 1000, FADE_OUT = 1500, BG_FADE = 1200, DUCK = 0.25;
+    var blocked = false, reported = null, holdSent = null;
+    var FADE_IN = 1000, FADE_OUT = 1500, BG_FADE = 1200, WAIT_MAX = 2500;
 
     function cfg() { return (ps && ps.sound) || null; }
     // Curva del deslizador: el oído no es lineal; al cuadrado se nota igual en todo el recorrido
@@ -967,19 +968,36 @@ var GSnd = (function() {
         var v = document.getElementById('ifVideo');
         return !!(v && v.isConnected && !v.paused && !v.muted && !v.ended);
     }
+    // Con música de fondo sonando, el fondo se funde hasta callar y entonces entra la sintonía entera
+    // (sin fundido de entrada); al acabar, el fondo vuelve con fundido. Con Spotify el servidor ya lo
+    // ha callado antes de mandarla (cut). Sin fondo, la sintonía usa su fundido de entrada.
     function jingle(d) {
         var c = cfg();
         if (!c || !d || !d.url || !soundAllowed()) return;
         J.pause();
         J.src = d.url;
         try { J.currentTime = 0; } catch (e) {}
-        jVol = c.fadeIn ? 0 : 1; J.volume = curve(c.jingleVol / 100) * jVol;
-        jOn = true; jStop = false; jStart = Date.now();
+        jId = d.id || 0;
+        jOn = true; jStop = false;
+        if (!d.cut && bgVol > 0.02 && !BG.paused) { jWait = Date.now(); jVol = 1; J.volume = 0; return; }
+        startJingle(d.cut || !c.fadeIn ? 1 : 0);
+    }
+    function startJingle(v) {
+        var c = cfg();
+        jWait = 0; jVol = v;
+        J.volume = curve(((c && c.jingleVol) || 0) / 100) * jVol;
+        jStart = Date.now();
         tryPlay(J);
     }
-    function stopJingle() { if (jOn) jStop = true; }
-    J.addEventListener('ended', function() { jOn = false; jStop = false; });
-    J.addEventListener('error', function() { jOn = false; jStop = false; });
+    // Sintonía terminada o cortada: el servidor lo necesita para devolver Spotify
+    function jingleDone() {
+        var was = jOn;
+        jOn = false; jStop = false; jWait = 0;
+        if (was && !EMBED && socket) socket.emit('screen:jingle_end', { id: jId });
+    }
+    function stopJingle() { if (!jOn) return; if (jWait) { jingleDone(); return; } jStop = true; }
+    J.addEventListener('ended', jingleDone);
+    J.addEventListener('error', jingleDone);
 
     function bgEnded() {
         var c = cfg();
@@ -1001,7 +1019,7 @@ var GSnd = (function() {
                 BG.pause(); BG.src = b.url; bgVol = 0; BG.volume = 0;
             }
         }
-        if (!soundAllowed()) { J.pause(); jOn = false; }
+        if (!soundAllowed() && jOn) { J.pause(); jingleDone(); }
     }
 
     setInterval(function() {
@@ -1009,17 +1027,23 @@ var GSnd = (function() {
         if (!c) return;
         var now = Date.now();
         // Sintonía: sube al empezar, baja al cortarla o al llegar al tope de segundos
-        if (jOn) {
+        if (jOn && jWait) {
+            // Esperando a que el fondo se calle (con tope, por si algo se queda colgado)
+            if (bgVol <= 0 || now - jWait > WAIT_MAX) startJingle(1);
+        } else if (jOn) {
             var maxMs = (c.max || 20) * 1000;
             if (!jStop && now - jStart >= maxMs - (c.fadeOut ? FADE_OUT : 0)) jStop = true;
             if (jStop) {
                 jVol = c.fadeOut ? jVol - 50 / FADE_OUT : 0;
-                if (jVol <= 0) { jVol = 0; J.pause(); jOn = false; jStop = false; }
+                if (jVol <= 0) { jVol = 0; J.pause(); jingleDone(); }
             } else if (jVol < 1) jVol = c.fadeIn ? Math.min(1, jVol + 50 / FADE_IN) : 1;
             J.volume = curve(c.jingleVol / 100) * jVol;
         }
-        // Fondo: objetivo según su volumen, la sintonía (lo baja) y las pausas automáticas
-        var target = bgWant && !autoPaused() ? (jOn && !jStop ? DUCK : 1) : 0;
+        // Pausa automática (vídeo con sonido, «Adivina la canción», karaoke): también calla Spotify
+        var ap = autoPaused();
+        if (ap !== holdSent && !EMBED && socket && socket.connected) { holdSent = ap; socket.emit('screen:bg_hold', { on: ap }); }
+        // Fondo: suena salvo con sintonía (se calla del todo) y con las pausas automáticas
+        var target = bgWant && !ap && !jOn ? 1 : 0;
         var step = 50 / BG_FADE;
         if (bgVol < target) bgVol = Math.min(target, bgVol + step);
         else if (bgVol > target) bgVol = Math.max(target, bgVol - step);
@@ -1058,7 +1082,10 @@ var GSnd = (function() {
     }
     ['pointerup', 'click', 'keydown'].forEach(function(ev) { document.addEventListener(ev, gesture, true); });
 
-    return { jingle: jingle, stop: stopJingle, sync: sync, bless: bless };
+    // Conexión nueva: el servidor no sabe aún si hay pausa automática ni si puede sonar
+    function rejoined() { holdSent = null; reported = null; }
+
+    return { jingle: jingle, stop: stopJingle, sync: sync, bless: bless, rejoined: rejoined };
 })();
 
 var socket = null;
@@ -1083,6 +1110,7 @@ function connect() {
     socket.on('connect', function() {
         document.getElementById('connDot').classList.remove('disconnected');
         socket.emit('screen:join', { embed: EMBED });
+        GSnd.rejoined();
         if (_preloadSummary && !EMBED) socket.emit('screen:preload_status', _preloadSummary);
     });
 

@@ -204,8 +204,13 @@ function makeLimiter(max, windowMs) {
     };
 }
 
+// Llave propia para cifrar otros datos guardados (p. ej. la conexión de Spotify), sacada del secreto
+function subKey(label) {
+    return crypto.createHmac('sha256', secret()).update('subkey:' + label).digest();
+}
+
 module.exports = {
-    isConfigured, verifyPassword, setPassword,
+    isConfigured, verifyPassword, setPassword, subKey,
     setSessionCookie, clearSessionCookie, isStaffRequest, sessionFromCookieHeader,
     requireStaffPage, requireStaffApi,
     gamePass, gamePassFor, verifyGamePass, padKey, verifyPadKey,
