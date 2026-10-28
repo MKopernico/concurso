@@ -395,6 +395,10 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .cf-dir-team .st { color: var(--text2); font-size: 12px; }
 .bl-panel .bl-cancel { background: none; border: none; color: var(--text2); font-size: 11px; cursor: pointer; font-family: inherit; padding: 2px; }
 .bl-panel .bl-cancel:hover { color: var(--text); }
+/* Panel en ventana aparte (shared/float-panels.js): ocupa la ventana y se ancla con «📌 Anclar» */
+.bl-panel .bl-float-btn { margin-left: auto; margin-right: 10px; }
+.bl-panel.floating { position: static; width: auto; max-height: none; overflow: visible; box-shadow: none; margin-bottom: 8px; }
+.bl-panel.floating .bl-close { display: none; }
 .bl-badge { background: var(--accent); color: #fff; font-size: 9px; font-weight: 700; border-radius: 8px; padding: 1px 5px; margin-left: 3px; vertical-align: top; }
 
 /* Buzzer compact row (collapsed state) */
@@ -1229,7 +1233,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 <div class="bl-panel" id="blPanel">
     <div class="bl-header">
         <span class="bl-label">Registro</span>
-        <button class="bl-cancel" onclick="closeBonoLog()">Cerrar</button>
+        <button class="bl-cancel bl-close" onclick="closeBonoLog()">Cerrar</button>
     </div>
     <div class="bl-filters" id="blFilters">
         <button data-f="all" class="on">Todo</button><button data-f="pts">Puntos</button><button data-f="bono">Bonos</button><button data-f="frz">Congelaciones</button>
@@ -1241,7 +1245,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 <div class="bl-panel snd-panel" id="sndPanel">
     <div class="bl-header">
         <span class="bl-label">&#127925; Sonido en sala</span>
-        <button class="bl-cancel" onclick="closeSoundPanel()">Cerrar</button>
+        <button class="bl-cancel bl-close" onclick="closeSoundPanel()">Cerrar</button>
     </div>
     <div class="snd-warn" id="sndWarn" style="display:none"></div>
     <div class="snd-sec">
@@ -1303,6 +1307,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 <script src="/shared/qrcode.min.js"></script>
 <script src="/shared/question-validation.js"></script>
 <script src="/shared/image-shrink.js"></script>
+<script src="/shared/float-panels.js"></script>
 <script>
 const S = {
     gameId: null, game: null, rounds: [],
@@ -3715,6 +3720,7 @@ function onLogData(d) {
 }
 function toggleBonoLog(btnEl) {
     var panel = document.getElementById('blPanel');
+    if (FloatPanels.isFloating(panel)) { toast('El registro está en la ventana flotante («📌 Anclar» para volver)'); return; }
     if (panel.classList.contains('active')) { closeBonoLog(); return; }
     renderBonoLog();
     requestLog();
@@ -3731,13 +3737,16 @@ function toggleBonoLog(btnEl) {
 }
 
 function closeBonoLog() {
-    document.getElementById('blPanel').classList.remove('active');
+    var panel = document.getElementById('blPanel');
+    if (FloatPanels.isFloating(panel)) return;
+    panel.classList.remove('active');
 }
 
 // ═══════════════ Panel 🎵: sintonías y música de fondo ═══════════════
 // Las órdenes van al servidor ('director:sound') y suenan en la pantalla de sala.
 function toggleSoundPanel(btnEl) {
     var panel = document.getElementById('sndPanel');
+    if (FloatPanels.isFloating(panel)) { toast('El sonido está en la ventana flotante («📌 Anclar» para volver)'); return; }
     if (panel.classList.contains('active')) { closeSoundPanel(); return; }
     panel.classList.add('active');
     renderSound();
@@ -3748,7 +3757,17 @@ function toggleSoundPanel(btnEl) {
     panel.style.left = left + 'px';
     panel.style.top = (rect.bottom + 8) + 'px';
 }
-function closeSoundPanel() { document.getElementById('sndPanel').classList.remove('active'); }
+function closeSoundPanel() {
+    var panel = document.getElementById('sndPanel');
+    if (!FloatPanels.isFloating(panel)) panel.classList.remove('active');
+}
+// ⧉ Ventana: el panel sale a una ventana que se queda encima; al anclarlo vuelve abierto bajo su botón
+FloatPanels.setup(document.getElementById('sndPanel'), { title: 'Sonido',
+    onDock: function(el, byUser) { if (byUser) toggleSoundPanel(document.getElementById('btnSound')); },
+    onError: function() { toast('El navegador no ha dejado abrir la ventana'); } });
+FloatPanels.setup(document.getElementById('blPanel'), { title: 'Registro',
+    onDock: function(el, byUser) { if (byUser) toggleBonoLog(document.getElementById('btnBonoLog')); },
+    onError: function() { toast('El navegador no ha dejado abrir la ventana'); } });
 
 // Nombre legible de un archivo subido: «/uploads/audio/Intro_Boom-2.mp3» → «Intro Boom»
 function soundName(url) {
@@ -3857,7 +3876,8 @@ function renderSound() {
 // Spotify (opcional): solo aparece si el servidor lo ofrece (no en el kit offline)
 function renderSpotify(snd, sp, useSp) {
     document.getElementById('sndSrc').style.display = sp.enabled ? '' : 'none';
-    document.querySelectorAll('[data-snd-src]').forEach(function(b) { b.classList.toggle('on', b.dataset.sndSrc === (useSp ? 'spotify' : 'own')); });
+    var panel = document.getElementById('sndPanel');
+    panel.querySelectorAll('[data-snd-src]').forEach(function(b) { b.classList.toggle('on', b.dataset.sndSrc === (useSp ? 'spotify' : 'own')); });
     document.getElementById('sndOwnSec').style.display = useSp ? 'none' : '';
     document.getElementById('sndSpSec').style.display = useSp ? '' : 'none';
     if (!useSp) return;
@@ -3880,7 +3900,7 @@ function renderSpotify(snd, sp, useSp) {
     var b = document.getElementById('sndSpBtn');
     b.innerHTML = on ? '&#10074;&#10074; Pausa' : '&#9654; Reproducir';
     b.className = (on ? 'btn-ghost' : 'btn-success') + ' btn-sm snd-play';
-    document.querySelectorAll('#sndSpSec [data-snd], #sndSpList').forEach(function(el) { el.disabled = !sp.connected; });
+    panel.querySelectorAll('#sndSpSec [data-snd], #sndSpList').forEach(function(el) { el.disabled = !sp.connected; });
     var vol = document.getElementById('sndSpVol');
     vol.disabled = !sp.connected || !p || !p.supportsVolume;
     if (_sndDrag !== vol && p && p.volume !== null && p.volume !== undefined) vol.value = p.volume;
