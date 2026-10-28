@@ -24,7 +24,8 @@ function sourcesHash() {
     const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).forEach(e => { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else files.push(p); });
     walk(SRC);
     files.push(__filename);
-    files.sort().forEach(f => { h.update(path.relative(REPO, f).replace(/\\/g, '/')); h.update(fs.readFileSync(f)); });
+    // Sin contar los saltos de línea (Git en Windows los puede guardar como CRLF)
+    files.sort().forEach(f => { h.update(path.relative(REPO, f).replace(/\\/g, '/')); h.update(fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n')); });
     return h.digest('hex').slice(0, 16);
 }
 
