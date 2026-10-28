@@ -373,6 +373,76 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .sp-now b { font-size: 13px; }
 .sp-now small { font-size: 11px; color: var(--text2); }
 .snd-warn { font-size: 12px; line-height: 1.4; padding: 6px 8px; border-radius: 6px; background: rgba(250,204,21,.12); border: 1px solid rgba(250,204,21,.4); color: var(--gold); }
+/* Panel 🎵 ampliado (ventana flotante o «⤢ Ampliar» en el iPad): .sp-wide lo pone renderSound */
+.sp-full { display: none; }
+.snd-panel.sp-wide .sp-full { display: flex; }
+.snd-panel.sp-wide .sp-now, .snd-panel.sp-wide #sndSpList, .snd-panel.sp-wide #sndTrack { display: none; }
+.snd-panel.sp-wide #sndSpSec > * { order: 9; }
+.snd-panel.sp-wide #sndSpSec > .snd-title, .snd-panel.sp-wide #sndSpSec > .snd-warn { order: 0; }
+.snd-panel.sp-wide #sndSpSec > .sp-hero { order: 1; }
+.snd-panel.sp-wide #sndSpSec > .sp-prog { order: 2; }
+.snd-panel.sp-wide #sndSpSec > .snd-row { order: 3; }
+.snd-panel.sp-wide #sndSpSec > .snd-vol { order: 4; }
+.snd-panel.sp-wide #sndSpSec > .sp-modes { order: 5; }
+.snd-panel.sp-wide #sndSpSec > .sp-tabs { order: 6; }
+.snd-panel.sp-wide #sndSpSec > .sp-pane { order: 7; }
+.snd-panel.expanded { position: fixed; inset: 0 !important; width: auto; max-height: none; border-radius: 0; z-index: 400; padding: 12px 16px; }
+.snd-panel.expanded > * { width: 100%; max-width: 760px; margin-left: auto; margin-right: auto; }
+.sp-hero { align-items: center; gap: 12px; }
+.sp-hero img { width: 96px; height: 96px; border-radius: 6px; object-fit: cover; background: var(--surface); flex-shrink: 0; }
+.sp-hero img:not([src]), .sp-hero img[src=""] { visibility: hidden; }
+.sp-hero div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sp-hero b, .sp-hero small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-hero b { font-size: 16px; }
+.sp-hero small { font-size: 12px; color: var(--text2); }
+.sp-prog { align-items: center; gap: 8px; font-size: 11px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.sp-prog input { flex: 1; accent-color: var(--success); }
+.sp-modes { gap: 6px; flex-wrap: wrap; }
+.sp-modes button.on { border-color: var(--success); color: var(--success); }
+.sp-tabs { gap: 3px; padding: 3px; background: var(--surface); border-radius: 8px; }
+.sp-tabs button { flex: 1; padding: 6px 4px; font-size: 12px; font-weight: 600; border: none; border-radius: 6px; background: transparent; color: var(--text2); cursor: pointer; font-family: inherit; }
+.sp-tabs button.on { background: var(--surface2); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
+.sp-pane, .snd-tracklist { flex-direction: column; gap: 2px; }
+.sp-pane { min-height: 120px; }
+.sp-head { display: flex; align-items: center; gap: 8px; padding: 2px 2px 6px; }
+.sp-head img { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; background: var(--surface); flex-shrink: 0; }
+.sp-head div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sp-head b, .sp-head small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-head small { font-size: 11px; color: var(--text2); }
+.sp-sub { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); padding: 6px 2px 2px; }
+.sp-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 6px; font-size: 12px; }
+.sp-row[data-play], .sp-row[data-own] { cursor: pointer; }
+.sp-row[data-play]:hover, .sp-row[data-own]:hover { background: var(--surface); }
+.sp-row.cur { background: rgba(34,197,94,.14); }
+.sp-row.cur .sp-t b { color: var(--success); }
+.sp-row.off { opacity: .45; }
+.sp-row img { width: 32px; height: 32px; border-radius: 3px; object-fit: cover; flex-shrink: 0; background: var(--surface); }
+.sp-row .sp-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sp-row .sp-t b, .sp-row .sp-t small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-row .sp-t b { font-weight: 600; }
+.sp-row .sp-t small { color: var(--text2); font-size: 11px; }
+.sp-row .sp-n { width: 22px; flex-shrink: 0; text-align: right; color: var(--text2); font-variant-numeric: tabular-nums; }
+.sp-row .sp-d { flex-shrink: 0; color: var(--text2); font-variant-numeric: tabular-nums; }
+.sp-row .sp-h { flex-shrink: 0; cursor: grab; color: var(--text2); padding: 2px 4px; touch-action: none; font-size: 15px; user-select: none; }
+.sp-row.drag { opacity: .4; }
+.sp-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.sp-row.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.sp-act { flex-shrink: 0; padding: 3px 7px; font-size: 11px; font-weight: 600; border-radius: 5px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-family: inherit; }
+.sp-act:hover { border-color: var(--accent); }
+.sp-act:disabled { opacity: .4; cursor: default; }
+.sp-add { flex-shrink: 0; max-width: 140px; font-size: 11px; padding: 3px 4px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 5px; }
+.sp-msg { font-size: 12px; color: var(--text2); padding: 12px 4px; text-align: center; line-height: 1.45; }
+.sp-more { align-self: center; margin-top: 4px; }
+.sp-search { display: flex; gap: 6px; padding-bottom: 4px; }
+.sp-search input { flex: 1; min-width: 0; font-size: 13px; padding: 6px 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-family: inherit; }
+.sp-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.sp-card { display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 8px; background: var(--surface); cursor: pointer; border: 1px solid transparent; min-width: 0; }
+.sp-card:hover { border-color: var(--accent); }
+.sp-card.cur { border-color: var(--success); }
+.sp-card img, .sp-card .sp-noimg { width: 100%; aspect-ratio: 1; border-radius: 5px; object-fit: cover; background: var(--surface2); }
+.sp-card .sp-noimg { display: flex; align-items: center; justify-content: center; font-size: 28px; }
+.sp-card b, .sp-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.sp-card small { font-size: 10px; color: var(--text2); }
 .header-actions .hdr-btn.snd-on { background: rgba(34,197,94,.14); border-color: var(--success); color: var(--success); }
 .header-actions .hdr-btn.snd-alert { background: rgba(250,204,21,.15); border-color: #facc15; color: #facc15; }
 .lt-dir-group { margin-top: 10px; text-align: left; }
@@ -1271,6 +1341,12 @@ body.round-type-karaoke #headerTimer { display: none !important; }
         <div class="snd-warn" id="sndSpWarn" style="display:none"></div>
         <div class="sp-now"><img id="sndSpImg" alt=""><div><b id="sndSpTrack"></b><small id="sndSpArtist"></small></div></div>
         <select id="sndSpList" class="snd-track"><option value="">Elegir lista…</option></select>
+        <!-- Versión ampliada (en la ventana flotante o con «⤢ Ampliar»): portada, avance, modos y pestañas -->
+        <div class="sp-full sp-hero"><img id="spBig" alt=""><div><b id="spBigTrack"></b><small id="spBigArtist"></small><small id="spBigCtx"></small></div></div>
+        <div class="sp-full sp-prog"><span id="spPos">0:00</span><input type="range" min="0" max="1" step="1" value="0" id="spSeek"><span id="spDur">0:00</span></div>
+        <div class="sp-full sp-modes"><button type="button" class="btn-ghost btn-sm" data-sp-mode="shuffle" id="spShuffle">&#128256; Aleatorio</button><button type="button" class="btn-ghost btn-sm" data-sp-mode="repeat" id="spRepeat">&#128257; Repetir: no</button></div>
+        <div class="sp-full sp-tabs" id="spTabs"><button type="button" data-sp-tab="list" class="on">Lista</button><button type="button" data-sp-tab="queue">Cola</button><button type="button" data-sp-tab="search">Buscar</button><button type="button" data-sp-tab="lists">Mis listas</button></div>
+        <div class="sp-full sp-pane" id="spPane"></div>
         <div class="snd-row">
             <button class="btn-ghost btn-sm" data-snd="sp_prev" title="Anterior">&#9198;</button>
             <button class="btn-success btn-sm snd-play" data-snd="sp_toggle" id="sndSpBtn">&#9654; Reproducir</button>
@@ -1282,6 +1358,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
     <div class="snd-sec" id="sndOwnSec">
         <div class="snd-title">M&uacute;sica de fondo</div>
         <select id="sndTrack" class="snd-track"></select>
+        <div class="sp-full snd-tracklist" id="sndTrackList"></div>
         <div class="snd-row">
             <button class="btn-ghost btn-sm" data-snd="bg_prev" title="Anterior">&#9198;</button>
             <button class="btn-success btn-sm snd-play" data-snd="bg_toggle" id="sndBgBtn">&#9654; Reproducir</button>
@@ -1357,6 +1434,7 @@ function connectSocket() {
     socket.on('director:recovery_code', onRecoveryCode);
     socket.on('director:pic_pad_link', onPicPadLink);
     socket.on('game:spotify_lists', onSpotifyLists);
+    socket.on('game:spotify_res', onSpotifyRes);
     socket.on('game:timer_tick', (d) => {
         if (S.director) { S.director.timer.remaining = d.remaining; S.director.timer.total = d.total; }
         renderTimer();
@@ -3759,12 +3837,29 @@ function toggleSoundPanel(btnEl) {
 }
 function closeSoundPanel() {
     var panel = document.getElementById('sndPanel');
-    if (!FloatPanels.isFloating(panel)) panel.classList.remove('active');
+    if (!FloatPanels.isFloating(panel)) panel.classList.remove('active', 'expanded');
 }
-// ⧉ Ventana: el panel sale a una ventana que se queda encima; al anclarlo vuelve abierto bajo su botón
-FloatPanels.setup(document.getElementById('sndPanel'), { title: 'Sonido',
-    onDock: function(el, byUser) { if (byUser) toggleSoundPanel(document.getElementById('btnSound')); },
+// ⧉ Ventana: el panel sale a una ventana que se queda encima, en su versión ampliada;
+// al anclarlo vuelve escueto y abierto bajo su botón
+FloatPanels.setup(document.getElementById('sndPanel'), { title: 'Sonido', size: { w: 560, h: 900 },
+    onFloat: function() { renderSound(); },
+    onDock: function(el, byUser) { renderSound(); if (byUser) toggleSoundPanel(document.getElementById('btnSound')); },
     onError: function() { toast('El navegador no ha dejado abrir la ventana'); } });
+// Sin ventanas flotantes (iPad): «⤢ Ampliar» pone la versión ampliada a pantalla completa
+if (!FloatPanels.supported) (function() {
+    var panel = document.getElementById('sndPanel');
+    var head = panel.querySelector('.bl-header');
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'bl-cancel bl-float-btn'; b.id = 'sndExpandBtn';
+    b.innerHTML = '&#10530; Ampliar';
+    head.insertBefore(b, head.querySelector('.bl-close'));
+    b.addEventListener('click', function() {
+        var on = !panel.classList.contains('expanded');
+        panel.classList.toggle('expanded', on);
+        b.innerHTML = on ? '&#10529; Reducir' : '&#10530; Ampliar';
+        renderSound();
+    });
+})();
 FloatPanels.setup(document.getElementById('blPanel'), { title: 'Registro',
     onDock: function(el, byUser) { if (byUser) toggleBonoLog(document.getElementById('btnBonoLog')); },
     onError: function() { toast('El navegador no ha dejado abrir la ventana'); } });
@@ -3822,6 +3917,11 @@ function renderSound() {
 
     var panel = document.getElementById('sndPanel');
     if (!panel.classList.contains('active')) return;
+    // Escueto en el desplegable; ampliado en la ventana flotante o con «⤢ Ampliar»
+    var wide = panel.classList.contains('floating') || panel.classList.contains('expanded');
+    panel.classList.toggle('sp-wide', wide);
+    var eb = document.getElementById('sndExpandBtn');
+    if (eb) eb.innerHTML = panel.classList.contains('expanded') ? '&#10529; Reducir' : '&#10530; Ampliar';
 
     // Avisos: pantalla sin permiso para sonar, sin pantalla conectada, sonido en los iPads
     var warn = [];
@@ -3861,6 +3961,7 @@ function renderSound() {
     }
     sel.value = idx;
     sel.disabled = !music.length;
+    if (wide) renderOwnTracks(music, idx, playing);
     var bb = document.getElementById('sndBgBtn');
     bb.innerHTML = playing ? '&#10074;&#10074; Pausa' : '&#9654; Reproducir';
     bb.className = (playing ? 'btn-ghost' : 'btn-success') + ' btn-sm snd-play';
@@ -3916,6 +4017,7 @@ function renderSpotify(snd, sp, useSp) {
     document.getElementById('sndSpNote').textContent = sp.held
         ? 'En pausa automática (sintonía, vídeo, «Adivina la canción» o karaoke): vuelve sola con un fundido.'
         : 'Suena en el Spotify del ordenador de sala. Con una sintonía se calla con un fundido y vuelve al acabar.';
+    if (panel.classList.contains('sp-wide')) renderSpFull(sp, p);
 }
 var _spListsAsked = false;
 function onSpotifyLists(d) {
@@ -3942,6 +4044,396 @@ document.getElementById('sndSpList').addEventListener('change', function(e) {
 document.getElementById('sndSrc').addEventListener('click', function(e) {
     var b = e.target.closest('[data-snd-src]');
     if (b) emit('director:sound', { action: 'source', value: b.dataset.sndSrc });
+});
+
+// ── Panel 🎵 ampliado: reproductor completo de Spotify (portada, avance, aleatorio/repetir y
+// pestañas Lista · Cola · Buscar · Mis listas) y la lista entera de la música propia.
+// Lo que no viaja con el estado del juego se pide al servidor ('director:spotify_req') y solo
+// se rehace la pestaña al llegar datos: así no se pierde el desplazamiento ni un arrastre.
+var SPX = { tab: 'list', listUri: null, lastCtx: null, list: null, queue: null, qBusy: false,
+            search: { q: '', data: null }, lists: null, listsErr: null, listsBusy: false,
+            seq: 0, cbs: {}, prog: null, seekDrag: false, tick: null, curTrack: null };
+function spReq(op, params, cb) {
+    if (!socket) return;
+    var id = 'q' + (++SPX.seq);
+    SPX.cbs[id] = cb;
+    socket.emit('director:spotify_req', Object.assign({ id: id, op: op }, params || {}));
+}
+function onSpotifyRes(d) {
+    var cb = d && SPX.cbs[d.id];
+    if (!cb) return;
+    delete SPX.cbs[d.id];
+    cb(d);
+}
+function spTime(ms) {
+    var s = Math.max(0, Math.round((Number(ms) || 0) / 1000));
+    return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+}
+function spPane() { return document.getElementById('spPane'); }
+function spOn(tab) { return spPane().dataset.tab === tab; }
+function spGameList() { return (S.gameTheme || {}).spotifyPlaylist || null; }
+function spContextName(uri) {
+    if (!uri) return null;
+    if (SPX.list && SPX.list.uri === uri && SPX.list.name) return SPX.list.name;
+    var l = Array.isArray(SPX.lists) && SPX.lists.filter(function(x) { return x.uri === uri; })[0];
+    if (l) return l.name;
+    return uri === spGameList() ? 'Lista del juego' : null;
+}
+
+function renderSpFull(sp, p) {
+    var img = document.getElementById('spBig'), src = (p && (p.imageBig || p.image)) || '';
+    if (img.getAttribute('src') !== src) img.setAttribute('src', src);
+    document.getElementById('spBigTrack').textContent = p && p.track ? p.track : (sp.connected ? 'Nada sonando' : '—');
+    document.getElementById('spBigArtist').textContent = (p && p.artist) || '';
+    var ctxName = p && spContextName(p.context);
+    document.getElementById('spBigCtx').textContent = [ctxName ? 'De «' + ctxName + '»' : '', p && p.deviceName ? 'Suena en ' + p.deviceName : ''].filter(Boolean).join(' · ');
+    // Avance: el servidor dice dónde iba y cuándo; aquí se va contando solo
+    SPX.prog = p ? { ms: (p.progressMs || 0) + (p.playing ? Math.max(0, (sp.now || 0) - (p.at || 0)) : 0), dur: p.durationMs || 0, playing: !!p.playing, t0: Date.now() } : null;
+    spTick();
+    if (!SPX.tick) SPX.tick = setInterval(spTick, 500);
+    var sh = document.getElementById('spShuffle'), rp = document.getElementById('spRepeat');
+    sh.classList.toggle('on', !!(p && p.shuffle));
+    rp.classList.toggle('on', !!(p && p.repeat && p.repeat !== 'off'));
+    rp.innerHTML = '&#128257; Repetir: ' + (!p || p.repeat === 'off' || !p.repeat ? 'no' : p.repeat === 'track' ? 'la canción' : 'la lista');
+    [sh, rp, document.getElementById('spSeek')].forEach(function(el) { el.disabled = !sp.connected || !p; });
+    // La pestaña «Lista» sigue a la lista que suena (también si se cambia desde el propio Spotify)
+    if (p && p.context && p.context !== SPX.lastCtx) {
+        SPX.lastCtx = p.context;
+        if (SPX.listUri !== p.context) { SPX.listUri = p.context; if (spOn('list')) spShowTab('list'); }
+    }
+    var now = p && p.trackUri;
+    if (now !== SPX.curTrack) {
+        SPX.curTrack = now;
+        if (spOn('queue')) spLoadQueue();
+    }
+    if (!spPane().dataset.tab || SPX.conn !== !!sp.connected) { SPX.conn = !!sp.connected; spShowTab(SPX.tab); }
+    spMarkCurrent();
+}
+function spTick() {
+    var panel = document.getElementById('sndPanel');
+    if (!panel.classList.contains('sp-wide') || !panel.classList.contains('active')) { clearInterval(SPX.tick); SPX.tick = null; return; }
+    var g = SPX.prog, seek = document.getElementById('spSeek');
+    var dur = (g && g.dur) || 0;
+    var ms = g ? Math.min(dur || Infinity, g.ms + (g.playing ? Date.now() - g.t0 : 0)) : 0;
+    if (!SPX.seekDrag) {
+        seek.max = Math.max(1, dur);
+        seek.value = Math.round(ms);
+        document.getElementById('spPos').textContent = spTime(ms);
+    }
+    document.getElementById('spDur').textContent = spTime(dur);
+}
+// Resalta la canción que suena y la lista que suena
+function spMarkCurrent() {
+    var pane = spPane(), cur = SPX.curTrack, ctx = ((S.spotify || {}).player || {}).context;
+    pane.querySelectorAll('.sp-row[data-uri]').forEach(function(r) { r.classList.toggle('cur', !!cur && r.dataset.uri === cur); });
+    pane.querySelectorAll('.sp-card[data-sp-list]').forEach(function(c) { c.classList.toggle('cur', !!ctx && c.dataset.spList === ctx); });
+}
+
+function spShowTab(tab) {
+    SPX.tab = tab;
+    document.getElementById('spTabs').querySelectorAll('[data-sp-tab]').forEach(function(b) { b.classList.toggle('on', b.dataset.spTab === tab); });
+    var pane = spPane(), sp = S.spotify || {};
+    pane.dataset.tab = tab;
+    if (!sp.connected) { pane.innerHTML = '<div class="sp-msg">Spotify no está conectado: se conecta en el backoffice (🎵 Spotify).</div>'; return; }
+    if (tab === 'list') {
+        if (!SPX.listUri) {
+            pane.innerHTML = '<div class="sp-msg">Pon a sonar una lista (pestaña «Mis listas») y aquí verás sus canciones.</div>';
+        } else if (!SPX.list || SPX.list.uri !== SPX.listUri) spLoadList(0);
+        else spRenderList();
+    } else if (tab === 'queue') {
+        if (SPX.queue) spRenderQueue(); else pane.innerHTML = '<div class="sp-msg">Cargando…</div>';
+        spLoadQueue();
+    } else if (tab === 'search') {
+        spRenderSearch();
+        var q = document.getElementById('spQ');
+        if (q && !SPX.search.data) try { q.focus(); } catch (e) {}
+    } else if (tab === 'lists') {
+        if (SPX.lists) spRenderLists(); else pane.innerHTML = '<div class="sp-msg">Cargando tus listas…</div>';
+        if (!SPX.lists) spLoadLists();
+    }
+}
+
+// Fila de una canción. o: { i, ctx (lista a la que pertenece: tocarla la pone desde ahí), drag, acts }
+function spRow(t, o) {
+    o = o || {};
+    var play = o.ctx && t.playable ? ' data-play="1"' : '';
+    var h = '<div class="sp-row' + (t.playable ? '' : ' off') + '" data-uri="' + esc(t.uri) + '"' + play
+        + (o.i !== undefined ? ' data-i="' + o.i + '"' : '') + '>';
+    if (o.drag) h += '<span class="sp-h" data-sp-drag title="Arrastra para moverla en la lista">&#10303;</span>';
+    if (o.i !== undefined) h += '<span class="sp-n">' + (o.i + 1) + '</span>';
+    else if (t.image) h += '<img src="' + esc(t.image) + '" alt="" loading="lazy">';
+    h += '<div class="sp-t"><b>' + esc(t.name) + '</b><small>' + esc(t.artist) + '</small></div>';
+    if (t.ms) h += '<span class="sp-d">' + spTime(t.ms) + '</span>';
+    (o.acts || []).forEach(function(a) {
+        if (a === 'now') h += '<button type="button" class="sp-act" data-sp-act="now" title="Suena ya; después sigue lo que sonaba">&#9654; Ya</button>';
+        if (a === 'queue') h += '<button type="button" class="sp-act" data-sp-act="queue" title="Detrás de la que suena">&#65291; Cola</button>';
+        if (a === 'add') h += spAddSelect();
+    });
+    return h + '</div>';
+}
+// «＋ Lista»: elegir una de las listas propias para añadirle la canción
+function spAddSelect() {
+    var sp = S.spotify || {};
+    if (!sp.canEdit || !Array.isArray(SPX.lists)) return '';
+    var own = SPX.lists.filter(function(l) { return l.own; });
+    if (!own.length) return '';
+    return '<select class="sp-add" data-sp-addto title="Añadirla a una de tus listas"><option value="">&#65291; Lista…</option>'
+        + own.map(function(l) { return '<option value="' + esc(l.uri) + '">' + esc(l.name) + '</option>'; }).join('') + '</select>';
+}
+
+function spLoadList(offset) {
+    var uri = SPX.listUri;
+    if (!uri) return;
+    if (!offset && spOn('list')) spPane().innerHTML = '<div class="sp-msg">Cargando la lista…</div>';
+    spReq('items', { uri: uri, offset: offset || 0 }, function(d) {
+        if (uri !== SPX.listUri) return;
+        if (d.error) SPX.list = { uri: uri, error: d.error, code: d.code };
+        else if (offset && SPX.list && SPX.list.uri === uri && !SPX.list.error) SPX.list.items = SPX.list.items.concat(d.data.items);
+        else SPX.list = d.data;
+        if (spOn('list')) spRenderList();
+    });
+}
+function spRenderList() {
+    var L = SPX.list, sp = S.spotify || {}, pane = spPane();
+    if (!L) return;
+    var name = spContextName(L.uri);
+    if (L.error) {
+        pane.innerHTML = (name ? '<div class="sp-head"><div><b>' + esc(name) + '</b></div></div>' : '')
+            + '<div class="sp-msg">' + esc(L.error) + '</div>'
+            + (L.code === 'notOwn' ? '' : '<div class="sp-msg"><button type="button" class="sp-act" data-sp-act="reload-list">&#8635; Volver a intentarlo</button></div>');
+        return;
+    }
+    var canMove = L.editable && sp.canEdit && L.kind === 'playlist';
+    var h = '<div class="sp-head">' + (L.image ? '<img src="' + esc(L.image) + '" alt="">' : '')
+        + '<div><b>' + esc(L.name) + '</b><small>' + esc([L.kind === 'album' ? 'Álbum' : '', L.owner, L.total + ' canciones'].filter(Boolean).join(' · ')) + '</small></div>'
+        + '<button type="button" class="sp-act" data-sp-act="reload-list" title="Volver a cargarla">&#8635;</button></div>';
+    if (L.editable && !sp.canEdit && L.kind === 'playlist') h += '<div class="snd-note">Para mover canciones de esta lista, vuelve a conectar Spotify en el backoffice (🎵 Spotify › Conectar): pide un permiso nuevo.</div>';
+    else if (canMove) h += '<div class="snd-note">Toca una canción para que suene desde ahí. Arrástrala por &#10303; para cambiarla de sitio (se cambia en la lista de Spotify).</div>';
+    else h += '<div class="snd-note">Toca una canción para que suene desde ahí.</div>';
+    if (!L.items.length) h += '<div class="sp-msg">Esta lista está vacía.</div>';
+    h += L.items.map(function(t, i) { return spRow(t, { i: i, ctx: L.uri, drag: canMove, acts: ['queue'] }); }).join('');
+    if (L.items.length < L.total) h += '<button type="button" class="btn-ghost btn-sm sp-more" data-sp-act="more-list">Ver más canciones (' + (L.total - L.items.length) + ')</button>';
+    pane.innerHTML = h;
+    spMarkCurrent();
+}
+// Mover una canción: se ve al momento y, si Spotify no lo acepta, se vuelve a cargar la lista
+function spMove(from, to) {
+    var L = SPX.list;
+    if (!L || L.error || to === from || to === from + 1) return;
+    var it = L.items.splice(from, 1)[0];
+    L.items.splice(to > from ? to - 1 : to, 0, it);
+    spRenderList();
+    spReq('reorder', { uri: L.uri, from: from, to: to, snapshot: L.snapshot }, function(d) {
+        if (d.error) { toast(d.error); spLoadList(0); return; }
+        if (d.data && d.data.snapshot) L.snapshot = d.data.snapshot;
+    });
+}
+
+function spLoadQueue() {
+    if (SPX.qBusy) return;
+    SPX.qBusy = true;
+    spReq('queue', {}, function(d) {
+        SPX.qBusy = false;
+        SPX.queue = d.error ? { error: d.error } : d.data;
+        if (spOn('queue')) spRenderQueue();
+    });
+}
+function spRenderQueue() {
+    var Q = SPX.queue, pane = spPane();
+    if (!Q) return;
+    if (Q.error) { pane.innerHTML = '<div class="sp-msg">' + esc(Q.error) + '</div>'; return; }
+    var h = '<div class="sp-sub">Sonando ahora</div>' + (Q.current ? spRow(Q.current) : '<div class="sp-msg">Nada</div>')
+        + '<div class="sp-sub">A continuación</div>';
+    h += Q.items.length ? Q.items.map(function(t) { return spRow(t); }).join('') : '<div class="sp-msg">No hay nada en la cola.</div>';
+    h += '<div class="snd-note" style="padding-top:6px">Spotify no deja quitar canciones de la cola ni cambiarlas de orden: solo añadir (＋ Cola en «Lista» o «Buscar»). Para el orden, cambia la lista.</div>';
+    pane.innerHTML = h;
+    spMarkCurrent();
+}
+
+function spRenderSearch() {
+    var S2 = SPX.search, pane = spPane(), sp = S.spotify || {};
+    if (sp.canEdit && !SPX.lists && !SPX.listsBusy) spLoadLists();
+    // Rehacer la pestaña no borra lo que se está escribiendo
+    var old = document.getElementById('spQ');
+    var typed = old ? old.value : S2.q, focused = !!old && old.ownerDocument.activeElement === old;
+    var h = '<div class="sp-search"><input type="search" id="spQ" placeholder="Canción o artista" maxlength="100" value="' + esc(typed) + '">'
+        + '<button type="button" class="btn-success btn-sm" data-sp-act="search">Buscar</button></div>';
+    var D = S2.data;
+    if (D && D.error) h += '<div class="sp-msg">' + esc(D.error) + '</div>';
+    else if (D && D.busy && !D.items) h += '<div class="sp-msg">Buscando…</div>';
+    else if (D && D.items) {
+        if (!D.items.length) h += '<div class="sp-msg">No sale nada con «' + esc(D.q) + '».</div>';
+        h += D.items.map(function(t) { return spRow(t, { acts: ['now', 'queue', 'add'] }); }).join('');
+        if (D.items.length < D.total && D.items.length < 200) h += '<button type="button" class="btn-ghost btn-sm sp-more" data-sp-act="more-search">Más resultados</button>';
+    } else h += '<div class="snd-note">«▶ Ya» la pone ahora y después sigue lo que sonaba; «＋ Cola» la pone detrás de la que suena' + (sp.canEdit ? '; «＋ Lista…» la añade a una de tus listas.' : '.') + '</div>';
+    pane.innerHTML = h;
+    if (focused) { var q = document.getElementById('spQ'); try { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } catch (e) {} }
+    spMarkCurrent();
+}
+function spSearch(more) {
+    var q = more ? SPX.search.q : ((document.getElementById('spQ') || {}).value || '').trim();
+    if (!q) return;
+    var prev = SPX.search.data;
+    var offset = more && prev && prev.items ? prev.items.length : 0;
+    SPX.search.q = q;
+    if (!more) { SPX.search.data = { busy: true }; spRenderSearch(); }
+    spReq('search', { q: q, offset: offset }, function(d) {
+        if (SPX.search.q !== q) return;
+        if (d.error) SPX.search.data = { error: d.error };
+        else if (more && prev && prev.items) SPX.search.data = { q: q, total: d.data.total, items: prev.items.concat(d.data.items) };
+        else SPX.search.data = { q: q, total: d.data.total, items: d.data.items };
+        if (spOn('search')) spRenderSearch();
+    });
+}
+
+function spLoadLists(fresh) {
+    if (SPX.listsBusy) return;
+    SPX.listsBusy = true;
+    spReq('lists', { fresh: !!fresh }, function(d) {
+        SPX.listsBusy = false;
+        if (d.error) { SPX.listsErr = d.error; SPX.lists = SPX.lists || null; }
+        else { SPX.listsErr = null; SPX.lists = d.data.items || []; }
+        if (spOn('lists')) spRenderLists();
+        else if (spOn('search')) spRenderSearch();
+    });
+}
+function spRenderLists() {
+    var pane = spPane(), gl = spGameList();
+    if (SPX.listsErr && !SPX.lists) { pane.innerHTML = '<div class="sp-msg">' + esc(SPX.listsErr) + '</div>'; return; }
+    var lists = SPX.lists || [];
+    var card = function(uri, name, image, sub) {
+        return '<div class="sp-card" data-sp-list="' + esc(uri) + '">' + (image ? '<img src="' + esc(image) + '" alt="" loading="lazy">' : '<div class="sp-noimg">&#127925;</div>')
+            + '<b>' + esc(name) + '</b><small>' + esc(sub) + '</small></div>';
+    };
+    var h = '<div class="sp-head"><div><b>Tus listas</b><small>Toca una para que suene</small></div>'
+        + '<button type="button" class="sp-act" data-sp-act="reload-lists" title="Volver a cargarlas">&#8635;</button></div><div class="sp-cards">';
+    if (gl) {
+        var g = lists.filter(function(l) { return l.uri === gl; })[0];
+        h += card(gl, '★ Lista del juego', g && g.image, g ? g.name : 'La del backoffice');
+    }
+    lists.forEach(function(l) {
+        if (l.uri === gl) return;
+        h += card(l.uri, l.name, l.image, l.own ? l.total + ' canciones' : 'De ' + (l.owner || 'otra cuenta') + ' · no se ve por dentro');
+    });
+    h += '</div>';
+    if (!lists.length && !gl) h += '<div class="sp-msg">Esta cuenta no tiene listas.</div>';
+    pane.innerHTML = h;
+    spMarkCurrent();
+}
+function spPlayList(uri) {
+    emit('director:sound', { action: 'sp_playlist', uri: uri });
+    SPX.listUri = uri;
+    spShowTab('list');
+}
+
+(function() {
+    var sec = document.getElementById('sndSpSec');
+    sec.addEventListener('click', function(e) {
+        var t = e.target;
+        var m = t.closest('[data-sp-mode]');
+        if (m) {
+            if (m.disabled) return;
+            var p = (S.spotify || {}).player || {};
+            if (m.dataset.spMode === 'shuffle') emit('director:sound', { action: 'sp_shuffle', value: !p.shuffle });
+            else emit('director:sound', { action: 'sp_repeat', value: !p.repeat || p.repeat === 'off' ? 'context' : p.repeat === 'context' ? 'track' : 'off' });
+            return;
+        }
+        var tb = t.closest('[data-sp-tab]');
+        if (tb) { spShowTab(tb.dataset.spTab); return; }
+        var a = t.closest('[data-sp-act]');
+        if (a) {
+            var row = a.closest('.sp-row'), uri = row && row.dataset.uri;
+            switch (a.dataset.spAct) {
+                case 'queue':
+                    emit('director:sound', { action: 'sp_queue', uri: uri });
+                    toast('Añadida a la cola');
+                    if (SPX.queue) setTimeout(function() { if (spOn('queue')) spLoadQueue(); else SPX.queue = null; }, 700);
+                    break;
+                case 'now': emit('director:sound', { action: 'sp_now', uri: uri }); break;
+                case 'more-list': spLoadList(SPX.list ? SPX.list.items.length : 0); a.disabled = true; break;
+                case 'reload-list': SPX.list = null; spShowTab('list'); break;
+                case 'reload-lists': SPX.lists = null; spPane().innerHTML = '<div class="sp-msg">Cargando tus listas…</div>'; spLoadLists(true); break;
+                case 'search': spSearch(false); break;
+                case 'more-search': a.disabled = true; spSearch(true); break;
+            }
+            return;
+        }
+        if (t.closest('select, input, [data-sp-drag]')) return;
+        var card = t.closest('[data-sp-list]');
+        if (card) { spPlayList(card.dataset.spList); return; }
+        var r = t.closest('.sp-row[data-play]');
+        if (r) emit('director:sound', { action: 'sp_track', uri: r.dataset.uri, context: SPX.list && SPX.list.uri });
+    });
+    sec.addEventListener('keydown', function(e) {
+        if (e.target.id === 'spQ' && e.key === 'Enter') { e.preventDefault(); spSearch(false); }
+    });
+    sec.addEventListener('change', function(e) {
+        var s = e.target;
+        if (!s.hasAttribute('data-sp-addto') || !s.value) return;
+        var row = s.closest('.sp-row'), list = s.value, name = s.options[s.selectedIndex].textContent;
+        s.value = '';
+        spReq('add', { uri: list, track: row && row.dataset.uri }, function(d) {
+            toast(d.error ? d.error : 'Añadida a «' + name + '»');
+            if (!d.error && SPX.list && SPX.list.uri === list) SPX.list = null; // se recargará al abrirla
+        });
+    });
+    // Arrastrar por ⠿ para mover una canción en la lista (ratón o dedo)
+    sec.addEventListener('pointerdown', function(e) {
+        var h = e.target.closest('[data-sp-drag]');
+        if (!h) return;
+        e.preventDefault();
+        var row = h.closest('.sp-row'), panel = document.getElementById('sndPanel');
+        var rows = Array.prototype.slice.call(spPane().querySelectorAll('.sp-row[data-i]'));
+        var from = Number(row.dataset.i), to = null;
+        var w = row.ownerDocument.defaultView;
+        row.classList.add('drag');
+        try { h.setPointerCapture(e.pointerId); } catch (err) {}
+        var clear = function() { rows.forEach(function(r) { r.classList.remove('drop-before', 'drop-after'); }); };
+        var move = function(ev) {
+            var y = ev.clientY;
+            to = rows.length;
+            for (var i = 0; i < rows.length; i++) {
+                var b = rows[i].getBoundingClientRect();
+                if (y < b.top + b.height / 2) { to = i; break; }
+            }
+            clear();
+            if (to < rows.length) rows[to].classList.add('drop-before'); else rows[rows.length - 1].classList.add('drop-after');
+            // Cerca del borde, la ventana (o el panel a pantalla completa) se desplaza sola
+            var edge = 48, dy = y < edge ? -14 : y > w.innerHeight - edge ? 14 : 0;
+            if (dy) { if (panel.classList.contains('expanded')) panel.scrollTop += dy; else w.scrollBy(0, dy); }
+        };
+        var up = function() {
+            h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
+            clear(); row.classList.remove('drag');
+            if (to !== null) spMove(from, to);
+        };
+        h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+    });
+    var seek = document.getElementById('spSeek');
+    seek.addEventListener('pointerdown', function() { SPX.seekDrag = true; });
+    seek.addEventListener('input', function() { SPX.seekDrag = true; document.getElementById('spPos').textContent = spTime(Number(seek.value)); });
+    seek.addEventListener('change', function() {
+        SPX.seekDrag = false;
+        var ms = Number(seek.value);
+        if (SPX.prog) { SPX.prog.ms = ms; SPX.prog.t0 = Date.now(); }
+        emit('director:sound', { action: 'sp_seek', ms: ms });
+    });
+})();
+
+// Música propia en grande: la lista entera, tocar una para que suene
+function renderOwnTracks(music, idx, playing) {
+    var box = document.getElementById('sndTrackList'), key = music.join('|');
+    if (box.dataset.key !== key) {
+        box.dataset.key = key;
+        box.innerHTML = music.map(function(u, i) {
+            return '<div class="sp-row" data-own="' + i + '"><span class="sp-n">' + (i + 1) + '</span><div class="sp-t"><b>' + esc(soundName(u)) + '</b></div></div>';
+        }).join('');
+    }
+    box.querySelectorAll('[data-own]').forEach(function(r) { r.classList.toggle('cur', Number(r.dataset.own) === idx && playing); });
+}
+document.getElementById('sndTrackList').addEventListener('click', function(e) {
+    var r = e.target.closest('[data-own]');
+    if (r) emit('director:sound', { action: 'bg_pick', idx: Number(r.dataset.own) });
 });
 (function() {
     var el = document.getElementById('sndSpVol'), t = null;
@@ -4239,8 +4731,13 @@ function toggleSidebar() { document.getElementById('sidebar').classList.toggle('
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function toast(msg) {
-    var el = document.createElement('div'); el.className = 'toast-msg'; el.textContent = msg;
-    document.getElementById('toast').appendChild(el);
+    // Si se está usando la ventana flotante, el aviso sale en ella (si no, nadie lo vería)
+    var doc = document, fp = document.getElementById('sndPanel');
+    if (FloatPanels.isFloating(fp) && fp.ownerDocument.hasFocus()) doc = fp.ownerDocument;
+    var box = doc === document ? document.getElementById('toast') : doc.querySelector('#toast');
+    if (!box) { box = doc.createElement('div'); box.id = 'toast'; doc.body.appendChild(box); }
+    var el = doc.createElement('div'); el.className = 'toast-msg'; el.textContent = msg;
+    box.appendChild(el);
     setTimeout(function() { el.classList.add('out'); setTimeout(function() { el.remove(); }, 300); }, 2500);
 }
 

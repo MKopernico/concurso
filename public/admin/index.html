@@ -911,6 +911,7 @@ function renderSpotifyModal() {
             html += left < 15 ? '<br>⚠️ La conexión caduca en ' + Math.max(0, left) + ' días: vuelve a conectar pronto.' : '<br>La conexión dura hasta más o menos el ' + day(sp.expiresAt) + '.';
             if (left < 15) ok = false;
         }
+        if (sp.canEdit === false) html += '<br>ℹ️ Para mover canciones y añadirlas a listas desde el panel 🎵, pulsa «Volver a conectar» una vez (Spotify pide un permiso nuevo).';
     } else if (sp.expired) {
         html = '⚠️ <b>La conexión ha caducado</b> (Spotify la pide cada 6 meses): pulsa «Conectar con Spotify».';
     } else if (sp.clientId) {

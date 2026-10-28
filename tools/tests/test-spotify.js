@@ -5,6 +5,9 @@
 // órdenes del panel, sintonía con Spotify (fundido hasta callar → sintonía entera → vuelve con
 // fundido), pausa automática con «Adivina la canción» y vídeo, sin reproductor activo, sin
 // Premium, renovación y caducidad de la conexión, iPads sin acceso y el kit offline (no aparece).
+// Versión ampliada: avance (sin avisar cada 4 s), saltar a un punto, aleatorio/repetir, canciones de
+// una lista propia (las ajenas no se ven), tocar una canción, cola, «▶ Ya», buscar, mover y añadir a
+// listas, y las conexiones antiguas sin el permiso de cambiar listas.
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
@@ -27,8 +30,17 @@ function check(name, ok, info) { results.push(!!ok); console.log((ok ? 'OK   ' :
 const sp = {
     calls: [], codes: new Map(), access: new Set(), refresh: new Set(),
     premium: true, device: true, active: true, expireNext: false, failRefresh: false,
-    player: { is_playing: true, volume: 60, track: 'Canción de prueba', context: null },
+    player: { is_playing: true, volume: 60, track: 'Canción de prueba', uri: 'spotify:track:T000000000000', context: null, pos: 0, posAt: Date.now(), shuffle: false, repeat: 'off' },
+    narrowScope: false, queue: [],
 };
+// Canciones y listas del Spotify de mentira (la C es de otra cuenta: no se ve por dentro)
+const TR = (i) => ({ uri: 'spotify:track:T' + String(i).padStart(12, '0'), name: 'Tema ' + i, artists: [{ name: 'Grupo ' + i }], duration_ms: 180000 + i * 1000, album: { images: [{ url: 'https://i.scdn.co/image/a' + i }] } });
+sp.lists = {
+    AAAAAAAAAAAAAAAAAAAAAA: { name: 'Fiesta', owner: 'kopernico', tracks: [1, 2, 3, 4, 5].map(TR), snap: 1 },
+    BBBBBBBBBBBBBBBBBBBBBB: { name: 'Del juego', owner: 'kopernico', tracks: [6, 7].map(TR), snap: 1 },
+    CCCCCCCCCCCCCCCCCCCCCC: { name: 'Éxitos', owner: 'spotify', tracks: [8].map(TR), snap: 1 },
+};
+const posNow = () => sp.player.pos + (sp.player.is_playing ? Date.now() - sp.player.posAt : 0);
 function spReset() { sp.calls = []; }
 function spCalls(re) { return sp.calls.filter(c => re.test(c.method + ' ' + c.path)); }
 const fakeSrv = http.createServer((req, res) => {
@@ -49,7 +61,9 @@ const fakeSrv = http.createServer((req, res) => {
                 if (!ok) return send(400, { error: 'invalid_grant' });
                 const at = 'AT-' + crypto.randomBytes(6).toString('hex'), rt = 'RT-SECRETO-' + crypto.randomBytes(6).toString('hex');
                 sp.access.add(at); sp.refresh.add(rt);
-                return send(200, { access_token: at, refresh_token: rt, expires_in: 3600 });
+                // Spotify dice qué permisos se dieron (una conexión antigua no tenía los de cambiar listas)
+                const scope = sp.narrowScope ? c.scope.split(' ').filter(x => !/modify-p/.test(x)).join(' ') : c.scope;
+                return send(200, { access_token: at, refresh_token: rt, expires_in: 3600, scope });
             }
             if (p.get('grant_type') === 'refresh_token') {
                 if (sp.failRefresh || !sp.refresh.has(p.get('refresh_token'))) return send(400, { error: 'invalid_grant' });
@@ -65,25 +79,66 @@ const fakeSrv = http.createServer((req, res) => {
         if (!sp.access.has(tok)) return send(401, { error: { status: 401, message: 'The access token expired' } });
         const p = url.pathname.replace(/^\/v1/, '');
         if (p === '/me') return send(200, { id: 'kopernico', display_name: 'Kopérnico' });
-        if (p === '/me/playlists') return send(200, { items: [{ uri: 'spotify:playlist:AAAAAAAAAAAAAAAAAAAAAA', name: 'Fiesta', images: [] }] });
+        if (p === '/me/playlists') return send(200, { items: Object.keys(sp.lists).map(id => ({ uri: 'spotify:playlist:' + id, name: sp.lists[id].name, images: [], owner: { id: sp.lists[id].owner }, collaborative: false, items: { total: sp.lists[id].tracks.length } })) });
+        let m;
+        if ((m = p.match(/^\/playlists\/([A-Z]+)(\/items)?$/))) {
+            const L = sp.lists[m[1]];
+            if (!L) return send(404, { error: { status: 404, message: 'no existe' } });
+            const own = L.owner === 'kopernico';
+            if (!m[2]) return send(200, { name: L.name, owner: { id: L.owner }, collaborative: false, snapshot_id: 'snap' + L.snap, images: [] });
+            if (req.method === 'GET') {
+                if (!own) return send(403, { error: { status: 403, message: 'Forbidden' } });
+                const off = Number(url.searchParams.get('offset')) || 0, lim = Number(url.searchParams.get('limit')) || 20;
+                return send(200, { total: L.tracks.length, snapshot_id: 'snap' + L.snap, items: L.tracks.slice(off, off + lim).map(t => ({ item: t })) });
+            }
+            if (!own) return send(403, { error: { status: 403, message: 'Forbidden' } });
+            const b = JSON.parse(body || '{}');
+            if (req.method === 'PUT') {
+                const t = L.tracks.splice(b.range_start, 1)[0];
+                L.tracks.splice(b.insert_before > b.range_start ? b.insert_before - 1 : b.insert_before, 0, t);
+            } else if (req.method === 'POST') (b.uris || []).forEach(u => L.tracks.push({ ...TR(Number(u.slice(-12))), uri: u }));
+            L.snap++;
+            return send(200, { snapshot_id: 'snap' + L.snap });
+        }
+        if (p === '/search') {
+            const q = url.searchParams.get('q'), off = Number(url.searchParams.get('offset')) || 0, lim = Number(url.searchParams.get('limit'));
+            const all = Array.from({ length: 23 }, (_, i) => TR(100 + i)).map(t => ({ ...t, name: q + ' ' + t.name }));
+            return send(200, { tracks: { total: all.length, items: all.slice(off, off + lim) } });
+        }
         if (p === '/me/player/devices') return send(200, { devices: sp.device ? [{ id: 'pc-sala', name: 'PC-SALA', type: 'Computer', is_restricted: false, volume_percent: sp.player.volume }] : [] });
         if (!sp.premium && req.method !== 'GET') return send(403, { error: { status: 403, message: 'Player command failed: Premium required', reason: 'PREMIUM_REQUIRED' } });
         const devId = url.searchParams.get('device_id');
         if (devId === 'pc-sala') sp.active = true;
         if (p === '/me/player' && req.method === 'GET') {
             if (!sp.device || !sp.active) return send(204);
-            return send(200, { is_playing: sp.player.is_playing, device: { id: 'pc-sala', name: 'PC-SALA', type: 'Computer', is_restricted: false, supports_volume: true, volume_percent: sp.player.volume },
-                item: { name: sp.player.track, artists: [{ name: 'Artista' }], album: { images: [{ url: 'https://i.scdn.co/image/grande' }, { url: 'https://i.scdn.co/image/peque' }] } }, context: sp.player.context ? { uri: sp.player.context } : null });
+            return send(200, { is_playing: sp.player.is_playing, progress_ms: Math.round(posNow()), shuffle_state: sp.player.shuffle, repeat_state: sp.player.repeat,
+                device: { id: 'pc-sala', name: 'PC-SALA', type: 'Computer', is_restricted: false, supports_volume: true, volume_percent: sp.player.volume },
+                item: { name: sp.player.track, uri: sp.player.uri, duration_ms: 200000, artists: [{ name: 'Artista' }], album: { images: [{ url: 'https://i.scdn.co/image/grande' }, { url: 'https://i.scdn.co/image/peque' }] } }, context: sp.player.context ? { uri: sp.player.context } : null });
         }
         if (!sp.device || !sp.active) return send(404, { error: { status: 404, message: 'Player command failed: No active device found', reason: 'NO_ACTIVE_DEVICE' } });
         if (p === '/me/player/volume') { sp.player.volume = Number(url.searchParams.get('volume_percent')); return send(204); }
-        if (p === '/me/player/pause') { sp.player.is_playing = false; return send(204); }
+        if (p === '/me/player/pause') { sp.player.pos = posNow(); sp.player.is_playing = false; return send(204); }
         if (p === '/me/player/play') {
+            if (!sp.player.is_playing) sp.player.posAt = Date.now();
             sp.player.is_playing = true;
-            try { const b = JSON.parse(body || '{}'); if (b.context_uri) sp.player.context = b.context_uri; } catch {}
+            try {
+                const b = JSON.parse(body || '{}');
+                if (b.context_uri) sp.player.context = b.context_uri;
+                const u = (b.offset && b.offset.uri) || (b.uris && b.uris[0]);
+                if (u) { sp.player.uri = u; sp.player.track = 'Tema ' + Number(u.slice(-12)); sp.player.pos = 0; sp.player.posAt = Date.now(); }
+            } catch {}
             return send(204);
         }
-        if (p === '/me/player/next') { sp.player.track = 'Siguiente canción'; return send(204); }
+        if (p === '/me/player/seek') { sp.player.pos = Number(url.searchParams.get('position_ms')); sp.player.posAt = Date.now(); return send(204); }
+        if (p === '/me/player/shuffle') { sp.player.shuffle = url.searchParams.get('state') === 'true'; return send(204); }
+        if (p === '/me/player/repeat') { sp.player.repeat = url.searchParams.get('state'); return send(204); }
+        if (p === '/me/player/queue' && req.method === 'POST') { sp.queue.push(url.searchParams.get('uri')); return send(204); }
+        if (p === '/me/player/queue') return send(200, { currently_playing: { name: sp.player.track, uri: sp.player.uri, duration_ms: 200000, artists: [{ name: 'Artista' }] }, queue: sp.queue.map(u => TR(Number(u.slice(-12)))).concat([TR(50)]) });
+        if (p === '/me/player/next') {
+            const u = sp.queue.shift();
+            if (u) { sp.player.uri = u; sp.player.track = 'Tema ' + Number(u.slice(-12)); } else sp.player.track = 'Siguiente canción';
+            return send(204);
+        }
         if (p === '/me/player/previous') { sp.player.track = 'Canción anterior'; return send(204); }
         send(404, { error: { status: 404, message: 'no existe' } });
     });
@@ -114,6 +169,16 @@ function director(gameId) {
     const d = io(B, { query: { gameId }, transports: ['websocket'], forceNew: true, extraHeaders: { cookie } });
     d.on('game:director_sync', s => { d.state = s; }); d.on('connect', () => d.emit('director:join'));
     d.lists = null; d.on('game:spotify_lists', l => { d.lists = l; });
+    d.syncs = 0; d.on('game:director_sync', () => { d.syncs++; });
+    // Consulta de la versión ampliada: espera la respuesta con su id
+    let n = 0;
+    d.req = (op, params) => new Promise(res => {
+        const id = 'q' + (++n);
+        const h = (r) => { if (r.id === id) { d.off('game:spotify_res', h); res(r); } };
+        d.on('game:spotify_res', h);
+        d.emit('director:spotify_req', { id, op, ...(params || {}) });
+        setTimeout(() => { d.off('game:spotify_res', h); res(null); }, 4000);
+    });
     return d;
 }
 function screen(gameId) {
@@ -132,7 +197,7 @@ async function connectAccount() {
     const r = await api('/spotify/login');
     const loc = new URL(r.location);
     const code = 'CODE-' + crypto.randomBytes(4).toString('hex');
-    sp.codes.set(code, { challenge: loc.searchParams.get('code_challenge'), redirect: loc.searchParams.get('redirect_uri') });
+    sp.codes.set(code, { challenge: loc.searchParams.get('code_challenge'), redirect: loc.searchParams.get('redirect_uri'), scope: loc.searchParams.get('scope') || '' });
     return { login: r, loc, back: await api('/spotify/callback?code=' + code + '&state=' + loc.searchParams.get('state')) };
 }
 
@@ -153,9 +218,9 @@ async function connectAccount() {
 
     const { login, loc, back } = await connectAccount();
     const scopes = (loc.searchParams.get('scope') || '').split(' ');
-    check('«Conectar» manda a Spotify con PKCE y solo los permisos necesarios', login.status === 302 && loc.origin === `http://127.0.0.1:${FAKE}` && loc.pathname === '/authorize' &&
+    check('«Conectar» manda a Spotify con PKCE y solo los permisos necesarios (también cambiar listas propias)', login.status === 302 && loc.origin === `http://127.0.0.1:${FAKE}` && loc.pathname === '/authorize' &&
         loc.searchParams.get('client_id') === CLIENT && loc.searchParams.get('code_challenge_method') === 'S256' && loc.searchParams.get('redirect_uri') === `${B}/api/spotify/callback` &&
-        scopes.length === 5 && ['user-read-playback-state', 'user-modify-playback-state', 'user-read-currently-playing', 'playlist-read-private', 'playlist-read-collaborative'].every(x => scopes.includes(x)), loc.search);
+        scopes.length === 7 && ['user-read-playback-state', 'user-modify-playback-state', 'user-read-currently-playing', 'playlist-read-private', 'playlist-read-collaborative', 'playlist-modify-private', 'playlist-modify-public'].every(x => scopes.includes(x)), loc.search);
     check('Al volver de Spotify se guarda la conexión y vuelve al backoffice con «ok»', back.status === 302 && back.location === '/admin/?spotify=ok', back.location);
     st = (await api('/spotify/status')).data;
     const lifeDays = (st.expiresAt - st.connectedAt) / 86400000;
@@ -184,7 +249,8 @@ async function connectAccount() {
     await api(`/games/${g.id}/session`, { method: 'POST', body: {} });
 
     const d = director(g.id);
-    await connected(d); await wait(500);
+    await connected(d);
+    check('Al entrar el coordinador ya ve lo que suena (sin esperar a que pase algo en el juego)', await until(() => d.state && d.state.spotify && d.state.spotify.player, 3000));
     const S = screen(g.id);
     await connected(S); await wait(300);
     const pass = (await api(`/games/${g.id}/join`, { method: 'POST', body: { code: '' } })).data.pass;
@@ -243,6 +309,66 @@ async function connectAccount() {
     spReset();
     d.emit('director:sound', { action: 'sp_playlist', uri: 'javascript:alert(1)' }); await wait(500);
     check('Un enlace que no es de Spotify no hace nada', !spCalls(/\/me\/player\/play/).length);
+
+    // ── Versión ampliada del panel ──
+    sp.player.track = 'Canción de prueba'; sp.player.uri = 'spotify:track:T000000000000';
+    await wait(4500);
+    const vx = d.state.spotify;
+    check('Ampliada: el coordinador ve avance, duración, aleatorio, repetir, portada grande y la hora del servidor', vx.canEdit === true && vx.player.durationMs === 200000 && vx.player.progressMs > 0 &&
+        vx.player.shuffle === false && vx.player.repeat === 'off' && vx.player.imageBig === 'https://i.scdn.co/image/peque' && vx.player.trackUri === 'spotify:track:T000000000000' && vx.player.at > 0 && Math.abs(vx.now - Date.now()) < 3000, vx.player);
+    const s0 = d.syncs; await wait(9000);
+    check('Mientras la canción avanza sin más, no se avisa al coordinador cada 4 s (el panel cuenta solo)', d.syncs - s0 <= 1, d.syncs - s0);
+    spReset();
+    d.emit('director:sound', { action: 'sp_seek', ms: 61000 });
+    await until(() => d.state.spotify.player.progressMs >= 61000 && d.state.spotify.player.progressMs < 70000);
+    check('Arrastrar la barra salta a ese punto de la canción (y el panel se entera)', spCalls(/PUT \/v1\/me\/player\/seek\?position_ms=61000$/).length === 1 && d.state.spotify.player.progressMs >= 61000, d.state.spotify.player.progressMs);
+    d.emit('director:sound', { action: 'sp_shuffle', value: true }); await until(() => d.state.spotify.player.shuffle === true);
+    d.emit('director:sound', { action: 'sp_repeat', value: 'context' }); await until(() => d.state.spotify.player.repeat === 'context');
+    check('Aleatorio y repetir lista', d.state.spotify.player.shuffle === true && d.state.spotify.player.repeat === 'context' && sp.player.shuffle === true);
+    spReset();
+    d.emit('director:sound', { action: 'sp_repeat', value: 'loco' }); d.emit('director:sound', { action: 'sp_seek', ms: -5 }); await wait(500);
+    check('Un modo de repetir inventado o un punto negativo no se mandan', !spCalls(/repeat|seek/).length);
+    const it = await d.req('items', { uri: 'spotify:playlist:AAAAAAAAAAAAAAAAAAAAAA' });
+    check('Pestaña «Lista»: canciones de una lista propia (nombre, artista, duración, se puede cambiar)', it && it.ok && it.data.name === 'Fiesta' && it.data.editable === true && it.data.total === 5 &&
+        it.data.items.length === 5 && it.data.items[2].name === 'Tema 3' && it.data.items[2].artist === 'Grupo 3' && it.data.items[2].ms === 183000 && it.data.snapshot === 'snap1', it && (it.data || it.error));
+    const ajena = await d.req('items', { uri: 'spotify:playlist:CCCCCCCCCCCCCCCCCCCCCC' });
+    check('Una lista de otra cuenta no se ve por dentro (aviso claro: se puede poner entera)', ajena && ajena.error && /creadas por esta cuenta/.test(ajena.error), ajena && ajena.error);
+    spReset();
+    d.emit('director:sound', { action: 'sp_track', uri: 'spotify:track:T000000000003', context: 'spotify:playlist:AAAAAAAAAAAAAAAAAAAAAA' });
+    await until(() => d.state.spotify.player.track === 'Tema 3');
+    const tp = spCalls(/PUT \/v1\/me\/player\/play/)[0];
+    check('Tocar una canción de la lista la pone desde ahí (dentro de la lista, sigue con las siguientes)', tp && JSON.parse(tp.body).context_uri === 'spotify:playlist:AAAAAAAAAAAAAAAAAAAAAA' && JSON.parse(tp.body).offset.uri === 'spotify:track:T000000000003', tp && tp.body);
+    spReset();
+    d.emit('director:sound', { action: 'sp_track', uri: 'spotify:album:XXXXXXXXXXXXXXXXXXXXXX' }); await wait(500);
+    check('Algo que no es una canción no se toca', !spCalls(/\/me\/player\/play/).length);
+    d.emit('director:sound', { action: 'sp_queue', uri: 'spotify:track:T000000000009' }); await until(() => sp.queue.length === 1);
+    const qq = await d.req('queue');
+    check('«＋ Cola» la añade a la cola y la pestaña «Cola» la enseña la primera, tras lo que suena', sp.queue[0] === 'spotify:track:T000000000009' && qq && qq.ok && qq.data.current.name === 'Tema 3' && qq.data.items[0].name === 'Tema 9', qq && qq.data);
+    sp.queue = []; spReset();
+    d.emit('director:sound', { action: 'sp_now', uri: 'spotify:track:T000000000004' });
+    await until(() => d.state.spotify.player.track === 'Tema 4');
+    const qi = sp.calls.findIndex(c => /POST \/v1\/me\/player\/queue/.test(c.method + ' ' + c.path)), ni = sp.calls.findIndex(c => /POST \/v1\/me\/player\/next/.test(c.method + ' ' + c.path));
+    check('«▶ Ya»: a la cola y salta a ella (después sigue la lista que sonaba)', qi >= 0 && ni > qi && d.state.spotify.player.track === 'Tema 4' && sp.player.context === 'spotify:playlist:AAAAAAAAAAAAAAAAAAAAAA');
+    spReset();
+    const sr = await d.req('search', { q: 'fiesta' });
+    const sr2 = await d.req('search', { q: 'fiesta', offset: 20 });
+    check('Buscar: de 10 en 10 (lo que deja Spotify) y «Más resultados»', sr && sr.ok && sr.data.items.length === 10 && sr.data.total === 23 && /fiesta Tema 100/.test(sr.data.items[0].name) &&
+        sr2.data.items.length === 3 && spCalls(/GET \/v1\/search\?type=track&limit=10&offset=0&q=fiesta$/).length === 1, sr && sr.data && sr.data.total);
+    spReset();
+    const empty = await d.req('search', { q: '   ' });
+    check('Una búsqueda vacía no pregunta a Spotify', empty && empty.ok && empty.data.items.length === 0 && !sp.calls.length);
+    const mv = await d.req('reorder', { uri: 'spotify:playlist:AAAAAAAAAAAAAAAAAAAAAA', from: 0, to: 3, snapshot: 'snap1' });
+    const mvc = spCalls(/PUT \/v1\/playlists\/AAAAAAAAAAAAAAAAAAAAAA\/items/)[0];
+    check('Mover una canción en una lista propia (la 1.ª pasa a 3.ª) y devuelve la versión nueva', mv && mv.ok && mv.data.snapshot === 'snap2' && sp.lists.AAAAAAAAAAAAAAAAAAAAAA.tracks.map(t => t.name.slice(5)).join('') === '23145' &&
+        mvc && JSON.parse(mvc.body).range_start === 0 && JSON.parse(mvc.body).insert_before === 3 && JSON.parse(mvc.body).snapshot_id === 'snap1', mv && (mv.data || mv.error));
+    const add = await d.req('add', { uri: 'spotify:playlist:AAAAAAAAAAAAAAAAAAAAAA', track: 'spotify:track:T000000000102' });
+    check('«＋ Lista»: añade una canción a una lista propia', add && add.ok && sp.lists.AAAAAAAAAAAAAAAAAAAAAA.tracks.length === 6 && sp.lists.AAAAAAAAAAAAAAAAAAAAAA.tracks[5].uri === 'spotify:track:T000000000102');
+    const addA = await d.req('add', { uri: 'spotify:playlist:CCCCCCCCCCCCCCCCCCCCCC', track: 'spotify:track:T000000000102' });
+    const addX = await d.req('add', { uri: 'spotify:playlist:AAAAAAAAAAAAAAAAAAAAAA', track: 'javascript:alert(1)' });
+    check('…no en una lista de otra cuenta, ni algo que no sea una canción', addA && /no es de esta cuenta/.test(addA.error || '') && addX && addX.error && sp.lists.AAAAAAAAAAAAAAAAAAAAAA.tracks.length === 6, [addA && addA.error, addX && addX.error]);
+    const ls = await d.req('lists');
+    check('«Mis listas»: dice cuáles son de la cuenta (se ven por dentro) y cuántas canciones tienen', ls && ls.ok && ls.data.items.length === 3 && ls.data.items[0].own === true && ls.data.items[2].own === false && ls.data.items[1].total === 2, ls && ls.data);
+    sp.player.shuffle = false; sp.player.repeat = 'off';
 
     // ── Pausa automática: «Adivina la canción» y vídeo con sonido ──
     spReset();
@@ -310,14 +436,20 @@ async function connectAccount() {
     d.emit('director:sound', { action: 'jingle' }); await until(() => S.jingles.length);
     check('Sin conexión, las sintonías siguen sonando igual (sin esperar a Spotify)', S.jingles.length === 1 && S.jingles[0].cut === false && !sp.calls.length);
     sp.failRefresh = false;
+    sp.narrowScope = true; // como una conexión hecha antes de pedir el permiso de cambiar listas
     await connectAccount();
     check('Volver a conectar lo arregla', (await api('/spotify/status')).data.connected === true);
+    await until(() => d.state.spotify.connected);
+    const old = await d.req('reorder', { uri: 'spotify:playlist:AAAAAAAAAAAAAAAAAAAAAA', from: 0, to: 2 });
+    check('Conexión sin el permiso de cambiar listas: el panel y el backoffice lo saben y piden volver a conectar', d.state.spotify.canEdit === false && (await api('/spotify/status')).data.canEdit === false && old && /volver a conectar/.test(old.error || ''), old && old.error);
+    sp.narrowScope = false;
     check('Desconectar desde el backoffice', (await api('/spotify/disconnect', { method: 'POST' })).status === 200 && (await api('/spotify/status')).data.connected === false);
 
     // ── Los iPads no pueden mandar nada ──
     const before = d.state.director.sound.source;
-    p.emit('director:sound', { action: 'source', value: 'own' }); p.emit('director:spotify_lists'); await wait(400);
-    check('Un iPad no puede cambiar la fuente ni pedir las listas', d.state.director.sound.source === before);
+    let ipadRes = 0; p.on('game:spotify_res', () => { ipadRes++; });
+    p.emit('director:sound', { action: 'source', value: 'own' }); p.emit('director:spotify_lists'); p.emit('director:spotify_req', { id: 'x', op: 'lists' }); await wait(400);
+    check('Un iPad no puede cambiar la fuente ni pedir las listas', d.state.director.sound.source === before && ipadRes === 0);
 
     d.close(); S.close(); p.close();
     await stopServer();

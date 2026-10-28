@@ -2420,6 +2420,8 @@ function attachSocketHandlers(io) {
         socket.on('director:join', () => {
             socket.isDirector = true;
             socket.join(`directors:${gameId}`);
+            // Con Spotify como fuente, empezar a mirar qué suena ya al entrar (no al primer cambio del juego)
+            syncSpotify(gameId, state);
             socket.emit('game:director_sync', publicView(state));
         });
 
@@ -2588,6 +2590,15 @@ function attachSocketHandlers(io) {
                     Spotify.command(a, a === 'volume' ? data.value : a === 'playlist' ? data.uri : undefined);
                     return; // el estado nuevo llega con onChange
                 }
+                // Versión ampliada del panel: barra de avance, aleatorio, repetir, tocar una canción, cola
+                case 'sp_seek': case 'sp_shuffle': case 'sp_repeat': case 'sp_track': case 'sp_now': case 'sp_queue': {
+                    if (snd.source !== 'spotify') return;
+                    const a = data.action.slice(3);
+                    const arg = a === 'seek' ? data.ms : a === 'shuffle' ? !!data.value : a === 'repeat' ? String(data.value || '')
+                        : a === 'track' ? { uri: String(data.uri || ''), context: data.context ? String(data.context) : null } : String(data.uri || '');
+                    Spotify.command(a, arg);
+                    return;
+                }
                 case 'set': {
                     if (data.jingleVol !== undefined) snd.jingleVol = volOf(data.jingleVol, snd.jingleVol);
                     if (data.bgVol !== undefined) snd.bgVol = volOf(data.bgVol, snd.bgVol);
@@ -2603,6 +2614,28 @@ function attachSocketHandlers(io) {
         socket.on('director:spotify_lists', async () => {
             try { socket.emit('game:spotify_lists', { items: await Spotify.playlists() }); }
             catch (e) { socket.emit('game:spotify_lists', { error: e.message }); }
+        });
+
+        // Consultas de la versión ampliada (lista por dentro, cola, buscar, mover y añadir a listas).
+        // Responde solo a quien pregunta, con el mismo id.
+        socket.on('director:spotify_req', async (data) => {
+            if (!data || typeof data !== 'object') return;
+            const id = String(data.id || '').slice(0, 40), op = String(data.op || '');
+            const reply = (o) => socket.emit('game:spotify_res', { id, op, ...o });
+            try {
+                if (!Spotify.isConnected()) return reply({ error: Spotify.view().expired ? 'La conexión con Spotify ha caducado: vuelve a conectarla en el backoffice.' : 'Spotify no está conectado.' });
+                let res;
+                switch (op) {
+                    case 'lists': res = { items: await Spotify.playlists(!!data.fresh) }; break;
+                    case 'items': res = await Spotify.listItems(String(data.uri || ''), data.offset); break;
+                    case 'queue': res = await Spotify.queue(); break;
+                    case 'search': res = await Spotify.search(data.q, data.offset); break;
+                    case 'reorder': res = { snapshot: await Spotify.reorder(String(data.uri || ''), data.from, data.to, data.snapshot) }; break;
+                    case 'add': res = { snapshot: await Spotify.addToList(String(data.uri || ''), String(data.track || '')) }; break;
+                    default: return;
+                }
+                reply({ ok: true, data: res });
+            } catch (e) { reply({ error: e.message, code: e.code }); }
         });
 
         // La pantalla avisa al acabar (o cortarse) una sintonía: Spotify vuelve con fundido
