@@ -9,6 +9,7 @@ const Cifras = require('../public/shared/cifras.js');
 const Letras = require('../public/shared/letras.js');
 const LetrasDict = require('../letras-dict.js');
 const Spotify = require('../routes/spotify');
+const Deck = require('../routes/deck');
 
 const gameStates = new Map();
 
@@ -1832,6 +1833,13 @@ function emitPlayerSync(socket, state) {
     socket.emit('game:player_sync', playerView(state, !socket.isScreen));
 }
 
+function gameName(id) {
+    if (!id) return null;
+    const g = db.prepare('SELECT name FROM games WHERE id = ?').get(id);
+    return g ? g.name : null;
+}
+function deckList() { return Deck.list(gameName); }
+
 function resolveGameId(requestedId) {
     if (!requestedId) return DEFAULT_GAME_ID;
     const row = db.prepare('SELECT id FROM games WHERE id = ?').get(requestedId);
@@ -1870,7 +1878,19 @@ function attachSocketHandlers(io) {
             if (st.director && st.director.sound && st.director.sound.source === 'spotify') broadcastDirector(io, gid, st);
         }
     });
+    // Un Stream Deck se conecta o cambia de juego: los coordinadores lo ven en «🎛 Stream Deck»
+    Deck.onChange(() => { for (const gid of gameStates.keys()) io.to(`directors:${gid}`).emit('game:deck_list', deckList()); });
     io.on('connection', (socket) => {
+        // Stream Deck (complemento «GameShow»): entra con su clave en vez de la sesión del navegador
+        const deckKey = Deck.verify(socket.handshake.auth && socket.handshake.auth.deckKey);
+        if (socket.handshake.auth && socket.handshake.auth.deckKey && !deckKey) { socket.emit('deck:status', { ok: false }); socket.disconnect(true); return; }
+        if (deckKey && socket.handshake.query && socket.handshake.query.deck === 'control') {
+            // Conexión de control: solo sirve para saber con qué juego va (no entra en ninguno)
+            Deck.attach(deckKey.id, socket);
+            socket.emit('deck:status', Deck.statusOf(Deck.byId(deckKey.id), gameName(deckKey.gameId)));
+            socket.on('disconnect', () => Deck.detach(deckKey.id, socket));
+            return;
+        }
         const requested = socket.handshake.query && socket.handshake.query.gameId;
         const gameId = resolveGameId(requested);
         const deviceId = socket.handshake.query && socket.handshake.query.deviceId;
@@ -1878,11 +1898,14 @@ function attachSocketHandlers(io) {
 
         // Roles: staff = sesión de backoffice/coordinador (cookie); hasPass = el iPad tiene pase del juego.
         socket.isStaff = !!auth.sessionFromCookieHeader(socket.handshake.headers.cookie);
+        // Un Stream Deck es un coordinador más, pero solo del juego con el que está emparejado
+        socket.deckId = deckKey && deckKey.gameId === gameId ? deckKey.id : null;
+        if (socket.deckId) socket.isStaff = true;
         const pass = socket.handshake.query && socket.handshake.query.pass;
         socket.hasPass = auth.verifyGamePass(gameId, pass);
         // Solo reciben lo que pasa en el juego quienes tienen pase o sesión (la pantalla entra con screen:join).
         // Una conexión anónima sin código ya no escucha la sala.
-        if (socket.hasPass || socket.isStaff) socket.join(roomOf(gameId));
+        if (socket.hasPass || socket.isStaff) socket.join(roomOf(gameId)); // (el Stream Deck también: le llegan los segundos del crono y la cola del pulsador)
 
         // Un dato mal formado no debe tumbar el servidor (el marcador vive en este proceso):
         // cada handler se ejecuta protegido y el error solo se registra.
@@ -1897,7 +1920,11 @@ function attachSocketHandlers(io) {
             if (event.startsWith('director:') || event.startsWith('admin_')) {
                 // Se vuelve a comprobar la cookie del handshake (época y caducidad): si se cambió
                 // la contraseña o caducó, el coordinador abre la conexión de nuevo con la cookie actual
-                if (socket.isStaff && !auth.sessionFromCookieHeader(socket.handshake.headers.cookie)) socket.isStaff = false;
+                if (socket.deckId) {
+                    // Stream Deck: la clave sigue valiendo y sigue emparejado con este juego
+                    const k = Deck.stillValid(socket.deckId) && Deck.byId(socket.deckId);
+                    if (!k || k.gameId !== gameId) socket.isStaff = false;
+                } else if (socket.isStaff && !auth.sessionFromCookieHeader(socket.handshake.headers.cookie)) socket.isStaff = false;
                 if (!socket.isStaff) { socket.emit('auth_required'); return; }
             }
             // Orden ligada a una pregunta que ya no es la actual (doble toque, reenvío): se ignora
@@ -2616,6 +2643,22 @@ function attachSocketHandlers(io) {
             catch (e) { socket.emit('game:spotify_lists', { error: e.message }); }
         });
 
+        // «🎛 Stream Deck» del coordinador: qué Stream Deck hay y emparejar uno con este juego
+        // (o soltarlo). Desde un Stream Deck no se puede emparejar otro.
+        socket.on('director:deck_list', () => { socket.emit('game:deck_list', deckList()); });
+        // El Stream Deck pide el juego y sus rondas (en el orden de la escaleta) para «Ronda nº N» y la rueda de rondas
+        socket.on('director:deck_rounds', () => {
+            if (!state._rounds) state._rounds = db.prepare('SELECT id, name, type, config FROM rounds WHERE game_id = ? ORDER BY sort_order, id').all(gameId);
+            socket.emit('game:deck_rounds', { gameId, gameName: gameName(gameId), rounds: state._rounds.map(r => ({ id: r.id, name: r.name, type: r.type })) });
+        });
+        socket.on('director:deck_pair', (data) => {
+            if (socket.deckId || !data || typeof data.keyId !== 'string') return;
+            const k = Deck.byId(data.keyId);
+            if (!k) return;
+            if (data.on === false) { if (k.gameId === gameId) Deck.pair(k.id, null, null); return; }
+            Deck.pair(k.id, gameId, gameName(gameId));
+        });
+
         // Consultas de la versión ampliada (lista por dentro, cola, buscar, mover y añadir a listas).
         // Responde solo a quien pregunta, con el mismo id.
         socket.on('director:spotify_req', async (data) => {
@@ -2815,9 +2858,13 @@ function attachSocketHandlers(io) {
 
         socket.on('director:extend_timer', (data) => {
             if (isNoTimerRound(state.director)) return;
-            const secs = Math.max(1, Math.min(120, Number(data && data.seconds) || 10));
-            state.director.timer.remaining += secs;
-            state.director.timer.total += secs;
+            // También se puede restar (rueda del crono del Stream Deck): nunca por debajo de 1 s
+            let secs = Math.round(Number(data && data.seconds) || 10);
+            secs = Math.max(-120, Math.min(120, secs)) || 10;
+            const t = state.director.timer;
+            const before = t.remaining;
+            t.remaining = Math.max(1, t.remaining + secs);
+            t.total = Math.max(t.remaining, t.total + (t.remaining - before));
             broadcastDirector(io, gameId, state);
         });
 

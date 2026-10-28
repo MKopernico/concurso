@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>GameShow</title>
+<style>
+body { margin: 0; padding: 8px 10px 14px; background: #2d2d2d; color: #d8d8d8; font: 13px 'Segoe UI', Arial, sans-serif; }
+h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #9a9a9a; margin: 14px 0 6px; font-weight: 600; }
+h3:first-child { margin-top: 2px; }
+label { display: block; margin: 8px 0 3px; color: #bdbdbd; }
+input, select { width: 100%; box-sizing: border-box; background: #3d3d3d; color: #eee; border: 1px solid #555; border-radius: 4px; padding: 5px 7px; font: inherit; }
+input:focus, select:focus { outline: none; border-color: #2ea8ff; }
+.row { display: flex; gap: 6px; }
+.row > * { flex: 1; }
+.status { margin-top: 8px; padding: 7px 9px; border-radius: 5px; background: #3a3a3a; line-height: 1.4; }
+.status.ok { background: #1f3d29; color: #9fe8b4; }
+.status.warn { background: #463a14; color: #f5d66b; }
+.status.bad { background: #4a2020; color: #f4a3a3; }
+.note { font-size: 11px; color: #9a9a9a; line-height: 1.45; margin-top: 6px; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<h3>Conexión (vale para todas las teclas)</h3>
+<label for="srv">Servidor</label>
+<select id="srv">
+    <option value="prod">GameShow en internet (Render)</option>
+    <option value="kit">Este ordenador (kit offline)</option>
+    <option value="other">Otra dirección…</option>
+</select>
+<input id="srvUrl" class="hidden" placeholder="http://192.168.1.20:3000" style="margin-top:6px">
+<label for="key">Clave del Stream Deck</label>
+<input id="key" type="password" placeholder="gsd_… (backoffice › Descargas)" autocomplete="off">
+<div class="status" id="status">Comprobando…</div>
+<div class="note">El juego que maneja se elige en el coordinador: botón «Stream Deck» › «Usar aquí».</div>
+
+<div id="opts"></div>
+
+<script>
+var PROD = 'https://concurso-cf82.onrender.com', KIT = 'http://127.0.0.1:3000';
+var ws = null, uuid = null, act = null, settings = {}, globals = {}, info = null;
+var $ = function(id) { return document.getElementById(id); };
+function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+function saveSettings() { send({ event: 'setSettings', context: uuid, payload: settings }); }
+function saveGlobals() { send({ event: 'setGlobalSettings', context: uuid, payload: globals }); }
+
+// Opciones propias de cada acción
+var FORMS = {
+    'round': function() {
+        return field('Qué ronda', sel('mode', [['next', 'La siguiente de la escaleta'], ['num', 'Una concreta (nº)']]))
+            + '<div id="numWrap">' + field('Número de ronda', sel('num', roundOpts(), 'int')) + '</div>'
+            + note('Por número: vale para cualquier juego (la 1.ª, la 2.ª… de su escaleta).');
+    },
+    'type': function() { return field('Tipo de prueba', sel('type', [['', 'El primero del juego']].concat(typeOpts()))); },
+    'timer-add': function() { return field('Segundos (negativo para quitar)', '<input type="number" id="f_seconds" min="-120" max="120" step="5">'); },
+    'volume': function() {
+        return field('Qué volumen', sel('target', [['music', 'Música de fondo / Spotify'], ['jingle', 'Sintonías']]))
+            + field('Cuánto cada toque', sel('step', [['5', '+5 %'], ['10', '+10 %'], ['-5', '−5 %'], ['-10', '−10 %']], 'int'));
+    },
+    'dial-volume': function() { return field('Qué volumen', sel('target', [['music', 'Música de fondo / Spotify'], ['jingle', 'Sintonías']])); },
+    'playlist': function() { return field('Lista de Spotify (enlace)', '<input id="f_uri" placeholder="Vacío = la lista del juego">') + note('En Spotify: «Compartir › Copiar enlace a la lista».'); },
+};
+function field(l, inner) { return '<label>' + l + '</label>' + inner; }
+function note(t) { return '<div class="note">' + t + '</div>'; }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function sel(name, opts, kind) {
+    return '<select id="f_' + name + '" data-kind="' + (kind || '') + '">' + opts.map(function(o) { return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>'; }).join('') + '</select>';
+}
+function roundOpts() {
+    var r = (info && info.rounds) || [], out = [];
+    var max = Math.max(12, r.length);
+    for (var i = 1; i <= max; i++) out.push([String(i), i + (r[i - 1] ? ' · ' + r[i - 1].name : '')]);
+    return out;
+}
+function typeOpts() { return ((info && info.allTypes) || []).map(function(t) { return [t.id, t.name]; }); }
+
+function renderOpts() {
+    var id = (act || '').replace('com.kopernico.gameshow.', '');
+    var f = FORMS[id];
+    $('opts').innerHTML = f ? '<h3>Esta tecla</h3>' + f() : '';
+    $('opts').querySelectorAll('[id^="f_"]').forEach(function(el) {
+        var k = el.id.slice(2);
+        if (settings[k] !== undefined) el.value = settings[k];
+        el.addEventListener('change', function() {
+            settings[k] = el.dataset.kind === 'int' || el.type === 'number' ? Number(el.value) : el.value;
+            saveSettings(); showNum();
+        });
+    });
+    showNum();
+}
+function showNum() { var w = $('numWrap'); if (w) w.classList.toggle('hidden', settings.mode !== 'num'); }
+
+function renderConn() {
+    var s = globals.server || PROD;
+    var mode = s === PROD ? 'prod' : s === KIT ? 'kit' : 'other';
+    $('srv').value = mode;
+    $('srvUrl').classList.toggle('hidden', mode !== 'other');
+    if (mode === 'other') $('srvUrl').value = s;
+    $('key').value = globals.key || '';
+}
+function renderStatus() {
+    var st = info && info.status, el = $('status');
+    if (!st) { el.textContent = 'Comprobando…'; el.className = 'status'; return; }
+    var txt = st.ok ? 'Conectado' + (st.deckName ? ' como «' + st.deckName + '»' : '') + ' · maneja «' + (st.gameName || 'el juego') + '»'
+        : st.code === 'unpaired' ? 'Conectado, pero sin juego: en el coordinador pulsa «Stream Deck» › «Usar aquí».'
+        : st.code === 'badkey' ? 'La clave no vale (¿la han anulado?). Crea otra en el backoffice › Descargas.'
+        : st.code === 'nokey' ? 'Falta la clave: créala en el backoffice › Descargas y pégala aquí.'
+        : 'Sin conexión con ' + (st.server || 'el servidor') + '. ¿Hay internet? ¿Está abierto el kit?';
+    el.textContent = txt;
+    el.className = 'status ' + (st.ok ? 'ok' : st.code === 'unpaired' || st.code === 'nokey' ? 'warn' : 'bad');
+}
+
+$('srv').addEventListener('change', function() {
+    var v = $('srv').value;
+    $('srvUrl').classList.toggle('hidden', v !== 'other');
+    if (v === 'prod') globals.server = PROD;
+    else if (v === 'kit') globals.server = KIT;
+    else { $('srvUrl').focus(); return; }
+    saveGlobals();
+});
+$('srvUrl').addEventListener('change', function() { var u = $('srvUrl').value.trim(); if (u) { globals.server = u; saveGlobals(); } });
+$('key').addEventListener('change', function() { globals.key = $('key').value.trim(); saveGlobals(); });
+
+window.connectElgatoStreamDeckSocket = function(port, inUuid, registerEvent, inInfo, actionInfo) {
+    uuid = inUuid;
+    var ai = {};
+    try { ai = JSON.parse(actionInfo); } catch (e) {}
+    act = ai.action;
+    settings = (ai.payload && ai.payload.settings) || {};
+    ws = new WebSocket('ws://127.0.0.1:' + port);
+    ws.onopen = function() {
+        send({ event: registerEvent, uuid: uuid });
+        send({ event: 'getGlobalSettings', context: uuid });
+        send({ event: 'sendToPlugin', action: act, context: uuid, payload: { type: 'info' } });
+        renderOpts();
+    };
+    ws.onmessage = function(e) {
+        var m = {};
+        try { m = JSON.parse(e.data); } catch (err) { return; }
+        if (m.event === 'didReceiveGlobalSettings') { globals = (m.payload && m.payload.settings) || {}; renderConn(); }
+        else if (m.event === 'didReceiveSettings') { settings = (m.payload && m.payload.settings) || {}; renderOpts(); }
+        else if (m.event === 'sendToPropertyInspector' && m.payload && m.payload.type === 'info') {
+            var first = !info; info = m.payload; renderStatus();
+            if (first || document.activeElement === document.body) renderOpts();
+        }
+    };
+};
+</script>
+</body>
+</html>

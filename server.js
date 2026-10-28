@@ -24,6 +24,7 @@ const transferRoutes = require('./routes/transfer');
 const kitRoutes = require('./routes/kit');
 const mediaReduceRoutes = require('./routes/media-reduce');
 const spotifyRoutes = require('./routes/spotify');
+const deckRoutes = require('./routes/deck');
 const auth = require('./auth');
 const { attachSocketHandlers } = require('./sockets/game');
 
@@ -45,6 +46,7 @@ app.use('/api', transferRoutes); // exportar/importar juego completo (.zip)
 app.use('/api', kitRoutes.router); // kit offline descargable (⬇ Descargas del backoffice)
 app.use('/api', mediaReduceRoutes); // «🗜 Reducir fotos pesadas» de la biblioteca
 app.use('/api', spotifyRoutes.router); // Spotify (añadido opcional del panel 🎵; no en el kit)
+app.use('/api', deckRoutes.router); // Stream Deck: claves del complemento «GameShow»
 app.use('/api', uploadRoutes);
 
 // Health-check para keepalive en Render (los WebSockets no cuentan como tráfico HTTP).

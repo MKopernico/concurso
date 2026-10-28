@@ -465,6 +465,13 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .cf-dir-team .st { color: var(--text2); font-size: 12px; }
 .bl-panel .bl-cancel { background: none; border: none; color: var(--text2); font-size: 11px; cursor: pointer; font-family: inherit; padding: 2px; }
 .bl-panel .bl-cancel:hover { color: var(--text); }
+.deck-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; background: var(--surface2); font-size: 13px; }
+.deck-row + .deck-row { margin-top: 6px; }
+.deck-row .deck-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text2); flex-shrink: 0; }
+.deck-row .deck-dot.on { background: var(--success); }
+.deck-row .deck-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.deck-row .deck-t small { font-size: 11px; color: var(--text2); }
+.header-actions .hdr-btn.deck-on { background: rgba(34,197,94,.14); border-color: var(--success); color: var(--success); }
 /* Panel en ventana aparte (shared/float-panels.js): ocupa la ventana y se ancla con «📌 Anclar» */
 .bl-panel .bl-float-btn { margin-left: auto; margin-right: 10px; }
 .bl-panel.floating { position: static; width: auto; max-height: none; overflow: visible; box-shadow: none; margin-bottom: 8px; }
@@ -808,6 +815,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
         <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_premio_anuncio')" title="Anuncio de premio en pantalla"><span>&#127873;</span><span class="hdr-label">Bono</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_premio_ganador')" title="Anuncio de ganador del bono"><span>&#127941;</span><span class="hdr-label">Ganador bono</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:toggle_qr')" title="QR acceso jugadores en pantalla"><span>&#128241;</span><span class="hdr-label">QR</span></button>
+        <button class="btn-ghost hdr-btn" id="btnDeck" onclick="toggleDeckPanel(this)" title="Stream Deck: elegir cuál maneja este juego" style="display:none"><span>&#127899;</span><span class="hdr-label" id="deckLabel">Stream Deck</span></button>
         <button class="btn-ghost hdr-btn" id="btnBonoLog" onclick="toggleBonoLog(this)" title="Registro de puntos, bonos y congelaciones"><span>&#128203;</span><span class="hdr-label">Registro</span></button>
         <button class="btn-accent hdr-btn" onclick="openScreen()" title="Abrir pantalla proyector"><span>&#128250;</span><span class="hdr-label">Pantalla</span></button>
         <button class="btn-danger hdr-btn" onclick="resetSession()" title="Reset puntos (los equipos siguen)"><span>&#128260;</span><span class="hdr-label">Reset pts</span></button>
@@ -1311,6 +1319,16 @@ body.round-type-karaoke #headerTimer { display: none !important; }
     <div id="blBody"></div>
 </div>
 
+<!-- Panel 🎛: qué Stream Deck maneja este juego (complemento «GameShow»; las claves se crean en el backoffice) -->
+<div class="bl-panel" id="deckPanel">
+    <div class="bl-header">
+        <span class="bl-label">&#127899; Stream Deck</span>
+        <button class="bl-cancel bl-close" onclick="closeDeckPanel()">Cerrar</button>
+    </div>
+    <div id="deckBody"></div>
+    <div class="snd-note">El Stream Deck emparejado maneja este juego como un coordinador más (salvo «Reset» y «Borrar todo»). Las claves y el complemento están en el backoffice: «⬇ Descargas › Stream Deck».</div>
+</div>
+
 <!-- Panel de sonido (🎵): sintonías y música de fondo. Suena en la pantalla de sala. -->
 <div class="bl-panel snd-panel" id="sndPanel">
     <div class="bl-header">
@@ -1435,6 +1453,8 @@ function connectSocket() {
     socket.on('director:pic_pad_link', onPicPadLink);
     socket.on('game:spotify_lists', onSpotifyLists);
     socket.on('game:spotify_res', onSpotifyRes);
+    socket.on('game:deck_list', onDeckList);
+    socket.on('connect', () => socket.emit('director:deck_list'));
     socket.on('game:timer_tick', (d) => {
         if (S.director) { S.director.timer.remaining = d.remaining; S.director.timer.total = d.total; }
         renderTimer();
@@ -3773,6 +3793,8 @@ document.addEventListener('mousedown', function(e) {
     if (pop.classList.contains('active') && !pop.contains(e.target)) closeBonusMenu();
     var blp = document.getElementById('blPanel');
     if (blp.classList.contains('active') && !blp.contains(e.target) && e.target.id !== 'btnBonoLog') closeBonoLog();
+    var dkp = document.getElementById('deckPanel');
+    if (dkp.classList.contains('active') && !dkp.contains(e.target) && !(e.target.closest && e.target.closest('#btnDeck'))) closeDeckPanel();
     var snp = document.getElementById('sndPanel');
     if (snp.classList.contains('active') && !snp.contains(e.target) && !(e.target.closest && e.target.closest('#btnSound'))) closeSoundPanel();
 });
@@ -3819,6 +3841,49 @@ function closeBonoLog() {
     if (FloatPanels.isFloating(panel)) return;
     panel.classList.remove('active');
 }
+
+// ═══════════════ Panel 🎛: Stream Deck ═══════════════
+// El servidor manda la lista al entrar y cada vez que un Stream Deck se conecta o cambia de juego
+var _decks = [];
+function onDeckList(items) {
+    _decks = Array.isArray(items) ? items : [];
+    var btn = document.getElementById('btnDeck');
+    btn.style.display = _decks.length ? '' : 'none';
+    var mine = _decks.filter(function(d) { return d.gameId === S.gameId && d.online; });
+    btn.classList.toggle('deck-on', mine.length > 0);
+    document.getElementById('deckLabel').textContent = mine.length ? 'Stream Deck ✓' : 'Stream Deck';
+    if (document.getElementById('deckPanel').classList.contains('active')) renderDeckPanel();
+}
+function renderDeckPanel() {
+    var body = document.getElementById('deckBody');
+    if (!_decks.length) { body.innerHTML = '<div class="bl-empty">No hay ninguna clave de Stream Deck: se crean en el backoffice.</div>'; return; }
+    body.innerHTML = _decks.map(function(d) {
+        var here = d.gameId === S.gameId;
+        var sub = !d.online ? 'Sin conectar (abre el programa Stream Deck)' : here ? 'Maneja este juego' : d.gameName ? 'Con «' + d.gameName + '»' : 'Sin juego';
+        var btn = here ? '<button class="btn-ghost btn-sm" data-deck-off="' + esc(d.id) + '">Soltar</button>'
+                       : '<button class="btn-success btn-sm" data-deck-on="' + esc(d.id) + '">Usar aquí</button>';
+        return '<div class="deck-row"><span class="deck-dot' + (d.online ? ' on' : '') + '"></span><div class="deck-t"><b>' + esc(d.name) + '</b><small>' + esc(sub) + '</small></div>' + btn + '</div>';
+    }).join('');
+}
+document.getElementById('deckBody').addEventListener('click', function(e) {
+    var on = e.target.closest('[data-deck-on]'), off = e.target.closest('[data-deck-off]');
+    if (on) emit('director:deck_pair', { keyId: on.dataset.deckOn, on: true });
+    else if (off) emit('director:deck_pair', { keyId: off.dataset.deckOff, on: false });
+});
+function toggleDeckPanel(btnEl) {
+    var panel = document.getElementById('deckPanel');
+    if (panel.classList.contains('active')) { closeDeckPanel(); return; }
+    renderDeckPanel();
+    if (socket) socket.emit('director:deck_list');
+    panel.classList.add('active');
+    var rect = btnEl.getBoundingClientRect();
+    var left = rect.left + rect.width / 2 - panel.offsetWidth / 2;
+    if (left < 4) left = 4;
+    if (left + panel.offsetWidth > window.innerWidth - 4) left = window.innerWidth - panel.offsetWidth - 4;
+    panel.style.left = left + 'px';
+    panel.style.top = (rect.bottom + 8) + 'px';
+}
+function closeDeckPanel() { document.getElementById('deckPanel').classList.remove('active'); }
 
 // ═══════════════ Panel 🎵: sintonías y música de fondo ═══════════════
 // Las órdenes van al servidor ('director:sound') y suenan en la pantalla de sala.
