@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/shared/gameshow-transitions.css">
 <link rel="stylesheet" href="/shared/roulette-panel.css">
 <link rel="stylesheet" href="/shared/pictionary-board.css">
+<link rel="stylesheet" href="/director/presenter.css">
 <style>
 :root { --bg: #0a0a10; --surface: #14141e; --surface2: #1c1c2a; --border: #2a2a3a; --text: #e4e4e7; --text2: #8888a0; --accent: #00d4ff; --accent-dim: #0097b8; --danger: #ef4444; --success: #22c55e; --gold: #facc15; --orange: #f97316; --radius: 10px; --bb-h: 70px; }
 
@@ -53,7 +54,10 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; z-index: 70; position: relative; }
 .sidebar-header { padding: 12px 14px 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); display: flex; align-items: center; justify-content: space-between; }
 .rounds-list { flex: 1; overflow-y: auto; padding: 0 8px 60px; }
-.round-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; transition: .15s; border: 1px solid transparent; }
+.round-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; transition: .15s; border: 1px solid transparent; position: relative; padding-right: 36px; }
+.round-grip { position: absolute; top: 0; right: 0; bottom: 0; width: 34px; display: flex; align-items: center; justify-content: center; color: var(--text2); font-size: 16px; cursor: grab; touch-action: none; opacity: .6; }
+.round-grip:hover { opacity: 1; color: var(--text); }
+.round-item.dragging { background: var(--surface2); border-color: var(--gold); opacity: .95; }
 .round-item:hover { background: var(--surface2); }
 .round-item.active { background: rgba(0,212,255,.1); border-color: var(--accent); }
 .round-item.completed .round-name { text-decoration: line-through; color: var(--danger); opacity: .7; }
@@ -805,6 +809,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
         <div class="header-right"></div>
     </div>
     <div class="header-actions">
+        <button class="btn-ghost hdr-btn" id="btnPresenter" onclick="PV.enter()" title="Vista de presentador: lo justo y en grande para llevar el iPad en la mano"><span>&#127908;</span><span class="hdr-label">Presentador</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:show_home')" title="Menu Home"><span>&#127968;</span><span class="hdr-label">Home</span></button>
         <button class="btn-ghost hdr-btn" onclick="toggleScoreboard()" title="Marcador"><span>&#127942;</span><span class="hdr-label">Ranking</span></button>
         <button class="btn-ghost hdr-btn" onclick="emit('director:show_waiting')" title="Espera"><span>&#9208;</span><span class="hdr-label">Espera</span></button>
@@ -1403,6 +1408,7 @@ body.round-type-karaoke #headerTimer { display: none !important; }
 <script src="/shared/question-validation.js"></script>
 <script src="/shared/image-shrink.js"></script>
 <script src="/shared/float-panels.js"></script>
+<script src="/shared/next-step.js"></script>
 <script>
 const S = {
     gameId: null, game: null, rounds: [],
@@ -1458,9 +1464,10 @@ function connectSocket() {
     socket.on('game:timer_tick', (d) => {
         if (S.director) { S.director.timer.remaining = d.remaining; S.director.timer.total = d.total; }
         renderTimer();
+        PV.renderTimer();
     });
-    socket.on('actualizar_pulsador_lista', (c) => { S.colaPulsador = c; renderBuzzer(); });
-    socket.on('estado_pulsador_cambio', (d) => { S.pulsadorActivo = d.activo; S.colaPulsador = d.cola; renderBuzzer(); });
+    socket.on('actualizar_pulsador_lista', (c) => { S.colaPulsador = c; renderBuzzer(); PV.render(); });
+    socket.on('estado_pulsador_cambio', (d) => { S.pulsadorActivo = d.activo; S.colaPulsador = d.cola; renderBuzzer(); PV.render(); });
     socket.on('init_connection', () => socket.emit('director:join'));
     socket.on('actualizar_admin_equipos', function(equipos) {
         S.equipos = equipos || [];
@@ -1560,6 +1567,7 @@ function render() {
     _prevQIdx = ds.currentQuestionIdx;
     _prevOptionsRevealed = ds.optionsRevealed;
     _prevRoundId = ds.currentRoundId;
+    PV.render();
 }
 
 function setPhase(phase) {
@@ -1583,11 +1591,14 @@ function renderRounds() {
     S.rounds.forEach(function(r, i) {
         var qCount = (r.questions || []).length;
         html += '<div class="round-item" data-id="' + esc(r.id) + '" onclick="launchRound(this.dataset.id)">'
+            + '<span class="round-grip" title="Arrastrar para cambiar el orden">&#10303;</span>'
             + '<div class="round-name"><span class="round-num">' + (i + 1) + '.</span> ' + esc(r.name) + '</div>'
             + '<div class="round-meta"><span class="round-type type-' + esc(r.type) + '">' + esc(TYPE_LABELS[r.type] || r.type) + '</span>'
             + '<span>' + qCount + ' preg.</span></div></div>';
     });
     list.innerHTML = html;
+    // Escaleta en directo: arrastrando el asa se cambia el orden (se guarda en el juego, como en el backoffice)
+    PV.makeSortable(list, '.round-item', '.round-grip', PV.saveOrder);
     renderRoundsActive();
 }
 
@@ -5282,5 +5293,8 @@ document.getElementById('pointsInput').addEventListener('keydown', function(e) {
     setInterval(syncBB, 2000); // red de seguridad: leer un alto cada 2 s no cuesta nada
 })();
 </script>
+<!-- Vista de presentador (🎤): lo justo y en grande para llevar el iPad en la mano -->
+<script src="/director/presenter.js"></script>
+<script>PV.autoStart();</script>
 </body>
 </html>
