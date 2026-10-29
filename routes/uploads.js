@@ -35,11 +35,28 @@ function sanitizeName(original) {
     return { base: safe || 'archivo', ext: ext.toLowerCase() };
 }
 
+// Nombres de images/ que dejó libres «Reducir fotos pesadas» al cambiar de formato (logo.png →
+// logo.jpg): siguen reservados para que la URL vieja redirija a la nueva y se pueda deshacer.
+const REDUCED_LOG = path.join(UPLOADS_DIR, '..', 'config', 'fotos-reducidas.json');
+let _reserved = { mtime: -1, names: new Set() };
+function reservedImageNames() {
+    let mtime = 0;
+    try { mtime = fs.statSync(REDUCED_LOG).mtimeMs; } catch (e) { return new Set(); }
+    if (mtime !== _reserved.mtime) {
+        let entries = [];
+        try { entries = JSON.parse(fs.readFileSync(REDUCED_LOG, 'utf8')).entries || []; } catch (e) { /* se queda la lista anterior */ return _reserved.names; }
+        _reserved = { mtime, names: new Set(entries.filter(e => e.newUrl !== e.url).map(e => path.basename(String(e.url)))) };
+    }
+    return _reserved.names;
+}
+
 function uniqueName(dest, base, ext) {
+    const reserved = path.resolve(dest) === path.resolve(UPLOADS_DIR, 'images') ? reservedImageNames() : null;
+    const taken = (name) => fs.existsSync(path.join(dest, name)) || !!(reserved && reserved.has(name));
     let candidate = base + ext;
-    if (!fs.existsSync(path.join(dest, candidate))) return candidate;
+    if (!taken(candidate)) return candidate;
     let n = 2;
-    while (fs.existsSync(path.join(dest, base + '-' + n + ext))) n++;
+    while (taken(base + '-' + n + ext)) n++;
     return base + '-' + n + ext;
 }
 
@@ -383,4 +400,4 @@ router.use((err, req, res, next) => {
 
 module.exports = router;
 // Reutilizados por la exportación/importación de juegos (routes/transfer.js)
-module.exports.helpers = { UPLOADS_DIR, sanitizeName, uniqueName, kindOf, gameUploadUrls };
+module.exports.helpers = { UPLOADS_DIR, REDUCED_LOG, sanitizeName, uniqueName, kindOf, gameUploadUrls };

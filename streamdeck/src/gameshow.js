@@ -34,7 +34,8 @@ class GameShow extends EventEmitter {
             this.deckName = s.name || null;
             this.gameName = s.gameName || null;
             this._joinGame(s.gameId || null);
-            this._set(s.gameId ? (this.st ? 'ok' : 'offline') : 'unpaired');
+            // «Conectado» solo con la conexión del juego en marcha (tras reiniciar el servidor llega antes la de control)
+            this._set(s.gameId ? (this.st && this.game && this.game.connected ? 'ok' : 'offline') : 'unpaired');
         });
         this.control.on('connect_error', () => { if (this.code !== 'badkey') this._set('offline'); });
         this.control.on('disconnect', () => { if (this.code !== 'badkey') this._set('offline'); });

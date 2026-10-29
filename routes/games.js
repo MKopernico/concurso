@@ -25,6 +25,10 @@ router.use((req, res, next) => {
         else if ((m = /^\/questions\/([^/]+)/.exec(req.path))) gameId = (db.prepare('SELECT r.game_id FROM questions q JOIN rounds r ON r.id = q.round_id WHERE q.id = ?').get(m[1]) || {}).game_id;
     } catch (e) { gameId = null; }
     if (gameId) res.on('finish', () => { if (res.statusCode < 400) require('../sockets/game').roundsChanged(gameId); });
+    // Fotos que cambiaron de formato con «Reducir fotos pesadas»: la URL vieja no vuelve a entrar
+    if (/^\/(games|rounds|questions|import)/.test(req.path)) res.on('finish', () => {
+        if (res.statusCode < 400) { try { require('./media-reduce').fixMovedRefs(); } catch (e) { console.error('[fotos] ' + e.message); } }
+    });
     next();
 });
 

@@ -60,7 +60,10 @@ function nextStep(st, rounds) {
                 if (s === 'correcting') return step('Revelar', 'director:abierta_reveal');
             }
             if (OPEN_FIRST[type] && !ds.optionsRevealed && !(type === 'letras' && ds.letras)) return step(OPEN_FIRST[type], 'director:reveal_options');
-            if (type === 'pictionary' && ds.pictionary && ds.pictionary.step === 'setup') return step('Empezar a dibujar', 'director:pic_start');
+            if (type === 'pictionary' && ds.pictionary && ds.pictionary.step === 'setup') {
+                if (ds.pictionary.mode !== 'ipad' && !ds.pictionary.drawer) return none('Elige quién dibuja');
+                return step('Empezar a dibujar', 'director:pic_start');
+            }
             // Ruleta: primero se enseña el panel en la sala (también abre el pulsador), como en el coordinador
             if (type === 'ruleta' && !ds.roulettePanelVisible && !ds.buzzerWinner && !cola.length) return step('Mostrar panel', 'director:show_roulette_panel');
             if (BUZZ.has(type) || type === 'pictionary') {
@@ -81,7 +84,10 @@ function nextStep(st, rounds) {
             return step('Siguiente pregunta', 'director:next_question');
         }
         default: {
-            if (ds.phase === 'waiting' && ds.resumePhase) return step('Volver a la prueba', 'director:resume_question');
+            // Pregunta dejada a medias por Espera o Home: primero, volver a ella (no saltar a otra ronda)
+            if ((ds.phase === 'waiting' || ds.phase === 'lobby') && ds.resumePhase) return step('Volver a la prueba', 'director:resume_question');
+            // Sala de espera del principio: se entra al Home (no se lanza una ronda con equipos aún entrando)
+            if (ds.phase === 'lobby' && !ds.menuLevel) return (st.equipos || []).length ? step('Iniciar juego', 'director:show_home') : none('Esperando equipos…');
             const r = nextRound(ds, rounds);
             if (r) return step('Ronda: ' + r.name, 'director:launch_round', { roundId: r.id });
             return none('No quedan rondas');

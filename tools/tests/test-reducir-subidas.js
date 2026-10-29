@@ -153,7 +153,7 @@ const assets = (id) => `return await (await fetch('/api/games/${id}/assets?role=
         await page.eval('window.confirm = () => true; await restoreOriginals(); return true;');
         const gA2 = await page.eval(game(S.gA));
         check('Recuperar originales: las 3 fotos vuelven a ser idénticas a las originales', sha(file(S.u.big)) === orig.big && sha(file(S.u.cartel)) === orig.cartel && sha(file(S.u.logo)) === orig.logo);
-        check('…la pregunta y el tema vuelven a las URLs originales y se borra el JPEG nuevo', gA2.rounds[0].questions[0].content.image === S.u.cartel && gA2.theme.logo === S.u.logo && !fs.existsSync(file(newCartel)), gA2.rounds[0].questions[0].content.image);
+        check('…la pregunta y el tema vuelven a las URLs originales (el JPEG nuevo se queda: Excel o partidas con esa URL siguen viéndose)', gA2.rounds[0].questions[0].content.image === S.u.cartel && gA2.theme.logo === S.u.logo && fs.existsSync(file(newCartel)), gA2.rounds[0].questions[0].content.image);
         const heavy3 = await page.eval(`return await (await fetch('/api/media/images/heavy')).json();`);
         const back = await fetch(B + S.u.cartel, { redirect: 'manual' });
         check('…sin copias ni registro pendientes, sin redirección y otra vez 3 pesadas', fs.readdirSync(BACKUPS).length === 0 && heavy3.undo === 0 && heavy3.files.length === 3 && back.status === 200, { copias: fs.readdirSync(BACKUPS), undo: heavy3.undo, pesadas: heavy3.files.length, url: back.status });

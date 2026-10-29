@@ -95,9 +95,9 @@
       case 'cifras': {
         // Objetivo entero positivo y de 2 a 7 números enteros positivos
         var t = Number(c.target);
-        if (!(t > 0 && t % 1 === 0)) missing.push('target');
+        if (!(t > 0 && t % 1 === 0 && t <= 100000)) missing.push('target'); // mismos topes que shared/cifras.js
         var ns = Array.isArray(c.numbers) ? c.numbers : [];
-        if (ns.length < 2 || ns.length > 7 || !ns.every(function (v) { v = Number(v); return v > 0 && v % 1 === 0; })) missing.push('numbers');
+        if (ns.length < 2 || ns.length > 7 || !ns.every(function (v) { v = Number(v); return v > 0 && v % 1 === 0 && v <= 10000; })) missing.push('numbers');
         break;
       }
       case 'abierta': {

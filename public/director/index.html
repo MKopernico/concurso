@@ -4133,6 +4133,8 @@ function spReq(op, params, cb) {
     var id = 'q' + (++SPX.seq);
     SPX.cbs[id] = cb;
     socket.emit('director:spotify_req', Object.assign({ id: id, op: op }, params || {}));
+    // Sin respuesta (corte, sesión caducada): a los 15 s se da por fallida para no quedarse «Cargando…»
+    setTimeout(function() { onSpotifyRes({ id: id, error: 'Spotify no ha contestado. Vuelve a intentarlo.' }); }, 15000);
 }
 function onSpotifyRes(d) {
     var cb = d && SPX.cbs[d.id];

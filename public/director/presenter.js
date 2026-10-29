@@ -10,7 +10,7 @@ var PV = (function () {
     var KEY = 'gs_presenter';
     var BUZZ = GSNextStep.BUZZ;
     var LETTERS = 'ABCDEFGHIJKLMNOP';
-    var on = false, sheet = null, lockUntil = 0, wake = null, dragging = false;
+    var on = false, sheet = null, lockUntil = 0, lockAt = 0, lockText = '', wake = null, dragging = false;
     var acts = [];          // acciones de los botones de este pintado (data-i → función)
     var painted = {};       // último HTML de cada zona: solo se repinta si cambia (no comerse toques)
     var zoneActs = {};      // acciones con las que se pintó cada zona (su data-i apunta aquí)
@@ -244,6 +244,12 @@ var PV = (function () {
         else if (ev === 'director:launch_round') { fn = function () { launchRound(st.data.roundId); }; cls = 'btn-success'; text = '&#9654; Siguiente: ' + esc(st.label.replace(/^Ronda: /, '')); }
         else if (ev === 'director:start_round' || ev === 'director:resume_question') { cls = 'btn-success'; text = '&#9654; ' + text; }
         else if (ev === 'director:reveal_next_pair') cls = 'btn-orange';
+        else if (ev === 'director:abierta_close') fn = function () {
+            // Como en el coordinador: avisar si alguien sigue escribiendo (lo que tenga contará igual)
+            var pending = S.equipos.filter(function (e) { var x = (d.answers || {})[e.id]; return !e.bloqueado && !(x && x.submitted); }).length;
+            if (pending && !confirm((pending === 1 ? 'Queda 1 equipo' : 'Quedan ' + pending + ' equipos') + ' sin enviar. Lo que tengan escrito contará igual. ¿Cerrar las respuestas?')) return;
+            emit(ev);
+        };
         if (!fn) fn = function () { emit(ev, st.data); };
         return { text: text, fn: fn, cls: cls };
     }
@@ -342,7 +348,8 @@ var PV = (function () {
 
     // ── Pintar ──
     function render() {
-        if (!on || !D()) return;
+        if (!on) return;
+        if (!D()) { acts = []; paint('pvBody', '<div class="pv-card pv-note">Conectando con el juego…</div>'); return; }
         acts = [];
         var tt = titles();
         $('pvTitle').textContent = tt[0];
@@ -355,10 +362,19 @@ var PV = (function () {
             a += '<div class="pv-okko">' + btn('&#10004; Acierto', function () { markFirst(true); }, 'btn-success') + btn('&#10008; Fallo', function () { markFirst(false); }, 'btn-danger') + '</div>';
         }
         a += '<div class="pv-sec">' + secondary() + '</div>';
-        if (p) a += p.idle ? '<button class="pv-primary idle" disabled>' + p.text + '</button>'
-            : btn(p.text, p.fn, 'pv-primary ' + p.cls + (p.text !== lastPrimary && lastPrimary ? ' flash' : '') + (Date.now() < lockUntil ? ' locked' : ''));
-        lastPrimary = p && !p.idle ? p.text : '';
+        if (p) a += p.idle ? '<button class="pv-primary idle" disabled>' + p.text + '</button>' : btn(p.text, p.fn, 'pv-primary ' + p.cls);
+        var txt = p && !p.idle ? p.text : '';
+        // El bloqueo tras un toque dura hasta que llega el estado nuevo (el botón cambia), con 0,7 s de
+        // mínimo y 3 s de máximo: con wifi lenta, dos toques a «Cerrar» en Letras se saltaban la corrección
+        if (lockUntil && txt !== lockText && Date.now() - lockAt >= 700) lockUntil = 0;
         paint('pvActions', a);
+        // Destello y bloqueo sobre el botón que hay, sin meterlos en el HTML (si no, repintaba y se comía toques)
+        var pb = $('pvActions').querySelector('.pv-primary:not(.idle)');
+        if (pb) {
+            pb.classList.toggle('locked', Date.now() < lockUntil);
+            if (txt !== lastPrimary && lastPrimary) { pb.classList.remove('flash'); void pb.offsetWidth; pb.classList.add('flash'); }
+        }
+        lastPrimary = txt;
         if (sheet && !dragging) renderSheet();
     }
 
@@ -376,6 +392,7 @@ var PV = (function () {
 
     function renderSheet() {
         var d = D(), html = '';
+        if (!d) { $('pvSheetTitle').textContent = ''; $('pvSheetSub').textContent = ''; paint('pvSheetBody', '<div class="pv-card pv-note">Conectando…</div>'); return; }
         if (sheet === 'more') {
             $('pvSheetTitle').textContent = 'Más'; $('pvSheetSub').textContent = '';
             var b = function (ic, text, fn, active) { return btn('<span class="ic">' + ic + '</span>' + text, fn, 'btn-ghost' + (active ? ' on' : '')); };
@@ -412,7 +429,8 @@ var PV = (function () {
             if (inQuestion() || d.phase === 'round_intro') {
                 html += '<div class="pv-card"><h3>Preguntas de «' + esc((d.currentRound && d.currentRound.name) || '') + '»</h3><div class="pv-qs">'
                     + (d.questions || []).map(function (q, i) {
-                        return btn(String(i + 1), function () { emit('director:launch_question', { idx: i }); closeSheet(); }, i === d.currentQuestionIdx && inQuestion() ? 'cur' : '');
+                        // jumpToQuestion: avisa si la actual tiene respuestas sin revelar (se perderían)
+                        return btn(String(i + 1), function () { jumpToQuestion(i); closeSheet(); }, i === d.currentQuestionIdx && inQuestion() ? 'cur' : '');
                     }).join('') + '</div></div>';
             }
             html += '<div class="pv-esc" id="pvEsc">' + S.rounds.map(function (r, i) {
@@ -455,7 +473,7 @@ var PV = (function () {
                 document.body.appendChild(line); document.body.appendChild(ghost);
                 dragging = true;
                 row.classList.add('sort-src');
-                var pid = ev.pointerId, drop = null, lastY = ev.clientY, timer = null;
+                var pid = ev.pointerId, drop = null, startY = ev.clientY, lastY = ev.clientY, timer = null, moved = false;
                 // Dónde caería con el dedo en «y»: delante de la fila cuya mitad queda por debajo (o al final)
                 function place(y) {
                     var rows = list.querySelectorAll(rowSel), lr = list.getBoundingClientRect(), target = null;
@@ -481,6 +499,9 @@ var PV = (function () {
                     e.preventDefault();
                     lastY = e.clientY;
                     ghost.style.top = (e.clientY - offY) + 'px';
+                    // Hasta que no se mueve de verdad no hay raya ni desplazamiento (dejar el dedo quieto no mueve nada)
+                    if (!moved && Math.abs(e.clientY - startY) < 8) return;
+                    if (!moved) { moved = true; timer = setInterval(autoScroll, 30); }
                     place(e.clientY);
                 }
                 function up(e) {
@@ -491,14 +512,19 @@ var PV = (function () {
                     row.classList.remove('sort-src');
                     dragging = false;
                     var before = ids();
-                    if (e.type === 'pointerup' && line.style.display !== 'none') {
+                    if (moved && e.type === 'pointerup' && line.style.display !== 'none' && drop !== row && row.isConnected && (!drop || drop.parentNode === list)) {
                         if (drop) list.insertBefore(row, drop); else list.appendChild(row);
+                    }
+                    // Con ratón, soltar sobre la fila genera un clic que la lanzaría (barra «Rondas»): se anula
+                    if (moved) {
+                        var eat = function (c) { c.stopPropagation(); c.preventDefault(); };
+                        window.addEventListener('click', eat, true);
+                        setTimeout(function () { window.removeEventListener('click', eat, true); }, 0);
                     }
                     var after = ids();
                     if (after.join() !== before.join()) onDrop(after);
                     else if (sheet) renderSheet();
                 }
-                timer = setInterval(autoScroll, 30);
                 window.addEventListener('pointermove', move, { passive: false }); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
             });
         });
@@ -553,9 +579,9 @@ var PV = (function () {
             if (el.classList.contains('pv-primary') || el.closest('.pv-okko')) {
                 // El botón grande cambia de texto tras cada toque: un doble toque no se salta dos pasos
                 if (Date.now() < lockUntil) return;
-                lockUntil = Date.now() + 700;
+                lockAt = Date.now(); lockUntil = lockAt + 3000; lockText = lastPrimary;
                 el.classList.add('locked');
-                setTimeout(function () { el.classList.remove('locked'); }, 700);
+                setTimeout(render, 720); setTimeout(render, 3020); // quitar el bloqueo si ya llegó el estado nuevo (o al tope)
             }
             fn.call(el, { currentTarget: el });
         }

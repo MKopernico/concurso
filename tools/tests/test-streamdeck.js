@@ -90,10 +90,15 @@ const dialPush = (ctx, action) => sdSend({ event: 'dialDown', action: P + action
         check('Pregunta con bono: avisa de que el ganador se elige en el coordinador', bono.none && /coordinador/.test(bono.label));
         const lt = [nextStep(S({ currentRound: { type: 'letras' } })).label, nextStep(S({ currentRound: { type: 'letras' }, optionsRevealed: true })).label, nextStep(S({ currentRound: { type: 'letras' }, optionsRevealed: true, letras: { step: 'correcting' } })).label];
         check('Letras: empezar → cerrar → revelar', lt.join('|') === 'Empezar|Cerrar|Revelar', lt);
-        const pic = nextStep(S({ currentRound: { type: 'pictionary' }, pictionary: { step: 'setup' } }));
+        const pic = nextStep(S({ currentRound: { type: 'pictionary' }, pictionary: { step: 'setup', mode: 'equipos', drawer: 't1' } }));
+        const picNo = nextStep(S({ currentRound: { type: 'pictionary' }, pictionary: { step: 'setup', mode: 'equipos', drawer: null } }));
         const kar = nextStep(S({ currentRound: { type: 'karaoke' } }));
         const wt = nextStep(S({ phase: 'waiting', resumePhase: 'question' }));
-        check('Pictionary «Empezar a dibujar», karaoke en el coordinador, «Espera» vuelve a la prueba', pic.ev === 'director:pic_start' && kar.none && wt.ev === 'director:resume_question', [pic.label, kar.label, wt.label]);
+        check('Pictionary «Empezar a dibujar» (sin equipo elegido, espera), karaoke en el coordinador, «Espera» vuelve a la prueba', pic.ev === 'director:pic_start' && picNo.none && kar.none && wt.ev === 'director:resume_question', [pic.label, picNo.label, kar.label, wt.label]);
+        const homeRes = nextStep(S({ phase: 'lobby', menuLevel: 'home', resumePhase: 'question' }));
+        const lobby0 = nextStep(S({ phase: 'lobby', menuLevel: null }));
+        const lobby1 = nextStep(S({ phase: 'lobby', menuLevel: null }, { equipos: [{ id: 't1' }] }));
+        check('Home con una pregunta a medias: vuelve a ella; sala de espera: espera equipos y luego «Iniciar juego»', homeRes.ev === 'director:resume_question' && lobby0.none && lobby1.ev === 'director:show_home', [homeRes.label, lobby0.label, lobby1.label]);
     }
 
     await startServer();
@@ -159,6 +164,9 @@ const dialPush = (ctx, action) => sdSend({ event: 'dialDown', action: P + action
     check('«Usar aquí» en el coordinador: el Stream Deck pasa a manejar ese juego', /Juego del Deck/.test(textOf('k0')) && /Conectado/.test(textOf('k0')), textOf('k0'));
     await until(() => d.decks && d.decks[0].gameId === g.id);
     check('…y el coordinador lo ve emparejado', d.decks[0].gameId === g.id && d.decks[0].gameName === 'Juego del Deck');
+    await until(() => /Esperando/.test(textOf('k1')));
+    check('En la sala de espera sin equipos, «Siguiente paso» no lanza nada', /Esperando/.test(textOf('k1')), textOf('k1'));
+    d.emit('director:show_home');
     await until(() => /Ronda/.test(textOf('k1')));
     check('«Siguiente paso» propone la primera ronda de la escaleta', /Ronda: Preguntas/.test(textOf('k1')), textOf('k1'));
     check('«Ronda nº 2» enseña cuál es', /Ronda 2\/2/.test(textOf('k8')) && /Pulsa/.test(textOf('k8')), textOf('k8'));

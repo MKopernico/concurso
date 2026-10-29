@@ -999,13 +999,16 @@ var GSnd = (function() {
     J.addEventListener('ended', jingleDone);
     J.addEventListener('error', jingleDone);
 
-    function bgEnded() {
+    // Se avisa de la canción que acabó (o falló), no de la que haya cuando llegue el aviso: con dos
+    // pantallas, o si el coordinador elige otra mientras, no se salta la siguiente
+    function bgEnded(key) {
         var c = cfg();
-        if (c && c.bg && socket) socket.emit('screen:bg_ended', { idx: c.bg.idx, seq: c.bg.seq });
+        if (!c || !c.bg || !socket || key !== bgKey || !bgWant) return;
+        socket.emit('screen:bg_ended', { idx: c.bg.idx, seq: c.bg.seq });
     }
-    BG.addEventListener('ended', bgEnded);
+    BG.addEventListener('ended', function() { bgEnded(bgKey); });
     // Archivo que falta o no se puede leer: se salta (con pausa, para no dar vueltas sin parar)
-    BG.addEventListener('error', function() { if (bgKey) setTimeout(bgEnded, 2000); });
+    BG.addEventListener('error', function() { var key = bgKey; if (key) setTimeout(function() { bgEnded(key); }, 2000); });
 
     // Con cada estado nuevo del servidor: qué canción de fondo toca y si debe sonar
     function sync() {
@@ -1048,7 +1051,7 @@ var GSnd = (function() {
         if (bgVol < target) bgVol = Math.min(target, bgVol + step);
         else if (bgVol > target) bgVol = Math.max(target, bgVol - step);
         BG.volume = curve(c.bgVol / 100) * bgVol;
-        if (target > 0 && BG.paused && BG.getAttribute('src')) tryPlay(BG);
+        if (target > 0 && BG.paused && !BG.ended && BG.getAttribute('src')) tryPlay(BG); // acabada: espera la siguiente
         else if (target === 0 && bgVol === 0 && !BG.paused) BG.pause();
     }, 50);
 

@@ -73,9 +73,22 @@ function tell(keyId, payload) {
     const s = online.get(keyId);
     if (s) s.forEach(sock => sock.emit('deck:status', payload));
 }
+// Conexiones de juego de cada clave (las que reciben el estado con las respuestas): al anularla o
+// emparejarla con otro juego se cortan, no basta con dejar de aceptar sus órdenes
+const gameSockets = new Map(); // keyId → Set(socket)
+function attachGame(keyId, socket) {
+    if (!gameSockets.has(keyId)) gameSockets.set(keyId, new Set());
+    gameSockets.get(keyId).add(socket);
+    socket.on('disconnect', () => { const s = gameSockets.get(keyId); if (s) { s.delete(socket); if (!s.size) gameSockets.delete(keyId); } });
+}
+function cutGames(keyId, keepGameId) {
+    const s = gameSockets.get(keyId);
+    if (s) [...s].forEach(sock => { if (!keepGameId || sock.gameId !== keepGameId) sock.disconnect(true); });
+}
 function pair(keyId, gameId, gameName) {
     const k = update(keyId, { gameId });
     if (!k) return null;
+    cutGames(keyId, gameId);
     tell(keyId, statusOf(k, gameName));
     notify();
     return k;
@@ -112,6 +125,7 @@ router.delete('/deck/keys/:id', (req, res) => {
     if (s) s.forEach(sock => { sock.emit('deck:status', { ok: false }); sock.disconnect(true); });
     online.delete(k.id);
     revoked.add(k.id);
+    cutGames(k.id, null);
     notify();
     res.json({ ok: true });
 });
@@ -119,4 +133,4 @@ router.delete('/deck/keys/:id', (req, res) => {
 const revoked = new Set();
 function stillValid(keyId) { return !revoked.has(keyId) && !!byId(keyId); }
 
-module.exports = { router, verify, byId, attach, detach, isOnline, pair, list, statusOf, stillValid, onChange };
+module.exports = { router, verify, byId, attach, detach, attachGame, isOnline, pair, list, statusOf, stillValid, onChange };

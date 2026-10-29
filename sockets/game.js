@@ -143,7 +143,9 @@ function playJingle(io, gameId, state, url, force) {
     if (!snd || !isSoundUrl(url)) return false;
     const now = Date.now(), last = snd.jingle;
     if (!force && last && last.url === url && now - last.at < JINGLE_REPEAT_MS) return false;
-    snd.jingle = { id: (last ? last.id : 0) + 1, url, at: now };
+    // Número que solo sube (cortar pone jingle a null): un aviso tardío de la anterior no se confunde con esta
+    snd.jingleSeq = Math.max(snd.jingleSeq || 0, last ? last.id : 0) + 1;
+    snd.jingle = { id: snd.jingleSeq, url, at: now };
     const id = snd.jingle.id;
     // cut: el fondo ya está callado (Spotify fundido y en pausa): la sintonía entra entera, sin fundido
     const send = (cut) => {
@@ -183,12 +185,16 @@ function stopJingle(io, gameId, state) {
 
 // Con Spotify como fuente: se consulta lo que suena y se calla solo con «Adivina la canción», el
 // karaoke o un vídeo con sonido en la pantalla (la sintonía la retiene playJingle)
-function syncSpotify(gameId, state) {
+// Un juego sin coordinadores ni pantallas conectados deja de contar: si no, una partida que se
+// quedó a medias (karaoke) retendría Spotify en las siguientes y se consultaría cada 4 s para siempre.
+function syncSpotify(gameId, state, io) {
     if (!Spotify.enabled()) return;
     const ds = state.director, snd = ds && ds.sound;
-    const on = !!snd && snd.source === 'spotify';
+    const rooms = io && io.sockets && io.sockets.adapter && io.sockets.adapter.rooms;
+    const attended = !rooms || ((rooms.get(`directors:${gameId}`) || { size: 0 }).size + (rooms.get(`screens:${gameId}`) || { size: 0 }).size) > 0;
+    const on = !!snd && snd.source === 'spotify' && attended;
     Spotify.setUser(gameId, on);
-    if (!on) { Spotify.releaseAll(gameId + ':'); return; }
+    if (!on) { Spotify.releaseAll(gameId + ':', !attended); return; }
     const inRound = ds.phase === 'question' || ds.phase === 'answer_revealed' || ds.phase === 'round_intro';
     const type = ds.currentRound && ds.currentRound.type;
     const holds = {
@@ -327,6 +333,9 @@ function resetGameForNewSession(gameId, sessionId) {
     // Los volúmenes y «automáticas» del panel 🎵 siguen igual (se ajustan a la sala); los fundidos vuelven a los del backoffice
     const prevSound = s.director && s.director.sound;
     const keepSound = prevSound ? { jingleVol: prevSound.jingleVol, bgVol: prevSound.bgVol, auto: prevSound.auto } : null;
+    // Lo que avisan las pantallas conectadas (sin sonido aún, pausa por vídeo) sigue siendo verdad:
+    // no lo repiten hasta que cambia, así que se conserva (si no, el aviso amarillo no volvería)
+    const keepScreens = s.director ? { screensSound: s.director.screensSound, screensHold: s.director.screensHold } : {};
     const fresh = createGameState();
     for (const k of Object.keys(s)) delete s[k];
     Object.assign(s, fresh, {
@@ -337,6 +346,9 @@ function resetGameForNewSession(gameId, sessionId) {
     });
     applyScreenDefaults(s);
     applySoundDefaults(s, keepSound);
+    if (keepScreens.screensSound) s.director.screensSound = keepScreens.screensSound;
+    if (keepScreens.screensHold) s.director.screensHold = keepScreens.screensHold;
+    releaseJingleHold(gameId); // con Spotify retenido por una sintonía, que vuelva ya (no al tope)
     if (_io) {
         _io.to(`screens:${gameId}`).emit('game:jingle_stop');
         _io.to(roomOf(gameId)).emit('game:reset_full');
@@ -596,6 +608,13 @@ function abiertaSubs(ds) {
 }
 function initAbiertaState(ds) {
     const q = ds.questions[ds.currentQuestionIdx];
+    // Letras que se dejó a medio corregir (abiertaWip guarda las dos): se recupera, sin volver a jugarla
+    const lw = q && ds.currentRound && ds.currentRound.type === 'letras' && ds.abiertaWip && ds.abiertaWip[q.id];
+    if (lw && lw.letras && !(ds.questionResults && ds.questionResults[q.id])) {
+        ds.answers = lw.answers || {};
+        ds.letras = lw.letras;
+        ds.optionsRevealed = true;
+    }
     if (!(ds.currentRound && ds.currentRound.type === 'abierta' && q)) { ds.abierta = null; return; }
     // Pregunta que se dejó a medio corregir: se recupera tal cual (respuestas y correcciones)
     const wip = ds.abiertaWip && ds.abiertaWip[q.id];
@@ -778,18 +797,19 @@ function closeCifras(state) {
     ds.cifras = { revealStep: 0, total: groups.length + (exact ? 0 : 1), groups, points, winner, solution: cifrasSolution(ds) };
 }
 // Vista del revelado para iPads y pantalla
-function cifrasView(ds) {
+function cifrasView(ds, forPlayers) {
     const c = ds.cifras;
     if (!c) return null;
     const done = c.revealStep >= c.total;
-    return { revealStep: c.revealStep, total: c.total, groups: c.groups, winner: done ? c.winner : null,
+    // A los iPads, solo los grupos ya destapados (si no, sabrían quién acertó antes de tiempo)
+    return { revealStep: c.revealStep, total: c.total, groups: forPlayers && !done ? c.groups.slice(0, c.revealStep) : c.groups, groupsTotal: c.groups.length, winner: done ? c.winner : null,
         solution: (done || c.revealStep >= c.groups.length) ? c.solution : null };
 }
 // Resultados por equipo para los iPads mientras se revela: solo lo ya destapado, y sin puntos hasta el final
 function cifrasScoresView(ds, forPlayers) {
     const lqs = ds.lastQuestionScores;
     const c = ds.cifras;
-    if (!forPlayers || !c || ds.phase !== 'answer_revealed' || !lqs || c.revealStep >= c.total) return lqs;
+    if (!forPlayers || !c || !lqs || c.revealStep >= c.total) return lqs; // en cualquier fase (Espera a medio revelar)
     const shown = new Set();
     c.groups.slice(0, c.revealStep).forEach(g => g.teams.forEach(t => shown.add(t)));
     const out = {};
@@ -829,14 +849,14 @@ function letrasResults(state) {
     for (const [tid, ans] of Object.entries(ds.answers)) {
         if (!ans.submitted) continue;
         const w = letrasWord(ds, ans.answer) || '';
-        const ok = !!(w && L.marks[w]);
+        const ok = !!(w && hasOwn(L.marks, w) && L.marks[w]);
         res[tid] = { word: w, ok, len: w.length, points: 0 };
         if (ok && w.length > maxLen) maxLen = w.length;
     }
     let winner = null;
     for (const [tid, r] of Object.entries(res)) {
         if (!r.ok) continue;
-        r.points = Math.round(r.len / maxLen * speedPts(cfg, ds, ds.answers[tid].timerRemaining));
+        r.points = Math.round(r.len / maxLen * speedPts(cfg, ds, ds.answers[tid].timerRemaining, L.timeTotal));
         const w = winner && res[winner], a = ds.answers[tid], b = winner && ds.answers[winner];
         if (!w || r.len > w.len || (r.len === w.len && ((a.timerRemaining || 0) > (b.timerRemaining || 0)
             || ((a.timerRemaining || 0) === (b.timerRemaining || 0) && (a.timestamp || 0) < (b.timestamp || 0))))) winner = tid;
@@ -858,10 +878,13 @@ function closeLetras(state) {
         }
         const w = letrasWord(ds, ans.answer);
         if (!w) { delete ds.answers[tid]; continue; }
-        if (!(w in inDict)) { inDict[w] = LetrasDict.has(w); marks[w] = !!inDict[w]; }
+        if (!hasOwn(inDict, w)) { inDict[w] = LetrasDict.has(w); marks[w] = !!inDict[w]; } // «constructor» es palabra
     }
-    ds.letras = { step: 'correcting', marks, inDict, revealStep: 0, total: 0, groups: [], points: null, winner: null };
+    // El tiempo con el que se respondió queda fijo: alargarlo o cambiarlo después no cambia los puntos
+    ds.letras = { step: 'correcting', marks, inDict, revealStep: 0, total: 0, groups: [], points: null, winner: null, timeTotal: (ds.timer && ds.timer.total) || 0 };
     ds.optionsRevealed = true;
+    const q = ds.questions[ds.currentQuestionIdx];
+    if (q) { if (!ds.abiertaWip) ds.abiertaWip = {}; ds.abiertaWip[q.id] = { answers: ds.answers, letras: ds.letras }; }
     logAction(state, { action: 'letras_closed', answered: Object.keys(ds.answers).length, total: state.equipos.length });
 }
 // «Revelar»: puntos (esperan al final) y pasos del revelado, por longitudes de menor a mayor
@@ -869,6 +892,7 @@ function revealLetras(state) {
     const ds = state.director, L = ds.letras;
     const { res, winner } = letrasResults(state);
     L.points = {};
+    if (!ds.pendingScores) ds.pendingScores = {}; // aunque nadie puntúe: un rectificar a medio revelar también espera al final
     for (const [tid, r] of Object.entries(res)) { L.points[tid] = r.points; if (r.points) addPending(ds, tid, r.points); }
     L.winner = winner;
     const byLen = {};
@@ -920,7 +944,7 @@ function letrasView(state) {
 // Resultados por equipo para los iPads mientras se revela: lo de cada uno, solo cuando sale su longitud
 function letrasScoresView(ds, forPlayers) {
     const lqs = ds.lastQuestionScores, L = ds.letras;
-    if (!forPlayers || !L || ds.phase !== 'answer_revealed' || !lqs || L.revealStep >= L.total) return lqs;
+    if (!forPlayers || !L || L.step !== 'revealed' || !lqs || L.revealStep >= L.total) return lqs; // en cualquier fase
     const shownLens = new Set(L.groups.slice(0, L.revealStep).map(g => g.len));
     const out = {};
     for (const [tid, r] of Object.entries(lqs)) {
@@ -995,6 +1019,8 @@ function finalizeQuestion(state) {
         if (!ds.letras) { closeLetras(state); return false; }
         if (ds.letras.step !== 'correcting') return false;
         revealLetras(state);
+        const ql = ds.questions[ds.currentQuestionIdx];
+        if (ql && ds.abiertaWip) delete ds.abiertaWip[ql.id];
     }
     if (type === 'cifras') closeCifras(state);
     if (type === 'multirespuesta') autoScoreMultirespuesta(state);
@@ -1116,9 +1142,10 @@ function preciseRemaining(state, at) {
 }
 // Lo que se lleva quien acierta: con tiempo, la mitad de los puntos fija y la otra mitad según lo
 // que quedaba al responder (con milésimas); sin tiempo, todos
-function speedPts(cfg, ds, remaining) {
-    return QV.speedPoints(cfg.points, remaining, ds.timer.total);
+function speedPts(cfg, ds, remaining, total) {
+    return QV.speedPoints(cfg.points, remaining, total || ds.timer.total);
 }
+const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 // Extra al más rápido de los que aciertan (si la prueba lo lleva)
 function extraPts(cfg) {
     return cfg.fastestExtra ? QV.extraPoints(cfg.points) : 0;
@@ -1626,7 +1653,7 @@ function playerView(state, forPlayers) {
         identidad: ds.identidad ? { revealIndex: ds.identidad.revealIndex } : null,
         boomStep: typeof ds.boomStep === 'number' ? ds.boomStep : null, // posiciones de Boom ya reveladas
         abierta: ds.abierta ? { step: ds.abierta.step, revealStep: ds.abierta.revealStep || 0 } : null, // paso de Respuesta abierta
-        cifras: cifrasView(ds), // revelado de Cifras
+        cifras: cifrasView(ds, forPlayers), // revelado de Cifras
         letras: letrasView(state), // corrección y revelado de Letras
         cifrasSent: (ds.currentRound && (ds.currentRound.type === 'cifras' || ds.currentRound.type === 'letras')) ? Object.values(ds.answers).filter(a => a.submitted).length : 0, // equipos que ya han enviado
         aclara: aclaraView(ds), // nitidez actual de «Imagen que se aclara» (el cliente la anima desde aquí)
@@ -1823,7 +1850,7 @@ function broadcastDirector(io, gameId, state) {
 }
 
 function broadcastNow(io, gameId, state) {
-    syncSpotify(gameId, state);
+    syncSpotify(gameId, state, io);
     io.to(`directors:${gameId}`).emit('game:director_sync', publicView(state));
     io.to(roomOf(gameId)).except(`screens:${gameId}`).emit('game:player_sync', playerView(state, true));
     io.to(`screens:${gameId}`).emit('game:player_sync', playerView(state, false));
@@ -1900,7 +1927,7 @@ function attachSocketHandlers(io) {
         socket.isStaff = !!auth.sessionFromCookieHeader(socket.handshake.headers.cookie);
         // Un Stream Deck es un coordinador más, pero solo del juego con el que está emparejado
         socket.deckId = deckKey && deckKey.gameId === gameId ? deckKey.id : null;
-        if (socket.deckId) socket.isStaff = true;
+        if (socket.deckId) { socket.isStaff = true; Deck.attachGame(socket.deckId, socket); }
         const pass = socket.handshake.query && socket.handshake.query.pass;
         socket.hasPass = auth.verifyGamePass(gameId, pass);
         // Solo reciben lo que pasa en el juego quienes tienen pase o sesión (la pantalla entra con screen:join).
@@ -2448,7 +2475,7 @@ function attachSocketHandlers(io) {
             socket.isDirector = true;
             socket.join(`directors:${gameId}`);
             // Con Spotify como fuente, empezar a mirar qué suena ya al entrar (no al primer cambio del juego)
-            syncSpotify(gameId, state);
+            syncSpotify(gameId, state, io);
             socket.emit('game:director_sync', publicView(state));
         });
 
@@ -2598,15 +2625,17 @@ function attachSocketHandlers(io) {
                     break;
                 }
                 case 'silence':
-                    stopJingle(io, gameId, state); snd.bg.playing = false;
+                    // Primero «stop» (marca que Spotify no debe volver) y luego quitar la sintonía:
+                    // al revés, soltar la retención lo volvía a poner
                     if (snd.source === 'spotify') Spotify.command('stop');
+                    stopJingle(io, gameId, state); snd.bg.playing = false;
                     break;
                 case 'source': {
                     const v = data.value === 'spotify' && Spotify.enabled() ? 'spotify' : 'own';
                     if (v === snd.source) return;
                     snd.source = v;
                     if (v === 'spotify') snd.bg.playing = false; // una sola fuente a la vez
-                    else { Spotify.releaseAll(gameId + ':'); Spotify.command('stop'); }
+                    else { Spotify.command('stop'); Spotify.releaseAll(gameId + ':'); } // en este orden (ver «silence»)
                     break;
                 }
                 case 'sp_play': case 'sp_pause': case 'sp_next': case 'sp_prev': case 'sp_toggle': case 'sp_vol': case 'sp_playlist': {
@@ -2702,7 +2731,7 @@ function attachSocketHandlers(io) {
         // la misma canción: con dos pantallas abiertas no se salta dos)
         socket.on('screen:bg_ended', (data) => {
             const snd = state.director.sound;
-            if (!socket.isScreen || socket.isEmbed || !snd || !data) return;
+            if (!socket.isScreen || socket.isEmbed || !snd || !data || !snd.bg.playing) return; // en pausa no se avanza
             const len = musicList(state).length;
             if (!len || data.idx !== snd.bg.idx % len || data.seq !== snd.bg.seq) return;
             snd.bg.idx = (snd.bg.idx + 1) % len;
@@ -2864,7 +2893,8 @@ function attachSocketHandlers(io) {
             const t = state.director.timer;
             const before = t.remaining;
             t.remaining = Math.max(1, t.remaining + secs);
-            t.total = Math.max(t.remaining, t.total + (t.remaining - before));
+            // Al restar, el total no se toca: la rapidez de quien ya respondió se mide sobre el total
+            if (t.remaining > before) t.total = Math.max(t.remaining, t.total + (t.remaining - before));
             broadcastDirector(io, gameId, state);
         });
 
@@ -3142,7 +3172,7 @@ function attachSocketHandlers(io) {
         // Letras: dar por buena o mala una palabra (todas las iguales a la vez); ya revelada, rectifica
         socket.on('director:letras_mark', (data) => {
             const ds = state.director, L = ds.letras;
-            if (!L || !data || typeof data.word !== 'string' || !(data.word in L.marks)) return;
+            if (!L || !data || typeof data.word !== 'string' || !hasOwn(L.marks, data.word)) return;
             const ok = !!data.ok;
             if (L.marks[data.word] === ok) return;
             if (L.step === 'correcting' && ds.phase === 'question') { L.marks[data.word] = ok; }
@@ -3286,12 +3316,14 @@ function attachSocketHandlers(io) {
             if (!data || !data.teamId) return;
             const ds = state.director;
             const cfg = getQuestionConfig(state);
+            // Ya no está en la cola (doble toque, Stream Deck con la tecla aún sin actualizar): nada
+            const idx = state.colaPulsador.findIndex(p => p.id === data.teamId);
+            if (idx === -1) return;
             if (cfg.penalty > 0) {
                 if (!ds.scores[data.teamId]) ds.scores[data.teamId] = 0;
                 ds.scores[data.teamId] -= cfg.penalty;
             }
-            const idx = state.colaPulsador.findIndex(p => p.id === data.teamId);
-            if (idx > -1) state.colaPulsador.splice(idx, 1);
+            state.colaPulsador.splice(idx, 1);
             logAction(state, { action: 'wrong', team: teamName(state, data.teamId), pts: cfg.penalty > 0 ? -cfg.penalty : 0 });
             // Un equipo que falla no puede volver a pulsar en esta pregunta
             if (!ds.buzzerFailed) ds.buzzerFailed = [];
@@ -3839,6 +3871,8 @@ function attachSocketHandlers(io) {
                 delete state.director.screensHold[socket.id];
                 broadcastDirector(io, gameId, state);
             }
+            // Se fue el último coordinador o pantalla: si en un minuto no vuelve nadie, el juego suelta Spotify
+            if (socket.isDirector || socket.isScreen) setTimeout(() => syncSpotify(gameId, state, io), 60000).unref();
             if (!socket.equipoId) return;
             const equipo = state.equipos.find(e => e.id === socket.equipoId);
             if (equipo && equipo.socketId === socket.id) {

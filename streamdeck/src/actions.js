@@ -92,7 +92,7 @@ K['q-next'] = { name: 'Pregunta siguiente', icon: 'chevR', group: 'Juego',
         const d = ds(c);
         if (!inQuestion(c) || d.currentQuestionIdx >= d.questions.length - 1) return false;
         const q = d.questions[d.currentQuestionIdx];
-        if (q && q.config && q.config.premio && d.phase === 'answer_revealed') return false; // el bono se da en el coordinador
+        if (q && q.config && q.config.premio) return false; // el bono se da en el coordinador (también al saltarla sin jugar)
         c.gs.send('director:next_question'); return true;
     } };
 

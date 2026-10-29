@@ -31,6 +31,22 @@
     return false;
   }
 
+  // PNG animado (APNG: trozo acTL antes de IDAT) o WebP animado (VP8X con la marca de animación)
+  function isAnimatedPngOrWebp(bytes) {
+    var str = function (a, b) { return String.fromCharCode.apply(null, Array.prototype.slice.call(bytes, a, b)); };
+    if (bytes.length > 30 && str(0, 4) === 'RIFF' && str(8, 12) === 'WEBP') return str(12, 16) === 'VP8X' && !!(bytes[20] & 0x02);
+    if (bytes.length > 12 && str(1, 4) === 'PNG') {
+      for (var i = 8; i + 8 <= bytes.length; ) {
+        var len = ((bytes[i] << 24) >>> 0) + (bytes[i + 1] << 16) + (bytes[i + 2] << 8) + bytes[i + 3];
+        var type = str(i + 4, i + 8);
+        if (type === 'acTL') return true;
+        if (type === 'IDAT') return false;
+        i += 12 + len;
+      }
+    }
+    return false;
+  }
+
   // Tamaño final: lado mayor ≤ max, nunca más grande que el original
   function targetSize(w, h, max) {
     max = max || MAX_SIDE;
@@ -116,6 +132,7 @@
     if (typeof document === 'undefined' || typeof URL === 'undefined' || !URL.createObjectURL) return keep('sin navegador');
     try {
       if (file.type === 'image/gif' && isAnimatedGif(new Uint8Array(await file.arrayBuffer()))) return keep('gif animado');
+      if ((file.type === 'image/png' || file.type === 'image/webp') && isAnimatedPngOrWebp(new Uint8Array(await file.slice(0, 256 * 1024).arrayBuffer()))) return keep('animada');
       var img = await loadImage(file);
       if (!img.naturalWidth || !img.naturalHeight) return keep('sin tamaño');
       var t = targetSize(img.naturalWidth, img.naturalHeight, opts.maxSide);

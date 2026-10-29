@@ -103,16 +103,27 @@ async function tokenRequest(params) {
     return { status: res.status, data: data || {} };
 }
 
+// Una sola renovación a la vez: dos a la vez con la misma llave hacían que Spotify anulara la
+// segunda y se diera la conexión por caducada en pleno evento
+let _refreshing = null;
 async function accessToken() {
     if (_access && Date.now() < _access.exp - 30000) return _access.token;
+    if (!_refreshing) _refreshing = refreshAccess().finally(() => { _refreshing = null; });
+    return _refreshing;
+}
+async function refreshAccess() {
     const cfg = loadCfg();
     const rt = cfg.rt && unseal(cfg.rt);
     if (!cfg.clientId || !rt) throw new SpError(cfg.expired ? 'expired' : 'notConnected');
     const r = await tokenRequest({ grant_type: 'refresh_token', refresh_token: rt, client_id: cfg.clientId });
     if (r.status === 400 || r.status === 401) {
-        // invalid_grant: la conexión caducó (6 meses) o se quitó el permiso en la cuenta
-        _access = null;
-        saveCfg({ clientId: cfg.clientId, expired: true, user: cfg.user });
+        // invalid_grant: la conexión caducó (6 meses) o se quitó el permiso en la cuenta. Solo si la
+        // llave guardada sigue siendo la que se usó (si no, otra renovación ya la cambió)
+        const now = loadCfg();
+        if (now.rt === cfg.rt) {
+            _access = null;
+            saveCfg({ clientId: cfg.clientId, expired: true, user: cfg.user });
+        }
         throw new SpError('expired');
     }
     if (r.status !== 200 || !r.data.access_token) throw new SpError(r.status === 429 ? 'busy' : 'other', r.status);
@@ -254,7 +265,10 @@ async function refresh() {
 function poll() {
     if (!ctl.users.size || !isConnected()) return stopPoll();
     if (ctl.busy) return;
-    refresh().catch(() => {});
+    refresh().then(() => {
+        // Debería estar callado y suena (falló la pausa, o lo pusieron a mano desde Spotify): otra vez
+        if (ctl.holds.size && !ctl.override && !ctl.pausedByUs && ctl.player && ctl.player.playing) reconcile();
+    }).catch(() => {});
 }
 function stopPoll() { if (_pollT) { clearInterval(_pollT); _pollT = null; } }
 
@@ -298,6 +312,7 @@ function reconcile() {
 
 async function reconcileStep() {
     const wantSilent = ctl.holds.size > 0 && !ctl.override;
+    let muting = false;
     try {
         if (wantSilent && !ctl.pausedByUs) {
             const p = (Date.now() - ctl.at < 1500 && ctl.player) ? ctl.player : await refresh();
@@ -306,8 +321,10 @@ async function reconcileStep() {
             const fadeable = p.supportsVolume && vol !== null && vol > 0;
             ctl.pausedByUs = true;
             ctl.resumeVol = vol;
+            muting = true;
             if (fadeable) await fade(vol, 0, FADE_OUT_MS);
             await api('PUT', '/me/player/pause');
+            muting = false;
             p.playing = false;
             if (fadeable) { await setVolume(vol); p.volume = vol; } // en pausa ya no se oye: si algo falla luego, no se queda a cero
             notify();
@@ -324,6 +341,8 @@ async function reconcileStep() {
         setError(null);
     } catch (e) {
         setError(e);
+        // La pausa no llegó a hacerse: sigue sonando. Se reintenta en la siguiente consulta (poll)
+        if (muting) ctl.pausedByUs = false;
         if (ctl.resumeVol !== null) setVolume(ctl.resumeVol).catch(() => {});
     }
 }
@@ -338,11 +357,12 @@ function release(key) {
     if (!ctl.holds.size) ctl.override = false;
     reconcile();
 }
-function releaseAll(prefix) {
+// quiet: el juego se ha quedado sin nadie: se sueltan sus retenciones pero Spotify no vuelve a sonar
+function releaseAll(prefix, quiet) {
     let changed = false;
     for (const k of [...ctl.holds]) if (k.startsWith(prefix)) { ctl.holds.delete(k); changed = true; }
     if (!changed) return;
-    if (!ctl.holds.size) ctl.override = false;
+    if (!ctl.holds.size) { ctl.override = false; if (quiet) ctl.pausedByUs = false; }
     reconcile();
 }
 function isPlaying() { return !!(ctl.player && ctl.player.playing) || ctl.pausedByUs; }
@@ -428,7 +448,9 @@ async function command(action, arg) {
                 break;
             }
             case 'pause':
-                ctl.pausedByUs = false; // la ha pausado el coordinador: no vuelve sola
+                // La ha pausado el coordinador: no vuelve sola. Si ya estaba en pausa automática no se
+                // pide otra vez (Spotify responde 403 y saldría un aviso falso de «Premium»)
+                if (ctl.pausedByUs) { ctl.pausedByUs = false; break; }
                 await api('PUT', '/me/player/pause');
                 break;
             case 'stop': {
@@ -500,7 +522,7 @@ async function listItems(uri, offset) {
         return {
             uri, kind: 'album', name: String((a && a.name) || 'Álbum').slice(0, 120), owner: ((a && a.artists) || []).map(x => x.name).join(', ').slice(0, 120),
             image: imageOf(a && a.images, true), editable: false, snapshot: null, offset, total: Number(t && t.total) || 0,
-            items: ((t && t.items) || []).map(x => trackOf(x, a && a.images)).filter(Boolean),
+            items: ((t && t.items) || []).map(x => listRow(x, a && a.images)),
         };
     }
     const id = idOf(uri, 'playlist');
@@ -521,8 +543,13 @@ async function listItems(uri, offset) {
         snapshot: (t && t.snapshot_id) || (p && p.snapshot_id) || null,
         offset, total: Number(t && t.total) || 0,
         // Spotify 2026: cada fila trae la canción en `item` (antes en `track`)
-        items: ((t && t.items) || []).map(x => trackOf(x && (x.item || x.track))).filter(Boolean),
+        items: ((t && t.items) || []).map(x => listRow(x && (x.item || x.track))),
     };
+}
+// Fila de una lista: las canciones retiradas llegan vacías y se dejan como «no disponible» para que
+// la posición de cada fila sea la de Spotify (paginar con «Ver más» y mover arrastrando)
+function listRow(it, albumImgs) {
+    return trackOf(it, albumImgs) || { uri: '', name: 'Canción no disponible', artist: '', ms: 0, image: null, playable: false };
 }
 
 // Lo que suena y lo que viene (Spotify no deja quitar ni reordenar la cola: solo añadir)
