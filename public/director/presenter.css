@@ -88,7 +88,8 @@ body.pv-on #btnPresenter { display: none; }
 .pv-er { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px 4px 4px 0; }
 .pv-er.cur { border-color: var(--accent); background: rgba(0,212,255,.08); }
 .pv-er.done { opacity: .55; }
-.pv-er.dragging { opacity: .9; border-color: var(--gold); box-shadow: 0 8px 24px rgba(0,0,0,.5); position: relative; z-index: 2; }
+/* Fila que se está arrastrando (escaleta del presentador y barra «Rondas»): se queda en su sitio, tenue */
+.pv-er.sort-src, .round-item.sort-src { opacity: .35; }
 .pv-grip { width: 44px; align-self: stretch; display: flex; align-items: center; justify-content: center; color: var(--text2); font-size: 22px; touch-action: none; cursor: grab; flex-shrink: 0; }
 .pv-er-go { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; background: none; color: var(--text); padding: 10px 6px; min-height: 58px; text-align: left; white-space: normal; border-radius: 10px; }
 .pv-er-go .num { font-size: 15px; color: var(--text2); width: 24px; text-align: right; flex-shrink: 0; }
@@ -102,6 +103,37 @@ body.pv-on #btnPresenter { display: none; }
 .pv-qs { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 8px; }
 .pv-qs button { justify-content: center; font-size: 18px; min-height: 52px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); color: var(--text); }
 .pv-qs button.cur { background: var(--accent); color: #000; border-color: var(--accent); }
+
+/* Ruleta: la frase entera (lo destapado en verde, lo que falta tenue) y teclado de letras */
+.pv-rboard { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; }
+.pv-rw { display: inline-flex; gap: 3px; }
+.pv-rc { width: 30px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; font-size: 20px; font-weight: 800;
+    background: var(--surface2); color: var(--text2); opacity: .55; border: 1px solid var(--border); }
+.pv-rc.on { background: rgba(34,197,94,.18); color: var(--success); border-color: var(--success); opacity: 1; }
+.pv-rc.p { background: none; border: 0; opacity: 1; width: 12px; }
+.pv-kbd { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 8px; }
+.pv-kb { justify-content: center; font-size: 24px; font-weight: 800; min-height: 58px; border-radius: 10px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.pv-kb.v { color: var(--gold); border-color: rgba(250,204,21,.5); }
+.pv-kb.done { opacity: .25; }
+
+/* Pictionary: equipo que dibuja */
+.pv-pick { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.pv-pick .pv-tile { min-height: 70px; font-size: 17px; font-weight: 700; }
+.pv-pick .pv-tile small { display: block; font-size: 12px; font-weight: 500; color: var(--text2); }
+.pv-tile.on { border-color: var(--accent); background: rgba(0,212,255,.15); box-shadow: 0 0 0 2px var(--accent) inset; }
+
+/* Corregir Respuesta abierta y Letras: los bloques del coordinador, de dedo */
+.pv-ab .ab-correct { border: 0; padding: 0; background: none; }
+.pv-ab .ab-tab { font-size: 17px; padding: 10px 14px; min-height: 46px; }
+.pv-ab .ab-g { font-size: 18px; padding: 12px; min-height: 64px; }
+.pv-ab .ab-g .ab-g-who { font-size: 13px; }
+.pv-ab .ab-subhead { font-size: 17px; }
+.pv-ab .ab-subnav button { font-size: 15px; min-height: 48px; }
+.pv-lt .lt-dir-row { flex-wrap: wrap; padding: 8px 10px; font-size: 14px; }
+.pv-lt .lt-dir-row .w { font-size: 20px; }
+.pv-lt .lt-dir-row button { font-size: 20px; min-width: 56px; min-height: 48px; justify-content: center; }
+.pv-lt .lt-dir-row button.on.yes { background: var(--success); color: #000; }
+.pv-lt .lt-dir-row button.on.no { background: var(--danger); color: #fff; }
 
 /* La ventanita de sumar/restar puntos del coordinador, más grande para el dedo */
 body.pv-on .qp-popover { padding: 14px; }

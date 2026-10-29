@@ -735,9 +735,9 @@ label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: 
                     </div>
                 </div>
             </div>
-            <div class="field"><label>Media URL</label>
-                <div class="upload-row"><input name="media_url" placeholder="URL de imagen o audio (opcional)">
-                <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*,audio/*" style="display:none" onchange="uploadFile(this,'media_url')"></label>
+            <div class="field"><label>Imagen de la pregunta</label>
+                <div class="upload-row"><input name="media_url" placeholder="URL de imagen (opcional)">
+                <label class="btn-ghost btn-sm btn-upload" style="cursor:pointer">Subir<input type="file" accept="image/*" style="display:none" onchange="uploadFile(this,'media_url')"></label>
                 <button type="button" class="btn-ghost btn-sm" onclick="openMediaPicker('images', function(url){ document.querySelector('[name=media_url]').value = url; })">&#128193;</button></div>
             </div>
             <input type="hidden" name="id">
@@ -2651,8 +2651,10 @@ async function uploadFile(fileInput, targetFieldName) {
     const shr = await ImageShrink.shrink(file);
     const form = new FormData();
     form.append('file', shr.file);
+    // Cada cosa por su sitio: los audios a /upload/audio (la de imágenes los rechaza)
+    const isAudio = /^audio\//.test(file.type) || /\.(mp3|m4a|wav|ogg|aac)$/i.test(file.name);
     try {
-        const res = await fetch('/api/upload/image', { method: 'POST', body: form });
+        const res = await fetch(isAudio ? '/api/upload/audio' : '/api/upload/image', { method: 'POST', body: form });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         const field = document.querySelector(`[name="${targetFieldName}"]`);

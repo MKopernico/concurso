@@ -57,7 +57,6 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .round-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; transition: .15s; border: 1px solid transparent; position: relative; padding-right: 36px; }
 .round-grip { position: absolute; top: 0; right: 0; bottom: 0; width: 34px; display: flex; align-items: center; justify-content: center; color: var(--text2); font-size: 16px; cursor: grab; touch-action: none; opacity: .6; }
 .round-grip:hover { opacity: 1; color: var(--text); }
-.round-item.dragging { background: var(--surface2); border-color: var(--gold); opacity: .95; }
 .round-item:hover { background: var(--surface2); }
 .round-item.active { background: rgba(0,212,255,.1); border-color: var(--accent); }
 .round-item.completed .round-name { text-decoration: line-through; color: var(--danger); opacity: .7; }
@@ -2959,7 +2958,7 @@ function renderAnswerAbierta(ds, c) {
 // Botones del panel (delegado: el panel se vuelve a pintar con cada actualización)
 document.addEventListener('click', function(e) {
     var b = e.target.closest('[data-ab]');
-    if (!b || !b.closest('#abiertaDirectorPanel, #abiertaAnswerPanel')) return;
+    if (!b || !b.closest('#abiertaDirectorPanel, #abiertaAnswerPanel, .pv-ab')) return; // .pv-ab: vista de presentador
     var ds = S.director, act = b.dataset.ab;
     if (act === 'show') emit('director:abierta_show');
     else if (act === 'open') emit('director:abierta_open');

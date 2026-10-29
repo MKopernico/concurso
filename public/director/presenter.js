@@ -2,8 +2,9 @@
 // No tiene estado propio: lee S (lo que manda game:director_sync) y usa las mismas órdenes y
 // funciones del coordinador (emit, handleNextQuestion, markFirst…). El botón grande sigue las
 // reglas de shared/next-step.js, las mismas que la tecla «Siguiente paso» del Stream Deck.
-// Lo que no cabe aquí (ruleta, karaoke, corregir…) se abre con «Panel de la prueba»: el panel
-// de siempre a pantalla completa. Se activa con «🎤 Presentador» o con ?presentador=1 y cada
+// La ruleta, elegir quién dibuja en Pictionary y corregir Respuesta abierta y Letras tienen aquí
+// su versión en grande; el resto (karaoke, reproductor de canción…) se abre con «Panel de la
+// prueba»: el panel de siempre a pantalla completa. Se activa con «🎤 Presentador» o con ?presentador=1 y cada
 // dispositivo recuerda su modo (el PC del control sigue con la vista completa).
 var PV = (function () {
     var KEY = 'gs_presenter';
@@ -136,8 +137,7 @@ var PV = (function () {
             return '<div class="pv-card pv-note" style="font-size:17px">' + txt
                 + (failed.length ? '<div class="pv-hints">Han fallado: ' + failed.map(esc).join(', ') + '</div>' : '') + '</div>';
         }
-        if (d.phase === 'question' && t === 'abierta' && d.abierta && d.abierta.step === 'correcting') return '<div class="pv-card pv-warn pv-note">Corrigiendo: revisa las respuestas en el panel de la prueba antes de revelar.</div>';
-        if (d.phase === 'question' && t === 'letras' && d.letras && d.letras.step === 'correcting') return '<div class="pv-card pv-warn pv-note">Corrigiendo: revisa las palabras en el panel de la prueba antes de revelar.</div>';
+        if (correcting()) return '<div class="pv-card pv-warn pv-note">Corrigiendo: toca cada respuesta para cambiarla entre ✓ y ✗; luego, «Revelar».</div>';
         if (d.phase === 'question' && (d.optionsRevealed || t === 'abierta' && d.abierta && d.abierta.step === 'open')) {
             return '<div class="pv-card pv-big"><div class="n">' + (d.answeredCount || 0) + ' / ' + S.equipos.length + '</div><div class="l">equipos han respondido</div></div>';
         }
@@ -153,6 +153,61 @@ var PV = (function () {
             if (list.length > 8) html += '<div class="pv-note">y ' + (list.length - 8) + ' más</div>';
             return html + '</div></div>';
         }
+        return '';
+    }
+
+    // ── Pruebas con mando propio, en grande (antes iban al panel del coordinador) ──
+    // Ruleta: el panel con la frase entera (lo destapado resaltado) y un teclado con sus letras
+    function ruletaHtml(c) {
+        var d = D(), solved = !!d.rouletteSolved, rev = {};
+        (d.rouletteRevealed || []).forEach(function (l) { rev[l] = true; });
+        var PUNCT = ',.!?¡¿:;—–-\'"()';
+        var board = (c.phrase || '').toUpperCase().split(' ').filter(Boolean).map(function (w) {
+            return '<span class="pv-rw">' + Array.prototype.map.call(w, function (ch) {
+                var p = PUNCT.indexOf(ch) >= 0;
+                return '<span class="pv-rc' + (p ? ' p' : rev[ch] || solved ? ' on' : '') + '">' + esc(ch) + '</span>';
+            }).join('') + '</span>';
+        }).join('');
+        var kb = RoulettePanel.uniqueLetters(c.phrase || '').sort().map(function (ch) {
+            var done = rev[ch] || solved;
+            return btn(ch, function () { emit('director:reveal_letter', { letter: ch }); }, 'pv-kb' + ('AEIOUÁÉÍÓÚÜ'.indexOf(ch) >= 0 ? ' v' : '') + (done ? ' done' : ''), done ? ' disabled' : '');
+        }).join('');
+        return '<div class="pv-card"><h3>Panel de la sala' + (solved ? ' · resuelto' : '') + '</h3><div class="pv-rboard">' + board + '</div></div>'
+            + '<div class="pv-card"><h3>Destapar letra</h3><div class="pv-kbd">' + kb + '</div>'
+            + '<div class="pv-sec" style="margin-top:10px">' + btn('&#9989; Resolver', function () { emit('director:solve_roulette'); }, 'btn-success', solved ? ' disabled' : '')
+            + btn('&#128260; Reset letras', resetRuleta) + '</div></div>';
+    }
+    // Pictionary antes de empezar: quién dibuja (o la pizarra fija y su QR)
+    function picSetupHtml() {
+        var d = D(), p = d.pictionary || {};
+        if (p.mode === 'ipad') {
+            return '<div class="pv-card pv-note">' + (d.padConnected ? '&#128241; Pizarra conectada' : '&#9888;&#65039; La pizarra no está conectada')
+                + '<div class="pv-sec" style="margin-top:10px">' + btn('&#128241; QR de la pizarra', openPicPad) + '</div></div>';
+        }
+        var done = d.picDone || [];
+        return '<div class="pv-card"><h3>¿Quién dibuja? (toca para elegir)</h3><div class="pv-grid pv-pick">' + S.equipos.map(function (e) {
+            return btn(esc(e.nombre) + (done.indexOf(e.id) >= 0 ? '<small>&#10003; ya dibujó</small>' : !e.ocupado ? '<small>sin conexión</small>' : ''),
+                function () { emit('director:pic_set_drawer', { teamId: e.id }); }, 'pv-tile' + (e.id === p.drawer ? ' on' : '') + (!e.ocupado ? ' done' : ''));
+        }).join('') + '</div></div>';
+    }
+    // Corregir (o rectificar ya revelada) Respuesta abierta y Letras: los mismos bloques del
+    // coordinador, con sus mismos botones (data-ab / data-ltmark, escuchados en el coordinador)
+    function correctionHtml(rectify) {
+        var d = D(), t = type(), q = curQ(), c = (q && q.content) || {};
+        if (t === 'abierta') return '<div class="pv-card pv-ab">' + abCorrectionHtml(d, abSubsOf(q), rectify) + '</div>';
+        if (t === 'letras' && d.letras) return '<div class="pv-card pv-lt"><div class="pv-note">Lo que marques vale para todos los equipos que pusieron esa palabra.</div>' + letrasCorrectionHtml(d, c) + '</div>';
+        return '';
+    }
+    function correcting() {
+        var d = D(), t = type();
+        return d.phase === 'question' && ((t === 'abierta' && d.abierta && d.abierta.step === 'correcting') || (t === 'letras' && d.letras && d.letras.step === 'correcting'));
+    }
+    function specialHtml() {
+        var d = D(), t = type(), q = curQ(), c = (q && q.content) || {};
+        if (d.phase !== 'question') return '';
+        if (t === 'ruleta' && d.roulettePanelVisible) return ruletaHtml(c);
+        if (t === 'pictionary' && d.pictionary && d.pictionary.step === 'setup') return picSetupHtml();
+        if (correcting()) return correctionHtml(false);
         return '';
     }
 
@@ -174,6 +229,8 @@ var PV = (function () {
             return S.equipos.length ? { text: '&#9654; Iniciar juego', fn: function () { emit('director:show_home'); }, cls: 'btn-success' } : { text: 'Esperando equipos…', idle: true };
         }
         if (d.phase === 'question' && S.colaPulsador.length && (BUZZ.has(t) || t === 'pictionary')) return null; // ✓ / ✗ ocupan su sitio
+        var pic = d.pictionary;
+        if (t === 'pictionary' && d.phase === 'question' && pic && pic.step === 'setup' && pic.mode !== 'ipad' && !pic.drawer) return { text: 'Elige arriba quién dibuja', idle: true };
         var st = GSNextStep.nextStep(S, S.rounds);
         if (st.none) {
             var q = curQ();
@@ -217,15 +274,12 @@ var PV = (function () {
             }
         } else if (d.phase === 'answer_revealed') {
             add('&#128101; Resultados en pantalla', function () { emit('director:toggle_team_results'); }, d.showTeamResults ? 'btn-ghost active' : null);
+            if (t === 'abierta' || (t === 'letras' && d.letras)) add('&#9997;&#65039; Rectificar', function () { openSheet('fix'); });
         }
         if (inQuestion()) {
             // El panel de siempre para lo que aquí no está; resaltado cuando hace falta
-            var need = t === 'ruleta' || t === 'karaoke' || t === 'cancion'
-                || (t === 'abierta' && d.abierta && d.abierta.step === 'correcting')
-                || (t === 'letras' && d.letras && d.letras.step === 'correcting')
-                || (t === 'pictionary' && d.pictionary && d.pictionary.step === 'setup');
-            var name = t === 'ruleta' ? 'Letras de la ruleta' : t === 'cancion' ? 'Reproductor' : (t === 'abierta' || t === 'letras') && need ? 'Corregir' : t === 'pictionary' && need ? 'Quién dibuja' : 'Panel de la prueba';
-            add('&#128736; ' + name, panelOn, need ? 'btn-orange' : null);
+            var need = t === 'karaoke' || t === 'cancion';
+            add('&#128736; ' + (t === 'cancion' ? 'Reproductor' : t === 'karaoke' ? 'Panel del karaoke' : 'Panel de la prueba'), panelOn, need ? 'btn-orange' : null);
         }
         return out.join('');
     }
@@ -266,7 +320,8 @@ var PV = (function () {
                 // Revelada, el botón grande ya es «Siguiente»; aquí solo para saltar una sin jugarla
                 + (d.phase === 'question' ? btn(idx >= total - 1 ? 'Terminar &#10004;' : 'Saltar &#9654;', isLast() ? handleFinishRound : handleNextQuestion) : '') + '</div>';
             if (d.phase === 'answer_revealed') html += statusHtml() + chuletaHtml();
-            else html += chuletaHtml() + statusHtml();
+            else if (correcting()) html += statusHtml() + specialHtml() + chuletaHtml();
+            else html += chuletaHtml() + statusHtml() + specialHtml();
         } else if (d.phase === 'round_end') {
             html += '<div class="pv-card pv-big"><div class="n" style="font-size:30px">&#127881; Fin de la ronda</div><div class="l">' + esc((d.currentRound && d.currentRound.name) || '') + '</div></div>';
             html += '<div class="pv-card"><h3>Clasificación</h3>' + rowsHtml(ranking(), 10) + '</div>';
@@ -336,6 +391,10 @@ var PV = (function () {
                 + (inQuestion() ? b('&#128736;', 'Panel de la prueba', panelOn) : '')
                 + b('&#128421;', 'Control completo', exit)
                 + '</div><div class="pv-note">Lo delicado (reiniciar puntos, borrar todo, expulsar equipos) solo está en el control completo.</div>';
+        } else if (sheet === 'fix') {
+            $('pvSheetTitle').textContent = 'Rectificar';
+            $('pvSheetSub').textContent = 'Cada cambio recalcula los puntos al momento';
+            html = d.phase === 'answer_revealed' ? correctionHtml(true) : '<div class="pv-card pv-note">Ya no hay nada que rectificar.</div>';
         } else if (sheet === 'pts') {
             $('pvSheetTitle').textContent = 'Puntos y equipos'; $('pvSheetSub').textContent = 'Sumar, restar o congelar';
             html = '<div class="pv-card"><div class="pv-rows">' + ranking().map(function (r) {
@@ -373,7 +432,9 @@ var PV = (function () {
     }
 
     // ── Ordenar arrastrando (escaleta del presentador y barra «Rondas» del coordinador) ──
-    // Con eventos de puntero sobre el asa: vale con el dedo y con el ratón. Al soltar, onDrop(ids).
+    // Con eventos de puntero sobre el asa: vale con el dedo y con el ratón. Como en el backoffice:
+    // la fila se queda en su sitio medio transparente, una copia translúcida sigue al dedo y una raya
+    // azul marca dónde caerá. Las filas no se mueven hasta soltar. Al soltar, onDrop(ids).
     function makeSortable(list, rowSel, gripSel, onDrop) {
         if (!list) return;
         list.querySelectorAll(gripSel).forEach(function (grip) {
@@ -382,32 +443,62 @@ var PV = (function () {
                 var row = grip.closest(rowSel);
                 if (!row) return;
                 ev.preventDefault(); ev.stopPropagation();
-                var before = ids();
                 var scroller = list.closest('.pv-sheet-body') || list.closest('.rounds-list') || list;
+                var rr = row.getBoundingClientRect(), offY = ev.clientY - rr.top;
+                var ghost = row.cloneNode(true);
+                ghost.classList.remove('dragging');
+                ghost.style.cssText = 'position:fixed;left:' + rr.left + 'px;top:' + rr.top + 'px;width:' + rr.width + 'px;height:' + rr.height + 'px;margin:0;'
+                    + 'background:var(--surface2,#1e1e3a);border:1px solid var(--accent,#00d4ff);border-radius:10px;'
+                    + 'opacity:.75;pointer-events:none;z-index:9999;box-shadow:0 10px 30px rgba(0,0,0,.55);transform:scale(1.02);transition:none';
+                var line = document.createElement('div');
+                line.style.cssText = 'position:fixed;height:4px;border-radius:2px;background:var(--accent,#00d4ff);box-shadow:0 0 10px var(--accent,#00d4ff);pointer-events:none;z-index:9998;display:none';
+                document.body.appendChild(line); document.body.appendChild(ghost);
                 dragging = true;
-                row.classList.add('dragging');
-                var pid = ev.pointerId;
-                // Se escucha en la página entera: mover la fila en el DOM suelta el «setPointerCapture»
+                row.classList.add('sort-src');
+                var pid = ev.pointerId, drop = null, lastY = ev.clientY, timer = null;
+                // Dónde caería con el dedo en «y»: delante de la fila cuya mitad queda por debajo (o al final)
+                function place(y) {
+                    var rows = list.querySelectorAll(rowSel), lr = list.getBoundingClientRect(), target = null;
+                    for (var i = 0; i < rows.length; i++) { var rc = rows[i].getBoundingClientRect(); if (y < rc.top + rc.height / 2) { target = rows[i]; break; } }
+                    drop = target;
+                    // Sin cambio real (justo delante o detrás de sí misma): sin raya
+                    var same = target === row || target === row.nextElementSibling || (!target && row === rows[rows.length - 1]);
+                    var ref = target ? target.getBoundingClientRect() : rows[rows.length - 1].getBoundingClientRect();
+                    var ly = target ? ref.top - 3 : ref.bottom + 1;
+                    var sr = scroller.getBoundingClientRect();
+                    if (same || ly < sr.top - 4 || ly > sr.bottom + 4) { line.style.display = 'none'; return; }
+                    line.style.display = ''; line.style.left = lr.left + 'px'; line.style.width = lr.width + 'px'; line.style.top = ly + 'px';
+                }
+                // Cerca del borde de la lista, se desplaza sola aunque el dedo no se mueva
+                function autoScroll() {
+                    var sr = scroller.getBoundingClientRect(), d = 0;
+                    if (lastY < sr.top + 50) d = -12; else if (lastY > sr.bottom - 50) d = 12;
+                    if (d) { scroller.scrollTop += d; place(lastY); }
+                }
+                // Se escucha en la página entera (el dedo sale del asa enseguida)
                 function move(e) {
                     if (e.pointerId !== pid) return;
                     e.preventDefault();
-                    var y = e.clientY, sr = scroller.getBoundingClientRect();
-                    if (y < sr.top + 50) scroller.scrollTop -= 12; else if (y > sr.bottom - 50) scroller.scrollTop += 12;
-                    var rows = Array.prototype.filter.call(list.querySelectorAll(rowSel), function (r) { return r !== row; });
-                    var target = null;
-                    for (var i = 0; i < rows.length; i++) { var rc = rows[i].getBoundingClientRect(); if (y < rc.top + rc.height / 2) { target = rows[i]; break; } }
-                    if (target) { if (row.nextSibling !== target) list.insertBefore(row, target); }
-                    else if (list.lastElementChild !== row) list.appendChild(row);
+                    lastY = e.clientY;
+                    ghost.style.top = (e.clientY - offY) + 'px';
+                    place(e.clientY);
                 }
                 function up(e) {
                     if (e.pointerId !== pid) return;
                     window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
-                    row.classList.remove('dragging');
+                    clearInterval(timer);
+                    ghost.remove(); line.remove();
+                    row.classList.remove('sort-src');
                     dragging = false;
+                    var before = ids();
+                    if (e.type === 'pointerup' && line.style.display !== 'none') {
+                        if (drop) list.insertBefore(row, drop); else list.appendChild(row);
+                    }
                     var after = ids();
                     if (after.join() !== before.join()) onDrop(after);
                     else if (sheet) renderSheet();
                 }
+                timer = setInterval(autoScroll, 30);
                 window.addEventListener('pointermove', move, { passive: false }); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
             });
         });

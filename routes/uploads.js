@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const multer = require('multer');
-const sizeOf = require('image-size');
+const { imageSize } = require('image-size'); // v2: recibe el contenido, no la ruta
 const { db } = require('../db');
 const auth = require('../auth');
 
@@ -101,7 +101,7 @@ router.post('/upload/image', imageUploadAccess, imageUpload.single('file'), (req
     if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
     const result = { url: `/uploads/images/${req.file.filename}`, originalName: req.file.originalname };
     try {
-        const dims = sizeOf(req.file.path);
+        const dims = imageSize(fs.readFileSync(req.file.path));
         result.width = dims.width;
         result.height = dims.height;
     } catch (e) { /* dimensiones no disponibles — no bloquea la subida */ }
