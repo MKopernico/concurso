@@ -46,7 +46,7 @@ function director(gameId) {
 }
 
 // ── Programa Stream Deck de mentira ──
-const sd = { ws: null, msgs: [], images: new Map(), feedback: new Map(), alerts: [], globals: null, registered: false };
+const sd = { ws: null, msgs: [], images: new Map(), feedback: new Map(), alerts: [], globals: null, registered: false, pi: [] };
 const decodeImg = (uri) => Buffer.from(String(uri).split(',')[1] || '', 'base64').toString('utf8');
 const textOf = (ctx) => (decodeImg(sd.images.get(ctx) || '').match(/<text[^>]*>([^<]*)<\/text>/g) || []).map(t => t.replace(/<[^>]+>/g, '')).join(' ').replace(/&amp;/g, '&');
 function sdSend(o) { sd.ws.send(JSON.stringify(o)); }
@@ -142,6 +142,7 @@ const dialPush = (ctx, action) => sdSend({ event: 'dialDown', action: P + action
             if (m.event === 'setImage') sd.images.set(m.context, m.payload.image);
             if (m.event === 'setFeedback') sd.feedback.set(m.context, Object.assign(sd.feedback.get(m.context) || {}, m.payload));
             if (m.event === 'showAlert') sd.alerts.push(m.context);
+            if (m.event === 'sendToPropertyInspector') sd.pi.push(m.payload);
         });
     });
     sd.globals = { server: B, key: created.key };
@@ -164,6 +165,18 @@ const dialPush = (ctx, action) => sdSend({ event: 'dialDown', action: P + action
     check('«Usar aquí» en el coordinador: el Stream Deck pasa a manejar ese juego', /Juego del Deck/.test(textOf('k0')) && /Conectado/.test(textOf('k0')), textOf('k0'));
     await until(() => d.decks && d.decks[0].gameId === g.id);
     check('…y el coordinador lo ve emparejado', d.decks[0].gameId === g.id && d.decks[0].gameName === 'Juego del Deck');
+
+    // ── Panel de ajustes: versión y «Comprobar conexión» ──
+    sd.pi = [];
+    sdSend({ event: 'sendToPlugin', action: P + 'status', context: 'k0', payload: { type: 'check' } });
+    await until(() => sd.pi.some(p => p.checked), 8000);
+    const chk = sd.pi.filter(p => p.checked).pop();
+    check('«Comprobar conexión»: vuelve a conectar y dice cómo va, con la versión del complemento', chk && chk.status.ok && chk.status.gameName === 'Juego del Deck' && chk.version === '1.0.1' && chk.update === null, chk && { status: chk.status.code, version: chk.version, update: chk.update });
+    await until(() => /Juego del Deck/.test(textOf('k0')), 6000);
+    {
+        const { newer, short } = require(path.join(REPO, 'streamdeck', 'src', 'version.js'));
+        check('Comparar versiones (para avisar de una nueva)', newer('1.0.2.0', '1.0.1.0') && newer('1.1', '1.0.9.9') && !newer('1.0.1.0', '1.0.1.0') && !newer('1.0.0.9', '1.0.1') && short('1.0.1.0') === '1.0.1' && short('2.0.0.0') === '2', [short('1.0.1.0')]);
+    }
     await until(() => /Esperando/.test(textOf('k1')));
     check('En la sala de espera sin equipos, «Siguiente paso» no lanza nada', /Esperando/.test(textOf('k1')), textOf('k1'));
     d.emit('director:show_home');
@@ -268,6 +281,36 @@ const dialPush = (ctx, action) => sdSend({ event: 'dialDown', action: P + action
     press('k1', 'next-step'); await wait(600);
     check('…y sus teclas ya no hacen nada', d.state.director.phase === ph);
     check('El coordinador deja de verlo', (await until(() => d.decks && d.decks.length === 0)) === true);
+
+    // ── El panel guarda la clave al pegarla (sin salir del campo), en un Edge de verdad ──
+    {
+        const cdp = require(path.join(REPO, 'tools', 'capturas-manual', 'cdp.js'));
+        const PIPORT = 3253, got = [];
+        const piWss = new WebSocket.Server({ port: PIPORT, host: '127.0.0.1' });
+        piWss.on('connection', (ws) => ws.on('message', (raw) => {
+            const m = JSON.parse(String(raw)); got.push(m);
+            if (m.event === 'getGlobalSettings') ws.send(JSON.stringify({ event: 'didReceiveGlobalSettings', payload: { settings: { server: B } } }));
+        }));
+        let edge = null;
+        try {
+            edge = await cdp.launch(path.join(require('os').tmpdir(), 'gameshow-edge-pi'));
+            const pg = await cdp.newPage();
+            await pg.go('file:///' + path.join(REPO, 'streamdeck', 'pi', 'index.html').replace(/\\/g, '/'), 800);
+            await pg.eval(`window.connectElgatoStreamDeckSocket('${PIPORT}', 'PI-UUID', 'registerPropertyInspector', '{}', JSON.stringify({ action: 'com.kopernico.gameshow.status', payload: { settings: {} } })); return 1;`);
+            await wait(600);
+            await pg.eval("document.getElementById('key').focus(); return 1;");
+            await pg.send('Input.insertText', { text: 'gsd_ClaveDePrueba1234567890abcdef' });
+            await wait(900);
+            const saved = got.filter(m => m.event === 'setGlobalSettings').pop();
+            const focused = await pg.eval("return document.activeElement && document.activeElement.id;");
+            check('El panel guarda la clave nada más pegarla (sin salir del campo)', saved && saved.payload.key === 'gsd_ClaveDePrueba1234567890abcdef' && saved.payload.server === B && focused === 'key' && saved.context === 'PI-UUID', saved && saved.payload);
+            await pg.eval("document.getElementById('check').click(); return 1;");
+            await wait(300);
+            const ask = got.filter(m => m.event === 'sendToPlugin').pop();
+            check('El botón «Comprobar conexión» se lo pide al complemento', ask && ask.payload.type === 'check');
+        } catch (e) { check('Panel de ajustes en Edge', false, e.message); }
+        finally { try { await cdp.closeAll(); } catch {} try { edge && edge.kill(); } catch {} piWss.close(); }
+    }
 
     pad.close(); d.close();
     try { plugin.kill(); } catch {}

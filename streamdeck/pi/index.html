@@ -18,6 +18,14 @@ input:focus, select:focus { outline: none; border-color: #2ea8ff; }
 .status.bad { background: #4a2020; color: #f4a3a3; }
 .note { font-size: 11px; color: #9a9a9a; line-height: 1.45; margin-top: 6px; }
 .hidden { display: none; }
+.keyrow { display: flex; gap: 6px; align-items: center; }
+.keyrow input { flex: 1; }
+.saved { font-size: 11px; color: #9fe8b4; min-width: 62px; }
+button { background: #3d3d3d; color: #eee; border: 1px solid #666; border-radius: 4px; padding: 6px 10px; font: inherit; cursor: pointer; }
+button:hover { border-color: #2ea8ff; }
+.check { width: 100%; margin-top: 8px; }
+.ver { font-size: 11px; color: #8a8a8a; margin-top: 10px; }
+.update { margin-top: 8px; padding: 7px 9px; border-radius: 5px; background: #1d3550; color: #a9d4ff; line-height: 1.4; }
 </style>
 </head>
 <body>
@@ -30,11 +38,14 @@ input:focus, select:focus { outline: none; border-color: #2ea8ff; }
 </select>
 <input id="srvUrl" class="hidden" placeholder="http://192.168.1.20:3000" style="margin-top:6px">
 <label for="key">Clave del Stream Deck</label>
-<input id="key" type="password" placeholder="gsd_… (backoffice › Descargas)" autocomplete="off">
+<div class="keyrow"><input id="key" type="password" placeholder="gsd_… (backoffice › Descargas)" autocomplete="off"><span class="saved" id="saved"></span></div>
+<button type="button" class="check" id="check">Comprobar conexión</button>
 <div class="status" id="status">Comprobando…</div>
+<div class="update hidden" id="update"></div>
 <div class="note">El juego que maneja se elige en el coordinador: botón «Stream Deck» › «Usar aquí».</div>
 
 <div id="opts"></div>
+<div class="ver" id="ver"></div>
 
 <script>
 var PROD = 'https://concurso-cf82.onrender.com', KIT = 'http://127.0.0.1:3000';
@@ -43,6 +54,13 @@ var $ = function(id) { return document.getElementById(id); };
 function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 function saveSettings() { send({ event: 'setSettings', context: uuid, payload: settings }); }
 function saveGlobals() { send({ event: 'setGlobalSettings', context: uuid, payload: globals }); }
+// Se guarda al escribir o pegar (antes solo al salir del campo: si se cerraba el panel, se perdía)
+var _saveT = null;
+function saveSoon(apply) {
+    clearTimeout(_saveT);
+    _saveT = setTimeout(function() { if (apply()) { saveGlobals(); flashSaved(); } }, 400);
+}
+function flashSaved() { var el = $('saved'); el.textContent = 'Guardada ✓'; clearTimeout(el._t); el._t = setTimeout(function() { el.textContent = ''; }, 2500); }
 
 // Opciones propias de cada acción
 var FORMS = {
@@ -106,8 +124,13 @@ function renderStatus() {
         : st.code === 'badkey' ? 'La clave no vale (¿la han anulado?). Crea otra en el backoffice › Descargas.'
         : st.code === 'nokey' ? 'Falta la clave: créala en el backoffice › Descargas y pégala aquí.'
         : 'Sin conexión con ' + (st.server || 'el servidor') + '. ¿Hay internet? ¿Está abierto el kit?';
-    el.textContent = txt;
+    el.textContent = (info.checked ? 'Comprobado: ' : '') + txt;
     el.className = 'status ' + (st.ok ? 'ok' : st.code === 'unpaired' || st.code === 'nokey' ? 'warn' : 'bad');
+    $('check').disabled = false; $('check').textContent = 'Comprobar conexión';
+    $('ver').textContent = info.version ? 'Complemento GameShow · versión ' + info.version : '';
+    var up = $('update');
+    up.classList.toggle('hidden', !info.update);
+    if (info.update) up.textContent = 'Hay una versión nueva del complemento (' + info.update + '). Descárgala en el backoffice › Descargas y ábrela con doble clic: se actualiza sin perder las teclas ni la clave.';
 }
 
 $('srv').addEventListener('change', function() {
@@ -118,8 +141,20 @@ $('srv').addEventListener('change', function() {
     else { $('srvUrl').focus(); return; }
     saveGlobals();
 });
-$('srvUrl').addEventListener('change', function() { var u = $('srvUrl').value.trim(); if (u) { globals.server = u; saveGlobals(); } });
-$('key').addEventListener('change', function() { globals.key = $('key').value.trim(); saveGlobals(); });
+function applyUrl() { var u = $('srvUrl').value.trim(); if (!u || u === globals.server) return false; globals.server = u; return true; }
+function applyKey() { var k = $('key').value.trim(); if (k === (globals.key || '')) return false; globals.key = k; return true; }
+['input', 'paste', 'change'].forEach(function(ev) {
+    $('srvUrl').addEventListener(ev, function() { saveSoon(applyUrl); });
+    $('key').addEventListener(ev, function() { saveSoon(applyKey); });
+});
+$('check').addEventListener('click', function() {
+    // Por si acaba de pegar la clave: se guarda ya, sin esperar
+    clearTimeout(_saveT);
+    if (applyKey() | applyUrl()) { saveGlobals(); flashSaved(); }
+    $('check').disabled = true; $('check').textContent = 'Comprobando…';
+    $('status').textContent = 'Comprobando la conexión…'; $('status').className = 'status';
+    send({ event: 'sendToPlugin', action: act, context: uuid, payload: { type: 'check' } });
+});
 
 window.connectElgatoStreamDeckSocket = function(port, inUuid, registerEvent, inInfo, actionInfo) {
     uuid = inUuid;

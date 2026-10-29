@@ -15,7 +15,7 @@ const SRC = path.join(REPO, 'streamdeck');
 const UUID = 'com.kopernico.gameshow';
 const OUT_DIR = path.join(REPO, 'tmp', 'streamdeck', UUID + '.sdPlugin');
 const DEST = path.join(REPO, 'public', 'descargas', 'GameShow.streamDeckPlugin');
-const VERSION = '1.0.0.0';
+const VERSION = '1.0.1.0'; // subirla en cada cambio: el programa Stream Deck lo ve como actualización y el panel avisa
 
 // Huella de todo lo que entra en el complemento (la prueba avisa si el archivo descargable está viejo)
 function sourcesHash() {
@@ -73,7 +73,7 @@ async function bundle() {
     await esbuild.build({
         entryPoints: [path.join(SRC, 'src', 'plugin.js')], bundle: true, platform: 'node', target: 'node20', format: 'cjs',
         outfile: path.join(OUT_DIR, 'bin', 'plugin.js'), external: ['bufferutil', 'utf-8-validate'], logLevel: 'warning',
-        legalComments: 'none',
+        legalComments: 'none', define: { __PLUGIN_VERSION__: JSON.stringify(VERSION) },
     });
 }
 

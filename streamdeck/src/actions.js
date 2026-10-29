@@ -185,7 +185,7 @@ K['volume'] = { name: 'Volumen + / −', icon: 'vol', group: 'Sonido', defaults:
 K['status'] = { name: 'Estado de la conexión', icon: 'link', group: 'Juego', tip: 'Qué juego maneja este Stream Deck',
     render: (c) => { const s = c.gs.summary();
         const tone = s.ok ? 'on' : s.code === 'unpaired' ? 'warn' : 'bad';
-        return key({ icon: s.ok ? 'link' : 'off', big: s.ok ? (s.gameName || 'Conectado') : s.title, small: s.ok ? 'Conectado' : s.hint, tone }); },
+        return key({ icon: s.ok ? 'link' : 'off', big: s.ok ? (s.gameName || 'Conectado') : s.title, small: s.ok ? (c.gs.update ? 'Versión nueva' : 'Conectado') : s.hint, tone }); },
     key: () => false };
 
 // ───────────────────────── Ruedas (Stream Deck +) ─────────────────────────

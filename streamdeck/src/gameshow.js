@@ -61,6 +61,12 @@ class GameShow extends EventEmitter {
         g.on('auth_required', () => this._set('unpaired'));
         g.on('disconnect', () => { if (this.code === 'ok') this._set('offline'); });
     }
+    // Volver a conectar desde cero (botón «Comprobar conexión» del panel)
+    reconnect() {
+        const s = this.server, k = this.key;
+        this.server = null; this.key = null;
+        this.configure(s, k);
+    }
     send(ev, data) {
         if (!this.game || !this.game.connected || !this.st) return false;
         data = Object.assign({}, data || {});
