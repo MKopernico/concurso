@@ -1318,9 +1318,13 @@ function showPhase(id) {
         outEl.style.opacity = '0';
     }
     setTimeout(function() {
+        // La fase que sale se quita de golpe: si su fundido no llegó a avanzar (pantalla ocupada
+        // cargando el fondo nuevo), volvería a fundirse 1 s más encima de la que entra
         document.querySelectorAll('.phase').forEach(function(el) {
+            el.style.transition = 'none';
             el.classList.remove('active');
             el.style.opacity = '';
+            void el.offsetHeight;
             el.style.transition = '';
         });
         if (inEl) {
@@ -2996,9 +3000,11 @@ function applyTheme(theme) {
     var resolved = GameShowShared.Theme.resolveBackground(theme, {}, null);
     paintBgLayer(resolved);
 
+    // Solo la imagen: si se ve o no lo decide renderScreenLobbyDefault. Mostrarlo aquí lo colaba
+    // encima del menú de categoría al lanzar una ronda (y empujaba las casillas hacia abajo).
     var logo = document.getElementById('gameLogo');
-    if (theme.logo) { logo.src = theme.logo; logo.style.display = ''; }
-    else { logo.style.display = 'none'; }
+    if (theme.logo) logo.src = theme.logo;
+    else logo.style.display = 'none';
 
     createParticles(theme.primaryColor || '#00d4ff');
 }
